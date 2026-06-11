@@ -1696,7 +1696,7 @@ function buildTSPL(data) {
     cmds.push(`TEXT ${textX},${y},"1",0,1,1,"${encoded}"`);
   });
 
-  cmds.push(`QRCODE ${qrX},${qrY},M,${qrCell},A,0,M2,S7,"${data.fullQR}"`);
+  cmds.push(`QRCODE ${qrX},${qrY},M,${qrCell},A,0,M2,S4,"${data.fullQR}"`);
   cmds.push('PRINT 1,1');
 
   return cmds.join('\r\n') + '\r\n';
