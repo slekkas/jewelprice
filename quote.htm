@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lekkas Jewelry — Your Quote</title>
+<meta name="description" content="View your personalized jewelry quote from Lekkas Jewelry, Karpathos.">
+<meta property="og:title" content="Lekkas Jewelry — Your Quote">
+<meta property="og:description" content="View your personalized jewelry price quote. Tap to open.">
+<meta property="og:site_name" content="Lekkas Jewelry · Fine Jewelry · Karpathos">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Lekkas Jewelry — Your Quote">
+<meta name="twitter:description" content="View your personalized jewelry price quote from Lekkas Jewelry, Karpathos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #fff;
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+  }
+
+  /* ── Loading ── */
+  #loading {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh; gap: 14px;
+  }
+  .spinner {
+    width: 32px; height: 32px; border: 2px solid #ddd;
+    border-top-color: #C9A84C; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: #aaa; font-size: 13px; letter-spacing: 1px; }
+
+  /* ── Error ── */
+  #error {
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh;
+    gap: 10px; color: #999; font-size: 13px; text-align: center; padding: 32px;
+  }
+  #error .err-icon { font-size: 40px; margin-bottom: 8px; }
+
+  /* ── Quote wrapper ── */
+  #quote-wrap { display: none; }
+
+  /* ── Top toolbar ── */
+  #toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid #f0ede8;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .tbtn {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 18px;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .tbtn:active { opacity: 0.7; }
+  #btn-share { background: #1a1710; color: #C9A84C; border: 1px solid #C9A84C; }
+  #btn-pdf   { background: #C9A84C; color: #1a1710; border: none; }
+
+  /* ── Quote content ── */
+  #quote-content {
+    width: 100%;
+    background: #fff;
+  }
+
+  #quote-inner {
+    padding: 16px 16px 60px;
+  }
+
+  @media print {
+    body { background: #fff; }
+    #toolbar { display: none !important; }
+    #quote-inner { max-width: 100%; padding: 0; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span class="loading-text">Loading quote…</span>
+</div>
+
+<div id="error">
+  <div class="err-icon">✦</div>
+  <strong style="font-family:'Cormorant Garamond',serif;font-size:22px;color:#555;">Quote not found</strong>
+  <span id="error-msg" style="color:#aaa;margin-top:4px;">This link may be invalid or the quote was deleted.</span>
+</div>
+
+<div id="quote-wrap">
+  <div id="toolbar">
+    <button class="tbtn" id="btn-share" onclick="shareQuote()">↗ Share</button>
+    <button class="tbtn" id="btn-pdf" onclick="savePDF()">⬇ Save PDF</button>
+  </div>
+
+  <div id="quote-content">
+    <div id="quote-inner"></div>
+  </div>
+</div>
+
+<script>
+(async function() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  const db = params.get('db');
+  const secret = params.get('secret') || '';
+
+  if (!id || !db) { showError('Missing quote ID or database URL.'); return; }
+
+  const base = db.replace(/\/+$/, '');
+
+  // Build authenticated Firebase URL
+  function fbUrl(path) {
+    return secret ? base + path + (path.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(secret) : base + path;
+  }
+
+  // Try fetching the dedicated HTML record, retrying up to 10x with 1s delay
+  // (handles race condition where share fires before Firebase save completes)
+  async function fetchHtmlRecord() {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000));
+      try {
+        const resp = await fetch(fbUrl('/jewelprice_quotes_html/' + id + '.json') + (secret ? '&t=' : '?t=') + Date.now(), { cache: 'no-store' });
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        if (data && data.html) return data;
+      } catch(e) {}
+    }
+    return null;
+  }
+
+  // Fallback: scan main quotes array for this id (supports old quotes)
+  async function fetchFromArray() {
+    try {
+      const resp = await fetch(fbUrl('/jewelprice_quotes.json') + (secret ? '&t=' : '?t=') + Date.now(), { cache: 'no-store' });
+      if (!resp.ok) return null;
+      const quotes = await resp.json();
+      if (!Array.isArray(quotes)) return null;
+      const q = quotes.find(q => String(q.id) === String(id));
+      if (q && q.html) return { html: q.html, title: q.title, date: q.date };
+      return null;
+    } catch(e) { return null; }
+  }
+
+  try {
+    // Try dedicated record first (fast), then fall back to array
+    let data = await fetchHtmlRecord();
+    if (!data) data = await fetchFromArray();
+    if (!data) { showError('Quote not found. It may still be saving — please try again in a moment.'); return; }
+
+    document.title = (data.title || 'Quote') + ' — Lekkas Jewelry';
+
+    const inner = document.getElementById('quote-inner');
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.html, 'text/html');
+    const styleEl = doc.querySelector('style');
+    if (styleEl) {
+      const s = document.createElement('style');
+      s.textContent = styleEl.textContent;
+      document.head.appendChild(s);
+    }
+    // Override the quote's print-optimised body padding/max-width for screen display
+    const overrideStyle = document.createElement('style');
+    overrideStyle.textContent = 'body { padding: 0 !important; max-width: 100% !important; } @page { margin: 10mm 18mm; }';
+    document.head.appendChild(overrideStyle);
+    const body = doc.body;
+    while (body.firstChild) inner.appendChild(document.adoptNode(body.firstChild));
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('quote-wrap').style.display = 'block';
+
+  } catch(e) {
+    showError('Could not load quote: ' + e.message);
+  }
+})();
+
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('error').style.display = 'flex';
+}
+
+function savePDF() {
+  // In-app browsers (Messenger, WhatsApp etc.) block window.print().
+  // Detect and redirect to real Chrome where print works.
+  const ua = navigator.userAgent;
+  const isInApp = /FBAN|FBAV|Instagram|WhatsApp|Messenger|MicroMessenger|Line|Twitter/i.test(ua);
+  if (isInApp) {
+    // Open this same URL in Chrome
+    const url = window.location.href;
+    // Android intent to open in Chrome
+    const intent = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+    window.location.href = intent;
+    // Fallback after 1s if intent didn't work
+    setTimeout(function() {
+      window.open(url, '_system') || (window.location.href = url);
+    }, 1000);
+  } else {
+    window.print();
+  }
+}
+function shareQuote() {
+  if (navigator.share) {
+    navigator.share({ title: document.title, url: window.location.href }).catch(function(){});
+  } else {
+    navigator.clipboard && navigator.clipboard.writeText(window.location.href).then(function() {
+      const btn = document.getElementById('btn-share');
+      btn.textContent = '✓ Copied';
+      setTimeout(function() { btn.textContent = '↗ Share'; }, 2000);
+    });
+  }
+}
+
+function buildFallbackCard(q) {
+  const cur = q.currency || '€';
+  return `
+    <div style="font-family:'DM Mono',monospace;">
+      <div style="border-bottom:2px solid #C9A84C;padding-bottom:16px;margin-bottom:20px;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:28px;letter-spacing:2px;color:#0E0C08;">
+          LEKKAS <span style="color:#C9A84C;">JEWELRY</span>
+        </div>
+        <div style="font-size:8px;letter-spacing:5px;color:#aaa;margin-top:4px;">FINE JEWELRY · KARPATHOS</div>
+      </div>
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:20px;">${q.title || 'Quote'}</h2>
+      ${q.customer ? `<p style="color:#888;font-size:12px;margin-bottom:16px;">For: ${q.customer}</p>` : ''}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;"><span style="color:#888;">Metal</span><span>${q.metal||'—'}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;"><span style="color:#888;">Weight</span><span>${q.weight||'—'} g</span></div>
+      <div style="margin-top:20px;padding:16px;background:#fafafa;border:1px solid #eee;border-radius:4px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;padding-bottom:8px;">
+          <span>Price excl. VAT</span><span>${cur}${(q.preVat||0).toFixed(2)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;padding-bottom:12px;border-bottom:2px solid #C9A84C;">
+          <span>VAT ${q.vat||0}%</span><span>${cur}${(q.vatAmount||0).toFixed(2)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;">
+          <span style="font-size:14px;font-weight:500;">Final Price</span>
+          <span style="font-family:'Cormorant Garamond',serif;font-size:34px;color:#C9A84C;">${cur}${(q.finalPrice||0).toFixed(2)}</span>
+        </div>
+      </div>
+      <p style="margin-top:20px;font-size:10px;color:#ccc;text-align:center;">${q.date||''} · Lekkas Jewelry, Karpathos · +30 694 789 1151</p>
+    </div>`;
+}
+</script>
+</body>
+</html>
