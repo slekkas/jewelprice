@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lekkas Jewelry — Private Showroom</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap');
+
+  :root {
+    --gold:        #C9A84C;
+    --gold-light:  #E8C97A;
+    --gold-dim:    #8C7E60;
+    --ink:         #0E0C08;
+    --surface:     #131108;
+    --surface-2:   #1C1A10;
+    --surface-3:   #252210;
+    --border:      rgba(201,168,76,0.18);
+    --border-soft: rgba(201,168,76,0.08);
+    --text:        #F0EAD6;
+    --text-dim:    #8C7E60;
+    --text-muted:  #5A5240;
+    --radius:      3px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── LOCK SCREEN ─────────────────────────────────────────────────────────── */
+  #lockScreen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: var(--ink);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 24px;
+    gap: 32px;
+  }
+  .lock-logo { text-align: center; }
+  .lock-wordmark {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(28px, 6vw, 44px);
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    color: var(--gold-light);
+    text-transform: uppercase;
+  }
+  .lock-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+  .lock-divider {
+    width: 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 16px auto 0;
+  }
+  .lock-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px 28px;
+    width: 100%; max-width: 360px;
+    text-align: center;
+  }
+  .lock-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+  .lock-input {
+    width: 100%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    letter-spacing: 0.2em;
+    text-align: center;
+    padding: 14px 16px;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+  .lock-input:focus { border-color: var(--gold); }
+  .lock-input.error { border-color: #c0392b; animation: shake 0.35s; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)}
+  }
+  .lock-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: var(--radius);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.2s;
+  }
+  .lock-btn:hover { opacity: 0.88; }
+  .lock-error {
+    font-size: 12px; color: #c0392b;
+    letter-spacing: 0.05em;
+    margin-top: 10px;
+    min-height: 18px;
+    transition: opacity 0.2s;
+  }
+
+  /* ─── HEADER ──────────────────────────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(14,12,8,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+  }
+  .header-logo {
+    cursor: pointer;
+    display: flex; align-items: center; gap: 0;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .lang-toggle {
+    display: flex; gap: 6px; align-items: center;
+    flex-shrink: 0;
+  }
+  .lang-btn {
+    background: none; border: none; cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em;
+    color: var(--text-muted);
+    padding: 4px 8px; border-radius: 2px;
+    transition: color 0.2s, background 0.2s;
+    text-transform: uppercase;
+  }
+  .lang-btn.active { color: var(--gold); background: rgba(201,168,76,0.1); }
+
+  /* ─── HERO ────────────────────────────────────────────────────────────────── */
+  .hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-soft);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.35em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(32px, 6vw, 58px);
+    font-weight: 300;
+    line-height: 1.1;
+    color: var(--gold-light);
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .hero-title em { font-style: italic; color: var(--text); }
+  .hero-desc {
+    font-size: 14px; line-height: 1.7;
+    color: var(--text-dim);
+    max-width: 480px; margin: 0 auto 28px;
+    letter-spacing: 0.03em;
+  }
+  .hero-rule {
+    width: 80px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 0 auto;
+  }
+
+  /* ─── FILTERS ─────────────────────────────────────────────────────────────── */
+  .filters-bar {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  .filter-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+  .filter-chip {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-transform: uppercase;
+  }
+  .filter-chip.active {
+    background: rgba(201,168,76,0.12);
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+  .filter-chip:hover:not(.active) {
+    border-color: var(--gold-dim);
+    color: var(--text);
+  }
+  .filter-sep {
+    width: 1px; height: 18px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .filter-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  /* ─── GRID ────────────────────────────────────────────────────────────────── */
+  .grid-wrap {
+    padding: 32px 20px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+
+  /* ─── ITEM CARD ───────────────────────────────────────────────────────────── */
+  .item-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .item-card:hover {
+    border-color: var(--border);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .item-card.selected {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px var(--gold), 0 8px 32px rgba(201,168,76,0.15);
+  }
+  .card-img {
+    width: 100%; aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+    background: var(--surface-3);
+  }
+  .card-img-placeholder {
+    width: 100%; aspect-ratio: 1;
+    background: var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 32px;
+  }
+  .card-body { padding: 14px 14px 16px; }
+  .card-type {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .card-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 16px; font-weight: 400;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .card-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px; letter-spacing: 0.12em;
+    color: var(--gold-dim);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 1px;
+    padding: 2px 6px;
+    text-transform: uppercase;
+  }
+  .card-tag.handmade { color: #a8d8a0; border-color: rgba(168,216,160,0.3); }
+  .card-select-badge {
+    position: absolute; top: 10px; right: 10px;
+    width: 28px; height: 28px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.18s;
+    pointer-events: none;
+  }
+  .item-card.selected .card-select-badge { opacity: 1; }
+  .card-select-badge svg { width: 14px; height: 14px; fill: var(--ink); }
+
+  /* ─── EMPTY / LOADING ─────────────────────────────────────────────────────── */
+  .state-msg {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    grid-column: 1 / -1;
+  }
+  .state-msg .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold-dim);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── SELECTION BAR ───────────────────────────────────────────────────────── */
+  .selection-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: rgba(19,17,8,0.97);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--gold);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .selection-bar.visible { transform: translateY(0); }
+  .sel-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em;
+    color: var(--gold);
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .sel-clear {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 8px 14px; border-radius: var(--radius);
+    cursor: pointer; transition: all 0.18s;
+  }
+  .sel-clear:hover { border-color: var(--text-muted); color: var(--text); }
+  .sel-inquire {
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: var(--radius);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 10px 20px;
+    cursor: pointer; font-weight: 500;
+    transition: opacity 0.2s;
+  }
+  .sel-inquire:hover { opacity: 0.85; }
+
+  /* ─── LIGHTBOX ────────────────────────────────────────────────────────────── */
+  .lightbox {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(8,7,4,0.97);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 0;
+    overflow-y: auto;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox-header {
+    width: 100%; padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border-soft);
+    flex-shrink: 0;
+  }
+  .lb-close {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: var(--radius);
+    width: 36px; height: 36px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; transition: all 0.18s;
+  }
+  .lb-close:hover { border-color: var(--text-dim); color: var(--text); }
+  .lb-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18px; font-weight: 400;
+    color: var(--text);
+  }
+  .lb-actions { display: flex; gap: 8px; }
+  .lb-select-btn {
+    border: 1px solid var(--gold);
+    background: none; color: var(--gold);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 16px; border-radius: var(--radius);
+    cursor: pointer; transition: all 0.18s;
+  }
+  .lb-select-btn.selected-state {
+    background: rgba(201,168,76,0.15);
+  }
+  .lb-select-btn:hover { background: rgba(201,168,76,0.1); }
+  .lightbox-body {
+    width: 100%; max-width: 560px;
+    padding: 24px 20px 40px;
+    flex: 1;
+  }
+  .lb-img {
+    width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 2px;
+    display: block;
+    margin-bottom: 24px;
+    background: var(--surface-3);
+  }
+  .lb-detail-row {
+    display: flex; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+  }
+  .lb-detail-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    padding-top: 1px;
+    flex-shrink: 0;
+    margin-right: 16px;
+  }
+  .lb-detail-val {
+    color: var(--text);
+    font-size: 13px;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .lb-stones {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .lb-stones-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* ─── INQUIRY MODAL ───────────────────────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 600;
+    background: rgba(8,7,4,0.95);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 24px 16px 60px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    width: 100%; max-width: 520px;
+    padding: 32px 28px;
+    margin: auto;
+  }
+  .modal-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.25em;
+    color: var(--gold-dim); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .modal-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 26px; font-weight: 400;
+    color: var(--gold-light);
+    margin-bottom: 6px;
+  }
+  .modal-subtitle {
+    font-size: 13px; color: var(--text-muted);
+    line-height: 1.6; margin-bottom: 24px;
+    letter-spacing: 0.02em;
+  }
+  .modal-selection {
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 24px;
+  }
+  .modal-sel-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .modal-sel-item {
+    font-size: 13px; color: var(--text-dim);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .modal-sel-item:last-child { border-bottom: none; }
+  .modal-sel-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--gold-dim);
+    flex-shrink: 0;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .form-input, .form-textarea {
+    width: 100%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 300;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .form-input:focus, .form-textarea:focus { border-color: var(--gold); }
+  .form-textarea { resize: vertical; min-height: 100px; }
+  .form-submit {
+    width: 100%;
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: var(--radius);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 15px;
+    cursor: pointer; font-weight: 500;
+    transition: opacity 0.2s;
+    margin-top: 8px;
+  }
+  .form-submit:hover { opacity: 0.85; }
+  .form-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .modal-cancel {
+    width: 100%; margin-top: 10px;
+    background: none; border: none;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer; padding: 8px;
+    transition: color 0.18s;
+  }
+  .modal-cancel:hover { color: var(--text); }
+  .form-status {
+    text-align: center;
+    font-size: 13px;
+    padding: 12px;
+    border-radius: var(--radius);
+    margin-top: 14px;
+    letter-spacing: 0.03em;
+    display: none;
+  }
+  .form-status.success {
+    display: block;
+    background: rgba(168,216,160,0.1);
+    border: 1px solid rgba(168,216,160,0.25);
+    color: #a8d8a0;
+  }
+  .form-status.error {
+    display: block;
+    background: rgba(192,57,43,0.1);
+    border: 1px solid rgba(192,57,43,0.25);
+    color: #e07060;
+  }
+
+  /* ─── FOOTER ──────────────────────────────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 32px 24px 48px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    line-height: 1.8;
+  }
+  footer a { color: var(--gold-dim); text-decoration: none; }
+  footer a:hover { color: var(--gold); }
+
+  /* ─── RESPONSIVE ──────────────────────────────────────────────────────────── */
+  @media (max-width: 480px) {
+    .filters-bar { gap: 6px; }
+    .item-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .modal-box { padding: 24px 18px; }
+    header { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── LOCK SCREEN ─────────────────────────────────────────────────────────── -->
+<div id="lockScreen">
+  <div class="lock-logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" height="48" style="display:block;margin:0 auto 10px">
+      <defs>
+        <linearGradient id="dg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#E8C97A"/>
+          <stop offset="100%" style="stop-color:#A8882A"/>
+        </linearGradient>
+        <linearGradient id="gg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#F5EDD6"/>
+          <stop offset="100%" style="stop-color:#C9A84C"/>
+        </linearGradient>
+      </defs>
+      <g transform="translate(40,40)">
+        <rect x="-26" y="-26" width="52" height="52" rx="4" transform="rotate(45)" fill="url(#dg2)"/>
+        <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
+        <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+        <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+        <circle cx="10" cy="-12" r="6" fill="url(#gg2)" opacity="0.9"/>
+        <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
+        <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+      </g>
+      <text x="82" y="45" font-family="Georgia,'Times New Roman',serif" font-size="32" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
+      <text x="84" y="62" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
+      <line x1="82" y1="53" x2="296" y2="53" stroke="#C9A84C" stroke-width="0.5" opacity="0.4"/>
+    </svg>
+    <div class="lock-wordmark" data-i18n="Private Showroom|Ιδιωτικό Showroom">Private Showroom</div>
+    <div class="lock-divider"></div>
+    <div class="lock-sub" data-i18n="Karpathos, Greece|Κάρπαθος, Ελλάδα">Karpathos, Greece</div>
+  </div>
+  <div class="lock-card">
+    <p data-i18n="This is a private collection preview. Please enter the access code you received.|Αυτή είναι μια ιδιωτική προεπισκόπηση συλλογής. Εισάγετε τον κωδικό πρόσβασης που λάβατε.">This is a private collection preview. Please enter the access code you received.</p>
+    <input type="password" id="passwordInput" class="lock-input"
+           placeholder="· · · · · ·"
+           autocomplete="off"
+           onkeydown="if(event.key==='Enter') checkPassword()">
+    <button class="lock-btn" onclick="checkPassword()" data-i18n="Enter|Είσοδος">Enter</button>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
+<!-- ─── MAIN CONTENT (hidden until unlocked) ──────────────────────────────── -->
+<div id="mainContent" style="display:none">
+
+  <header>
+    <a class="header-logo" href="https://slekkas.github.io/jewelprice" title="JewelPrice Pro">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" height="28" style="display:block">
+        <defs>
+          <linearGradient id="dg3" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#E8C97A"/>
+            <stop offset="100%" style="stop-color:#A8882A"/>
+          </linearGradient>
+          <linearGradient id="gg3" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#F5EDD6"/>
+            <stop offset="100%" style="stop-color:#C9A84C"/>
+          </linearGradient>
+        </defs>
+        <g transform="translate(40,40)">
+          <rect x="-26" y="-26" width="52" height="52" rx="4" transform="rotate(45)" fill="url(#dg3)"/>
+          <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
+          <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+          <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="10" cy="-12" r="6" fill="url(#gg3)" opacity="0.9"/>
+          <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
+          <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+        </g>
+        <text x="82" y="50" font-family="Georgia,'Times New Roman',serif" font-size="36" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
+        <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
+        <line x1="82" y1="57" x2="304" y2="57" stroke="#C9A84C" stroke-width="0.5" opacity="0.4"/>
+      </svg>
+    </a>
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btnEN" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="btnEL" onclick="setLang('el')">ΕΛ</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-eyebrow" data-i18n="Handcrafted · Karpathos · Greece|Χειροποίητα · Κάρπαθος · Ελλάδα">Handcrafted · Karpathos · Greece</div>
+    <h1 class="hero-title" data-i18n="Our <em>Collection</em>|Η <em>Συλλογή</em> μας">Our <em>Collection</em></h1>
+    <p class="hero-desc" data-i18n="Browse our current inventory of fine jewelry. Select the pieces that interest you and send us an inquiry — we'll get back to you personally.|Περιηγηθείτε στο τρέχον απόθεμά μας. Επιλέξτε τα κοσμήματα που σας ενδιαφέρουν και στείλτε μας ένα αίτημα — θα επικοινωνήσουμε μαζί σας προσωπικά.">Browse our current inventory of fine jewelry. Select the pieces that interest you and send us an inquiry — we'll get back to you personally.</p>
+    <div class="hero-rule"></div>
+  </section>
+
+  <div class="filters-bar" id="filtersBar">
+    <!-- populated by JS -->
+  </div>
+
+  <div class="grid-wrap">
+    <div class="item-grid" id="itemGrid">
+      <div class="state-msg"><div class="spinner"></div><span data-i18n="Loading collection…|Φόρτωση συλλογής…">Loading collection…</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <div>Lekkas Jewelry &mdash; Pigadia, Karpathos 857 00, Greece</div>
+    <div style="margin-top:4px">
+      <a href="tel:+306947891151">+30 694 789 1151</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://maps.app.goo.gl/aqePd3XmXfnpG5h87" target="_blank" data-i18n="View on Maps|Χάρτης">View on Maps</a>
+    </div>
+  </footer>
+
+</div><!-- /mainContent -->
+
+<!-- ─── SELECTION BAR ───────────────────────────────────────────────────────── -->
+<div class="selection-bar" id="selectionBar">
+  <span class="sel-count" id="selCount"></span>
+  <button class="sel-clear" onclick="clearSelection()" data-i18n="Clear|Καθαρισμός">Clear</button>
+  <button class="sel-inquire" onclick="openInquiry()" data-i18n="Send Inquiry|Αποστολή Αιτήματος">Send Inquiry</button>
+</div>
+
+<!-- ─── LIGHTBOX ────────────────────────────────────────────────────────────── -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-header">
+    <button class="lb-close" onclick="closeLightbox()">×</button>
+    <span class="lb-title" id="lbTitle"></span>
+    <div class="lb-actions">
+      <button class="lb-select-btn" id="lbSelectBtn" onclick="toggleFromLightbox()"></button>
+    </div>
+  </div>
+  <div class="lightbox-body" id="lightboxBody"></div>
+</div>
+
+<!-- ─── INQUIRY MODAL ───────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="inquiryModal">
+  <div class="modal-box">
+    <div class="modal-eyebrow" data-i18n="Private Showroom|Ιδιωτικό Showroom">Private Showroom</div>
+    <div class="modal-title" data-i18n="Send Inquiry|Αποστολή Αιτήματος">Send Inquiry</div>
+    <div class="modal-subtitle" data-i18n="We'll contact you personally to discuss availability and details.|Θα επικοινωνήσουμε μαζί σας προσωπικά για να συζητήσουμε τη διαθεσιμότητα και τις λεπτομέρειες.">We'll contact you personally to discuss availability and details.</div>
+    <div class="modal-selection" id="modalSelection"></div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="Your Name|Το Όνομά σας">Your Name</label>
+      <input type="text" class="form-input" id="inqName" autocomplete="name">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="Email Address|Διεύθυνση Email">Email Address</label>
+      <input type="email" class="form-input" id="inqEmail" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="Message (optional)|Μήνυμα (προαιρετικό)">Message (optional)</label>
+      <textarea class="form-textarea" id="inqMessage" data-i18n-ph="Any specific questions, preferences, or sizing info…|Ειδικές ερωτήσεις, προτιμήσεις ή μέγεθος…"></textarea>
+    </div>
+    <button class="form-submit" id="submitBtn" onclick="submitInquiry()" data-i18n="Send Inquiry|Αποστολή Αιτήματος">Send Inquiry</button>
+    <button class="modal-cancel" onclick="closeInquiry()" data-i18n="Cancel|Ακύρωση">Cancel</button>
+    <div class="form-status" id="formStatus"></div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────────
+const SHOWROOM_PASSWORD = 'lekkas2025';   // ← change this whenever you like
+const FIREBASE_URL      = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
+const DB_SECRET         = 'iZuYHo21LPx6T0UhRd1rXlmI49DaTVJO3JeLzRaJ';            // ← paste Firebase secret here (same as in index.htm Sync tab)
+const EMAILJS_SERVICE   = 'service_hnnyy5h';   // ← fill after EmailJS setup
+const EMAILJS_TEMPLATE  = 'template_d31sgws';  // ← fill after EmailJS setup
+const EMAILJS_PUBLIC    = 'NiGGzsEeq15508VzX';   // ← fill after EmailJS setup
+
+// ─── STATE ─────────────────────────────────────────────────────────────────────
+let lang       = 'en';
+let allItems   = [];
+let filtered   = [];
+let selected   = new Set();   // firebase keys
+let activeFilters = { type: 'all', gender: 'all', metal: 'all', handmade: 'all' };
+let lightboxKey = null;
+
+// ─── I18N ──────────────────────────────────────────────────────────────────────
+function t(key) {
+  if (!key) return '';
+  const parts = key.split('|');
+  return lang === 'el' ? (parts[1] || parts[0]) : parts[0];
+}
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.innerHTML = t(key);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-ph'));
+  });
+  document.getElementById('btnEN').classList.toggle('active', lang === 'en');
+  document.getElementById('btnEL').classList.toggle('active', lang === 'el');
+  renderFilters();
+  renderGrid();
+  updateSelBar();
+}
+
+function setLang(l) {
+  lang = l;
+  applyLang();
+}
+
+// ─── PASSWORD ──────────────────────────────────────────────────────────────────
+function checkPassword() {
+  const val = document.getElementById('passwordInput').value;
+  if (val === SHOWROOM_PASSWORD) {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    loadInventory();
+  } else {
+    const inp = document.getElementById('passwordInput');
+    const err = document.getElementById('lockError');
+    inp.classList.add('error');
+    err.textContent = lang === 'el' ? 'Λάθος κωδικός. Δοκιμάστε ξανά.' : 'Incorrect password. Please try again.';
+    setTimeout(() => inp.classList.remove('error'), 400);
+    inp.value = '';
+  }
+}
+
+// ─── FIREBASE ──────────────────────────────────────────────────────────────────
+async function loadInventory() {
+  try {
+    const auth  = DB_SECRET ? `?auth=${DB_SECRET}` : '';
+    const url   = `${FIREBASE_URL}/jewelprice_inventory.json${auth}`;
+    const resp  = await fetch(url);
+    if (!resp.ok) throw new Error('Firebase error ' + resp.status);
+    const data  = await resp.json();
+    if (!data) { allItems = []; renderGrid(); return; }
+
+    allItems = Object.entries(data)
+      .map(([k, v]) => ({ _key: k, ...v }))
+      .filter(item =>
+        item.status === 'in_stock' &&
+        !item.isBulk &&
+        item.photoUrl
+      )
+      .sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+
+    renderFilters();
+    applyFilters();
+  } catch (e) {
+    document.getElementById('itemGrid').innerHTML =
+      `<div class="state-msg" style="color:#c0392b">${lang === 'el' ? 'Σφάλμα φόρτωσης. Ελέγξτε τη σύνδεση.' : 'Failed to load. Check your connection.'}</div>`;
+  }
+}
+
+// ─── FILTERS ───────────────────────────────────────────────────────────────────
+function getLabel(item) {
+  return (lang === 'el' ? item.descEl : item.descEn) || item.description || item.descEl || item.descEn || '—';
+}
+
+function renderFilters() {
+  const bar = document.getElementById('filtersBar');
+
+  // Collect distinct values
+  const types   = [...new Set(allItems.map(i => i.jewelryType).filter(Boolean))].sort();
+  const genders = [...new Set(allItems.map(i => i.gender).filter(Boolean))];
+  const metals  = [...new Set(allItems.map(i => i.metal).filter(Boolean))];
+  const hasHandmade = allItems.some(i => i.handmade);
+
+  const genderLabel = { women: lang==='el'?'Γυναικεία':'Women', men: lang==='el'?'Ανδρικά':'Men', children: lang==='el'?'Παιδικά':'Children', unisex: lang==='el'?'Unisex':'Unisex' };
+  const metalLabel  = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
+
+  let html = `<span class="filter-label">${lang==='el'?'Φίλτρα':'Filter'}</span>`;
+
+  // All
+  html += chip('type','all', lang==='el'?'Όλα':'All');
+
+  if (types.length > 1) {
+    html += `<span class="filter-sep"></span>`;
+    types.forEach(tp => html += chip('type', tp, tp));
+  }
+  if (genders.length > 1) {
+    html += `<span class="filter-sep"></span>`;
+    genders.forEach(g => html += chip('gender', g, genderLabel[g]||g));
+  }
+  if (metals.length > 1) {
+    html += `<span class="filter-sep"></span>`;
+    metals.forEach(m => html += chip('metal', m, metalLabel[m]||m));
+  }
+  if (hasHandmade) {
+    html += `<span class="filter-sep"></span>`;
+    html += chip('handmade','yes', lang==='el'?'✦ Χειροποίητα':'✦ Handmade');
+  }
+
+  bar.innerHTML = html;
+}
+
+function chip(axis, val, label) {
+  const active = activeFilters[axis] === val ? 'active' : '';
+  return `<button class="filter-chip ${active}" onclick="setFilter('${axis}','${val}')">${label}</button>`;
+}
+
+function setFilter(axis, val) {
+  // Tapping the already-active filter deselects it back to 'all'
+  if (activeFilters[axis] === val && val !== 'all') {
+    activeFilters[axis] = 'all';
+  } else {
+    activeFilters[axis] = val;
+  }
+  applyFilters();
+  renderFilters();
+}
+
+function applyFilters() {
+  filtered = allItems.filter(item => {
+    if (activeFilters.type !== 'all' && item.jewelryType !== activeFilters.type) return false;
+    if (activeFilters.gender !== 'all' && item.gender !== activeFilters.gender) return false;
+    if (activeFilters.metal !== 'all' && item.metal !== activeFilters.metal) return false;
+    if (activeFilters.handmade === 'yes' && !item.handmade) return false;
+    return true;
+  });
+  renderGrid();
+}
+
+// ─── GRID ──────────────────────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('itemGrid');
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="state-msg">${lang==='el'?'Δεν βρέθηκαν αντικείμενα με αυτά τα φίλτρα.':'No items match the selected filters.'}</div>`;
+    return;
+  }
+
+  const metalLabel = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
+
+  grid.innerHTML = filtered.map(item => {
+    const sel  = selected.has(item._key) ? 'selected' : '';
+    const name = getLabel(item);
+    const tags = [];
+    if (item.metal && item.metal !== 'other') {
+      const k = item.karat ? item.karat.replace(/s$/,'') : '';
+      tags.push(`<span class="card-tag">${metalLabel[item.metal]||item.metal}${k?' '+k:''}</span>`);
+    }
+    if (item.jewelryType) tags.push(`<span class="card-tag">${item.jewelryType}</span>`);
+    if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
+
+    return `
+    <div class="item-card ${sel}" onclick="openLightbox('${item._key}')">
+      <img class="card-img" src="${item.photoUrl}" alt="${name}" loading="lazy"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="card-img-placeholder" style="display:none">💎</div>
+      <div class="card-body">
+        <div class="card-type">${item.jewelryType||''}</div>
+        <div class="card-name">${name}</div>
+        <div class="card-tags">${tags.join('')}</div>
+      </div>
+      <div class="card-select-badge">
+        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── SELECTION ─────────────────────────────────────────────────────────────────
+function toggleSelect(key) {
+  if (selected.has(key)) selected.delete(key);
+  else selected.add(key);
+  updateSelBar();
+  renderGrid();
+}
+
+function clearSelection() {
+  selected.clear();
+  updateSelBar();
+  renderGrid();
+}
+
+function updateSelBar() {
+  const bar = document.getElementById('selectionBar');
+  const cnt = selected.size;
+  if (cnt === 0) {
+    bar.classList.remove('visible');
+  } else {
+    bar.classList.add('visible');
+    document.getElementById('selCount').textContent =
+      lang==='el' ? `${cnt} επιλεγμένα` : `${cnt} selected`;
+    document.getElementById('selectionBar').querySelector('[data-i18n]').forEach?.(el => {});
+    document.querySelector('.sel-clear').textContent = lang==='el'?'Καθαρισμός':'Clear';
+    document.querySelector('.sel-inquire').textContent = lang==='el'?'Αποστολή Αιτήματος':'Send Inquiry';
+  }
+}
+
+// ─── LIGHTBOX ──────────────────────────────────────────────────────────────────
+function openLightbox(key) {
+  const item = allItems.find(i => i._key === key);
+  if (!item) return;
+  lightboxKey = key;
+
+  const name = getLabel(item);
+  document.getElementById('lbTitle').textContent = name;
+
+  const isSel = selected.has(key);
+  const btn = document.getElementById('lbSelectBtn');
+  btn.textContent = isSel ? (lang==='el'?'✓ Επιλεγμένο':'✓ Selected') : (lang==='el'?'Επιλογή':'Select');
+  btn.classList.toggle('selected-state', isSel);
+
+  const metalLabel = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
+  const genderLabel = { women: lang==='el'?'Γυναικεία':'Women', men: lang==='el'?'Ανδρικά':'Men', children: lang==='el'?'Παιδικά':'Children', unisex: 'Unisex' };
+
+  let rows = '';
+  if (item.jewelryType) rows += row(lang==='el'?'Τύπος':'Type', item.jewelryType);
+  if (item.metal && item.metal !== 'other') {
+    const k = item.karat ? item.karat.replace(/s$/,'') : '';
+    rows += row(lang==='el'?'Μέταλλο':'Metal', `${metalLabel[item.metal]||item.metal}${k?' · '+k:''}`);
+    if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g');
+  }
+  if (item.gender) rows += row(lang==='el'?'Φύλο':'For', genderLabel[item.gender]||item.gender);
+  if (item.handmade) rows += row(lang==='el'?'Χειροποίητο':'Handmade', '✦');
+  if (item.vendorName && item.vendorName !== 'handmade') rows += row(lang==='el'?'Δημιουργός':'Creator', item.vendorName);
+
+  let stonesHtml = '';
+  if (item.stonesDesc) {
+    stonesHtml = `<div class="lb-stones">
+      <div class="lb-stones-label">${lang==='el'?'Πέτρες':'Stones'}</div>
+      ${item.stonesDesc}
+    </div>`;
+  }
+
+  document.getElementById('lightboxBody').innerHTML = `
+    <img class="lb-img" src="${item.photoUrl}" alt="${name}"
+         onerror="this.style.background='#252210';this.src=''">
+    ${rows}
+    ${stonesHtml}
+  `;
+
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function row(key, val) {
+  return `<div class="lb-detail-row">
+    <span class="lb-detail-key">${key}</span>
+    <span class="lb-detail-val">${val}</span>
+  </div>`;
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+  lightboxKey = null;
+}
+
+function toggleFromLightbox() {
+  if (!lightboxKey) return;
+  toggleSelect(lightboxKey);
+  const isSel = selected.has(lightboxKey);
+  const btn = document.getElementById('lbSelectBtn');
+  btn.textContent = isSel ? (lang==='el'?'✓ Επιλεγμένο':'✓ Selected') : (lang==='el'?'Επιλογή':'Select');
+  btn.classList.toggle('selected-state', isSel);
+}
+
+// ─── INQUIRY MODAL ─────────────────────────────────────────────────────────────
+function openInquiry() {
+  // Build selection list
+  const items = [...selected].map(k => allItems.find(i => i._key === k)).filter(Boolean);
+  const selHtml = `
+    <div class="modal-sel-label">${lang==='el'?'Επιλεγμένα κοσμήματα':'Selected pieces'} (${items.length})</div>
+    ${items.map(i => `<div class="modal-sel-item"><span class="modal-sel-dot"></span>${getLabel(i)}</div>`).join('')}
+  `;
+  document.getElementById('modalSelection').innerHTML = selHtml;
+  document.getElementById('formStatus').style.display = 'none';
+  document.getElementById('formStatus').className = 'form-status';
+  document.getElementById('inqName').value = '';
+  document.getElementById('inqEmail').value = '';
+  document.getElementById('inqMessage').value = '';
+
+  // Apply lang to modal static text
+  document.querySelectorAll('#inquiryModal [data-i18n]').forEach(el => {
+    el.innerHTML = t(el.getAttribute('data-i18n'));
+  });
+  document.getElementById('inqMessage').placeholder = lang==='el'
+    ? 'Ειδικές ερωτήσεις, προτιμήσεις ή μέγεθος…'
+    : 'Any specific questions, preferences, or sizing info…';
+
+  document.getElementById('inquiryModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('inqName').focus(), 100);
+}
+
+function closeInquiry() {
+  document.getElementById('inquiryModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function submitInquiry() {
+  const name  = document.getElementById('inqName').value.trim();
+  const email = document.getElementById('inqEmail').value.trim();
+  const msg   = document.getElementById('inqMessage').value.trim();
+  const btn   = document.getElementById('submitBtn');
+  const stat  = document.getElementById('formStatus');
+
+  if (!name) { document.getElementById('inqName').focus(); return; }
+  if (!email || !email.includes('@')) { document.getElementById('inqEmail').focus(); return; }
+
+  const items = [...selected].map(k => allItems.find(i => i._key === k)).filter(Boolean);
+  const itemList = items.map(i => `• ${getLabel(i)} (${i.qrCode||''})`).join('\n');
+
+  btn.disabled = true;
+  btn.textContent = lang==='el' ? 'Αποστολή…' : 'Sending…';
+  stat.style.display = 'none';
+
+  try {
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      from_name:  name,
+      from_email: email,
+      message:    msg || '—',
+      item_list:  itemList,
+      item_count: items.length,
+      to_email:   'lekkasjewelry@gmail.com'
+    });
+
+    stat.className = 'form-status success';
+    stat.textContent = lang==='el'
+      ? '✓ Το αίτημά σας εστάλη! Θα επικοινωνήσουμε μαζί σας σύντομα.'
+      : '✓ Your inquiry was sent! We\'ll be in touch soon.';
+    stat.style.display = 'block';
+    btn.textContent = lang==='el' ? '✓ Εστάλη' : '✓ Sent';
+    setTimeout(() => {
+      closeInquiry();
+      clearSelection();
+      btn.disabled = false;
+      btn.textContent = lang==='el' ? 'Αποστολή Αιτήματος' : 'Send Inquiry';
+    }, 2500);
+  } catch(e) {
+    stat.className = 'form-status error';
+    const errMsg = e?.text || e?.message || JSON.stringify(e) || 'Unknown error';
+    stat.textContent = 'Error: ' + errMsg;
+    stat.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = lang==='el' ? 'Αποστολή Αιτήματος' : 'Send Inquiry';
+  }
+}
+
+// ─── KEYBOARD ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('lightbox').classList.contains('open')) closeLightbox();
+    else if (document.getElementById('inquiryModal').classList.contains('open')) closeInquiry();
+  }
+});
+</script>
+
+<!-- EmailJS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>emailjs.init({ publicKey: EMAILJS_PUBLIC });</script>
+
+</body>
+</html>
