@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lekkas Jewelry — Item</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap');
+
+  :root {
+    --gold:       #C9A84C;
+    --gold-light: #E8C97A;
+    --gold-dim:   #8C7E60;
+    --ink:        #0E0C08;
+    --surface:    #131108;
+    --surface-2:  #1C1A10;
+    --surface-3:  #252210;
+    --border:     rgba(201,168,76,0.18);
+    --text:       #F0EAD6;
+    --text-dim:   #8C7E60;
+    --text-muted: #5A5240;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted); text-transform: uppercase;
+  }
+
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  /* ── ITEM PHOTO ── */
+  .item-photo {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    border-radius: 4px;
+    background: var(--surface-3);
+    display: block;
+    margin-bottom: 24px;
+  }
+  .photo-placeholder {
+    width: 100%; aspect-ratio: 1;
+    background: var(--surface-3);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 64px;
+    margin-bottom: 24px;
+    color: var(--text-muted);
+  }
+
+  /* ── ITEM INFO ── */
+  .item-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 28px; font-weight: 400;
+    color: var(--gold-light);
+    line-height: 1.2;
+    margin-bottom: 20px;
+  }
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(201,168,76,0.08);
+    gap: 16px;
+  }
+  .detail-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.18em;
+    color: var(--text-muted); text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .detail-val {
+    font-size: 13px; color: var(--text);
+    text-align: right; line-height: 1.4;
+  }
+
+  /* ── QR SECTION ── */
+  .qr-section {
+    margin-top: 32px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+    text-align: center;
+  }
+  .qr-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.25em;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .qr-img {
+    width: 180px; height: 180px;
+    background: #fff;
+    border-radius: 4px;
+    display: block;
+    margin: 0 auto 12px;
+    padding: 8px;
+  }
+  .qr-code-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px; letter-spacing: 0.08em;
+    color: var(--gold);
+    margin-top: 4px;
+  }
+  .qr-hint {
+    font-size: 11px; color: var(--text-muted);
+    margin-top: 10px; line-height: 1.5;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── OPEN IN APP BUTTON ── */
+  .qr-actions {
+    display: flex; gap: 8px; margin-top: 14px; justify-content: center;
+  }
+  .qr-download {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--gold-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    cursor: pointer; text-decoration: none;
+    transition: all 0.18s; display: inline-block;
+  }
+  .qr-download:hover { border-color: var(--gold); color: var(--gold); }
+  .copy-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 14px;
+    background: var(--surface-3);
+    border: 1px solid rgba(201,168,76,0.1);
+    border-radius: 3px;
+    padding: 10px 12px;
+  }
+  .copy-code {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px; letter-spacing: 0.08em;
+    color: var(--gold); flex: 1; text-align: left;
+  }
+  .copy-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 5px 10px; cursor: pointer;
+    transition: all 0.18s; flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .copy-btn.copied { color: #a8d8a0; border-color: rgba(168,216,160,0.4); }
+
+  .open-btn {
+    display: block; width: 100%;
+    margin-top: 20px;
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: 3px;
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 16px;
+    cursor: pointer; font-weight: 500;
+    text-decoration: none;
+    text-align: center;
+    transition: opacity 0.2s;
+  }
+  .open-btn:hover { opacity: 0.85; }
+
+  /* ── LOADING / ERROR ── */
+  .state {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--text-muted);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold-dim);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .divider {
+    width: 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 24px auto;
+  }
+
+  footer {
+    text-align: center;
+    padding: 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    color: var(--text-muted); text-transform: uppercase;
+    border-top: 1px solid rgba(201,168,76,0.06);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" height="24" style="display:block">
+    <defs>
+      <linearGradient id="dg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#E8C97A"/><stop offset="100%" style="stop-color:#A8882A"/>
+      </linearGradient>
+      <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#F5EDD6"/><stop offset="100%" style="stop-color:#C9A84C"/>
+      </linearGradient>
+    </defs>
+    <g transform="translate(40,40)">
+      <rect x="-26" y="-26" width="52" height="52" rx="4" transform="rotate(45)" fill="url(#dg)"/>
+      <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
+      <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+      <circle cx="10" cy="-12" r="6" fill="url(#gg)" opacity="0.9"/>
+      <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
+      <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+    </g>
+    <text x="82" y="50" font-family="Georgia,'Times New Roman',serif" font-size="36" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
+    <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
+    <line x1="82" y1="57" x2="304" y2="57" stroke="#C9A84C" stroke-width="0.5" opacity="0.4"/>
+  </svg>
+  <span class="header-sub">Item Details</span>
+</header>
+
+<div class="container">
+  <div id="content">
+    <div class="state"><div class="spinner"></div>Loading…</div>
+  </div>
+</div>
+
+<footer>Lekkas Jewelry · Karpathos, Greece · +30 694 789 1151</footer>
+
+<script>
+const FIREBASE_URL = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
+const DB_SECRET    = 'iZuYHo21LPx6T0UhRd1rXlmI49DaTVJO3JeLzRaJ';
+const APP_URL      = 'https://slekkas.github.io/jewelprice/';
+
+function fbUrl(path) {
+  return FIREBASE_URL + path + '.json?auth=' + DB_SECRET;
+}
+
+const metalLabel  = { gold: 'Gold', silver: 'Silver', other: 'Other' };
+const genderLabel = { women: 'Women', men: 'Men', children: 'Children', unisex: 'Unisex' };
+const JEWELRY_TYPE_PREFIX = {
+  ring:'RG', bracelet:'BR', necklace:'NK', earrings:'ER',
+  cross:'CR', pendant:'PE', brooch:'BO', chain:'CH',
+  watch:'WT', cufflinks:'CL', other:'XX'
+};
+function formatSeqId(seqId, jewelryType) {
+  if (!seqId) return '';
+  return (JEWELRY_TYPE_PREFIX[jewelryType] || 'IT') + String(seqId).padStart(4, '0');
+}
+
+function copyQr() {
+  const code = document.getElementById('qrText').textContent;
+  const btn  = document.getElementById('copyBtn');
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = '✓ Copied'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+async function loadItem() {
+  const raw = (window.location.search.match(/[?&]qr=([^&]*)/) || [])[1] || '';
+  const qr  = decodeURIComponent(raw).trim();
+
+  if (!qr) {
+    show('<div class="state" style="color:#c0392b">No item code provided.</div>');
+    return;
+  }
+
+  try {
+    const res  = await fetch(fbUrl('/jewelprice_inventory'));
+    const data = await res.json();
+    if (!data) throw new Error('empty');
+
+    const entry = Object.entries(data).find(([k,v]) =>
+      (v.qrCode || '').toUpperCase() === qr.toUpperCase()
+    );
+
+    if (!entry) {
+      show(`<div class="state" style="color:#c0392b">Item not found.<br><small style="font-size:11px;color:#5A5240;margin-top:8px;display:block">${qr}</small></div>`);
+      return;
+    }
+
+    const item = entry[1];
+    render(item, qr);
+
+  } catch(e) {
+    show('<div class="state" style="color:#c0392b">Failed to load. Check your connection.</div>');
+  }
+}
+
+function render(item, qr) {
+  const typeEn     = item.jewelryType || '';
+  const handmade   = item.handmade ? ' Handmade' : '';
+  const descEn     = (item.descEn || item.description || '').trim();
+  const name       = (typeEn + handmade + (descEn ? ' ' + descEn : '')) || qr;
+
+  const karat      = item.karat ? item.karat.replace(/s$/, '') : '';
+  const metalStr   = item.metal && item.metal !== 'other'
+    ? (metalLabel[item.metal] || item.metal) + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '')
+    : '';
+
+  let rows = '';
+  if (typeEn)          rows += row('Type', typeEn + handmade);
+  if (metalStr)        rows += row('Metal', metalStr);
+  if (item.gender)     rows += row('For', genderLabel[item.gender] || item.gender);
+  if (item.stonesDesc) rows += row('Stones', item.stonesDesc);
+  if (item.seqId)      rows += row('Ref.', formatSeqId(item.seqId, item.jewelryType));
+
+  const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qr);
+
+  const photoHtml = item.photoUrl
+    ? `<img class="item-photo" src="${item.photoUrl}" alt="${name}">`
+    : `<div class="photo-placeholder">💎</div>`;
+
+  show(`
+    ${photoHtml}
+    <div class="item-name">${name}</div>
+    ${rows}
+    <div class="divider"></div>
+    <div class="qr-section">
+      <div class="qr-label">Scan to open in JewelPrice Pro</div>
+      <img class="qr-img" src="${qrImgUrl}" alt="${qr}" id="qrImg">
+      <div class="qr-actions">
+        <a class="qr-download" href="${qrImgUrl}&format=png" download="${qr}.png">⬇ Download QR</a>
+      </div>
+      <div class="copy-row">
+        <span class="copy-code" id="qrText">${qr}</span>
+        <button class="copy-btn" onclick="copyQr()" id="copyBtn">Copy</button>
+      </div>
+      <div class="qr-hint" style="margin-top:12px">Scan with your USB scanner or the QR scanner in the app</div>
+    </div>
+    <a class="open-btn" href="${APP_URL}">Open JewelPrice Pro</a>
+  `);
+}
+
+function row(key, val) {
+  return `<div class="detail-row"><span class="detail-key">${key}</span><span class="detail-val">${val}</span></div>`;
+}
+
+function show(html) {
+  document.getElementById('content').innerHTML = html;
+}
+
+loadItem();
+</script>
+</body>
+</html>
