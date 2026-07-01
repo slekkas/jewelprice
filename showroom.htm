@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lekkas Jewelry — Private Showroom</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap');
+
+  :root {
+    --gold:        #C9A84C;
+    --gold-light:  #E8C97A;
+    --gold-dim:    #B8A870;
+    --ink:         #0E0C08;
+    --surface:     #131108;
+    --surface-2:   #1C1A10;
+    --surface-3:   #252210;
+    --border:      rgba(201,168,76,0.28);
+    --border-soft: rgba(201,168,76,0.12);
+    --text:        #F5EDD8;
+    --text-dim:    #C8BFA0;
+    --text-muted:  #9A8E72;
+    --radius:      3px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── LOCK SCREEN ─────────────────────────────────────────────────────────── */
+  #lockScreen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: var(--ink);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 24px;
+    gap: 32px;
+  }
+  .lock-logo { text-align: center; }
+  .lock-wordmark {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(28px, 6vw, 44px);
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    color: var(--gold-light);
+    text-transform: uppercase;
+  }
+  .lock-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+  .lock-divider {
+    width: 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 16px auto 0;
+  }
+  .lock-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px 28px;
+    width: 100%; max-width: 360px;
+    text-align: center;
+  }
+  .lock-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+  .lock-input {
+    width: 100%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    letter-spacing: 0.2em;
+    text-align: center;
+    padding: 14px 16px;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+  .lock-input:focus { border-color: var(--gold); }
+  .lock-input.error { border-color: #c0392b; animation: shake 0.35s; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)}
+  }
+  .lock-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: var(--radius);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.2s;
+  }
+  .lock-btn:hover { opacity: 0.88; }
+  .lock-error {
+    font-size: 12px; color: #c0392b;
+    letter-spacing: 0.05em;
+    margin-top: 10px;
+    min-height: 18px;
+    transition: opacity 0.2s;
+  }
+
+  /* ─── HEADER ──────────────────────────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(14,12,8,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+  }
+  .header-logo {
+    cursor: pointer;
+    display: flex; align-items: center; gap: 0;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .header-left {
+    display: flex; align-items: center; gap: 14px;
+    min-width: 0;
+  }
+  .nav-menu-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 2px; width: 34px; height: 34px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: color 0.2s, border-color 0.2s, background 0.2s;
+  }
+  .nav-menu-btn:hover { color: var(--gold-light); border-color: var(--gold); background: rgba(201,168,76,0.08); }
+
+  /* ─── QUICK NAV MENU (slides in from left) ──────────────────────────────────── */
+  .nav-menu-overlay {
+    position: fixed; inset: 0; z-index: 401;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    display: none;
+  }
+  .nav-menu-overlay.open { display: block; }
+  .nav-menu-panel {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 402;
+    width: 82%; max-width: 340px;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex; flex-direction: column;
+    animation: navMenuIn 0.28s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes navMenuIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+  .nav-menu-header {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-menu-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 20px; font-weight: 400;
+    color: var(--gold-light); letter-spacing: 0.06em;
+  }
+  .nav-menu-close {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 2px; width: 30px; height: 30px; cursor: pointer; font-size: 14px;
+    flex-shrink: 0;
+  }
+  .nav-menu-body { padding: 18px 20px 32px; flex: 1; }
+  .nav-menu-section-label {
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;
+  }
+  .nav-menu-group { display: flex; flex-direction: column; }
+  .nav-menu-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 13px 4px; background: none; border: none; border-bottom: 1px solid var(--border-soft);
+    color: var(--text); font-family: 'Cormorant Garamond', Georgia, serif; font-size: 17px;
+    cursor: pointer; text-align: left; width: 100%;
+    transition: color 0.15s, padding-left 0.15s;
+  }
+  .nav-menu-item:hover { color: var(--gold-light); padding-left: 6px; }
+  .nav-menu-item .nm-count {
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); flex-shrink: 0;
+  }
+  .nav-menu-divider { height: 1px; background: var(--border-soft); margin: 18px 0; }
+  .nav-menu-viewall {
+    width: 100%; padding: 14px; margin-top: 4px;
+    background: rgba(201,168,76,0.08); border: 1px solid var(--border);
+    color: var(--gold-light); font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase; border-radius: 2px; cursor: pointer;
+  }
+  .nav-menu-viewall:hover { background: rgba(201,168,76,0.14); }
+  .lang-toggle {
+    display: flex; gap: 6px; align-items: center;
+    flex-shrink: 0;
+  }
+  .lang-btn {
+    background: none; border: none; cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em;
+    color: var(--text-muted);
+    padding: 4px 8px; border-radius: 2px;
+    transition: color 0.2s, background 0.2s;
+    text-transform: uppercase;
+  }
+  .lang-btn.active { color: var(--gold); background: rgba(201,168,76,0.1); }
+
+  /* ─── HERO ────────────────────────────────────────────────────────────────── */
+  .hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-soft);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.35em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(32px, 6vw, 58px);
+    font-weight: 300;
+    line-height: 1.1;
+    color: var(--gold-light);
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .hero-title em { font-style: italic; color: var(--text); }
+  .hero-desc {
+    font-size: 14px; line-height: 1.7;
+    color: var(--text-dim);
+    max-width: 480px; margin: 0 auto 28px;
+    letter-spacing: 0.03em;
+  }
+  .hero-rule {
+    width: 80px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 0 auto;
+  }
+
+  /* ─── FILTERS BAR ─────────────────────────────────────────────────────────── */
+  .filters-bar {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ─── SEARCH BAR ─────────────────────────────────────────────────────────── */
+  .search-wrap {
+    padding: 12px 20px 0;
+    position: relative;
+  }
+  .search-input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 10px 36px 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 0.03em;
+    -webkit-appearance: none;
+  }
+  .search-input:focus { border-color: var(--gold-dim); }
+  .search-input::placeholder { color: var(--text-dim); letter-spacing: 0.06em; font-size: 11px; text-transform: uppercase; }
+  .search-clear {
+    position: absolute; right: 28px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-muted);
+    font-size: 16px; cursor: pointer; padding: 4px 6px; line-height: 1;
+    display: none;
+  }
+  .card-ref {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .filter-btn {
+    display: flex; align-items: center; gap: 7px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .filter-btn:hover { border-color: var(--gold-dim); color: var(--text); }
+  .filter-btn.has-active { border-color: var(--gold); color: var(--gold-light); background: rgba(201,168,76,0.08); }
+  .filter-btn svg { flex-shrink: 0; }
+  .filter-badge {
+    background: var(--gold);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; font-weight: 700;
+    border-radius: 10px;
+    padding: 1px 6px;
+    line-height: 1.4;
+  }
+  .filter-active-summary {
+    flex: 1; min-width: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.1em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .filter-clear-btn {
+    background: none; border: none;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    transition: color 0.18s;
+  }
+  .filter-clear-btn:hover { color: var(--text); }
+  .filter-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  /* ─── FILTER DRAWER ─────────────────────────────────────────────────────────── */
+  .filter-drawer-overlay {
+    position: fixed; inset: 0; z-index: 400;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .filter-drawer-overlay.open { display: flex; }
+  .filter-drawer {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    width: 100%; max-width: 560px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 0 0 32px;
+    animation: drawerUp 0.28s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes drawerUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .drawer-header {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .drawer-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18px; font-weight: 400;
+    color: var(--gold-light);
+    letter-spacing: 0.06em;
+  }
+  .drawer-close {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 2px;
+    width: 32px; height: 32px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; line-height: 1;
+    transition: all 0.18s;
+  }
+  .drawer-close:hover { border-color: var(--text-dim); color: var(--text); }
+  .drawer-section { padding: 18px 20px 0; }
+  .drawer-section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.22em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .drawer-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .drawer-pill {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-transform: uppercase;
+  }
+  .drawer-pill:hover { border-color: var(--gold-dim); color: var(--text); }
+  .drawer-pill.sel {
+    background: rgba(201,168,76,0.12);
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+  .drawer-divider {
+    height: 1px; background: var(--border-soft);
+    margin: 18px 20px 0;
+  }
+  .drawer-apply {
+    display: block;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: 2px;
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .drawer-apply:hover { opacity: 0.88; }
+
+  /* ─── DROPDOWN PICKER ───────────────────────────────────────────────────────── */
+  .sw-picker-trigger {
+    width: 100%;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; box-sizing: border-box; text-align: left;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .sw-picker-trigger.has-sel { border-color: var(--gold); color: var(--gold-light); }
+  .sw-picker-trigger .chev { font-size: 10px; color: var(--text-muted); transition: transform 0.2s; flex-shrink: 0; }
+  .sw-picker-trigger.open .chev { transform: rotate(180deg); }
+  .sw-picker-list {
+    display: none; margin-top: 4px;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden; max-height: 240px; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: rgba(201,168,76,0.3) transparent;
+  }
+  .sw-picker-list.open { display: block; }
+  .sw-picker-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-dim);
+    cursor: pointer; border-bottom: 1px solid var(--border-soft);
+    transition: background 0.15s, color 0.15s;
+  }
+  .sw-picker-item:last-child { border-bottom: none; }
+  .sw-picker-item:hover { background: rgba(201,168,76,0.06); color: var(--text); }
+  .sw-picker-item.sel { color: var(--gold-light); }
+  .sw-picker-circle {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1.5px solid rgba(201,168,76,0.35);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .sw-picker-item.sel .sw-picker-circle { background: var(--gold); border-color: var(--gold); }
+  .sw-picker-check { display: none; width: 9px; height: 9px; }
+  .sw-picker-item.sel .sw-picker-check { display: block; }
+
+  /* ─── GRID ────────────────────────────────────────────────────────────────── */
+  .grid-wrap {
+    padding: 32px 20px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+
+  /* ─── ITEM CARD ───────────────────────────────────────────────────────────── */
+  .item-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .item-card:hover {
+    border-color: var(--border);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .item-card.selected {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px var(--gold), 0 8px 32px rgba(201,168,76,0.15);
+  }
+  .card-img-wrap {
+    position: relative;
+    width: 100%;
+    padding-top: 100%; /* 1:1 box via padding-hack — immune to aspect-ratio support/timing quirks */
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .card-img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .card-img-placeholder {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    background: var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 32px;
+  }
+  .card-body { padding: 14px 14px 16px; background: #201E12; }
+  .card-type {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.18em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .card-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 19px; font-weight: 400;
+    color: #F5EDD8;
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .card-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.12em;
+    color: #B8A96A;
+    border: 1px solid rgba(201,168,76,0.35);
+    border-radius: 1px;
+    padding: 3px 7px;
+    text-transform: uppercase;
+  }
+  .card-tag.handmade { color: #a8d8a0; border-color: rgba(168,216,160,0.3); }
+  .card-select-badge {
+    position: absolute; top: 10px; right: 10px;
+    width: 28px; height: 28px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.18s;
+    pointer-events: none;
+  }
+  .item-card.selected .card-select-badge { opacity: 1; }
+  .card-select-badge svg { width: 14px; height: 14px; fill: var(--ink); }
+
+  /* ─── EMPTY / LOADING ─────────────────────────────────────────────────────── */
+  .state-msg {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    grid-column: 1 / -1;
+  }
+  .state-msg .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold-dim);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── SELECTION BAR ───────────────────────────────────────────────────────── */
+  .selection-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: rgba(19,17,8,0.97);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--gold);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .selection-bar.visible { transform: translateY(0); }
+  .sel-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em;
+    color: var(--gold);
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .sel-clear {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 8px 14px; border-radius: var(--radius);
+    cursor: pointer; transition: all 0.18s;
+  }
+  .sel-clear:hover { border-color: var(--text-muted); color: var(--text); }
+  .sel-inquire {
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: var(--radius);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 10px 20px;
+    cursor: pointer; font-weight: 500;
+    transition: opacity 0.2s;
+  }
+  .sel-inquire:hover { opacity: 0.85; }
+
+  /* ─── LIGHTBOX ────────────────────────────────────────────────────────────── */
+  .lightbox {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(8,7,4,0.97);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 0;
+    overflow-y: auto;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox-header {
+    width: 100%; padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border-soft);
+    flex-shrink: 0;
+  }
+  .lb-close-bar {
+    width: 100%; padding: 12px 20px 20px;
+    flex-shrink: 0;
+  }
+  .lb-close {
+    display: block; width: 100%;
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: var(--radius);
+    padding: 14px; cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    transition: all 0.18s;
+  }
+  .lb-close:hover { border-color: var(--gold-dim); color: var(--text); }
+  .lb-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18px; font-weight: 400;
+    color: var(--text);
+  }
+  .lb-actions { display: flex; gap: 8px; }
+  .lb-select-btn {
+    border: 1px solid var(--gold);
+    background: none; color: var(--gold);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 16px; border-radius: var(--radius);
+    cursor: pointer; transition: all 0.18s;
+  }
+  .lb-select-btn.selected-state {
+    background: rgba(201,168,76,0.15);
+  }
+  .lb-select-btn:hover { background: rgba(201,168,76,0.1); }
+  .lightbox-body {
+    width: 100%; max-width: 560px;
+    padding: 24px 20px 40px;
+    flex: 1;
+  }
+  .lb-img {
+    width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 2px;
+    display: block;
+    margin-bottom: 24px;
+    background: var(--surface-3);
+  }
+  .lb-detail-row {
+    display: flex; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+  }
+  .lb-detail-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    padding-top: 1px;
+    flex-shrink: 0;
+    margin-right: 16px;
+  }
+  .lb-detail-val {
+    color: var(--text);
+    font-size: 13px;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .lb-stones {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .lb-stones-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* ─── INQUIRY MODAL ───────────────────────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 600;
+    background: rgba(8,7,4,0.95);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 24px 16px 60px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    width: 100%; max-width: 520px;
+    padding: 32px 28px;
+    margin: auto;
+  }
+  .modal-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.25em;
+    color: var(--gold-dim); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .modal-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 26px; font-weight: 400;
+    color: var(--gold-light);
+    margin-bottom: 6px;
+  }
+  .modal-subtitle {
+    font-size: 13px; color: var(--text-muted);
+    line-height: 1.6; margin-bottom: 24px;
+    letter-spacing: 0.02em;
+  }
+  .modal-selection {
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 24px;
+  }
+  .modal-sel-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .modal-sel-item {
+    font-size: 13px; color: var(--text-dim);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .modal-sel-item:last-child { border-bottom: none; }
+  .modal-sel-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--gold-dim);
+    flex-shrink: 0;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .form-input, .form-textarea {
+    width: 100%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 300;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .form-input:focus, .form-textarea:focus { border-color: var(--gold); }
+  .form-textarea { resize: vertical; min-height: 100px; }
+  .form-submit {
+    width: 100%;
+    background: linear-gradient(135deg, var(--gold), #A8882A);
+    border: none; border-radius: var(--radius);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 15px;
+    cursor: pointer; font-weight: 500;
+    transition: opacity 0.2s;
+    margin-top: 8px;
+  }
+  .form-submit:hover { opacity: 0.85; }
+  .form-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .modal-cancel {
+    width: 100%; margin-top: 10px;
+    background: none; border: none;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer; padding: 8px;
+    transition: color 0.18s;
+  }
+  .modal-cancel:hover { color: var(--text); }
+  .form-status {
+    text-align: center;
+    font-size: 13px;
+    padding: 12px;
+    border-radius: var(--radius);
+    margin-top: 14px;
+    letter-spacing: 0.03em;
+    display: none;
+  }
+  .form-status.success {
+    display: block;
+    background: rgba(168,216,160,0.1);
+    border: 1px solid rgba(168,216,160,0.25);
+    color: #a8d8a0;
+  }
+  .form-status.error {
+    display: block;
+    background: rgba(192,57,43,0.1);
+    border: 1px solid rgba(192,57,43,0.25);
+    color: #e07060;
+  }
+
+  /* ─── FOOTER ──────────────────────────────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 32px 24px 48px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    line-height: 1.8;
+  }
+  footer a { color: var(--gold-dim); text-decoration: none; }
+  footer a:hover { color: var(--gold); }
+
+  /* ─── RESPONSIVE ──────────────────────────────────────────────────────────── */
+  @media (max-width: 480px) {
+    .filters-bar { gap: 6px; }
+    .item-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .modal-box { padding: 24px 18px; }
+    header { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── LOCK SCREEN ─────────────────────────────────────────────────────────── -->
+<div id="lockScreen">
+  <div class="lock-logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" height="48" style="display:block;margin:0 auto 10px">
+      <defs>
+        <linearGradient id="dg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#E8C97A"/>
+          <stop offset="100%" style="stop-color:#A8882A"/>
+        </linearGradient>
+        <linearGradient id="gg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#F5EDD6"/>
+          <stop offset="100%" style="stop-color:#C9A84C"/>
+        </linearGradient>
+      </defs>
+      <g transform="translate(40,40)">
+        <rect x="-26" y="-26" width="52" height="52" rx="4" transform="rotate(45)" fill="url(#dg2)"/>
+        <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
+        <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+        <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+        <circle cx="10" cy="-12" r="6" fill="url(#gg2)" opacity="0.9"/>
+        <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
+        <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+      </g>
+      <text x="82" y="45" font-family="Georgia,'Times New Roman',serif" font-size="32" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
+      <text x="84" y="62" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
+      <line x1="82" y1="53" x2="296" y2="53" stroke="#C9A84C" stroke-width="0.5" opacity="0.4"/>
+    </svg>
+    <div class="lock-wordmark" data-i18n="Private Showroom|Ιδιωτικό Showroom">Private Showroom</div>
+    <div class="lock-divider"></div>
+    <div class="lock-sub" data-i18n="Karpathos, Greece|Κάρπαθος, Ελλάδα">Karpathos, Greece</div>
+  </div>
+  <div class="lock-card">
+    <p data-i18n="This is a private collection preview. Please enter the access code you received.|Αυτή είναι μια ιδιωτική προεπισκόπηση συλλογής. Εισάγετε τον κωδικό πρόσβασης που λάβατε.">This is a private collection preview. Please enter the access code you received.</p>
+    <input type="password" id="passwordInput" class="lock-input"
+           placeholder="· · · · · ·"
+           autocomplete="off"
+           onkeydown="if(event.key==='Enter') checkPassword()">
+    <button class="lock-btn" onclick="checkPassword()" data-i18n="Enter|Είσοδος">Enter</button>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
+<!-- ─── MAIN CONTENT (hidden until unlocked) ──────────────────────────────── -->
+<div id="mainContent" style="display:none">
+
+  <header>
+    <div class="header-left">
+      <button class="nav-menu-btn" id="navMenuBtn" onclick="openNavMenu()" aria-label="Menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="3" y1="21" x2="15" y2="21"/></svg>
+      </button>
+      <a class="header-logo" href="https://slekkas.github.io/jewelprice" title="JewelPrice Pro">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" height="28" style="display:block">
+          <defs>
+            <linearGradient id="dg3" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#E8C97A"/>
+              <stop offset="100%" style="stop-color:#A8882A"/>
+            </linearGradient>
+            <linearGradient id="gg3" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#F5EDD6"/>
+              <stop offset="100%" style="stop-color:#C9A84C"/>
+            </linearGradient>
+          </defs>
+          <g transform="translate(40,40)">
+            <rect x="-26" y="-26" width="52" height="52" rx="4" transform="rotate(45)" fill="url(#dg3)"/>
+            <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
+            <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+            <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+            <circle cx="10" cy="-12" r="6" fill="url(#gg3)" opacity="0.9"/>
+            <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
+            <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+          </g>
+          <text x="82" y="50" font-family="Georgia,'Times New Roman',serif" font-size="36" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
+          <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
+          <line x1="82" y1="57" x2="304" y2="57" stroke="#C9A84C" stroke-width="0.5" opacity="0.4"/>
+        </svg>
+      </a>
+    </div>
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btnEN" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="btnEL" onclick="setLang('el')">ΕΛ</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-eyebrow" data-i18n="Handcrafted · Karpathos · Greece|Χειροποίητα · Κάρπαθος · Ελλάδα">Handcrafted · Karpathos · Greece</div>
+    <h1 class="hero-title" data-i18n="Our <em>Collection</em>|Η <em>Συλλογή</em> μας">Our <em>Collection</em></h1>
+    <p class="hero-desc" data-i18n="Browse our current inventory of fine jewelry. Select the pieces that interest you and send us an inquiry — we'll get back to you personally.|Περιηγηθείτε στο τρέχον απόθεμά μας. Επιλέξτε τα κοσμήματα που σας ενδιαφέρουν και στείλτε μας ένα αίτημα — θα επικοινωνήσουμε μαζί σας προσωπικά.">Browse our current inventory of fine jewelry. Select the pieces that interest you and send us an inquiry — we'll get back to you personally.</p>
+    <div class="hero-rule"></div>
+  </section>
+
+  <!-- ─── SEARCH BAR ──────────────────────────────────────────────────────────── -->
+  <div class="search-wrap">
+    <input type="search" class="search-input" id="searchInput" autocomplete="off" autocorrect="off" spellcheck="false"
+           placeholder="Search by ref, description, type, stone…"
+           oninput="applySearch(this.value)">
+    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+  </div>
+
+  <!-- ─── FILTERS BAR ─────────────────────────────────────────────────────────── -->
+  <div class="filters-bar" id="filtersBar">
+    <button class="filter-btn" id="filterDrawerBtn" onclick="openFilterDrawer()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      <span id="filterBtnLabel">Filter</span>
+      <span class="filter-badge" id="filterBadge" style="display:none"></span>
+    </button>
+    <div class="filter-active-summary" id="filterActiveSummary"></div>
+    <button class="filter-clear-btn" id="filterClearBtn" onclick="clearAllFilters()" style="display:none">✕ Clear</button>
+    <span class="filter-count" id="filterCount"></span>
+  </div>
+
+  <!-- ─── QUICK NAV MENU ─────────────────────────────────────────────────────────── -->
+  <div class="nav-menu-overlay" id="navMenuOverlay" onclick="if(event.target===this)closeNavMenu()">
+    <div class="nav-menu-panel" id="navMenuPanel">
+      <div class="nav-menu-header">
+        <span class="nav-menu-title" data-i18n="Browse|Περιήγηση">Browse</span>
+        <button class="nav-menu-close" onclick="closeNavMenu()">✕</button>
+      </div>
+      <div class="nav-menu-body">
+        <div class="nav-menu-section-label" data-i18n="Shop By|Αγορά Ανά">Shop By</div>
+        <div class="nav-menu-group" id="navGenderGroup"></div>
+        <div class="nav-menu-divider"></div>
+        <div class="nav-menu-section-label" data-i18n="Category|Κατηγορία">Category</div>
+        <div class="nav-menu-group" id="navTypeGroup"></div>
+        <div class="nav-menu-divider"></div>
+        <button class="nav-menu-viewall" onclick="navQuickFilter(null,null)" data-i18n="View All Jewelry|Όλα τα Κοσμήματα">View All Jewelry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── FILTER DRAWER ─────────────────────────────────────────────────────────── -->
+  <div class="filter-drawer-overlay" id="filterDrawerOverlay" onclick="if(event.target===this)closeFilterDrawer()">
+    <div class="filter-drawer" id="filterDrawer">
+      <div class="drawer-header">
+        <span class="drawer-title" id="drawerTitle">Filters</span>
+      </div>
+      <div id="drawerBody"></div>
+      <div style="display:flex;gap:10px;padding:16px 20px 8px;">
+        <button id="drawerClearBtn" onclick="clearDraftFilters()" style="flex:1;background:none;border:1px solid var(--border);border-radius:3px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-muted);cursor:pointer;padding:14px 8px;transition:all 0.18s"></button>
+        <button class="drawer-apply" id="drawerApplyBtn" onclick="applyDrawerFilters()" style="flex:2"></button>
+        <button id="drawerCloseBtn" onclick="closeFilterDrawer()" style="flex:1;background:none;border:1px solid var(--border);border-radius:3px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-muted);cursor:pointer;padding:14px 8px;transition:all 0.18s"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="item-grid" id="itemGrid">
+      <div class="state-msg"><div class="spinner"></div><span data-i18n="Loading collection…|Φόρτωση συλλογής…">Loading collection…</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <div>Lekkas Jewelry &mdash; Pigadia, Karpathos 857 00, Greece</div>
+    <div style="margin-top:4px">
+      <a href="tel:+306947891151">+30 694 789 1151</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://maps.app.goo.gl/aqePd3XmXfnpG5h87" target="_blank" data-i18n="View on Maps|Χάρτης">View on Maps</a>
+    </div>
+  </footer>
+
+</div><!-- /mainContent -->
+
+<!-- ─── SELECTION BAR ───────────────────────────────────────────────────────── -->
+<div class="selection-bar" id="selectionBar">
+  <span class="sel-count" id="selCount"></span>
+  <button class="sel-clear" onclick="clearSelection()" data-i18n="Clear|Καθαρισμός">Clear</button>
+  <button class="sel-inquire" onclick="openInquiry()" data-i18n="Send Inquiry|Αποστολή Αιτήματος">Send Inquiry</button>
+</div>
+
+<!-- ─── LIGHTBOX ────────────────────────────────────────────────────────────── -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-header">
+    <span class="lb-title" id="lbTitle"></span>
+    <div class="lb-actions">
+      <button class="lb-select-btn" id="lbSelectBtn" onclick="toggleFromLightbox()"></button>
+    </div>
+  </div>
+  <div class="lightbox-body" id="lightboxBody"></div>
+  <div class="lb-close-bar">
+    <button class="lb-close" id="lbCloseBtn" onclick="closeLightbox()">Close</button>
+  </div>
+</div>
+
+<!-- ─── INQUIRY MODAL ───────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="inquiryModal">
+  <div class="modal-box">
+    <div class="modal-eyebrow" data-i18n="Private Showroom|Ιδιωτικό Showroom">Private Showroom</div>
+    <div class="modal-title" data-i18n="Send Inquiry|Αποστολή Αιτήματος">Send Inquiry</div>
+    <div class="modal-subtitle" data-i18n="We'll contact you personally to discuss availability and details.|Θα επικοινωνήσουμε μαζί σας προσωπικά για να συζητήσουμε τη διαθεσιμότητα και τις λεπτομέρειες.">We'll contact you personally to discuss availability and details.</div>
+    <div class="modal-selection" id="modalSelection"></div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="Your Name|Το Όνομά σας">Your Name</label>
+      <input type="text" class="form-input" id="inqName" autocomplete="name">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="Email Address|Διεύθυνση Email">Email Address</label>
+      <input type="email" class="form-input" id="inqEmail" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="Message (optional)|Μήνυμα (προαιρετικό)">Message (optional)</label>
+      <textarea class="form-textarea" id="inqMessage" data-i18n-ph="Any specific questions, preferences, or sizing info…|Ειδικές ερωτήσεις, προτιμήσεις ή μέγεθος…"></textarea>
+    </div>
+    <button class="form-submit" id="submitBtn" onclick="submitInquiry()" data-i18n="Send Inquiry|Αποστολή Αιτήματος">Send Inquiry</button>
+    <button class="modal-cancel" onclick="closeInquiry()" data-i18n="Cancel|Ακύρωση">Cancel</button>
+    <div class="form-status" id="formStatus"></div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────────
+const SHOWROOM_PASSWORD = 'lekkas2025';   // ← change this whenever you like
+const FIREBASE_URL      = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
+const DB_SECRET         = 'iZuYHo21LPx6T0UhRd1rXlmI49DaTVJO3JeLzRaJ';            // ← paste Firebase secret here (same as in index.htm Sync tab)
+const EMAILJS_SERVICE   = 'service_hnnyy5h';   // ← fill after EmailJS setup
+const EMAILJS_TEMPLATE  = 'template_d31sgws';  // ← fill after EmailJS setup
+const EMAILJS_PUBLIC    = 'NiGGzsEeq15508VzX';   // ← fill after EmailJS setup
+
+// ─── STATE ─────────────────────────────────────────────────────────────────────
+let lang       = 'en';
+let allItems   = [];
+let filtered   = [];
+let selected   = new Set();   // firebase keys
+// Multi-select filters — each is an array of active values (empty = all)
+let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+// Draft filters inside the drawer (applied on tap Apply)
+let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+let lightboxKey = null;
+let searchQuery = ''; // current search string
+
+// ─── JEWELRY TYPE PREFIXES ──────────────────────────────────────────────────────
+const JEWELRY_TYPE_PREFIX = {
+  ring: 'RG', bracelet: 'BR', necklace: 'NK', earrings: 'ER',
+  cross: 'CR', pendant: 'PE', brooch: 'BO', chain: 'CH',
+  watch: 'WT', cufflinks: 'CL', other: 'XX'
+};
+function formatSeqId(seqId, jewelryType) {
+  if (!seqId) return '';
+  const prefix = JEWELRY_TYPE_PREFIX[jewelryType] || 'IT';
+  return prefix + String(seqId).padStart(4, '0');
+}
+
+// ─── JEWELRY TYPE TRANSLATIONS (mirrors jewelprice.htm INV_JEWELRY_TYPES) ───────
+const JEWELRY_TYPE_LABELS = {
+  ring:      { el: 'Δαχτυλίδι',       en: 'Ring' },
+  bracelet:  { el: 'Βραχιόλι',        en: 'Bracelet' },
+  necklace:  { el: 'Κολιέ',           en: 'Necklace' },
+  earrings:  { el: 'Σκουλαρίκια',     en: 'Earrings' },
+  cross:     { el: 'Σταυρός',         en: 'Cross' },
+  pendant:   { el: 'Μενταγιόν',       en: 'Pendant' },
+  brooch:    { el: 'Καρφίτσα',        en: 'Brooch' },
+  chain:     { el: 'Αλυσίδα',         en: 'Chain' },
+  watch:     { el: 'Ρολόι',           en: 'Watch' },
+  cufflinks: { el: 'Μανικετόκουμπα',  en: 'Cufflinks' },
+  other:     { el: 'Άλλο',            en: 'Other' },
+};
+function typeLabel(key) {
+  if (!key) return '';
+  const entry = JEWELRY_TYPE_LABELS[key];
+  if (!entry) return key;
+  return lang === 'el' ? entry.el : entry.en;
+}
+
+// Gold color definitions (mirrors index.htm)
+const GOLD_COLORS = [
+  { value: 'gold',            el: 'Χρυσό',                          en: 'Gold' },
+  { value: 'white',           el: 'Λευκόχρυσο',                     en: 'White Gold' },
+  { value: 'rose',            el: 'Ροζ Χρυσό',                      en: 'Rose Gold' },
+  { value: 'gold_white',      el: 'Χρυσό & Λευκόχρυσο',             en: 'Gold & White Gold' },
+  { value: 'gold_rose',       el: 'Χρυσό & Ροζ Χρυσό',              en: 'Gold & Rose Gold' },
+  { value: 'white_rose',      el: 'Λευκόχρυσο & Ροζ Χρυσό',         en: 'White & Rose Gold' },
+  { value: 'gold_white_rose', el: 'Χρυσό, Λευκόχρυσο & Ροζ Χρυσό', en: 'Gold, White & Rose Gold' },
+];
+function goldColorLabel(value) {
+  const e = GOLD_COLORS.find(c => c.value === value);
+  if (!e) return value;
+  return lang === 'el' ? e.el : e.en;
+}
+
+// Known stone types (same order as index.htm)
+const STONE_TYPES = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite','Amethyst',
+  'Ametrine','Apatite','Aquamarine','Akoya Pearl','Baroque Pearl','Black Pearl','Carnelian','Citrine','Cobalt Calcite',
+  'Coral','Crystal','Freshwater Pearl','Garnet','Hematite','Keshi Pearl','Lapis Lazuli','Malachite','Moonstone','Morganite',
+  'Onyx','Opal','Peridot','Quartz','South Sea Pearl','Spinel','Tahitian Pearl','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
+const PEARL_TYPES = ['Pearl','Baroque Pearl','Black Pearl','Keshi Pearl','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
+const STONE_TRANSLATIONS = {
+  'Diamond':'Διαμάντι','Emerald':'Σμαράγδι','Ruby':'Ρουμπίνι','Sapphire':'Ζαφείρι',
+  'Agate':'Αχάτης','Alexandrite':'Αλεξανδρίτης','Amazonite':'Αμαζονίτης','Amethyst':'Αμέθυστος',
+  'Ametrine':'Αμετρίνη','Apatite':'Απατίτης','Aquamarine':'Ακουαμαρίνα',
+  'Akoya Pearl':'Ακόγια Μαργαριτάρι','Baroque Pearl':'Μπαρόκ Μαργαριτάρι','Black Pearl':'Μαύρο Μαργαριτάρι',
+  'Carnelian':'Καρνεόλης','Citrine':'Κιτρίνης','Cobalt Calcite':'Κοβαλτίτης Ασβεστίτης',
+  'Coral':'Κοράλλι','Crystal':'Κρύσταλλος','Freshwater Pearl':'Γλυκόνερου Μαργαριτάρι',
+  'Garnet':'Γρανάτης','Hematite':'Αιματίτης','Keshi Pearl':'Κέσι Μαργαριτάρι',
+  'Lapis Lazuli':'Λαπίς Λάζουλι','Malachite':'Μαλαχίτης','Moonstone':'Φεγγαρόλιθος',
+  'Morganite':'Μοργκανίτης','Onyx':'Όνυχας','Opal':'Οπάλιο','Pearl':'Μαργαριτάρι',
+  'Peridot':'Περιδότης','Quartz':'Χαλαζίας','South Sea Pearl':'Μαργαριτάρι Νότιας Θάλασσας',
+  'Spinel':'Σπινέλιος','Tahitian Pearl':'Ταϊτιανό Μαργαριτάρι','Tanzanite':'Τανζανίτης',
+  'Topaz':'Τοπάζιο','Tourmaline':'Τουρμαλίνης','Turquoise':'Τυρκουάζ','Zircon':'Ζιρκόνιο',
+};
+function stoneLabel(type) { return (lang==='el' && STONE_TRANSLATIONS[type]) ? STONE_TRANSLATIONS[type] : type; }
+function stonesDescDisplay(desc) {
+  if (!desc || lang !== 'el') return desc;
+  const sorted = Object.keys(STONE_TRANSLATIONS).sort((a,b) => b.length - a.length);
+  let result = desc;
+  sorted.forEach(k => { result = result.split(k).join(STONE_TRANSLATIONS[k]); });
+  result = result.split('melee').join('Μελέ');
+  return result;
+}
+
+// Extract stone type names from a stonesDesc string (e.g. "Diamond 0.30ct · Ruby 0.50ct")
+function parseStonesFromDesc(desc) {
+  if (!desc) return [];
+  const sorted = [...STONE_TYPES].sort((a, b) => b.length - a.length);
+  const results = [];
+  desc.split(' · ').forEach(seg => {
+    seg = seg.trim();
+    // Strip qty prefix: "2× " or "melee "
+    seg = seg.replace(/^\d+[\u00d7x]\s*/i, '').replace(/^melee\s+/i, '').trim();
+    // Strip leading carat value: "0.30ct " or ".05ct "
+    seg = seg.replace(/^\d*\.?\d+ct\s*/i, '').trim();
+    // Match against known types longest-first
+    for (const st of sorted) {
+      if (seg.toLowerCase().startsWith(st.toLowerCase())) {
+        results.push(st);
+        return;
+      }
+    }
+    // No match — skip (don't fall back to first word, avoids carat leftovers)
+  });
+  return results;
+}
+
+// ─── I18N ──────────────────────────────────────────────────────────────────────
+function t(key) {
+  if (!key) return '';
+  const parts = key.split('|');
+  return lang === 'el' ? (parts[1] || parts[0]) : parts[0];
+}
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.innerHTML = t(key);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-ph'));
+  });
+  document.getElementById('btnEN').classList.toggle('active', lang === 'en');
+  document.getElementById('btnEL').classList.toggle('active', lang === 'el');
+  renderFilters();
+  // Re-render drawer content if it's currently open
+  if (document.getElementById('filterDrawerOverlay').classList.contains('open')) renderDrawer();
+  if (document.getElementById('navMenuOverlay').classList.contains('open')) renderNavMenu();
+  renderGrid();
+  updateSelBar();
+}
+
+function setLang(l) {
+  lang = l;
+  applyLang();
+  const inp = document.getElementById('searchInput');
+  if (inp) inp.placeholder = l === 'el' ? 'Αναζήτηση αρ. αναφοράς, περιγραφής, τύπου, πέτρας…' : 'Search by ref, description, type, stone…';
+}
+
+// ─── PASSWORD ──────────────────────────────────────────────────────────────────
+function checkPassword() {
+  const val = document.getElementById('passwordInput').value;
+  if (val === SHOWROOM_PASSWORD) {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    loadInventory();
+  } else {
+    const inp = document.getElementById('passwordInput');
+    const err = document.getElementById('lockError');
+    inp.classList.add('error');
+    err.textContent = lang === 'el' ? 'Λάθος κωδικός. Δοκιμάστε ξανά.' : 'Incorrect password. Please try again.';
+    setTimeout(() => inp.classList.remove('error'), 400);
+    inp.value = '';
+  }
+}
+
+// ─── FIREBASE ──────────────────────────────────────────────────────────────────
+async function loadInventory() {
+  try {
+    const auth  = DB_SECRET ? `?auth=${DB_SECRET}` : '';
+    const url   = `${FIREBASE_URL}/jewelprice_inventory.json${auth}`;
+    const resp  = await fetch(url);
+    if (!resp.ok) throw new Error('Firebase error ' + resp.status);
+    const data  = await resp.json();
+    if (!data) { allItems = []; renderGrid(); return; }
+
+    allItems = Object.entries(data)
+      .map(([k, v]) => ({ _key: k, ...v }))
+      .filter(item =>
+        item.status === 'in_stock' &&
+        !item.isBulk &&
+        item.photoUrl
+      )
+      .sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+
+    renderFilters();
+    applyFilters();
+  } catch (e) {
+    document.getElementById('itemGrid').innerHTML =
+      `<div class="state-msg" style="color:#c0392b">${lang === 'el' ? 'Σφάλμα φόρτωσης. Ελέγξτε τη σύνδεση.' : 'Failed to load. Check your connection.'}</div>`;
+  }
+}
+
+// ─── FILTERS ───────────────────────────────────────────────────────────────────
+function getLabel(item) {
+  // Use only the bilingual description — type is already shown in the card-type line above
+  const descEl = (item.descEl || '').trim();
+  const descEn = (item.descEn || item.description || '').trim();
+  if (lang === 'el') return descEl || descEn || typeLabel(item.jewelryType) || '—';
+  return descEn || descEl || typeLabel(item.jewelryType) || '—';
+}
+
+// Collect distinct filter values from inventory
+function getFilterOptions() {
+  const types      = [...new Set(allItems.map(i => i.jewelryType).filter(Boolean))].sort();
+  const genders    = [...new Set(allItems.map(i => i.gender).filter(Boolean))];
+  const metals     = [...new Set(allItems.map(i => i.metal).filter(Boolean))];
+  const karats     = [...new Set(allItems.filter(i => i.metal==='gold').map(i => (i.karat||'').replace(/s$/,'')).filter(Boolean))].sort((a,b)=>Number(b)-Number(a));
+  const goldColors = [...new Set(allItems.filter(i => i.metal==='gold').map(i => i.goldColor||'gold'))];
+  // Sort gold colors by GOLD_COLORS order
+  const gcSorted   = GOLD_COLORS.filter(c => goldColors.includes(c.value)).map(c => c.value);
+  const hasHandmade = allItems.some(i => i.handmade);
+  // Vendors
+  const vendors = [...new Set(allItems.map(i => i.vendorName).filter(Boolean))].sort();
+  // Stones — collect distinct stone types from all items that have stonesDesc
+  const allStones = [];
+  allItems.forEach(item => { parseStonesFromDesc(item.stonesDesc).forEach(s => { if (!allStones.includes(s)) allStones.push(s); }); });
+  // Sort: Diamond/Emerald/Ruby/Sapphire first, rest alphabetically
+  const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
+  const stonesSorted = [
+    ...STONE_PRIORITY.filter(s => allStones.includes(s)),
+    ...allStones.filter(s => !STONE_PRIORITY.includes(s)).sort()
+  ];
+  return { types, vendors, genders, metals, karats, goldColors: gcSorted, stones: stonesSorted, hasHandmade };
+}
+
+function countActiveFilters() {
+  return activeFilters.types.length + activeFilters.vendors.length + activeFilters.genders.length +
+    activeFilters.metals.length + activeFilters.karats.length +
+    activeFilters.goldColors.length + activeFilters.stones.length + (activeFilters.handmade ? 1 : 0);
+}
+
+function updateFilterBar() {
+  const n = countActiveFilters();
+  const badge  = document.getElementById('filterBadge');
+  const btn    = document.getElementById('filterDrawerBtn');
+  const clearB = document.getElementById('filterClearBtn');
+  const summary = document.getElementById('filterActiveSummary');
+  const count  = document.getElementById('filterCount');
+  const label  = document.getElementById('filterBtnLabel');
+
+  label.textContent = lang==='el' ? 'Φίλτρα' : 'Filters';
+  if (n > 0) {
+    badge.textContent = n;
+    badge.style.display = '';
+    btn.classList.add('has-active');
+    clearB.style.display = '';
+    clearB.textContent = lang==='el' ? '✕ Καθαρισμός' : '✕ Clear';
+    // Build summary text
+    const parts = [];
+    const genderLabel = { women: lang==='el'?'Γυναικεία':'Women', men: lang==='el'?'Ανδρικά':'Men', children: lang==='el'?'Παιδικά':'Children', unisex: 'Unisex' };
+    const metalLabel  = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
+    if (activeFilters.types.length)      parts.push(activeFilters.types.map(typeLabel).join(', '));
+    if (activeFilters.vendors.length)    parts.push(activeFilters.vendors.join(', '));
+    if (activeFilters.genders.length)    parts.push(activeFilters.genders.map(g=>genderLabel[g]||g).join(', '));
+    if (activeFilters.metals.length)     parts.push(activeFilters.metals.map(m=>metalLabel[m]||m).join(', '));
+    if (activeFilters.karats.length)     parts.push(activeFilters.karats.map(k=>k+'K').join(', '));
+    if (activeFilters.goldColors.length) parts.push(activeFilters.goldColors.map(goldColorLabel).join(', '));
+    if (activeFilters.stones.length)     parts.push('💎 ' + activeFilters.stones.map(s=>stoneLabel(s)).join(', '));
+    if (activeFilters.handmade)          parts.push(lang==='el'?'Χειροποίητα':'Handmade');
+    summary.textContent = parts.join(' · ');
+  } else {
+    badge.style.display = 'none';
+    btn.classList.remove('has-active');
+    clearB.style.display = 'none';
+    summary.textContent = '';
+  }
+  count.textContent = filtered.length + (lang==='el' ? ' τεμ.' : ' items');
+}
+
+// ─── FILTER DRAWER ─────────────────────────────────────────────────────────────
+// ─── QUICK NAV MENU ──────────────────────────────────────────────────────────
+function openNavMenu() {
+  renderNavMenu();
+  document.getElementById('navMenuOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeNavMenu() {
+  document.getElementById('navMenuOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderNavMenu() {
+  const isEl = lang === 'el';
+  const opts = getFilterOptions();
+  const genderLabel = { women: isEl?'Γυναικεία':'Women', men: isEl?'Ανδρικά':'Men', unisex: 'Unisex', children: isEl?'Παιδικά':'Kids' };
+  const genderOrder = ['women','men','unisex','children'];
+  const genderCounts = {};
+  allItems.forEach(i => { if (i.gender) genderCounts[i.gender] = (genderCounts[i.gender]||0) + 1; });
+  const genderHtml = genderOrder.filter(g => opts.genders.includes(g)).map(g =>
+    `<button class="nav-menu-item" onclick="navQuickFilter('gender','${g}')">
+      <span>${genderLabel[g]||g}</span><span class="nm-count">${genderCounts[g]||0}</span>
+    </button>`
+  ).join('');
+  const genderGroupEl = document.getElementById('navGenderGroup');
+  if (genderGroupEl) genderGroupEl.innerHTML = genderHtml;
+
+  const typeCounts = {};
+  allItems.forEach(i => { if (i.jewelryType) typeCounts[i.jewelryType] = (typeCounts[i.jewelryType]||0) + 1; });
+  const typesSorted = [...opts.types].sort((a, b) => typeLabel(a).localeCompare(typeLabel(b), isEl ? 'el' : 'en'));
+  const typeHtml = typesSorted.map(tKey =>
+    `<button class="nav-menu-item" onclick="navQuickFilter('type','${tKey}')">
+      <span>${typeLabel(tKey)}</span><span class="nm-count">${typeCounts[tKey]||0}</span>
+    </button>`
+  ).join('');
+  const typeGroupEl = document.getElementById('navTypeGroup');
+  if (typeGroupEl) typeGroupEl.innerHTML = typeHtml;
+}
+
+function navQuickFilter(kind, value) {
+  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+  if (kind === 'gender') activeFilters.genders = [value];
+  else if (kind === 'type') activeFilters.types = [value];
+  applyFilters();
+  closeNavMenu();
+  document.querySelector('.item-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function openFilterDrawer() {
+  // Clone active into draft
+  draftFilters = {
+    types:      [...activeFilters.types],
+    genders:    [...activeFilters.genders],
+    metals:     [...activeFilters.metals],
+    vendors:    [...activeFilters.vendors],
+    karats:     [...activeFilters.karats],
+    goldColors: [...activeFilters.goldColors],
+    stones:     [...activeFilters.stones],
+    handmade:   activeFilters.handmade
+  };
+  renderDrawer();
+  document.getElementById('filterDrawerOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFilterDrawer() {
+  document.getElementById('filterDrawerOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderDrawer() {
+  const opts = getFilterOptions();
+  const isEl = lang === 'el';
+  const genderLabel = { women: isEl?'Γυναικεία':'Women', men: isEl?'Ανδρικά':'Men', children: isEl?'Παιδικά':'Children', unisex: 'Unisex' };
+  const metalLabel  = { gold: isEl?'Χρυσός':'Gold', silver: isEl?'Ασήμι':'Silver', other: isEl?'Άλλο':'Other' };
+
+  // Pill group (short lists)
+  function pillGroup(labelText, values, draftKey, labelFn) {
+    if (!values.length) return '';
+    const pills = values.map(v => {
+      const sel = draftFilters[draftKey].includes(v);
+      return `<button class="drawer-pill${sel?' sel':''}" onclick="toggleDraftPill(this,'${draftKey}','${encodeURIComponent(v)}')">${labelFn(v)}</button>`;
+    }).join('');
+    return `<div class="drawer-section"><div class="drawer-section-label">${labelText}</div><div class="drawer-pills">${pills}</div></div><div class="drawer-divider"></div>`;
+  }
+
+  // Dropdown picker (long lists — type, vendor, stones)
+  function dropGroup(labelText, values, draftKey, labelFn) {
+    if (!values.length) return '';
+    const selArr = draftFilters[draftKey];
+    const hasSel = selArr.length > 0;
+    const triggerLabel = hasSel ? selArr.map(labelFn).join(', ') : (isEl ? 'Επιλέξτε…' : 'Select…');
+    const items = values.map(v => {
+      const sel = selArr.includes(v);
+      return `<div class="sw-picker-item${sel?' sel':''}" data-key="${draftKey}" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)">
+        <span>${labelFn(v)}</span>
+        <div class="sw-picker-circle">
+          <svg class="sw-picker-check" viewBox="0 0 10 10" fill="none">
+            <polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="drawer-section">
+      <div class="drawer-section-label">${labelText}</div>
+      <button class="sw-picker-trigger${hasSel?' has-sel':''}" id="swTrigger_${draftKey}" onclick="toggleSwPicker('${draftKey}')">
+        <span id="swLabel_${draftKey}">${triggerLabel}</span>
+        <span class="chev">▼</span>
+      </button>
+      <div class="sw-picker-list" id="swList_${draftKey}">${items}</div>
+    </div><div class="drawer-divider"></div>`;
+  }
+
+  let html = '';
+  html += dropGroup(isEl?'Τύπος':'Type', opts.types, 'types', typeLabel);
+  // Vendor filter hidden from customers
+  html += pillGroup(isEl?'Μέταλλο':'Metal', opts.metals, 'metals', v => metalLabel[v]||v);
+  if (opts.karats.length > 0) {
+    html += pillGroup(isEl?'Καράτια':'Karat', opts.karats, 'karats', v => v+'K');
+  }
+  if (opts.goldColors.length > 1) {
+    html += pillGroup(isEl?'Χρώμα Χρυσού':'Gold Color', opts.goldColors, 'goldColors', goldColorLabel);
+  }
+    if (opts.stones.length > 0) {
+      // Build pearl-subcategory aware stone group
+      // Pearl group slots right after the 4 precious stones
+      const PRECIOUS_4 = ['Diamond','Emerald','Ruby','Sapphire'];
+      const pearlsInOpts = PEARL_TYPES.filter(p => opts.stones.includes(p));
+      const precious4Present = PRECIOUS_4.filter(s => opts.stones.includes(s));
+      const restAlpha = opts.stones.filter(s => !PRECIOUS_4.includes(s) && !PEARL_TYPES.includes(s));
+      const nonPearlOpts = [...precious4Present, ...restAlpha];
+      if (!pearlsInOpts.length) {
+        html += dropGroup(isEl?'Πέτρες':'Stones', nonPearlOpts, 'stones', v => stoneLabel(v));
+      } else {
+        const selArr = draftFilters['stones'];
+        const hasSel = selArr.length > 0;
+        const triggerLabel = hasSel ? selArr.map(v => stoneLabel(v)).join(', ') : (isEl?'Επιλέξτε…':'Select…');
+        // Precious 4 items (before pearl group)
+        const precious4Items = precious4Present.map(v => {
+          const sel = selArr.includes(v);
+          return `<div class="sw-picker-item${sel?' sel':''}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)">
+            <span>${stoneLabel(v)}</span>
+            <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>`;
+        }).join('');
+        // Rest alphabetical items (after pearl group)
+        const restItems = restAlpha.map(v => {
+          const sel = selArr.includes(v);
+          return `<div class="sw-picker-item${sel?' sel':''}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)">
+            <span>${stoneLabel(v)}</span>
+            <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>`;
+        }).join('');
+        const allPearlsSel = pearlsInOpts.every(p => selArr.includes(p));
+        const pearlExpanded = pearlsInOpts.some(p => selArr.includes(p));
+        const pearlAllLabel = isEl ? 'Μαργαριτάρια (όλα)' : 'Pearls (all)';
+        // Pearl header row with ▶/▼ collapse toggle
+        const pearlAllItem = `<div class="sw-picker-item sw-pearl-all${allPearlsSel?' sel':''}" data-key="stones-pearls-all" data-val="all" onclick="toggleDraftPearlAll(this)" style="font-weight:600;border-top:1px solid rgba(201,168,76,0.15);border-bottom:1px solid rgba(201,168,76,0.1);background:rgba(201,168,76,0.05)">
+          <span style="display:flex;align-items:center;gap:8px"><span class="pearl-chev" style="font-size:10px;color:var(--text-muted)">${pearlExpanded?'▼':'▶'}</span>${pearlAllLabel}</span>
+          <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>`;
+        // Pearl sub-items hidden by default unless one is already selected
+        const pearlSubItems = pearlsInOpts.map(v => {
+          const sel = selArr.includes(v);
+          return `<div class="sw-picker-item sw-pearl-sub${sel?' sel':''}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)" style="padding-left:28px;display:${pearlExpanded?'flex':'none'}">
+            <span>${stoneLabel(v)}</span>
+            <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>`;
+        }).join('');
+        // Order: precious4 → pearl header → pearl subs → rest alpha
+        html += `<div class="drawer-section">
+          <div class="drawer-section-label">${isEl?'Πέτρες':'Stones'}</div>
+          <button class="sw-picker-trigger${hasSel?' has-sel':''}" id="swTrigger_stones" onclick="toggleSwPicker('stones')">
+            <span id="swLabel_stones">${triggerLabel}</span>
+            <span class="chev">▼</span>
+          </button>
+          <div class="sw-picker-list" id="swList_stones">${precious4Items}${pearlAllItem}${pearlSubItems}${restItems}</div>
+        </div><div class="drawer-divider"></div>`;
+      }
+    }
+  if (opts.genders.length > 1) {
+    html += pillGroup(isEl?'Κοινό':'For', opts.genders, 'genders', v => genderLabel[v]||v);
+  }
+  if (opts.hasHandmade) {
+    const sel = draftFilters.handmade ? ' sel' : '';
+    html += `<div class="drawer-section"><div class="drawer-section-label">${isEl?'Χειροποίητα':'Handmade'}</div><div class="drawer-pills"><button class="drawer-pill${sel}" onclick="toggleDraftHandmade(this)">✦ ${isEl?'Χειροποίητα':'Handmade only'}</button></div></div><div class="drawer-divider"></div>`;
+  }
+
+  document.getElementById('drawerBody').innerHTML = html || `<div style="padding:32px 20px;text-align:center;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:12px">${isEl?'Δεν υπάρχουν φίλτρα':'No filters available'}</div>`;
+  document.getElementById('drawerTitle').textContent = isEl ? 'Φίλτρα' : 'Filters';
+  document.getElementById('drawerApplyBtn').textContent = isEl ? 'Εφαρμογή' : 'Apply';
+  const _clearBtn = document.getElementById('drawerClearBtn');
+  if (_clearBtn) _clearBtn.textContent = isEl ? 'Καθαρισμός' : 'Clear All';
+  const _closeBtn = document.getElementById('drawerCloseBtn');
+  if (_closeBtn) _closeBtn.textContent = isEl ? 'Κλείσιμο' : 'Close';
+}
+
+function toggleSwPicker(key) {
+  // Close all other pickers first
+  document.querySelectorAll('.sw-picker-list').forEach(l => {
+    if (l.id !== 'swList_' + key) {
+      l.classList.remove('open');
+      const tId = l.id.replace('swList_', 'swTrigger_');
+      const t = document.getElementById(tId);
+      if (t) t.classList.remove('open');
+    }
+  });
+  const list = document.getElementById('swList_' + key);
+  const trigger = document.getElementById('swTrigger_' + key);
+  if (!list) return;
+  const isOpen = list.classList.contains('open');
+  list.classList.toggle('open', !isOpen);
+  if (trigger) trigger.classList.toggle('open', !isOpen);
+}
+
+function toggleDraftPickerItem(el) {
+  const key = el.dataset.key;
+  const val = el.dataset.val;
+  const arr = draftFilters[key];
+  const idx = arr.indexOf(val);
+  if (idx === -1) { arr.push(val); el.classList.add('sel'); }
+  else { arr.splice(idx, 1); el.classList.remove('sel'); }
+  // Update trigger label
+  const isEl = lang === 'el';
+  const trigger = document.getElementById('swTrigger_' + key);
+  const labelEl = document.getElementById('swLabel_' + key);
+  if (trigger && labelEl) {
+    const hasSel = arr.length > 0;
+    trigger.classList.toggle('has-sel', hasSel);
+    labelEl.textContent = hasSel ? arr.map(v => stoneLabel(v)).join(', ') : (isEl ? 'Επιλέξτε…' : 'Select…');
+    // Sync pearl-all header sel state
+    if (key === 'stones') {
+      const pearlAllBtn = document.querySelector('.sw-pearl-all');
+      if (pearlAllBtn) {
+        const pearlsPresent = PEARL_TYPES.filter(p => document.querySelector(`.sw-pearl-sub[data-val="${p}"]`));
+        const allSel = pearlsPresent.length > 0 && pearlsPresent.every(p => draftFilters.stones.includes(p));
+        pearlAllBtn.classList.toggle('sel', allSel);
+      }
+    }
+  }
+}
+
+function clearDraftFilters() {
+  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+  renderDrawer();
+}
+
+function toggleDraftPill(btn, key, encodedVal) {
+  const val = decodeURIComponent(encodedVal);
+  const arr = draftFilters[key];
+  const idx = arr.indexOf(val);
+  if (idx === -1) { arr.push(val); btn.classList.add('sel'); }
+  else { arr.splice(idx, 1); btn.classList.remove('sel'); }
+}
+
+function toggleDraftHandmade(btn) {
+  draftFilters.handmade = !draftFilters.handmade;
+  btn.classList.toggle('sel', draftFilters.handmade);
+}
+
+function toggleDraftPearlAll(el) {
+  const isEl = lang === 'el';
+  const pearlsPresent = PEARL_TYPES.filter(p =>
+    document.querySelector(`.sw-pearl-sub[data-val="${p}"]`));
+  // If click was on the circle → select/deselect all; otherwise → collapse toggle
+  const clickedCircle = event.target.closest('.sw-picker-circle');
+  if (clickedCircle) {
+    const allSel = pearlsPresent.every(p => draftFilters.stones.includes(p));
+    if (allSel) {
+      pearlsPresent.forEach(p => {
+        const idx = draftFilters.stones.indexOf(p);
+        if (idx !== -1) draftFilters.stones.splice(idx, 1);
+        const pEl = document.querySelector(`.sw-pearl-sub[data-val="${p}"]`);
+        if (pEl) pEl.classList.remove('sel');
+      });
+      el.classList.remove('sel');
+    } else {
+      pearlsPresent.forEach(p => {
+        if (!draftFilters.stones.includes(p)) draftFilters.stones.push(p);
+        const pEl = document.querySelector(`.sw-pearl-sub[data-val="${p}"]`);
+        if (pEl) pEl.classList.add('sel');
+      });
+      el.classList.add('sel');
+    }
+    // Update trigger label
+    const trigger = document.getElementById('swTrigger_stones');
+    const labelEl = document.getElementById('swLabel_stones');
+    if (trigger && labelEl) {
+      const hasSel = draftFilters.stones.length > 0;
+      trigger.classList.toggle('has-sel', hasSel);
+      labelEl.textContent = hasSel ? draftFilters.stones.map(v => stoneLabel(v)).join(', ') : (isEl?'Επιλέξτε…':'Select…');
+    }
+  } else {
+    // Toggle collapse
+    const subs = document.querySelectorAll('.sw-pearl-sub');
+    const chevEl = el.querySelector('.pearl-chev');
+    const isOpen = subs.length > 0 && subs[0].style.display !== 'none';
+    subs.forEach(s => { s.style.display = isOpen ? 'none' : 'flex'; });
+    if (chevEl) chevEl.textContent = isOpen ? '▶' : '▼';
+  }
+}
+
+function applyDrawerFilters() {
+  activeFilters = {
+    types:      [...draftFilters.types],
+    genders:    [...draftFilters.genders],
+    metals:     [...draftFilters.metals],
+    vendors:    [...draftFilters.vendors],
+    karats:     [...draftFilters.karats],
+    goldColors: [...draftFilters.goldColors],
+    stones:     [...draftFilters.stones],
+    handmade:   draftFilters.handmade
+  };
+  closeFilterDrawer();
+  applyFilters();
+}
+
+function clearAllFilters() {
+  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+  applyFilters();
+}
+
+function renderFilters() {
+  updateFilterBar();
+}
+
+function applySearch(val) {
+  searchQuery = (val || '').trim().toLowerCase();
+  const clearBtn = document.getElementById('searchClear');
+  if (clearBtn) clearBtn.style.display = searchQuery ? '' : 'none';
+  // Update placeholder language
+  const inp = document.getElementById('searchInput');
+  if (inp) inp.placeholder = lang === 'el' ? 'Αναζήτηση αρ. αναφοράς, περιγραφής, τύπου, πέτρας…' : 'Search by ref, description, type, stone…';
+  applyFilters();
+}
+
+function clearSearch() {
+  searchQuery = '';
+  const inp = document.getElementById('searchInput');
+  if (inp) inp.value = '';
+  const clearBtn = document.getElementById('searchClear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  applyFilters();
+}
+
+function applyFilters() {
+  filtered = allItems.filter(item => {
+    if (activeFilters.types.length && !activeFilters.types.includes(item.jewelryType)) return false;
+    if (activeFilters.vendors.length && !activeFilters.vendors.includes(item.vendorName)) return false;
+    if (activeFilters.genders.length && !activeFilters.genders.includes(item.gender)) return false;
+    if (activeFilters.metals.length && !activeFilters.metals.includes(item.metal)) return false;
+    if (activeFilters.karats.length) {
+      const k = (item.karat||'').replace(/s$/,'');
+      if (!activeFilters.karats.includes(k)) return false;
+    }
+    if (activeFilters.goldColors.length) {
+      if (item.metal !== 'gold') return false;
+      const gc = item.goldColor || 'gold';
+      if (!activeFilters.goldColors.includes(gc)) return false;
+    }
+    if (activeFilters.stones.length) {
+      const itemStones = parseStonesFromDesc(item.stonesDesc);
+      const hasMatch = activeFilters.stones.some(s => itemStones.includes(s));
+      if (!hasMatch) return false;
+    }
+    if (activeFilters.handmade && !item.handmade) return false;
+    // Search filter
+    if (searchQuery) {
+      const refCode = item.seqId ? formatSeqId(item.seqId, item.jewelryType).toLowerCase() : '';
+      const numOnly = item.seqId ? String(item.seqId) : '';
+      const typeRaw = (item.jewelryType || '').toLowerCase();
+      const hay = [
+        item.descEl || '', item.descEn || '', item.description || '',
+        item.jewelryType || '', typeRaw,
+        item.stonesDesc || '',
+        refCode, numOnly
+      ].join(' ').toLowerCase();
+      if (!hay.includes(searchQuery)) return false;
+    }
+    return true;
+  });
+  updateFilterBar();
+  renderGrid();
+}
+
+// ─── GRID ──────────────────────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('itemGrid');
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="state-msg">${lang==='el'?'Δεν βρέθηκαν αντικείμενα με αυτά τα φίλτρα.':'No items match the selected filters.'}</div>`;
+    return;
+  }
+
+  const metalLabel = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
+
+  grid.innerHTML = filtered.map(item => {
+    const sel  = selected.has(item._key) ? 'selected' : '';
+    const name = getLabel(item);
+    const tags = [];
+    if (item.metal && item.metal !== 'other') {
+      const k = item.karat ? item.karat.replace(/s$/,'') : '';
+      tags.push(`<span class="card-tag">${metalLabel[item.metal]||item.metal}${k?' '+k+'K':''}</span>`);
+      if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
+        tags.push(`<span class="card-tag">${goldColorLabel(item.goldColor)}</span>`);
+      }
+    }
+    if (item.jewelryType) tags.push(`<span class="card-tag">${typeLabel(item.jewelryType)}</span>`);
+    if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
+
+    return `
+    <div class="item-card ${sel}" onclick="openLightbox('${item._key}')">
+      <div class="card-img-wrap">
+        <img class="card-img" src="${item.photoUrl}" alt="${name}" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="card-img-placeholder" style="display:none">💎</div>
+      </div>
+      <div class="card-body">
+        <div class="card-type">${typeLabel(item.jewelryType)}</div>
+        <div class="card-name">${name}</div>
+        <div class="card-tags">${tags.join('')}</div>
+        ${item.seqId ? `<div class="card-ref">${formatSeqId(item.seqId, item.jewelryType)}</div>` : ''}
+      </div>
+      <div class="card-select-badge">
+        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── SELECTION ─────────────────────────────────────────────────────────────────
+function toggleSelect(key) {
+  if (selected.has(key)) selected.delete(key);
+  else selected.add(key);
+  updateSelBar();
+  renderGrid();
+}
+
+function clearSelection() {
+  selected.clear();
+  updateSelBar();
+  renderGrid();
+}
+
+function updateSelBar() {
+  const bar = document.getElementById('selectionBar');
+  const cnt = selected.size;
+  if (cnt === 0) {
+    bar.classList.remove('visible');
+  } else {
+    bar.classList.add('visible');
+    document.getElementById('selCount').textContent =
+      lang==='el' ? `${cnt} επιλεγμένα` : `${cnt} selected`;
+    document.getElementById('selectionBar').querySelector('[data-i18n]').forEach?.(el => {});
+    document.querySelector('.sel-clear').textContent = lang==='el'?'Καθαρισμός':'Clear';
+    document.querySelector('.sel-inquire').textContent = lang==='el'?'Αποστολή Αιτήματος':'Send Inquiry';
+  }
+}
+
+// ─── LIGHTBOX ──────────────────────────────────────────────────────────────────
+function openLightbox(key) {
+  const item = allItems.find(i => i._key === key);
+  if (!item) return;
+  lightboxKey = key;
+
+  const name = getLabel(item);
+  document.getElementById('lbTitle').textContent = name;
+
+  const isSel = selected.has(key);
+  const btn = document.getElementById('lbSelectBtn');
+  btn.textContent = isSel ? (lang==='el'?'✓ Επιλεγμένο':'✓ Selected') : (lang==='el'?'Επιλογή':'Select');
+  btn.classList.toggle('selected-state', isSel);
+  const closeBtn = document.getElementById('lbCloseBtn');
+  if (closeBtn) closeBtn.textContent = lang==='el' ? 'Κλείσιμο' : 'Close';
+
+  const metalLabel = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
+  const genderLabel = { women: lang==='el'?'Γυναικεία':'Women', men: lang==='el'?'Ανδρικά':'Men', children: lang==='el'?'Παιδικά':'Children', unisex: 'Unisex' };
+
+  let rows = '';
+  if (item.jewelryType) rows += row(lang==='el'?'Τύπος':'Type', typeLabel(item.jewelryType));
+  if (item.metal && item.metal !== 'other') {
+    const k = item.karat ? item.karat.replace(/s$/,'') : '';
+    let metalStr = `${metalLabel[item.metal]||item.metal}${k?' · '+k+'K':''}`;
+    if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
+      metalStr += ' · ' + goldColorLabel(item.goldColor);
+    }
+    rows += row(lang==='el'?'Μέταλλο':'Metal', metalStr);
+    if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g');
+  }
+  if (item.gender) rows += row(lang==='el'?'Φύλο':'For', genderLabel[item.gender]||item.gender);
+  if (item.handmade) rows += row(lang==='el'?'Χειροποίητο':'Handmade', '✦');
+
+  let stonesHtml = '';
+  if (item.stonesDesc) {
+    stonesHtml = `<div class="lb-stones">
+      <div class="lb-stones-label">${lang==='el'?'Πέτρες':'Stones'}</div>
+      ${stonesDescDisplay(item.stonesDesc)}
+    </div>`;
+  }
+
+  document.getElementById('lightboxBody').innerHTML = `
+    <img class="lb-img" src="${item.photoUrl}" alt="${name}"
+         onerror="this.style.background='#252210';this.src=''">
+    ${rows}
+    ${stonesHtml}
+    ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${formatSeqId(item.seqId, item.jewelryType)}</span></div>` : ''}
+  `;
+
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function row(key, val) {
+  return `<div class="lb-detail-row">
+    <span class="lb-detail-key">${key}</span>
+    <span class="lb-detail-val">${val}</span>
+  </div>`;
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+  lightboxKey = null;
+}
+
+function toggleFromLightbox() {
+  if (!lightboxKey) return;
+  toggleSelect(lightboxKey);
+  const isSel = selected.has(lightboxKey);
+  const btn = document.getElementById('lbSelectBtn');
+  btn.textContent = isSel ? (lang==='el'?'✓ Επιλεγμένο':'✓ Selected') : (lang==='el'?'Επιλογή':'Select');
+  btn.classList.toggle('selected-state', isSel);
+}
+
+// ─── INQUIRY MODAL ─────────────────────────────────────────────────────────────
+function openInquiry() {
+  // Build selection list
+  const items = [...selected].map(k => allItems.find(i => i._key === k)).filter(Boolean);
+  const selHtml = `
+    <div class="modal-sel-label">${lang==='el'?'Επιλεγμένα κοσμήματα':'Selected pieces'} (${items.length})</div>
+    ${items.map(i => `<div class="modal-sel-item"><span class="modal-sel-dot"></span>${getLabel(i)}</div>`).join('')}
+  `;
+  document.getElementById('modalSelection').innerHTML = selHtml;
+  document.getElementById('formStatus').style.display = 'none';
+  document.getElementById('formStatus').className = 'form-status';
+  document.getElementById('inqName').value = '';
+  document.getElementById('inqEmail').value = '';
+  document.getElementById('inqMessage').value = '';
+
+  // Apply lang to modal static text
+  document.querySelectorAll('#inquiryModal [data-i18n]').forEach(el => {
+    el.innerHTML = t(el.getAttribute('data-i18n'));
+  });
+  document.getElementById('inqMessage').placeholder = lang==='el'
+    ? 'Ειδικές ερωτήσεις, προτιμήσεις ή μέγεθος…'
+    : 'Any specific questions, preferences, or sizing info…';
+
+  document.getElementById('inquiryModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('inqName').focus(), 100);
+}
+
+function closeInquiry() {
+  document.getElementById('inquiryModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function submitInquiry() {
+  const name  = document.getElementById('inqName').value.trim();
+  const email = document.getElementById('inqEmail').value.trim();
+  const msg   = document.getElementById('inqMessage').value.trim();
+  const btn   = document.getElementById('submitBtn');
+  const stat  = document.getElementById('formStatus');
+
+  if (!name) { document.getElementById('inqName').focus(); return; }
+  if (!email || !email.includes('@')) { document.getElementById('inqEmail').focus(); return; }
+
+  const items = [...selected].map(k => allItems.find(i => i._key === k)).filter(Boolean);
+  const itemList = items.map(i => {
+    const qr = encodeURIComponent(i.qrCode||'');
+    const ref = i.seqId ? formatSeqId(i.seqId, i.jewelryType) : '';
+    const link = `https://slekkas.github.io/jewelprice/item.htm?qr=${qr}`;
+    return `• ${getLabel(i)}${ref ? ' [' + ref + ']' : ''}\n  View item: ${link}`;
+  }).join('\n\n');
+
+  btn.disabled = true;
+  btn.textContent = lang==='el' ? 'Αποστολή…' : 'Sending…';
+  stat.style.display = 'none';
+
+  try {
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      from_name:  name,
+      from_email: email,
+      message:    msg || '—',
+      item_list:  itemList,
+      item_count: items.length,
+      to_email:   'lekkasjewelry@gmail.com'
+    });
+
+    stat.className = 'form-status success';
+    stat.textContent = lang==='el'
+      ? '✓ Το αίτημά σας εστάλη! Θα επικοινωνήσουμε μαζί σας σύντομα.'
+      : '✓ Your inquiry was sent! We\'ll be in touch soon.';
+    stat.style.display = 'block';
+    btn.textContent = lang==='el' ? '✓ Εστάλη' : '✓ Sent';
+    setTimeout(() => {
+      closeInquiry();
+      clearSelection();
+      btn.disabled = false;
+      btn.textContent = lang==='el' ? 'Αποστολή Αιτήματος' : 'Send Inquiry';
+    }, 2500);
+  } catch(e) {
+    stat.className = 'form-status error';
+    const errMsg = e?.text || e?.message || JSON.stringify(e) || 'Unknown error';
+    stat.textContent = 'Error: ' + errMsg;
+    stat.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = lang==='el' ? 'Αποστολή Αιτήματος' : 'Send Inquiry';
+  }
+}
+
+// ─── KEYBOARD ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('lightbox').classList.contains('open')) closeLightbox();
+    else if (document.getElementById('inquiryModal').classList.contains('open')) closeInquiry();
+  }
+});
+</script>
+
+<!-- EmailJS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>emailjs.init({ publicKey: EMAILJS_PUBLIC });</script>
+
+</body>
+</html>
