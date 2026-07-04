@@ -12350,7 +12350,9 @@ function _bulkSellCalc() {
   if (!isNaN(roundVal) && roundVal > 0 && roundVal < base) {
     const final = roundVal;
     const discAmt = base - final;
-    const disc = (discAmt / base) * 100;
+    // Percentage is display-only (final price + saved amount come straight from the
+    // entered target), so round it to 2 decimals to avoid a long float like 22.9114…%
+    const disc = Math.round((discAmt / base) * 100 * 100) / 100;
     return { base, preVatBase, final, disc, discAmt, vatRate, w };
   }
   const disc = parseFloat(document.getElementById('bulkSellDiscount')?.value) || 0;
@@ -13262,6 +13264,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.96', date: 'Ιούλιος 2026', items: [
+        '⛓️ Πώληση αλυσίδας: το ποσοστό έκπτωσης εμφανίζεται ξανά στρογγυλεμένο (π.χ. -22,91%) αντί για έναν πολύ μεγάλο αριθμό με πολλά δεκαδικά'
+      ]},
       { version: 'v9.95', date: 'Ιούλιος 2026', items: [
         '🟢 Επανήλθε η πράσινη ειδοποίηση «Νέα έκδοση»: όταν ανοίγετε την εφαρμογή μετά από ενημέρωση, βλέπετε ξανά τι άλλαξε μαζί με κουμπί Ανανέωσης — τραβά πλέον αυτόματα τις αλλαγές από το ημερολόγιο αλλαγών, οπότε δεν θα ξαναχαθεί'
       ]},
@@ -13384,6 +13389,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.96', date: 'Jul 2026', items: [
+        '⛓️ Chain sale: the discount percentage is shown rounded again (e.g. -22.91%) instead of a very long many-decimal number'
+      ]},
       { version: 'v9.95', date: 'Jul 2026', items: [
         '🟢 The green "new version" notification is back: after an update, opening the app again shows what changed with a Refresh button — it now pulls the notes straight from the changelog, so it can\'t silently disappear again'
       ]},
@@ -16206,7 +16214,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.95';
+const APP_VERSION = '9.96';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
