@@ -5050,6 +5050,29 @@ async function renderSalesDashboard() {
 // Sale modal (from price bar)
 function openSaleModal() {
   if (!lastCalcResult) return;
+  // A multi-item quote cart is in progress → the big "Sold" button is ambiguous:
+  // does the user mean just this one item, or everything they added to the cart?
+  // Ask, so we never silently record only the last calculated item.
+  if (typeof quoteCart !== 'undefined' && quoteCart && quoteCart.length >= 2) {
+    const _cur = state.currency || '€';
+    const _cartTotal = quoteCart.reduce((s, ci) => s + (parseFloat(ci.result && ci.result.finalPrice) || 0), 0);
+    const _thisAmt = parseFloat(lastCalcResult.finalPrice) || 0;
+    const _msg = lang === 'el'
+      ? `Έχετε ${quoteCart.length} αντικείμενα στο καλάθι (σύνολο ${_cur}${_cartTotal.toFixed(2)}). Καταχώριση πώλησης για ΟΛΑ ή μόνο για το τρέχον (${_cur}${_thisAmt.toFixed(2)});`
+      : `You have ${quoteCart.length} items in your cart (total ${_cur}${_cartTotal.toFixed(2)}). Record the sale for ALL of them, or just the current item (${_cur}${_thisAmt.toFixed(2)})?`;
+    showConfirm(_msg, () => markCartAsSold(), () => _openSingleSaleModal(), {
+      okLabel: lang === 'el' ? `Όλα (${quoteCart.length})` : `All (${quoteCart.length})`,
+      cancelLabel: lang === 'el' ? 'Μόνο αυτό' : 'Only this',
+      danger: false
+    });
+    return;
+  }
+  _openSingleSaleModal();
+}
+
+function _openSingleSaleModal() {
+  if (!lastCalcResult) return;
+  window._cartSaleItems = null; // single-item sale must never inherit stale multi-sale state
   const amt = parseFloat(lastCalcResult.finalPrice);
   document.getElementById('saleAmountInput').value = amt ? amt.toFixed(2) : '';
   document.getElementById('saleNoteInput').value = '';
@@ -5127,6 +5150,7 @@ function closeSaleModal() {
   delete window._saleFromQuoteId; // clean up if opened from history
   delete window._saleFromInvId;   // clean up if opened from inventory
   delete window._saleFromInvQr;
+  window._cartSaleItems = null;   // clear multi-sale state so a cancelled cart sale can't leak into the next sale
 }
 
 // Open the sale modal pre-filled from a quote history entry
@@ -5136,6 +5160,7 @@ function openSaleModalFromQuote(id) {
     const quotes = JSON.parse(raw);
     const e = quotes.find(q => q.id === id);
     if (!e) return;
+    window._cartSaleItems = null; // single-item sale from a quote — clear any stale multi-sale state
     window._saleFromQuoteId = id; // remember so confirmSale can mark it sold
     document.getElementById('saleAmountInput').value = parseFloat(e.finalPrice).toFixed(2);
     document.getElementById('saleNoteInput').value = e.title || '';
@@ -5436,21 +5461,24 @@ async function confirmSale() {
   const amt = parseFloat(document.getElementById('saleAmountInput').value);
   if (!amt || amt <= 0) { showToast(lang==='el'?'⚠️ Εισάγετε έγκυρο ποσό':'⚠️ Enter a valid amount'); return; }
 
-  // For multi-item sales, distribute the final amount proportionally across items
+  // For multi-item sales, distribute the final amount proportionally across items.
+  // Snapshot the cart list into a local so a mid-function closeSaleModal() (which clears
+  // the global multi-sale state) can't wipe it before the remaining items are recorded.
+  let _cartItems = (window._cartSaleItems && window._cartSaleItems.length > 1) ? window._cartSaleItems.slice() : null;
   let _effectiveAmt = amt; // amount for item 1 (first item in confirmSale)
-  if (window._cartSaleItems && window._cartSaleItems.length > 1) {
-    const _totalOriginal = window._cartSaleItems.reduce((s, i) => s + i.price, 0);
+  if (_cartItems) {
+    const _totalOriginal = _cartItems.reduce((s, i) => s + i.price, 0);
     if (_totalOriginal > 0) {
       // Pre-compute each item's proportional share and store on the array
-      window._cartSaleItems = window._cartSaleItems.map(i => ({
+      _cartItems = _cartItems.map(i => ({
         ...i,
         proportionalAmt: parseFloat((amt * i.price / _totalOriginal).toFixed(2))
       }));
       // Adjust last item to absorb rounding difference
-      const _sumExceptLast = window._cartSaleItems.slice(0, -1).reduce((s, i) => s + i.proportionalAmt, 0);
-      window._cartSaleItems[window._cartSaleItems.length - 1].proportionalAmt =
+      const _sumExceptLast = _cartItems.slice(0, -1).reduce((s, i) => s + i.proportionalAmt, 0);
+      _cartItems[_cartItems.length - 1].proportionalAmt =
         parseFloat((amt - _sumExceptLast).toFixed(2));
-      _effectiveAmt = window._cartSaleItems[0].proportionalAmt;
+      _effectiveAmt = _cartItems[0].proportionalAmt;
     }
   }
   const note = document.getElementById('saleNoteInput').value.trim();
@@ -5530,7 +5558,7 @@ async function confirmSale() {
 
   // Auto-mark matching inventory item as sold (matched by QR code)
   // Skip this for multi-item sales — the multi handler marks all items correctly
-  if (!window._cartSaleItems && lastCalcResult && lastCalcResult.labelCode) {
+  if (!_cartItems && lastCalcResult && lastCalcResult.labelCode) {
     try {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
@@ -5557,9 +5585,9 @@ async function confirmSale() {
   const invPanel = document.getElementById('panel-inventory');
   if (invPanel && invPanel.style.display !== 'none') renderInvList();
 
-  // Mark remaining _cartSaleItems as sold if multi-item sale
-  if (window._cartSaleItems && window._cartSaleItems.length > 1) {
-    const rest = window._cartSaleItems.slice(1);
+  // Mark remaining cart items as sold if this was a multi-item sale
+  if (_cartItems && _cartItems.length > 1) {
+    const rest = _cartItems.slice(1);
     for (const { id, item, proportionalAmt, price } of rest) {
       try {
         // Mark inventory as sold (if not already)
@@ -5579,13 +5607,10 @@ async function confirmSale() {
         await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, 0, 0, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef);
       } catch(e) { console.warn('Multi-sale item error:', e); }
     }
-    showToast('✅ ' + (window._cartSaleItems.length) + (lang==='el'?' αντικείμενα πουλήθηκαν':' items marked sold'));
-    window._cartSaleItems = null;
+    showToast('✅ ' + (_cartItems.length) + (lang==='el'?' αντικείμενα πουλήθηκαν':' items marked sold'));
     clearQuoteCart();
     invClearSelection();
     if (invPanel && invPanel.style.display !== 'none') renderInvList();
-  } else {
-    window._cartSaleItems = null;
   }
 
   // Flash the sold button green
@@ -12609,6 +12634,7 @@ async function invMarkSold(id) {
 function openSaleModalFromInventory(id) {
   const item = _inventoryCache[id];
   if (!item) return;
+  window._cartSaleItems = null; // single-item sale from inventory — clear any stale multi-sale state
   const p = calcInvItemPrice(item);
   const amt = p ? p.retail.toFixed(2) : '';
   const typeStr = item.jewelryType ? invTypeLabel(item.jewelryType) : '';
@@ -13227,6 +13253,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.93', date: 'Ιούλιος 2026', items: [
+        '🛒 Πιο σταθερή πώληση πολλών αντικειμένων: όταν πατάτε «Πωλήθηκε» ενώ έχετε 2+ αντικείμενα στο καλάθι, η εφαρμογή ρωτά αν θέλετε να καταχωρίσετε ΟΛΑ (με το σωστό σύνολο) ή μόνο το τρέχον — δεν καταγράφει πια σιωπηλά μόνο το ένα',
+        '🛒 Διόρθωση: ακυρωμένη πώληση καλαθιού δεν «κολλάει» πια στην επόμενη πώληση'
+      ]},
       { version: 'v9.92', date: 'Ιούλιος 2026', items: [
         '💎 Το πεδίο ποσότητας πέτρας δείχνει αχνή παύλα «—» αντί για «1» — και μένει κενό στην επεξεργασία ειδών χωρίς ορισμένη ποσότητα'
       ]},
@@ -13339,6 +13369,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.93', date: 'Jul 2026', items: [
+        '🛒 More consistent multi-item sales: pressing "Sold" while 2+ items are in the cart now asks whether to record ALL of them (with the correct total) or just the current item — it no longer silently records only one',
+        '🛒 Fix: a cancelled cart sale no longer leaks into the next sale'
+      ]},
       { version: 'v9.92', date: 'Jul 2026', items: [
         '💎 Stone quantity field shows a faint "—" dash instead of "1" — and stays empty when editing items with no quantity set'
       ]},
@@ -16151,7 +16185,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.92';
+const APP_VERSION = '9.93';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
