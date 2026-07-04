@@ -20,7 +20,7 @@
     --border-soft: rgba(139,111,47,0.15);
     --text:        #2E2416;
     --text-dim:    #5C4E36;
-    --text-muted:  #7A6A4E;
+    --text-muted:  #6C5B3C;
     --radius:      3px;
   }
 
@@ -144,7 +144,7 @@
     flex-shrink: 0;
   }
   .header-logo svg {
-    height: clamp(34px, 4vw, 54px);
+    height: clamp(42px, 5.5vw, 74px);
     width: auto;
     display: block;
   }
@@ -154,7 +154,7 @@
   }
   .nav-menu-btn {
     background: none; border: 1px solid var(--border); color: var(--text-dim);
-    border-radius: 2px; width: 34px; height: 34px; flex-shrink: 0;
+    border-radius: 2px; width: 40px; height: 40px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; transition: color 0.2s, border-color 0.2s, background 0.2s;
   }
@@ -205,7 +205,7 @@
   .nav-menu-back:hover { color: var(--gold-light); border-color: var(--gold); }
   .nav-menu-body { padding: 18px 20px 32px; flex: 1; }
   .nav-menu-section-label {
-    font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.14em;
+    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.14em;
     text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;
   }
   .nav-menu-group { display: flex; flex-direction: column; }
@@ -218,7 +218,7 @@
   }
   .nav-menu-item:hover { color: var(--gold-light); padding-left: 6px; }
   .nav-menu-item .nm-count {
-    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); flex-shrink: 0;
+    font-family: 'DM Mono', monospace; font-size: 12.5px; color: var(--text-muted); flex-shrink: 0;
   }
   .nav-menu-divider { height: 1px; background: var(--border-soft); margin: 18px 0; }
   .nav-menu-viewall {
@@ -235,9 +235,9 @@
   .lang-btn {
     background: none; border: none; cursor: pointer;
     font-family: 'DM Mono', monospace;
-    font-size: 11px; letter-spacing: 0.12em;
+    font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
     color: var(--text-muted);
-    padding: 4px 8px; border-radius: 2px;
+    padding: 6px 10px; border-radius: 2px;
     transition: color 0.2s, background 0.2s;
     text-transform: uppercase;
   }
@@ -305,15 +305,15 @@
     border-radius: 2px;
     color: var(--text);
     font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    padding: 10px 36px 10px 14px;
+    font-size: 14px;
+    padding: 12px 38px 12px 14px;
     outline: none;
     transition: border-color 0.2s;
     letter-spacing: 0.03em;
     -webkit-appearance: none;
   }
   .search-input:focus { border-color: var(--gold-dim); }
-  .search-input::placeholder { color: var(--text-dim); letter-spacing: 0.06em; font-size: 11px; text-transform: uppercase; }
+  .search-input::placeholder { color: var(--text-dim); letter-spacing: 0.05em; font-size: 12.5px; text-transform: uppercase; }
   .search-clear {
     position: absolute; right: 28px; top: 50%; transform: translateY(-50%);
     background: none; border: none; color: var(--text-muted);
@@ -322,7 +322,7 @@
   }
   .card-ref {
     font-family: 'DM Mono', monospace;
-    font-size: 10px; letter-spacing: 0.1em;
+    font-size: 11px; letter-spacing: 0.1em;
     color: var(--text-dim);
     margin-top: 4px;
   }
@@ -333,8 +333,8 @@
     border-radius: 2px;
     color: var(--text-dim);
     font-family: 'DM Mono', monospace;
-    font-size: 11px; letter-spacing: 0.14em;
-    padding: 7px 14px;
+    font-size: 12.5px; letter-spacing: 0.12em;
+    padding: 9px 16px;
     cursor: pointer;
     transition: all 0.18s;
     text-transform: uppercase;
@@ -355,7 +355,7 @@
   .filter-active-summary {
     flex: 1; min-width: 0;
     font-family: 'DM Mono', monospace;
-    font-size: 10px; letter-spacing: 0.1em;
+    font-size: 11.5px; letter-spacing: 0.08em;
     color: var(--gold-dim);
     text-transform: uppercase;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -375,7 +375,7 @@
   .filter-clear-btn:hover { color: var(--text); }
   .filter-count {
     font-family: 'DM Mono', monospace;
-    font-size: 10px; letter-spacing: 0.1em;
+    font-size: 12px; letter-spacing: 0.08em;
     color: var(--text-muted);
     margin-left: auto;
     flex-shrink: 0;
@@ -521,14 +521,18 @@
   /* ─── GRID ────────────────────────────────────────────────────────────────── */
   .grid-wrap {
     padding: 32px 20px 60px;
-    max-width: 1200px;
+    max-width: 1360px;
     margin: 0 auto;
   }
   .item-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 20px;
     scroll-margin-top: 96px;
+  }
+  @media (min-width: 1500px) {
+    .grid-wrap { max-width: 1600px; }
+    .item-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px; }
   }
 
   /* ─── ITEM CARD ───────────────────────────────────────────────────────────── */
@@ -573,14 +577,14 @@
   .card-body { padding: 14px 14px 16px; background: var(--surface-2); }
   .card-type {
     font-family: 'DM Mono', monospace;
-    font-size: 11px; letter-spacing: 0.18em;
+    font-size: 12px; letter-spacing: 0.18em;
     color: var(--gold-dim);
     text-transform: uppercase;
     margin-bottom: 5px;
   }
   .card-name {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 19px; font-weight: 400;
+    font-size: 21px; font-weight: 400;
     color: var(--text);
     line-height: 1.3;
     margin-bottom: 8px;
@@ -588,7 +592,7 @@
   .card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
   .card-tag {
     font-family: 'DM Mono', monospace;
-    font-size: 10px; letter-spacing: 0.12em;
+    font-size: 11px; letter-spacing: 0.12em;
     color: var(--gold-dim);
     border: 1px solid rgba(139,111,47,0.35);
     border-radius: 1px;
@@ -701,9 +705,23 @@
   .lightbox-header {
     width: 100%; padding: 16px 20px;
     display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
     border-bottom: 1px solid var(--border-soft);
     flex-shrink: 0;
+    position: sticky; top: 0; z-index: 3;
+    background: rgba(247,243,232,0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
+  .lb-close-x {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: var(--radius);
+    width: 40px; height: 40px; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; line-height: 1;
+    transition: all 0.18s;
+  }
+  .lb-close-x:hover { border-color: var(--gold-dim); color: var(--text); }
   .lb-close-bar {
     width: 100%; padding: 12px 20px 20px;
     flex-shrink: 0;
@@ -751,6 +769,21 @@
     display: block;
     margin-bottom: 24px;
     background: var(--surface-3);
+  }
+  /* Desktop: photo and details sit side by side so the piece fills the
+     available width and the whole detail view fits without scrolling. */
+  @media (min-width: 860px) {
+    .lightbox-body {
+      max-width: 1040px;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 48px;
+      align-items: start;
+      padding: 32px 24px 48px;
+    }
+    .lb-img-col { position: sticky; top: 104px; }
+    .lb-img { max-height: 74vh; margin-bottom: 0; }
+    .lb-detail-col { padding-top: 4px; }
   }
   .lb-detail-row {
     display: flex; justify-content: space-between;
@@ -1197,6 +1230,7 @@
     <span class="lb-title" id="lbTitle"></span>
     <div class="lb-actions">
       <button class="lb-select-btn" id="lbSelectBtn" onclick="toggleFromLightbox()"></button>
+      <button class="lb-close-x" onclick="closeLightbox()" aria-label="Close" title="Close">✕</button>
     </div>
   </div>
   <div class="lightbox-body" id="lightboxBody"></div>
@@ -2184,11 +2218,15 @@ function openLightbox(key) {
   }
 
   document.getElementById('lightboxBody').innerHTML = `
-    <img class="lb-img" src="${item.photoUrl}" alt="${name}"
-         onerror="this.style.background='#F0EAD9';this.src=''">
-    ${rows}
-    ${stonesHtml}
-    ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${formatSeqId(item.seqId, item.jewelryType)}</span></div>` : ''}
+    <div class="lb-img-col">
+      <img class="lb-img" src="${item.photoUrl}" alt="${name}"
+           onerror="this.style.background='#F0EAD9';this.src=''">
+    </div>
+    <div class="lb-detail-col">
+      ${rows}
+      ${stonesHtml}
+      ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${formatSeqId(item.seqId, item.jewelryType)}</span></div>` : ''}
+    </div>
   `;
 
   document.getElementById('lightbox').classList.add('open');
