@@ -2162,6 +2162,7 @@
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         <div id="sdmAmt" style="font-family:var(--font-heading);font-size:28px;font-weight:700;color:var(--gold-light)"></div>
         <div id="sdmCashBadge" style="display:none;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--gold-light);font-family:var(--font-mono);letter-spacing:0.05em">💵 CASH</div>
+        <button id="sdmGroupCashBtn" data-cash-btn="1" onclick="_toggleGroupCash()" title="Cash sale — no VAT deducted from profit" style="display:none;align-self:center;border-radius:6px;padding:5px 11px;font-size:11px;font-family:var(--font-mono);letter-spacing:0.05em;cursor:pointer"></button>
       </div>
       <div id="sdmDate" style="font-size:12px;color:var(--text-muted);margin-top:2px"></div>
     </div>
@@ -5113,6 +5114,54 @@ function _openSingleSaleModal() {
 
 function _cashLabel(active) { return '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH') + (active ? ' ✓' : ''); }
 
+// Style a cash toggle button to reflect its active/inactive state (shared look with the
+// sale-modal cash toggle). Keeps the 'cash-active' class in sync so language re-translation
+// (which relabels any [data-cash-btn]) shows the correct ✓.
+function _setCashBtnState(btn, active) {
+  btn.classList.toggle('cash-active', !!active);
+  if (active) {
+    btn.style.background = 'rgba(201,168,76,0.25)';
+    btn.style.borderColor = 'rgba(201,168,76,0.8)';
+    btn.style.color = 'var(--gold-light)';
+  } else {
+    btn.style.background = 'rgba(201,168,76,0.08)';
+    btn.style.borderColor = 'rgba(201,168,76,0.3)';
+    btn.style.color = 'var(--text-muted)';
+  }
+  btn.style.border = '1px solid ' + btn.style.borderColor;
+  btn.textContent = _cashLabel(active);
+}
+
+// Toggle cash for a WHOLE multi-item transaction from the combined sale view. Flips every
+// member record's cashSale flag together and re-derives each item's profit (cash → no VAT
+// removed), so the owner sets the payment method once instead of editing items one by one.
+async function _toggleGroupCash() {
+  const btn = document.getElementById('sdmGroupCashBtn');
+  const groupId = btn && btn.dataset.group;
+  if (!groupId) return;
+  const sales = await getSales();
+  const members = sales.filter(x => x.saleGroup === groupId);
+  if (members.length === 0) return;
+  const _vat = parseFloat(state.vat) || 0;
+  const newCash = !members[0].cashSale;
+  members.forEach(m => {
+    m.cashSale = newCash;
+    if (m.cost != null) {
+      const base = newCash ? parseFloat(m.amount) : parseFloat(m.amount) / (1 + _vat / 100);
+      m.profit = parseFloat((base - parseFloat(m.cost)).toFixed(2));
+    }
+  });
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  await pushSalesToCloud(sales);
+  showToast(newCash
+    ? (lang === 'el' ? '💵 Ορίστηκε ως μετρητά (όλα τα τεμάχια)' : '💵 Set as cash (all items)')
+    : (lang === 'el' ? 'Ορίστηκε ως κάρτα' : 'Set as card'));
+  await showSaleDetail(members[0].id); // re-render the combined view with updated VAT/profit
+  await renderSalesPanel();
+  if (isOwnerOrManager()) renderSalesDashboard();
+}
+
 function toggleManualCash(btnId) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
@@ -5272,8 +5321,22 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   const total = members.reduce((a, x) => a + (x.amount || 0), 0);
   document.getElementById('sdmAmt').textContent = fmtAmt(total);
   const cashBadge = document.getElementById('sdmCashBadge');
-  if (s.cashSale) { cashBadge.style.display = ''; cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH'); }
-  else { cashBadge.style.display = 'none'; }
+  // Whole-transaction cash toggle (owner/manager or the sale's own employee). Applying it here
+  // sets cash on EVERY item of the transaction at once and re-derives each item's profit — so the
+  // owner never has to edit items one by one. When the toggle is shown it doubles as the cash
+  // indicator (with a ✓ when active), so the passive badge is hidden to avoid a double marker.
+  const _grpCashBtn = document.getElementById('sdmGroupCashBtn');
+  const _canEditCash = isOwnerMgr || s.employee === creds.userName;
+  if (_grpCashBtn && _canEditCash) {
+    cashBadge.style.display = 'none';
+    _grpCashBtn.style.display = '';
+    _grpCashBtn.dataset.group = s.saleGroup || '';
+    _setCashBtnState(_grpCashBtn, !!s.cashSale);
+  } else {
+    if (_grpCashBtn) _grpCashBtn.style.display = 'none';
+    if (s.cashSale) { cashBadge.style.display = ''; cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH'); }
+    else { cashBadge.style.display = 'none'; }
+  }
   document.getElementById('sdmDate').textContent = fmtDate(s.date);
 
   // ── Summed breakdown (owner/manager only)
@@ -5387,6 +5450,8 @@ async function showSaleDetail(id, forceSingle) {
 
   document.getElementById('sdmTitle').textContent = lang === 'el' ? '📋 Λεπτομέρειες Πώλησης' : '📋 Sale Details';
   document.getElementById('sdmAmt').textContent = fmtAmt(s.amount);
+  const _sgcb = document.getElementById('sdmGroupCashBtn');
+  if (_sgcb) _sgcb.style.display = 'none'; // group-only toggle; single sales edit cash via the Edit modal
   const cashBadge = document.getElementById('sdmCashBadge');
   if (s.cashSale) {
     cashBadge.style.display = '';
@@ -13693,7 +13758,8 @@ const ABOUT = {
     ],
     changelog: [
       { version: 'v10.4', date: 'Ιούλιος 2026', items: [
-        '👤 Αγορές πελάτη → πώληση: στην καρτέλα Πελάτες, οι αγορές ενός πελάτη ανοίγουν πλέον την ΠΩΛΗΣΗ (με έκπτωση, σύνολα, όλα τα τεμάχια) αντί να πηγαίνουν κατευθείαν στο απόθεμα. Οι πολλαπλές πωλήσεις (καλάθι) εμφανίζονται ως ΜΙΑ γραμμή με σήμα «🛍 N τεμ.», όπως και στη λίστα Πωλήσεων. Από μέσα στην πώληση, το κουμπί «Δες Αντικείμενο» σε πάει στο αντικείμενο στο απόθεμα'
+        '👤 Αγορές πελάτη → πώληση: στην καρτέλα Πελάτες, οι αγορές ενός πελάτη ανοίγουν πλέον την ΠΩΛΗΣΗ (με έκπτωση, σύνολα, όλα τα τεμάχια) αντί να πηγαίνουν κατευθείαν στο απόθεμα. Οι πολλαπλές πωλήσεις (καλάθι) εμφανίζονται ως ΜΙΑ γραμμή με σήμα «🛍 N τεμ.», όπως και στη λίστα Πωλήσεων. Από μέσα στην πώληση, το κουμπί «Δες Αντικείμενο» σε πάει στο αντικείμενο στο απόθεμα',
+        '💵 Κουμπί μετρητών σε πώληση πολλαπλών τεμαχίων: στη συνολική προβολή μιας πώλησης καλαθιού υπάρχει πλέον διακόπτης «💵 ΜΕΤΡΗΤΑ» δίπλα στο σύνολο. Με ένα πάτημα ορίζει (ή αναιρεί) τα μετρητά για ΟΛΑ τα τεμάχια μαζί και ξαναϋπολογίζει το κέρδος κάθε τεμαχίου (χωρίς ΦΠΑ), χωρίς να χρειάζεται να επεξεργαστείτε τα τεμάχια ένα-ένα'
       ]},
       { version: 'v10.3', date: 'Ιούλιος 2026', items: [
         '📷 Καλύτερη σάρωση QR με webcam υπολογιστή: υψηλότερη ανάλυση κάμερας, αίτημα συνεχούς αυτόματης εστίασης όπου υποστηρίζεται, ζουμ στο κέντρο του καρέ για μικρούς κωδικούς και οδηγία «κρατήστε την ετικέτα ~15–20 εκ. από την κάμερα». Στο κινητό δεν αλλάζει τίποτα'
@@ -13846,7 +13912,8 @@ const ABOUT = {
     ],
     changelog: [
       { version: 'v10.4', date: 'Jul 2026', items: [
-        '👤 Client purchases → sale: in the Clients tab, a client\'s purchases now open the SALE (with discount, totals, all items) instead of jumping straight to inventory. Multi-item (cart) sales show as ONE row with a "🛍 N items" badge, just like the Sales list. From inside the sale, the "View Item" button takes you to the piece in inventory'
+        '👤 Client purchases → sale: in the Clients tab, a client\'s purchases now open the SALE (with discount, totals, all items) instead of jumping straight to inventory. Multi-item (cart) sales show as ONE row with a "🛍 N items" badge, just like the Sales list. From inside the sale, the "View Item" button takes you to the piece in inventory',
+        '💵 Cash button on multi-item sales: the combined view of a cart sale now has a "💵 CASH" toggle next to the total. One tap sets (or clears) cash for ALL items at once and recomputes each item\'s profit (no VAT removed) — no need to edit items one by one'
       ]},
       { version: 'v10.3', date: 'Jul 2026', items: [
         '📷 Better QR scanning with a desktop webcam: higher camera resolution, a request for continuous autofocus where supported, a centre-of-frame zoom for small codes, and an on-screen hint to "hold the tag ~15–20 cm from the camera". Nothing changes on mobile'
