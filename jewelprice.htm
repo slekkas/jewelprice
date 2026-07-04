@@ -5481,6 +5481,17 @@ async function confirmSale() {
       _effectiveAmt = _cartItems[0].proportionalAmt;
     }
   }
+  // Is the first item being recorded a bulk chain? (cart entry wins; otherwise the calc price bar)
+  // Used to deduct grams from the batch instead of marking the whole batch sold, and to store
+  // bulkInvId/bulkSoldWeight on the sale record so a later delete restores the weight.
+  let _firstBulkInfo = null;
+  const _csiFirst = (window._cartSaleItems && window._cartSaleItems[0]) || null;
+  if (_csiFirst && _csiFirst.isBulk) {
+    _firstBulkInfo = { invId: _csiFirst.id, soldWeight: _csiFirst.soldWeight || 0, cost: (_csiFirst.cost != null ? _csiFirst.cost : null) };
+  } else if (lastCalcResult && lastCalcResult.isBulkChain && lastCalcResult.bulkInvId) {
+    _firstBulkInfo = { invId: lastCalcResult.bulkInvId, soldWeight: parseFloat(lastCalcResult.bulkSoldWeight) || 0, cost: (lastCalcResult.baseCost != null ? parseFloat(lastCalcResult.baseCost) : null) };
+  }
+  const _firstFromInv = !!window._saleFromInvId; // captured before the mark-sold block clears it
   const note = document.getElementById('saleNoteInput').value.trim();
   const date = document.getElementById('saleDateInput').value || todayStr();
   const saleCustomer = document.getElementById('saleCustomerName').value.trim();
@@ -5524,7 +5535,16 @@ async function confirmSale() {
     _saleImgName = result ? result.name : '';
     _pendingSalePhoto = null;
   }
-  await addSaleRecord(_effectiveAmt, note, date, saleVendor, bonusAmt, _currentUserBonus, invQr, saleCustomer, saleEmail, _saleCost, _isCashSale, _saleImgUrl, _saleImgName, _saleSeqRef);
+  // Bulk chain: always use the sold-portion cost (never the whole-batch cost derived above)
+  if (_firstBulkInfo) _saleCost = _firstBulkInfo.cost;
+  const _firstSaleRec = await addSaleRecord(_effectiveAmt, note, date, saleVendor, bonusAmt, _currentUserBonus, invQr, saleCustomer, saleEmail, _saleCost, _isCashSale, _saleImgUrl, _saleImgName, _saleSeqRef);
+  if (_firstBulkInfo && _firstSaleRec) {
+    // Link the sale to the batch + sold weight so deleting it returns the grams to stock
+    _firstSaleRec.bulkInvId = _firstBulkInfo.invId;
+    _firstSaleRec.bulkSoldWeight = _firstBulkInfo.soldWeight;
+    const _bi = (_salesCache || []).findIndex(s => s.id === _firstSaleRec.id);
+    if (_bi !== -1) { _salesCache[_bi] = _firstSaleRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
+  }
   if (saleCustomer) autoSaveClientFromQuote(saleCustomer, saleEmail);
 
   // If opened from inventory card — mark that specific item as sold directly
@@ -5532,9 +5552,16 @@ async function confirmSale() {
     try {
       const invId = window._saleFromInvId;
       if (_inventoryCache[invId]) {
-        _inventoryCache[invId].status = 'sold';
-        _inventoryCache[invId].dateSold = new Date(date).getTime();
-        await saveInventoryItem(invId, _inventoryCache[invId]);
+        if (_inventoryCache[invId].isBulk && _firstBulkInfo) {
+          // Bulk chain: deduct the sold grams from the batch, don't mark the whole batch sold
+          const _nw = Math.max(0, parseFloat(_inventoryCache[invId].weight) - _firstBulkInfo.soldWeight);
+          _inventoryCache[invId].weight = parseFloat(_nw.toFixed(2));
+          await saveInventoryItem(invId, _inventoryCache[invId]);
+        } else {
+          _inventoryCache[invId].status = 'sold';
+          _inventoryCache[invId].dateSold = new Date(date).getTime();
+          await saveInventoryItem(invId, _inventoryCache[invId]);
+        }
       }
     } catch(e) { console.warn('Could not mark inventory item as sold:', e); }
     delete window._saleFromInvId;
@@ -5563,18 +5590,35 @@ async function confirmSale() {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
       }
-      const qrNorm = lastCalcResult.labelCode.trim().toUpperCase();
-      const invEntry = Object.entries(_inventoryCache).find(([,it]) =>
-        it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm
-      );
-      if (invEntry) {
-        const [invId, invItem] = invEntry;
-        if (invItem.status !== 'sold') {
-          invItem.status = 'sold';
-          invItem.dateSold = new Date(date).getTime();
-          _inventoryCache[invId] = invItem;
-          await saveInventoryItem(invId, invItem);
-          showToast('📦 ' + (lang === 'el' ? 'Απόθεμα ενημερώθηκε: Πουλήθηκε' : 'Inventory updated: Marked Sold'));
+      if (lastCalcResult.isBulkChain && lastCalcResult.bulkInvId) {
+        // Bulk chain sold from the Calc price bar — deduct grams from the batch.
+        // Skip if the first-item block above already handled it (sale came from the cart/inventory).
+        if (!_firstFromInv) {
+          const _bId = lastCalcResult.bulkInvId;
+          const _bIt = _inventoryCache[_bId];
+          if (_bIt && _bIt.isBulk) {
+            const _bnw = Math.max(0, parseFloat(_bIt.weight) - (parseFloat(lastCalcResult.bulkSoldWeight) || 0));
+            _bIt.weight = parseFloat(_bnw.toFixed(2));
+            _inventoryCache[_bId] = _bIt;
+            await saveInventoryItem(_bId, _bIt);
+            showToast('📦 ' + (lang === 'el' ? 'Απόθεμα ενημερώθηκε' : 'Inventory updated'));
+          }
+        }
+      } else {
+        const qrNorm = lastCalcResult.labelCode.trim().toUpperCase();
+        const invEntry = Object.entries(_inventoryCache).find(([,it]) =>
+          it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm
+        );
+        if (invEntry) {
+          const [invId, invItem] = invEntry;
+          // Never mark a bulk batch sold via QR match — bulk sells by weight deduction
+          if (invItem.status !== 'sold' && !invItem.isBulk) {
+            invItem.status = 'sold';
+            invItem.dateSold = new Date(date).getTime();
+            _inventoryCache[invId] = invItem;
+            await saveInventoryItem(invId, invItem);
+            showToast('📦 ' + (lang === 'el' ? 'Απόθεμα ενημερώθηκε: Πουλήθηκε' : 'Inventory updated: Marked Sold'));
+          }
         }
       }
     } catch(e) { console.warn('Could not update inventory on sale:', e); }
@@ -5588,8 +5632,27 @@ async function confirmSale() {
   // Mark remaining cart items as sold if this was a multi-item sale
   if (_cartItems && _cartItems.length > 1) {
     const rest = _cartItems.slice(1);
-    for (const { id, item, proportionalAmt, price } of rest) {
+    for (const { id, item, proportionalAmt, price, isBulk, soldWeight, cost } of rest) {
       try {
+        const _restAmt = proportionalAmt || price || 0;
+        if (isBulk) {
+          // Bulk chain: deduct sold grams from the batch (never mark the batch sold) and
+          // link the sale to the batch so a delete restores the grams.
+          const _bIt = _inventoryCache && _inventoryCache[id];
+          if (_bIt && _bIt.isBulk) {
+            const _nw = Math.max(0, parseFloat(_bIt.weight) - (soldWeight || 0));
+            _bIt.weight = parseFloat(_nw.toFixed(2));
+            await saveInventoryItem(id, _bIt);
+          }
+          const _bRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, 0, 0, item.qrCode||item.code||'', saleCustomer, saleEmail, (cost != null ? cost : null), _isCashSale, null, null, '');
+          if (_bRec) {
+            _bRec.bulkInvId = id;
+            _bRec.bulkSoldWeight = soldWeight || 0;
+            const _bi = (_salesCache || []).findIndex(s => s.id === _bRec.id);
+            if (_bi !== -1) { _salesCache[_bi] = _bRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
+          }
+          continue;
+        }
         // Mark inventory as sold (if not already)
         if (_inventoryCache && _inventoryCache[id] && _inventoryCache[id].status !== 'sold') {
           _inventoryCache[id].status = 'sold';
@@ -5598,7 +5661,6 @@ async function confirmSale() {
         }
         // Always create the sale record for this item
         const _restSeqRef = item.seqId ? formatSeqId(item.seqId, item.jewelryType) : '';
-        const _restAmt = proportionalAmt || price || 0;
         // Derive cost: use purchaseCost if available, otherwise calculate from current prices
         const _restCalc = calcInvItemPrice(item);
         const _restCost = item.purchaseCost
@@ -12407,6 +12469,24 @@ function _bulkSellRender(calc) {
   }
 }
 
+// Cost (metal + labor) of the sold portion of a bulk chain batch, for profit tracking.
+// Returns a number, or null if the spot price / purity can't be resolved.
+function _bulkSoldCost(item, soldWeight) {
+  try {
+    const _bCat = getItemCat(item);
+    const _bLaborRate = _bCat ? (parseFloat(_bCat.rate) || 0) : 0;
+    const _bLaborType = _bCat ? (_bCat.rateType || 'pergram') : 'pergram';
+    const _bLaborCost = _bLaborType === 'flat' ? _bLaborRate : _bLaborRate * soldWeight;
+    const _bSpotOz = item.metal === 'gold' ? getGoldPrice() : getSilverPrice();
+    const _bPurity = item.metal === 'gold' ? (karatPurity[parseInt(item.karat)] || 0) : (silverPurityMap[parseInt(item.karat)] || 0);
+    if (_bSpotOz && _bPurity) {
+      const _bMetalCost = (_bSpotOz / TROY_OZ_TO_GRAM) * _bPurity * soldWeight;
+      return parseFloat((_bMetalCost + _bLaborCost).toFixed(2));
+    }
+  } catch(e) {}
+  return null;
+}
+
 async function confirmBulkSell() {
   const overlay = document.getElementById('bulkSellOverlay');
   if (!overlay) return;
@@ -12426,21 +12506,7 @@ async function confirmBulkSell() {
   const note = `${_itemDesc(item) || (lang==='el'?'Αλυσίδα':'Chain')} · ${item.karat}${item.metal==='gold'?'K':''} · ${soldWeight.toFixed(1)}g`;
 
   // Calculate cost for profit tracking
-  let _bulkCost = null;
-  try {
-    const _bVendor = state.vendors[item.vendorIdx];
-    const _bCats = _bVendor ? getVendorCategories(_bVendor) : [];
-    const _bCat = getItemCat(item);
-    const _bLaborRate = _bCat ? (parseFloat(_bCat.rate) || 0) : 0;
-    const _bLaborType = _bCat ? (_bCat.rateType || 'pergram') : 'pergram';
-    const _bLaborCost = _bLaborType === 'flat' ? _bLaborRate : _bLaborRate * soldWeight;
-    let _bSpotOz = item.metal === 'gold' ? getGoldPrice() : getSilverPrice();
-    const _bPurity = item.metal === 'gold' ? (karatPurity[parseInt(item.karat)] || 0) : (silverPurityMap[parseInt(item.karat)] || 0);
-    if (_bSpotOz && _bPurity) {
-      const _bMetalCost = (_bSpotOz / TROY_OZ_TO_GRAM) * _bPurity * soldWeight;
-      _bulkCost = parseFloat((_bMetalCost + _bLaborCost).toFixed(2));
-    }
-  } catch(e) {}
+  const _bulkCost = _bulkSoldCost(item, soldWeight);
   // Log sale — store bulkInvId + bulkSoldWeight so delete can restore weight
   const bulkRec = await addSaleRecord(saleAmount, note, date, item.vendorName || '', 0, 0, item.qrCode || '', customer, '', _bulkCost, _isBulkCash);
   if (bulkRec) {
@@ -12482,13 +12548,15 @@ function bulkAddToCart() {
   // Build a lastCalcResult-compatible object
   const bulkPhoto = window._bulkSellPhotoDataUrl || null;
   window._bulkSellPhotoDataUrl = null; // consume it
+  // Cost of the sold portion so profit is tracked when sold via cart / calc price bar
+  const _bulkCartCost = _bulkSoldCost(item, soldWeight);
   const cartResult = {
     metalLabel: (item.metal==='gold'?(lang==='el'?'Χρυσός':'Gold'):(lang==='el'?'Ασήμι':'Silver')) + ' · ' + item.karat + (item.metal==='gold'?'K':''),
     weight: soldWeight.toFixed(2),
     spotPrice: null,
     laborCategory: item.catName || '',
     handmade: false,
-    baseCost: null,
+    baseCost: _bulkCartCost,
     margin: null,
     profit: null,
     preVat: finalPreVat.toFixed(2),
@@ -13264,6 +13332,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.98', date: 'Ιούλιος 2026', items: [
+        '⛓️ Σοβαρή διόρθωση στην πώληση χύδην αλυσίδας μέσω καλαθιού: πούλαγε όλη την παρτίδα και μηδένιζε τα γραμμάρια, ενώ έγραφε λάθος κέρδος. Τώρα αφαιρεί μόνο τα γραμμάρια που πουλήθηκαν και καταγράφει σωστά το κέρδος — όπως ακριβώς και όταν πουλάτε σκανάροντας το QR',
+        '⛓️ Το ίδιο διορθώθηκε και όταν προσθέτετε την αλυσίδα στο καλάθι και πουλάτε από την οθόνη υπολογισμού: πλέον αφαιρεί μόνο το βάρος που πωλήθηκε και αποθηκεύει κόστος/κέρδος'
+      ]},
       { version: 'v9.97', date: 'Ιούλιος 2026', items: [
         '🛒 Διόρθωση: το κουμπί «Πώληση Όλων» μέσα στο καλάθι εμφανιζόταν στα αγγλικά («MARKALLSOLD») ενώ η εφαρμογή ήταν στα ελληνικά — τώρα δείχνει σωστά «Πώληση Όλων»'
       ]},
@@ -13392,6 +13464,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.98', date: 'Jul 2026', items: [
+        '⛓️ Serious fix for selling a bulk chain through the cart: it used to sell the whole batch and zero out your remaining grams, and it logged a wrong profit figure. Now it deducts only the grams actually sold and records the correct profit — exactly like selling by scanning the QR code',
+        '⛓️ Same fix when you add the chain to the cart and sell from the Calc price bar: it now deducts only the sold weight and stores cost/profit'
+      ]},
       { version: 'v9.97', date: 'Jul 2026', items: [
         '🛒 Fix: the "Sell All" button inside the cart showed in English ("MARKALLSOLD") while the app was in Greek — it now displays the correct translated label'
       ]},
@@ -13609,17 +13685,30 @@ async function markCartAsSold() {
   showToast(lang==='el' ? '⏳ Φόρτωση αποθέματος...' : '⏳ Loading inventory...');
   _inventoryCache = await loadInventory();
   const items = quoteCart.map(ci => {
-    const qr = ci.result && ci.result.labelCode;
+    const r = ci.result || {};
+    // Bulk chain entries sell part of a batch by weight — keep the batch reference plus
+    // the sold weight/cost so the sale deducts grams (never marks the whole batch sold).
+    if (r.isBulkChain && r.bulkInvId) {
+      const batch = _inventoryCache[r.bulkInvId];
+      if (!batch || !batch.isBulk) return null;
+      return {
+        id: r.bulkInvId, item: batch, price: parseFloat(r.finalPrice || 0),
+        isBulk: true,
+        soldWeight: parseFloat(r.bulkSoldWeight) || 0,
+        cost: (r.baseCost != null ? parseFloat(r.baseCost) : null)
+      };
+    }
+    const qr = r.labelCode;
     if (!qr) return null;
     const qrNorm = qr.trim().toUpperCase();
     // Also try matching by seqId in case QR changed
     const found = Object.entries(_inventoryCache).find(([, it]) =>
-      it.status === 'in_stock' && (
+      it.status === 'in_stock' && !it.isBulk && (
         (it.qrCode||it.code||'').trim().toUpperCase() === qrNorm ||
-        (ci.result.seqRef && it.seqId && formatSeqId(it.seqId, it.jewelryType) === ci.result.seqRef)
+        (r.seqRef && it.seqId && formatSeqId(it.seqId, it.jewelryType) === r.seqRef)
       )
     );
-    return found ? { id: found[0], item: found[1], price: parseFloat(ci.result.finalPrice || 0) } : null;
+    return found ? { id: found[0], item: found[1], price: parseFloat(r.finalPrice || 0) } : null;
   }).filter(Boolean);
   if (items.length === 0) {
     showToast(lang==='el' ? '⚠️ Δεν βρέθηκαν αντικείμενα στο απόθεμα' : '⚠️ No inventory items found in cart');
@@ -16220,7 +16309,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.97';
+const APP_VERSION = '9.98';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
