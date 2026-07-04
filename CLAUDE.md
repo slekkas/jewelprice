@@ -69,7 +69,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - After completing a change, summarize what was modified before committing.
 - Use clear, descriptive commit messages.
 - Push to GitHub only when asked (GitHub Pages deploys automatically from main).
-- Keep this CLAUDE.md up to date: when a milestone is completed, update the feature list and version here.
+- **Update this CLAUDE.md as part of EVERY change**, in the same commit as the code. Whenever `jewelprice.htm` changes in a user-visible way, also: (1) bump the version reference(s) here to match the new `APP_VERSION`, and (2) if the change adds, removes, or meaningfully alters a feature, update the "Key features" section so it stays accurate. Do not treat CLAUDE.md as a separate follow-up task — it ships with the change.
 
 ## First-session task
 On the first session with this file, read `jewelprice.htm` fully and update the "Key features" section above to match the actual current state of the app, since this document may be behind the code.
