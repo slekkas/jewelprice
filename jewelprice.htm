@@ -5348,7 +5348,9 @@ async function showSaleDetail(id) {
         const metaParts = [];
         if (match.metal && match.metal !== 'other') metaParts.push(match.metal.charAt(0).toUpperCase() + match.metal.slice(1));
         if (match.karat) metaParts.push(match.karat);
-        if (match.weight) metaParts.push(match.weight + 'g');
+        // For a bulk chain sale, show the grams actually sold — not the batch's remaining weight
+        if (s.bulkSoldWeight > 0) metaParts.push(parseFloat(s.bulkSoldWeight).toFixed(1) + 'g');
+        else if (match.weight) metaParts.push(match.weight + 'g');
         if (match.jewelryType) metaParts.push(invTypeLabel(match.jewelryType));
         if (match.stonesDesc) metaParts.push('💎 ' + stonesDescDisplay(match.stonesDesc));
         document.getElementById('sdmItemMeta').textContent = metaParts.join(' · ');
@@ -13332,6 +13334,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.99', date: 'Ιούλιος 2026', items: [
+        '⛓️ Στις Λεπτομέρειες Πώλησης μιας χύδην αλυσίδας εμφανίζονται πλέον τα γραμμάρια που πουλήθηκαν (π.χ. 5,9g) αντί για το υπόλοιπο βάρος της παρτίδας'
+      ]},
       { version: 'v9.98', date: 'Ιούλιος 2026', items: [
         '⛓️ Σοβαρή διόρθωση στην πώληση χύδην αλυσίδας μέσω καλαθιού: πούλαγε όλη την παρτίδα και μηδένιζε τα γραμμάρια, ενώ έγραφε λάθος κέρδος. Τώρα αφαιρεί μόνο τα γραμμάρια που πουλήθηκαν και καταγράφει σωστά το κέρδος — όπως ακριβώς και όταν πουλάτε σκανάροντας το QR',
         '⛓️ Το ίδιο διορθώθηκε και όταν προσθέτετε την αλυσίδα στο καλάθι και πουλάτε από την οθόνη υπολογισμού: πλέον αφαιρεί μόνο το βάρος που πωλήθηκε και αποθηκεύει κόστος/κέρδος'
@@ -13464,6 +13469,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.99', date: 'Jul 2026', items: [
+        '⛓️ The Sale Details for a bulk chain now show the grams actually sold (e.g. 5.9g) instead of the batch\'s remaining weight'
+      ]},
       { version: 'v9.98', date: 'Jul 2026', items: [
         '⛓️ Serious fix for selling a bulk chain through the cart: it used to sell the whole batch and zero out your remaining grams, and it logged a wrong profit figure. Now it deducts only the grams actually sold and records the correct profit — exactly like selling by scanning the QR code',
         '⛓️ Same fix when you add the chain to the cart and sell from the Calc price bar: it now deducts only the sold weight and stores cost/profit'
@@ -16309,7 +16317,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.98';
+const APP_VERSION = '9.99';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
