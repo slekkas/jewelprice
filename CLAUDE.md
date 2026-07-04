@@ -77,5 +77,24 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - GitHub Pages occasionally returns a transient `Deployment failed, try again later` error in the deploy step even though the build (artifact) succeeded — this is a GitHub-side hiccup, not a code problem. When it happens, the fix is to re-run the deploy: open the repo **Actions** tab → the failed "pages build and deployment" run → **Re-run all jobs**, or push a trivial new commit to `main` to trigger a fresh run.
 - After a successful deploy, allow ~1–2 min for the CDN to update; the app's own green "new version" banner confirms the new `APP_VERSION` is live.
 
+## Public website & data security
+Alongside the private pricing app (`jewelprice.htm`) the repo also serves a small **public website** on the same GitHub Pages site:
+- `index.html` — public landing page (hero, hours, contact, links to the showroom).
+- `showroom.htm` — password-gated "Private Showroom": customers browse in-stock pieces (photo, description, type, metal, stones), select favourites, and send an inquiry via EmailJS. No prices shown.
+- `item.htm` — single-item "view item" page opened from a QR/`?qr=` link (used in inquiry emails and physical tags).
+- `quote.htm` — standalone quote view.
+
+**Security model (important — do not regress):**
+- These public pages must **never** carry the Firebase legacy **master DB secret** (it grants full read/write to the entire database) and must **never** read the private `/jewelprice_inventory` node (it contains cost, margin, vendor and supplier fields).
+- Instead the app maintains a separate, **display-only public mirror** at Firebase node **`/jewelprice_public`**, containing only the safe fields in `PUBLIC_SAFE_FIELDS` (qrCode, descriptions, jewelryType, metal, karat, goldColor, weight, gender, handmade, stonesDesc, seqId, photoUrl, status, dateAdded). `jewelprice.htm` keeps it in sync automatically via `syncPublicItem` / `syncPublicDelete` (on every inventory save/delete) and a once-per-session self-healing `republishPublicShowroom()` (called from `renderInvList`). Only in-stock, non-bulk items are published (`publicProjection`).
+- **Firebase Realtime Database rules** must keep everything private by default and expose **only** `/jewelprice_public` as world-readable, read-only:
+  ```json
+  { "rules": { ".read": false, ".write": false,
+      "jewelprice_public": { ".read": true, ".write": false } } }
+  ```
+  (The app itself still reads/writes everything because it authenticates with the DB secret, which bypasses rules.)
+- `showroom.htm` and `item.htm` read `/jewelprice_public` **without any auth token**. If either ever needs the secret again, that's a security regression.
+- Changes to the public website files do **not** bump `APP_VERSION`/changelog — that constant governs the pricing app (`jewelprice.htm`) and its in-app version banner only.
+
 ## First-session task
 On the first session with this file, read `jewelprice.htm` fully and update the "Key features" section above to match the actual current state of the app, since this document may be behind the code.

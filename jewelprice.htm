@@ -9787,8 +9787,76 @@ async function saveInventoryItem(id, item) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
+    if (res.ok) syncPublicItem(id, item); // keep the public showroom feed in step (best-effort)
     return res.ok;
   } catch(e) { return false; }
+}
+
+// ── PUBLIC SHOWROOM FEED ─────────────────────────────────────────────────────
+// showroom.htm and item.htm are served publicly, so they must NOT carry the
+// master DB secret or read the private inventory (which holds cost / margin /
+// vendor data). Instead the app maintains a separate, display-only mirror at
+// /jewelprice_public containing ONLY the safe fields below. Firebase rules make
+// just that node world-readable (read-only); everything else stays locked.
+const PUBLIC_FB_PATH = '/jewelprice_public';
+const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType',
+  'metal','karat','goldColor','weight','gender','handmade','stonesDesc','seqId','photoUrl','status','dateAdded'];
+
+// Reduce a full inventory item to the public-safe subset, or null if it should
+// not be published (only in-stock, non-bulk pieces appear in the showroom).
+function publicProjection(item) {
+  if (!item || item.status !== 'in_stock' || item.isBulk) return null;
+  const out = {};
+  PUBLIC_SAFE_FIELDS.forEach(f => { if (item[f] !== undefined && item[f] !== null) out[f] = item[f]; });
+  return out;
+}
+
+// Mirror one saved item into the public feed (PUT if eligible, else remove it).
+// Fire-and-forget: the public feed is best-effort and must never block a save.
+function syncPublicItem(id, item) {
+  const base = invFbBase();
+  if (!base) return;
+  const pub = publicProjection(item);
+  const opts = pub
+    ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pub) }
+    : { method: 'DELETE' };
+  fetch(fbUrl(PUBLIC_FB_PATH + '/' + id + '.json'), opts).catch(() => {});
+}
+
+// Remove one item from the public feed (called on inventory delete).
+function syncPublicDelete(id) {
+  const base = invFbBase();
+  if (!base) return;
+  fetch(fbUrl(PUBLIC_FB_PATH + '/' + id + '.json'), { method: 'DELETE' }).catch(() => {});
+}
+
+// Self-healing full rebuild of the public feed from current inventory. Runs at
+// most once per session and only writes when the feed actually needs updating,
+// so steady state costs a single read and no writes. This also backfills the
+// feed the very first time and drops any stale (sold/removed) entries.
+let _publicShowroomSynced = false;
+async function republishPublicShowroom() {
+  if (_publicShowroomSynced) return;
+  const base = invFbBase();
+  if (!base || !_inventoryCache) return;
+  _publicShowroomSynced = true;
+  try {
+    const desired = {};
+    Object.entries(_inventoryCache).forEach(([id, item]) => {
+      const pub = publicProjection(item);
+      if (pub) desired[id] = pub;
+    });
+    let current = null;
+    try {
+      const res = await fetch(fbUrl(PUBLIC_FB_PATH + '.json'), { cache: 'no-store' });
+      current = res.ok ? await res.json() : null;
+    } catch (e) {}
+    if (JSON.stringify(current || {}) !== JSON.stringify(desired)) {
+      await fetch(fbUrl(PUBLIC_FB_PATH + '.json'), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(desired)
+      });
+    }
+  } catch (e) { _publicShowroomSynced = false; } // allow a retry on the next render
 }
 
 async function migrateStoneDescFormat() {
@@ -9850,6 +9918,7 @@ async function deleteInventoryItem(id) {
   if (!base) return false;
   try {
     const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), { method: 'DELETE' });
+    if (res.ok) syncPublicDelete(id); // drop it from the public showroom feed too
     return res.ok;
   } catch(e) { return false; }
 }
@@ -10553,6 +10622,9 @@ function renderInvList() {
     container.innerHTML = `<div class="inv-empty">${t('invEmpty')}</div>`;
     return;
   }
+
+  // Keep the public showroom feed backfilled / self-healed (once per session, no-op if unchanged)
+  republishPublicShowroom();
 
   // Apply search query
   const searchQuery = (document.getElementById('invSearchInput')?.value || '').trim().toLowerCase();
