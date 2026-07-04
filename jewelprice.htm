@@ -13422,6 +13422,7 @@ function showStatus(id, msg, type) {
 // ─── QR SCANNER ──────────────────────────────────────────────────────────────
 let qrStream = null;
 let qrInterval = null;
+let _qrBusy = false; // guards against overlapping decode passes (jsQR is CPU-heavy)
 
 async function openQrScanner() {
   const overlay = document.getElementById('qrOverlay');
@@ -13429,12 +13430,27 @@ async function openQrScanner() {
   const status = document.getElementById('qrStatus');
   overlay.classList.add('show');
   status.textContent = lang === 'el' ? 'Ανοίγει κάμερα...' : 'Opening camera...';
+  // Desktop uses the software jsQR fallback, which benefits from more pixels and
+  // an autofocus nudge. Mobile keeps the native BarcodeDetector path unchanged.
+  const hires = !('BarcodeDetector' in window);
   try {
     qrStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: { facingMode: 'environment',
+        width:  { ideal: hires ? 1920 : 1280 },
+        height: { ideal: hires ? 1080 : 720 } }
     });
     video.srcObject = qrStream;
     await video.play();
+    // Best-effort: request continuous autofocus on desktop webcams that support it.
+    if (hires) {
+      try {
+        const track = qrStream.getVideoTracks()[0];
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        }
+      } catch(e) {}
+    }
     status.textContent = lang === 'el' ? 'Στρέψτε την κάμερα στο QR code' : 'Point camera at QR code';
     startQrDecode(video, status);
   } catch(e) {
@@ -13462,11 +13478,39 @@ async function decodeQrFromCanvas(canvas) {
     return null;
   }
   if (!isIOS && typeof jsQR === 'function') {
+    const runJsQR = (imgData) => {
+      const r = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+      return (r && r.data) ? r.data : null;
+    };
     try {
-      const ctx = canvas.getContext('2d');
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const result = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
-      if (result && result.data) return result.data;
+      const w = canvas.width, h = canvas.height;
+      const srcCtx = canvas.getContext('2d');
+      // Pass 1 — whole frame, capped in size so jsQR stays fast on hi-res webcams.
+      const cap = 1000;
+      const scale = Math.min(1, cap / Math.max(w, h));
+      let full;
+      if (scale < 1) {
+        const fc = document.createElement('canvas');
+        fc.width = Math.round(w * scale); fc.height = Math.round(h * scale);
+        const fctx = fc.getContext('2d');
+        fctx.drawImage(canvas, 0, 0, fc.width, fc.height);
+        full = fctx.getImageData(0, 0, fc.width, fc.height);
+      } else {
+        full = srcCtx.getImageData(0, 0, w, h);
+      }
+      let hit = runJsQR(full);
+      if (hit) return hit;
+      // Pass 2 — zoom into the centre square (under the crosshair) and upscale, giving
+      // a small or slightly-soft code more resolution than the full frame offers.
+      const side = Math.floor(Math.min(w, h) * 0.6);
+      if (side > 0) {
+        const sx = Math.floor((w - side) / 2), sy = Math.floor((h - side) / 2);
+        const zc = document.createElement('canvas'); zc.width = 500; zc.height = 500;
+        const zctx = zc.getContext('2d');
+        zctx.drawImage(canvas, sx, sy, side, side, 0, 0, 500, 500);
+        hit = runJsQR(zctx.getImageData(0, 0, 500, 500));
+        if (hit) return hit;
+      }
     } catch(e) {}
   }
   return null;
@@ -13493,16 +13537,28 @@ function startQrDecode(video, status) {
   }
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+  if (!('BarcodeDetector' in window)) { // desktop jsQR path — nudge the user toward a sharp frame
+    status.textContent = lang === 'el'
+      ? 'Σάρωση… κρατήστε την ετικέτα σταθερή, ~15–20 εκ. από την κάμερα'
+      : 'Scanning… hold the tag steady, ~15–20 cm from the camera';
+  }
+  _qrBusy = false;
   qrInterval = setInterval(async () => {
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    const raw = await decodeQrFromCanvas(canvas);
-    if (raw) {
-      clearInterval(qrInterval);
-      closeQrScanner();
-      handleScannedCode(raw);
+    if (_qrBusy) return; // skip if the previous decode is still running
+    if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
+    _qrBusy = true;
+    try {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const raw = await decodeQrFromCanvas(canvas);
+      if (raw) {
+        clearInterval(qrInterval);
+        closeQrScanner();
+        handleScannedCode(raw);
+      }
+    } finally {
+      _qrBusy = false;
     }
   }, 300);
 }
@@ -13636,6 +13692,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.3', date: 'Ιούλιος 2026', items: [
+        '📷 Καλύτερη σάρωση QR με webcam υπολογιστή: υψηλότερη ανάλυση κάμερας, αίτημα συνεχούς αυτόματης εστίασης όπου υποστηρίζεται, ζουμ στο κέντρο του καρέ για μικρούς κωδικούς και οδηγία «κρατήστε την ετικέτα ~15–20 εκ. από την κάμερα». Στο κινητό δεν αλλάζει τίποτα'
+      ]},
       { version: 'v10.2', date: 'Ιούλιος 2026', items: [
         '📷 Σάρωση QR από υπολογιστή: το εικονίδιο σάρωσης QR στην καρτέλα Υπολογισμός εμφανίζεται πλέον και σε desktop Chrome (Windows/Linux), όπου λείπει ο ενσωματωμένος αναγνώστης του browser. Η κάμερα του laptop (ή μια φωτογραφία ετικέτας) διαβάζει τον κωδικό μέσω ενσωματωμένου αποκωδικοποιητή. Στο κινητό (Android/iPhone) δεν αλλάζει τίποτα'
       ]},
@@ -13783,6 +13842,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.3', date: 'Jul 2026', items: [
+        '📷 Better QR scanning with a desktop webcam: higher camera resolution, a request for continuous autofocus where supported, a centre-of-frame zoom for small codes, and an on-screen hint to "hold the tag ~15–20 cm from the camera". Nothing changes on mobile'
+      ]},
       { version: 'v10.2', date: 'Jul 2026', items: [
         '📷 QR scanning on the desktop: the QR scan icon on the Calc tab now also appears in desktop Chrome (Windows/Linux), where the browser has no built-in QR reader. Your laptop camera (or a photo of a tag) reads the code via a bundled decoder. Nothing changes on mobile (Android/iPhone)'
       ]},
@@ -16646,7 +16708,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.2';
+const APP_VERSION = '10.3';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
