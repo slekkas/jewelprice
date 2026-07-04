@@ -13692,6 +13692,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.4', date: 'Ιούλιος 2026', items: [
+        '👤 Αγορές πελάτη → πώληση: στην καρτέλα Πελάτες, οι αγορές ενός πελάτη ανοίγουν πλέον την ΠΩΛΗΣΗ (με έκπτωση, σύνολα, όλα τα τεμάχια) αντί να πηγαίνουν κατευθείαν στο απόθεμα. Οι πολλαπλές πωλήσεις (καλάθι) εμφανίζονται ως ΜΙΑ γραμμή με σήμα «🛍 N τεμ.», όπως και στη λίστα Πωλήσεων. Από μέσα στην πώληση, το κουμπί «Δες Αντικείμενο» σε πάει στο αντικείμενο στο απόθεμα'
+      ]},
       { version: 'v10.3', date: 'Ιούλιος 2026', items: [
         '📷 Καλύτερη σάρωση QR με webcam υπολογιστή: υψηλότερη ανάλυση κάμερας, αίτημα συνεχούς αυτόματης εστίασης όπου υποστηρίζεται, ζουμ στο κέντρο του καρέ για μικρούς κωδικούς και οδηγία «κρατήστε την ετικέτα ~15–20 εκ. από την κάμερα». Στο κινητό δεν αλλάζει τίποτα'
       ]},
@@ -13842,6 +13845,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.4', date: 'Jul 2026', items: [
+        '👤 Client purchases → sale: in the Clients tab, a client\'s purchases now open the SALE (with discount, totals, all items) instead of jumping straight to inventory. Multi-item (cart) sales show as ONE row with a "🛍 N items" badge, just like the Sales list. From inside the sale, the "View Item" button takes you to the piece in inventory'
+      ]},
       { version: 'v10.3', date: 'Jul 2026', items: [
         '📷 Better QR scanning with a desktop webcam: higher camera resolution, a request for continuous autofocus where supported, a centre-of-frame zoom for small codes, and an on-screen hint to "hold the tag ~15–20 cm from the camera". Nothing changes on mobile'
       ]},
@@ -16708,7 +16714,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.3';
+const APP_VERSION = '10.4';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18433,26 +18439,40 @@ async function showClientPurchases(clientName) {
   overlay.id = 'clientPurchasesOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:999995;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center';
 
+  // Collapse multi-item transactions (shared saleGroup) into one row each — matching how
+  // the Sales list/search show them. Tapping a row opens the sale detail (combined view for
+  // a group), from which the "View Item" button jumps to the sold inventory item.
+  const entries = _groupSalesForDisplay(matches)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0));
+
   const content = matches.length === 0
     ? `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px">${lang==='el'?'Δεν βρέθηκαν αγορές για αυτόν τον πελάτη':'No purchases found for this client'}</div>`
-    : matches.map(s => {
-        let invItem = null, invId = null;
-        if (s.invQr && _inventoryCache) {
-          const entry = Object.entries(_inventoryCache).find(([k,i]) => (i.qrCode||i.invQr||'') === s.invQr);
-          if (entry) { invId = entry[0]; invItem = entry[1]; }
+    : entries.map(e => {
+        const parts = [fmtDate(e.date)];
+        if (e.vendor) parts.push(e.vendor);
+        if (e.note) parts.push(e.note);
+        if (!e.isGroup) {
+          // Single-item row: enrich with the linked inventory item's details.
+          const s = e.sale;
+          if (s.invQr && _inventoryCache) {
+            const entry = Object.entries(_inventoryCache).find(([k,i]) => (i.qrCode||i.invQr||'') === s.invQr);
+            if (entry) {
+              const invItem = entry[1];
+              if (invItem?.vendorCode) parts.push('🏷️ ' + invItem.vendorCode);
+              if (invItem?.stonesDesc) parts.push('💎 ' + stonesDescDisplay(invItem.stonesDesc));
+            }
+          }
         }
-        const parts = [fmtDate(s.date)];
-        if (s.vendor) parts.push(s.vendor);
-        if (s.note) parts.push(s.note);
-        if (invItem?.vendorCode) parts.push('🏷️ ' + invItem.vendorCode);
-        if (invItem?.stonesDesc) parts.push('💎 ' + stonesDescDisplay(invItem.stonesDesc));
+        const groupTag = e.isGroup
+          ? `<span style="margin-left:6px;background:rgba(120,170,255,0.12);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${lang==='el'?'τεμ.':'items'}</span>`
+          : '';
 
-        return `<div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        return `<div onclick="document.getElementById('clientPurchasesOverlay').remove();showSaleDetail(${e.id})" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer">
           <div style="flex:1;min-width:0">
-            <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;color:var(--gold-light)">${cur}${parseFloat(s.amount).toFixed(2)}</div>
+            <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;color:var(--gold-light)">${cur}${parseFloat(e.amount).toFixed(2)}${groupTag}</div>
             <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5">${parts.filter(Boolean).join(' · ')}</div>
           </div>
-          ${invId ? `<button onclick="document.getElementById('clientPurchasesOverlay').remove();salesSearchGoToInventory('${invId}','${invItem?.status||''}')" style="flex-shrink:0;padding:7px 10px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--gold);font-family:var(--font-body);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">📦 ${lang==='el'?'Απόθεμα':'Inventory'}</button>` : ''}
+          <span style="flex-shrink:0;padding:7px 10px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--gold);font-family:var(--font-body);font-size:10px;font-weight:700;white-space:nowrap">📋 ${lang==='el'?'Πώληση':'Sale'} ›</span>
         </div>`;
       }).join('');
 
@@ -18463,7 +18483,7 @@ async function showClientPurchases(clientName) {
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);font-weight:600">👤 ${clientName}</div>
         <button onclick="document.getElementById('clientPurchasesOverlay').remove()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px">✕</button>
       </div>
-      ${matches.length > 0 ? `<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:16px">${matches.length} ${lang==='el'?'αγορές':'purchases'} · ${lang==='el'?'Σύνολο':'Total'}: ${cur}${total.toFixed(2)}</div>` : ''}
+      ${matches.length > 0 ? `<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:16px">${entries.length} ${lang==='el'?'αγορές':'purchases'} · ${lang==='el'?'Σύνολο':'Total'}: ${cur}${total.toFixed(2)}</div>` : ''}
       ${content}
     </div>`;
 
