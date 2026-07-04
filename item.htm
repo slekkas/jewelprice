@@ -259,11 +259,13 @@
 
 <script>
 const FIREBASE_URL = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
-const DB_SECRET    = 'iZuYHo21LPx6T0UhRd1rXlmI49DaTVJO3JeLzRaJ';
 const APP_URL      = 'https://slekkas.github.io/jewelprice/';
 
+// Reads ONLY the public, display-only feed at /jewelprice_public (Firebase rule:
+// read-only, world-readable). Must NEVER carry the master DB secret or read the
+// private /jewelprice_inventory node — see CLAUDE.md.
 function fbUrl(path) {
-  return FIREBASE_URL + path + '.json?auth=' + DB_SECRET;
+  return FIREBASE_URL + path + '.json';
 }
 
 const metalLabel  = { gold: 'Gold', silver: 'Silver', other: 'Other' };
@@ -307,7 +309,7 @@ async function loadItem() {
   }
 
   try {
-    const res  = await fetch(fbUrl('/jewelprice_inventory'));
+    const res  = await fetch(fbUrl('/jewelprice_public'));
     const data = await res.json();
     if (!data) throw new Error('empty');
 

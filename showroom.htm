@@ -1277,7 +1277,10 @@
 // ─── CONFIG ────────────────────────────────────────────────────────────────────
 const SHOWROOM_PASSWORD = 'lekkas2025';   // ← change this whenever you like
 const FIREBASE_URL      = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
-const DB_SECRET         = 'iZuYHo21LPx6T0UhRd1rXlmI49DaTVJO3JeLzRaJ';            // ← paste Firebase secret here (same as in index.htm Sync tab)
+// This page reads ONLY the public, display-only feed at /jewelprice_public
+// (Firebase rule: read-only, world-readable). It must NEVER carry the master
+// DB secret or read the private /jewelprice_inventory node — see CLAUDE.md.
+const PUBLIC_PATH       = '/jewelprice_public';
 const EMAILJS_SERVICE   = 'service_hnnyy5h';   // ← fill after EmailJS setup
 const EMAILJS_TEMPLATE  = 'template_d31sgws';  // ← fill after EmailJS setup
 const EMAILJS_PUBLIC    = 'NiGGzsEeq15508VzX';   // ← fill after EmailJS setup
@@ -1449,8 +1452,7 @@ function checkPassword() {
 // ─── FIREBASE ──────────────────────────────────────────────────────────────────
 async function loadInventory() {
   try {
-    const auth  = DB_SECRET ? `?auth=${DB_SECRET}` : '';
-    const url   = `${FIREBASE_URL}/jewelprice_inventory.json${auth}`;
+    const url   = `${FIREBASE_URL}${PUBLIC_PATH}.json`;
     const resp  = await fetch(url);
     if (!resp.ok) throw new Error('Firebase error ' + resp.status);
     const data  = await resp.json();
