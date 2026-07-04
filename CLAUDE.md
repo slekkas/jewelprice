@@ -37,6 +37,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Inventory management with type/stone filters; sold flow and sale modals
 - Bulk chain ("by the gram") sale flow: sells part of a chain batch by weight, deducting from the remaining grams; a rounding-target field sets the exact final price (the entered amount is honoured exactly, discount % is derived from it for display only)
 - Sales tracking: sales dashboard, sales search, and a sales leaderboard by employee (monthly drill-down, medal ranking)
+- Multi-item sales (whole-cart checkout) are tagged with a shared `saleGroup` id — one record per item is still stored (so all totals/profit/leaderboards stay exact), but the sales list, hero counts, and search collapse them into ONE transaction row ("🛍 N items" badge). Tapping opens a combined detail listing each item (each openable on its own via `showSaleDetail(id, true)`); deleting removes the whole group. Grouping is done at display time by `_groupSalesForDisplay()` (v10.0)
 - Sales bonus % per team member (live preview, stored on each sale)
 - Purchase-cost tracking for profit calculation; value-since-added ("gain") display
 - "Promo Image" generator for Instagram/Facebook (logo + photo + type/description, no price; Story or Post formats, live preview)
@@ -54,9 +55,9 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Bilingual item names shown on quotes per active language
 - JSON backup export and a data-recovery/force-restore tool
 - Configurable VAT %, default margin %, currency symbol
-- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v9.99)
+- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.0)
 
-> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'9.99'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
+> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.0'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).

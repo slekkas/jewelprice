@@ -2165,6 +2165,7 @@
       </div>
       <div id="sdmDate" style="font-size:12px;color:var(--text-muted);margin-top:2px"></div>
     </div>
+    <div id="sdmGroupItems" style="display:none;margin:10px 18px 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px"></div>
     <div id="sdmBreakdown" style="margin:10px 18px 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px"></div>
     <div id="sdmMeta" style="margin:10px 18px 16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px"></div>
     <div style="display:flex;gap:10px;padding:0 18px 20px" id="sdmActions"></div>
@@ -5251,13 +5252,125 @@ async function openSaleEditModal(s) {
   { const _s=document.getElementById('saleEditModal'); const _sd=_s&&_s.querySelector('div'); if(_sd)_sd.scrollTop=0; }
 }
 
-async function showSaleDetail(id) {
+// Combined detail for a multi-item transaction: shows the summed amount/cost/profit, lists
+// each line item (tap to open that item on its own), and lets an owner delete the whole sale.
+async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
+  document.getElementById('sdmTitle').textContent = (lang === 'el' ? '🛍 Πώληση ' : '🛍 Sale · ') + members.length + (lang === 'el' ? ' Αντικειμένων' : ' Items');
+  const total = members.reduce((a, x) => a + (x.amount || 0), 0);
+  document.getElementById('sdmAmt').textContent = fmtAmt(total);
+  const cashBadge = document.getElementById('sdmCashBadge');
+  if (s.cashSale) { cashBadge.style.display = ''; cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH'); }
+  else { cashBadge.style.display = 'none'; }
+  document.getElementById('sdmDate').textContent = fmtDate(s.date);
+
+  // ── Summed breakdown (owner/manager only)
+  const bk = document.getElementById('sdmBreakdown');
+  bk.innerHTML = '';
+  const mkRow = (label, val, color) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    row.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">' + label + '</span>' +
+      '<span style="font-family:var(--font-mono);font-size:13px;color:' + (color || 'var(--text)') + '">' + val + '</span>';
+    bk.appendChild(row);
+  };
+  if (isOwnerMgr) {
+    const amtExVat = members.reduce((a, x) => a + (x.cashSale ? x.amount : x.amount / (1 + vat / 100)), 0);
+    const vatAmt = parseFloat((total - amtExVat).toFixed(2));
+    const anyCost = members.some(x => x.cost != null);
+    const totCost = anyCost ? members.reduce((a, x) => a + (x.cost != null ? parseFloat(x.cost) : 0), 0) : null;
+    const anyProfit = members.some(x => x.profit != null);
+    const totProfit = anyProfit ? members.reduce((a, x) => a + (x.profit != null ? parseFloat(x.profit) : 0), 0) : null;
+    const totBonus = members.reduce((a, x) => a + (x.bonusAmt || 0), 0);
+    mkRow(lang === 'el' ? 'Ποσό (χωρίς ΦΠΑ)' : 'Amount excl. VAT', cur + parseFloat(amtExVat.toFixed(2)).toFixed(2));
+    if (!s.cashSale && vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
+    if (totCost != null) mkRow(lang === 'el' ? 'Κόστος' : 'Cost', cur + totCost.toFixed(2));
+    if (totProfit != null) {
+      const profitPct = amtExVat > 0 ? ' (' + ((totProfit / amtExVat) * 100).toFixed(1) + '%)' : '';
+      mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', cur + totProfit.toFixed(2) + profitPct, totProfit >= 0 ? 'var(--success)' : '#ff6b6b');
+    }
+    if (totBonus > 0) mkRow('🎁 Bonus', cur + totBonus.toFixed(2), 'var(--gold)');
+  }
+
+  // ── Item list (tap an item to view/edit it on its own)
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  const gEl = document.getElementById('sdmGroupItems');
+  const memberDesc = (m) => {
+    let desc = '';
+    if (m.invQr && _inventoryCache) {
+      const qn = m.invQr.trim().toUpperCase();
+      const match = Object.values(_inventoryCache).find(it => it.qrCode && it.qrCode.trim().toUpperCase() === qn);
+      if (match) desc = _itemDesc(match) || '';
+    }
+    return desc || m.seqRef || m.invQr || (lang === 'el' ? 'Αντικείμενο' : 'Item');
+  };
+  gEl.innerHTML =
+    '<div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">' +
+    (lang === 'el' ? 'Αντικείμενα' : 'Items') + ' (' + members.length + ')</div>' +
+    members.map(m => {
+      const sub = m.seqRef || m.invQr || '';
+      return '<div onclick="showSaleDetail(' + m.id + ',true)" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">' +
+        '<div style="min-width:0"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + memberDesc(m) + '</div>' +
+        (sub ? '<div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-top:1px">' + sub + '</div>' : '') + '</div>' +
+        '<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);white-space:nowrap">' + cur + parseFloat(m.amount).toFixed(2) + ' ›</div>' +
+      '</div>';
+    }).join('');
+  gEl.style.display = '';
+
+  // ── Meta (shared across the transaction)
+  document.getElementById('sdmPhotoWrap').style.display = 'none';
+  document.getElementById('sdmItemInfo').style.display = 'none';
+  const mt = document.getElementById('sdmMeta');
+  mt.innerHTML = '';
+  const mkMeta = (icon, label, val) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    row.innerHTML = '<span style="font-size:14px;flex-shrink:0">' + icon + '</span>' +
+      '<div><div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">' + label + '</div>' +
+      '<div style="font-size:13px;color:var(--text);margin-top:1px">' + val + '</div></div>';
+    mt.appendChild(row);
+  };
+  if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
+  if (s.email) mkMeta('✉️', 'Email', s.email);
+  if (s.vendor) mkMeta('🏷️', lang === 'el' ? 'Προμηθευτής' : 'Vendor', s.vendor);
+  if (s.employeeName) mkMeta('🧑‍💼', lang === 'el' ? 'Πωλητής' : 'Salesperson', s.employeeName);
+
+  // ── Actions: delete the whole transaction (owner/manager only)
+  const acts = document.getElementById('sdmActions');
+  acts.innerHTML = '';
+  const canDel = isOwnerMgr || s.employee === creds.userName;
+  if (canDel) {
+    const delBtn = document.createElement('button');
+    delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:#ff6b6b;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    delBtn.textContent = '🗑 ' + (lang === 'el' ? 'Διαγραφή Πώλησης' : 'Delete Sale');
+    delBtn.onclick = () => {
+      closeSaleDetailModal();
+      showConfirm(lang === 'el' ? 'Διαγραφή όλης της πώλησης;' : 'Delete the entire sale?', async () => {
+        await deleteSaleGroup(s.saleGroup);
+        await renderSalesPanel();
+      });
+    };
+    acts.appendChild(delBtn);
+  }
+
+  document.getElementById('saleDetailModal').style.display = 'flex';
+  { const _s = document.getElementById('saleDetailModal'); const _sd = _s && _s.querySelector('div'); if (_sd) _sd.scrollTop = 0; }
+}
+
+async function showSaleDetail(id, forceSingle) {
   const sales = await getSales();
   const s = sales.find(x => x.id === id);
   if (!s) return;
   const cur = state.currency || '€';
   const vat = parseFloat(state.vat) || 0;
   const isOwnerMgr = isOwnerOrManager();
+
+  // Multi-item transaction → combined view (unless a single line was explicitly requested).
+  const groupItems = s.saleGroup ? sales.filter(x => x.saleGroup === s.saleGroup) : [];
+  const _gEl = document.getElementById('sdmGroupItems');
+  if (_gEl) { _gEl.style.display = 'none'; _gEl.innerHTML = ''; }
+  if (!forceSingle && groupItems.length > 1) { await _showSaleGroupDetail(s, groupItems, cur, vat, isOwnerMgr); return; }
 
   document.getElementById('sdmTitle').textContent = lang === 'el' ? '📋 Λεπτομέρειες Πώλησης' : '📋 Sale Details';
   document.getElementById('sdmAmt').textContent = fmtAmt(s.amount);
@@ -5483,6 +5596,12 @@ async function confirmSale() {
       _effectiveAmt = _cartItems[0].proportionalAmt;
     }
   }
+  // Multi-item sales get a shared saleGroup id so the sales list can collapse them into a
+  // single transaction row. Records stay one-per-item (totals/profit/QR-linkage unchanged);
+  // this tag only affects how the transaction is displayed. _groupRecs collects each created
+  // record so the tag can be applied and persisted in one write at the end.
+  const _saleGroupId = (_cartItems && _cartItems.length > 1) ? ('g' + Date.now()) : null;
+  const _groupRecs = [];
   // Is the first item being recorded a bulk chain? (cart entry wins; otherwise the calc price bar)
   // Used to deduct grams from the batch instead of marking the whole batch sold, and to store
   // bulkInvId/bulkSoldWeight on the sale record so a later delete restores the weight.
@@ -5547,6 +5666,7 @@ async function confirmSale() {
     const _bi = (_salesCache || []).findIndex(s => s.id === _firstSaleRec.id);
     if (_bi !== -1) { _salesCache[_bi] = _firstSaleRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
   }
+  if (_saleGroupId && _firstSaleRec) _groupRecs.push(_firstSaleRec);
   if (saleCustomer) autoSaveClientFromQuote(saleCustomer, saleEmail);
 
   // If opened from inventory card — mark that specific item as sold directly
@@ -5637,6 +5757,9 @@ async function confirmSale() {
     for (const { id, item, proportionalAmt, price, isBulk, soldWeight, cost } of rest) {
       try {
         const _restAmt = proportionalAmt || price || 0;
+        // Bonus applies to the whole sale: each item earns its proportional share so the
+        // group's summed bonus equals total × bonus% (matching a single-item sale of the same total).
+        const _restBonus = _currentUserBonus > 0 ? parseFloat((_restAmt * _currentUserBonus / 100).toFixed(2)) : 0;
         if (isBulk) {
           // Bulk chain: deduct sold grams from the batch (never mark the batch sold) and
           // link the sale to the batch so a delete restores the grams.
@@ -5646,12 +5769,13 @@ async function confirmSale() {
             _bIt.weight = parseFloat(_nw.toFixed(2));
             await saveInventoryItem(id, _bIt);
           }
-          const _bRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, 0, 0, item.qrCode||item.code||'', saleCustomer, saleEmail, (cost != null ? cost : null), _isCashSale, null, null, '');
+          const _bRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, (cost != null ? cost : null), _isCashSale, null, null, '');
           if (_bRec) {
             _bRec.bulkInvId = id;
             _bRec.bulkSoldWeight = soldWeight || 0;
             const _bi = (_salesCache || []).findIndex(s => s.id === _bRec.id);
             if (_bi !== -1) { _salesCache[_bi] = _bRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
+            _groupRecs.push(_bRec);
           }
           continue;
         }
@@ -5668,8 +5792,16 @@ async function confirmSale() {
         const _restCost = item.purchaseCost
           ? parseFloat(item.purchaseCost)
           : (_restCalc && _restCalc.baseCost ? _restCalc.baseCost : null);
-        await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, 0, 0, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef);
+        const _stdRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef);
+        if (_stdRec) _groupRecs.push(_stdRec);
       } catch(e) { console.warn('Multi-sale item error:', e); }
+    }
+    // Stamp every record of this transaction with the shared saleGroup id, then persist once
+    // so the sales list can collapse them into a single row.
+    if (_saleGroupId && _groupRecs.length > 1) {
+      _groupRecs.forEach(r => { if (r) r.saleGroup = _saleGroupId; });
+      localStorage.setItem('jpro_sales', JSON.stringify(_salesCache));
+      await pushSalesToCloud(_salesCache);
     }
     showToast('✅ ' + (_cartItems.length) + (lang==='el'?' αντικείμενα πουλήθηκαν':' items marked sold'));
     clearQuoteCart();
@@ -6204,7 +6336,7 @@ async function renderSalesPanel() {
     const yearSales = ownSales.filter(s => s.date && s.date.startsWith(String(_spYear)));
     const yearTotal = yearSales.reduce((a,s) => a + s.amount, 0);
     document.getElementById('spHeroTotal').textContent = fmtAmt(yearTotal);
-    document.getElementById('spHeroSub').textContent = yearSales.length + ' ' + t('salesCount');
+    document.getElementById('spHeroSub').textContent = _txCount(yearSales) + ' ' + t('salesCount');
     _showProfit('spHeroProfit', _calcSalesProfit(yearSales));
     const monthTotals = Array(12).fill(0);
     yearSales.forEach(s => {
@@ -6220,7 +6352,7 @@ async function renderSalesPanel() {
     const selMonthSales = ownSales.filter(s => (s.date||'').startsWith(selMonthStr));
     const selMonthTotal = selMonthSales.reduce((a,s) => a + s.amount, 0);
     document.getElementById('spHeroTotal').textContent = fmtAmt(selMonthTotal);
-    document.getElementById('spHeroSub').textContent = selMonthSales.length + ' ' + t('salesCount');
+    document.getElementById('spHeroSub').textContent = _txCount(selMonthSales) + ' ' + t('salesCount');
     _showProfit('spHeroProfit', _calcSalesProfit(selMonthSales));
     _showProfit('spDetailProfit', _calcSalesProfit(selMonthSales));
     _spRenderCalendar(selMonthSales, null);
@@ -6236,7 +6368,7 @@ async function renderSalesPanel() {
     const selDaySales = ownSales.filter(s => s.date === selDayStr);
     const selDayTotal = selDaySales.reduce((a,s) => a + s.amount, 0);
     document.getElementById('spHeroTotal').textContent = fmtAmt(selDayTotal);
-    document.getElementById('spHeroSub').textContent = selDaySales.length + ' ' + t('salesCount');
+    document.getElementById('spHeroSub').textContent = _txCount(selDaySales) + ' ' + t('salesCount');
     _showProfit('spHeroProfit', _calcSalesProfit(selDaySales));
     _showProfit('spDetailProfit', _calcSalesProfit(selDaySales));
     document.getElementById('spDetailHeader').style.display = 'flex';
@@ -6338,32 +6470,89 @@ function _spRenderYoy(allSales, selMonthTotal) {
   }
 }
 
+// Collapse multi-item sale records (those sharing a saleGroup id) into single display
+// entries. Non-destructive: storage still holds one record per item, so every total,
+// profit figure and leaderboard stays exact — this only changes how a transaction LOOKS
+// in a list. A group with a single surviving member (e.g. only one matched a search)
+// renders as a normal single sale. Returns an array of entries, each either
+// { isGroup:false, sale } or { isGroup:true, groupId, items, amount, bonusAmt, ... }.
+function _groupSalesForDisplay(salesArr) {
+  const counts = {};
+  salesArr.forEach(s => { if (s.saleGroup) counts[s.saleGroup] = (counts[s.saleGroup] || 0) + 1; });
+  const seen = {};
+  const out = [];
+  salesArr.forEach(s => {
+    const g = s.saleGroup;
+    if (g && counts[g] > 1) {
+      if (seen[g]) return;
+      seen[g] = true;
+      const items = salesArr.filter(x => x.saleGroup === g);
+      out.push({
+        isGroup: true, groupId: g, items,
+        id: items[0].id, date: items[0].date,
+        ts: Math.max(...items.map(x => x.ts || 0)),
+        amount: items.reduce((a, x) => a + (x.amount || 0), 0),
+        bonusAmt: items.reduce((a, x) => a + (x.bonusAmt || 0), 0),
+        vendor: items[0].vendor, note: items[0].note, customer: items[0].customer,
+        employee: items[0].employee, employeeName: items[0].employeeName,
+        cashSale: items[0].cashSale
+      });
+    } else {
+      out.push({
+        isGroup: false, sale: s, id: s.id, date: s.date, ts: s.ts, amount: s.amount,
+        bonusAmt: s.bonusAmt, vendor: s.vendor, note: s.note, customer: s.customer,
+        employee: s.employee, employeeName: s.employeeName
+      });
+    }
+  });
+  return out;
+}
+
+// Number of distinct transactions in a set (a multi-item sale counts once). Used for the
+// "N sales" hero counts so they match the collapsed rows shown below them.
+function _txCount(salesArr) { return _groupSalesForDisplay(salesArr).length; }
+
+// Delete every record belonging to a multi-item transaction (restores inventory/bulk
+// weight per member via deleteSaleRecord).
+async function deleteSaleGroup(groupId) {
+  const sales = await getSales();
+  const members = sales.filter(s => s.saleGroup === groupId);
+  for (const m of members) { await deleteSaleRecord(m.id); }
+}
+
 function _spRenderSalesList(elId, salesArr) {
   const listEl = document.getElementById(elId);
   if (!listEl) return;
-  const sorted = [...salesArr].sort((a,b) => { const dd = (b.date||'').localeCompare(a.date||''); return dd !== 0 ? dd : b.ts - a.ts; });
-  if (sorted.length === 0) {
+  const entries = _groupSalesForDisplay(salesArr)
+    .sort((a,b) => { const dd = (b.date||'').localeCompare(a.date||''); return dd !== 0 ? dd : (b.ts||0) - (a.ts||0); });
+  if (entries.length === 0) {
     listEl.innerHTML = '<div class="sp-empty">' + t('salesNoSales') + '</div>';
     return;
   }
   const isEmp = creds.role === 'employee';
   const cur = state.currency || '€';
-  listEl.innerHTML = sorted.map(s => {
-    const metaParts = [fmtDate(s.date), s.vendor ? s.vendor : '', s.note ? s.note : ''];
-    if (s.employeeName) metaParts.push('👤 ' + s.employeeName);
+  listEl.innerHTML = entries.map(e => {
+    const metaParts = [fmtDate(e.date), e.vendor ? e.vendor : '', e.note ? e.note : ''];
+    if (e.employeeName) metaParts.push('👤 ' + e.employeeName);
     const meta = metaParts.filter(Boolean).join(' · ');
-    const safeId = s.id;
-    const canEdit = !isEmp || s.employee === creds.userName;
-    const showBonus = s.bonusAmt > 0 && (isOwnerOrManager() || s.employee === creds.userName);
+    const safeId = e.id;
+    const canEdit = !isEmp || e.employee === creds.userName;
+    const showBonus = e.bonusAmt > 0 && (isOwnerOrManager() || e.employee === creds.userName);
     const bonusTag = showBonus
-      ? `<span style="margin-left:6px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.25);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--gold)">🎁 ${cur}${parseFloat(s.bonusAmt).toFixed(2)}</span>`
+      ? `<span style="margin-left:6px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.25);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--gold)">🎁 ${cur}${parseFloat(e.bonusAmt).toFixed(2)}</span>`
       : '';
+    const groupTag = e.isGroup
+      ? `<span style="margin-left:6px;background:rgba(120,170,255,0.12);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${lang==='el'?'τεμ.':'items'}</span>`
+      : '';
+    // A group opens the combined detail; inline edit is hidden (edit items from inside it).
+    // Delete on a group removes the whole transaction.
+    const delAttrs = e.isGroup ? ('data-group-id="' + e.groupId + '"') : ('data-sale-id="' + safeId + '"');
     return '<div class="sp-sale-row" style="cursor:pointer" onclick="showSaleDetail(' + safeId + ')">' +
-      '<div class="sp-sale-info"><div class="sp-sale-amt">' + fmtAmt(s.amount) + bonusTag + '</div>' +
+      '<div class="sp-sale-info"><div class="sp-sale-amt">' + fmtAmt(e.amount) + groupTag + bonusTag + '</div>' +
       '<div class="sp-sale-meta">' + meta + '</div></div>' +
       '<div style="display:flex;gap:6px;flex-shrink:0">' +
-      (canEdit ? '<button class="sp-sale-edit btn-icon" data-sale-id="' + safeId + '" title="' + (lang==='el'?'Επεξεργασία':'Edit') + '" style="width:30px;height:30px;font-size:14px" onclick="event.stopPropagation()">✏️</button>' : '') +
-      (canEdit ? '<button class="sp-sale-del" data-sale-id="' + safeId + '" title="' + (lang==='el'?'\u0394\u03b9\u03b1\u03b3\u03c1\u03b1\u03c6\u03ae':'Delete') + '" onclick="event.stopPropagation()">🗑</button>' : '') +
+      (canEdit && !e.isGroup ? '<button class="sp-sale-edit btn-icon" data-sale-id="' + safeId + '" title="' + (lang==='el'?'Επεξεργασία':'Edit') + '" style="width:30px;height:30px;font-size:14px" onclick="event.stopPropagation()">✏️</button>' : '') +
+      (canEdit ? '<button class="sp-sale-del" ' + delAttrs + ' title="' + (lang==='el'?'\u0394\u03b9\u03b1\u03b3\u03c1\u03b1\u03c6\u03ae':'Delete') + '" onclick="event.stopPropagation()">🗑</button>' : '') +
       '</div></div>';
   }).join('');
   listEl.querySelectorAll('.sp-sale-edit').forEach(btn => {
@@ -6377,11 +6566,19 @@ function _spRenderSalesList(elId, salesArr) {
   });
   listEl.querySelectorAll('.sp-sale-del').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = parseInt(btn.dataset.saleId);
-      showConfirm(lang==='el' ? 'Διαγραφή πώλησης;' : 'Delete sale?', async () => {
-        await deleteSaleRecord(id);
-        await renderSalesPanel();
-      });
+      const groupId = btn.dataset.groupId;
+      if (groupId) {
+        showConfirm(lang==='el' ? 'Διαγραφή όλης της πώλησης;' : 'Delete the entire sale?', async () => {
+          await deleteSaleGroup(groupId);
+          await renderSalesPanel();
+        });
+      } else {
+        const id = parseInt(btn.dataset.saleId);
+        showConfirm(lang==='el' ? 'Διαγραφή πώλησης;' : 'Delete sale?', async () => {
+          await deleteSaleRecord(id);
+          await renderSalesPanel();
+        });
+      }
     });
   });
 }
@@ -13334,6 +13531,12 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.0', date: 'Ιούλιος 2026', items: [
+        '🛍 Οι πωλήσεις πολλαπλών αντικειμένων (πούλημα ολόκληρου καλαθιού μαζί) εμφανίζονται πλέον ως ΜΙΑ πώληση στη λίστα πωλήσεων — με σήμανση «🛍 X τεμ.» — αντί για ξεχωριστές εγγραφές. Ο αριθμός «πωλήσεων» μετράει τώρα κάθε τέτοιο πούλημα ως μία συναλλαγή',
+        '🛍 Πατώντας μια τέτοια πώληση βλέπετε το συνολικό ποσό, το κέρδος και τη λίστα των αντικειμένων· μπορείτε να ανοίξετε κάθε αντικείμενο ξεχωριστά (για επεξεργασία/διαγραφή) ή να διαγράψετε όλη την πώληση μαζί',
+        '🎁 Διόρθωση: το bonus του πωλητή υπολογίζεται πλέον στο σύνολο της πώλησης όσα αντικείμενα κι αν έχει (πριν μετρούσε μόνο το πρώτο αντικείμενο)',
+        '🔎 Το ίδιο ομαδοποιημένο στιλ ισχύει και στην αναζήτηση πωλήσεων'
+      ]},
       { version: 'v9.99', date: 'Ιούλιος 2026', items: [
         '⛓️ Στις Λεπτομέρειες Πώλησης μιας χύδην αλυσίδας εμφανίζονται πλέον τα γραμμάρια που πουλήθηκαν (π.χ. 5,9g) αντί για το υπόλοιπο βάρος της παρτίδας'
       ]},
@@ -13469,6 +13672,12 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.0', date: 'Jul 2026', items: [
+        '🛍 Multi-item sales (selling a whole cart at once) now show as ONE sale in the sales list — tagged "🛍 X items" — instead of separate entries. The "sales" count now treats each such checkout as a single transaction',
+        '🛍 Tap one of these sales to see the combined total, profit and the list of items; open any item on its own (to edit/delete it) or delete the whole sale together',
+        '🎁 Fix: the salesperson bonus now applies to the entire sale no matter how many items (it previously only counted the first item)',
+        '🔎 Sales search groups multi-item sales the same way'
+      ]},
       { version: 'v9.99', date: 'Jul 2026', items: [
         '⛓️ The Sale Details for a bulk chain now show the grams actually sold (e.g. 5.9g) instead of the batch\'s remaining weight'
       ]},
@@ -16317,7 +16526,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.99';
+const APP_VERSION = '10.0';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -17916,11 +18125,33 @@ async function renderSalesSearch(query) {
     return;
   }
 
+  // Collapse multi-item transactions that matched into one card each (when >1 of their
+  // lines matched); a single matched line still shows as an individual sale.
+  const grouped = _groupSalesForDisplay(results);
+
   resultsEl.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;padding:0 4px">
-      ${results.length} ${lang === 'el' ? 'αποτελέσματα' : 'results'}
+      ${grouped.length} ${lang === 'el' ? 'αποτελέσματα' : 'results'}
     </div>
-    ${results.map(s => {
+    ${grouped.map(e => {
+      // Grouped multi-item transaction — simplified card, opens the combined detail
+      if (e.isGroup) {
+        const gMeta = [fmtDate(e.date)];
+        if (e.customer) gMeta.push('👤 ' + e.customer);
+        if (e.vendor) gMeta.push(e.vendor);
+        if (e.employeeName) gMeta.push(e.employeeName);
+        return `<div style="background:linear-gradient(135deg,rgba(120,170,255,0.08),rgba(120,170,255,0.02));border:1px solid rgba(120,170,255,0.18);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer" onclick="showSaleDetail(${e.id})">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;color:var(--gold-light)">${cur}${parseFloat(e.amount).toFixed(2)}
+                <span style="margin-left:6px;background:rgba(120,170,255,0.14);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 7px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${lang==='el'?'τεμ.':'items'}</span>
+              </div>
+              <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5">${gMeta.filter(Boolean).join(' · ')}</div>
+            </div>
+          </div>
+        </div>`;
+      }
+      const s = e.sale;
       // Find linked inventory item
       let invItem = null, invId = null;
       if (s.invQr && _inventoryCache) {
