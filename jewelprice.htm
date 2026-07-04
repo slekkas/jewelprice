@@ -2145,7 +2145,7 @@
 
 <!-- SALE DETAIL MODAL -->
 <div id="saleDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeSaleDetailModal()">
-  <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.35);border-radius:12px 12px 0 0;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,16px) 0">
+  <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.35);border-radius:12px 12px 0 0;width:100%;max-width:480px;max-height:calc(100vh - 24px);overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,16px) 0">
     <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.18)"></div></div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 12px">
       <div style="font-family:var(--font-heading);font-size:20px;font-weight:700;color:var(--gold-light)" id="sdmTitle">📋 Λεπτομέρειες</div>
@@ -2220,7 +2220,7 @@
 
 <!-- ADD VENDOR MODAL -->
 <div id="addVendorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;align-items:center;justify-content:flex-start;padding:0;flex-direction:column" onclick="if(event.target===this)closeAddVendorModal()">
-  <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.25);border-radius:0 0 16px 16px;padding:24px 20px 32px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+  <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.25);border-radius:0 0 16px 16px;padding:24px 20px 32px;width:100%;max-width:480px;max-height:calc(100vh - 24px);overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div style="font-family:var(--font-heading);font-size:22px;font-weight:700;color:var(--gold-light)" data-i18n="addVendor">Προσθήκη Προμηθευτή</div>
       <button onclick="closeAddVendorModal()" style="background:rgba(255,255,255,0.08);border:none;color:var(--text-muted);border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
@@ -2421,7 +2421,7 @@
 <!-- INVENTORY FILTER SHEET -->
 <div id="invFilterSheet" style="display:none;position:fixed;inset:0;z-index:99996">
   <div id="invFilterBackdrop" onclick="closeInvFilterSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);z-index:0"></div>
-  <div id="invFilterBox" style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:92vh;overflow-y:auto;z-index:1;display:flex;flex-direction:column">
+  <div id="invFilterBox" style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;z-index:1;display:flex;flex-direction:column">
     <!-- Sticky header: drag handle + title + clear/close — stays at top while content scrolls -->
     <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:8px 20px 10px;border-bottom:1px solid rgba(255,255,255,0.06)">
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 10px"></div>
@@ -12520,7 +12520,7 @@ function openAddBulkSheet() {
   overlay.id = 'bulkAddOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-end;justify-content:center';
   overlay.innerHTML = `
-    <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:24px 20px 40px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:24px 20px 40px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold-light);margin-bottom:20px">${t('bulkAddTitle')}</div>
 
@@ -13757,6 +13757,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.5', date: 'Ιούλιος 2026', items: [
+        '📄 Πιο ψηλά αναδυόμενα παράθυρα: τα «φύλλα» που ανοίγουν από κάτω (Λεπτομέρειες Πώλησης, Αγορές πελάτη, Ειδοποιήσεις, φίλτρα, μαζική προσθήκη) και από πάνω (νέος πελάτης/προμηθευτής/μέλος) εκτείνονται πλέον σχεδόν σε όλο το ύψος της οθόνης. Έτσι δεν μένει άδειος χώρος στην κορυφή και χρειάζεται πολύ λιγότερο κύλισμα για να φτάσετε στο κάτω μέρος'
+      ]},
       { version: 'v10.4', date: 'Ιούλιος 2026', items: [
         '👤 Αγορές πελάτη → πώληση: στην καρτέλα Πελάτες, οι αγορές ενός πελάτη ανοίγουν πλέον την ΠΩΛΗΣΗ (με έκπτωση, σύνολα, όλα τα τεμάχια) αντί να πηγαίνουν κατευθείαν στο απόθεμα. Οι πολλαπλές πωλήσεις (καλάθι) εμφανίζονται ως ΜΙΑ γραμμή με σήμα «🛍 N τεμ.», όπως και στη λίστα Πωλήσεων. Από μέσα στην πώληση, το κουμπί «Δες Αντικείμενο» σε πάει στο αντικείμενο στο απόθεμα',
         '💵 Κουμπί μετρητών σε πώληση πολλαπλών τεμαχίων: στη συνολική προβολή μιας πώλησης καλαθιού υπάρχει πλέον διακόπτης «💵 ΜΕΤΡΗΤΑ» δίπλα στο σύνολο. Με ένα πάτημα ορίζει (ή αναιρεί) τα μετρητά για ΟΛΑ τα τεμάχια μαζί και ξαναϋπολογίζει το κέρδος κάθε τεμαχίου (χωρίς ΦΠΑ), χωρίς να χρειάζεται να επεξεργαστείτε τα τεμάχια ένα-ένα'
@@ -13911,6 +13914,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.5', date: 'Jul 2026', items: [
+        '📄 Taller pop-up windows: the "sheets" that slide up from the bottom (Sale Details, client purchases, Notifications, filters, bulk add) and drop down from the top (new client/vendor/member) now stretch to nearly the full height of the screen. No more empty space left at the top, and far less scrolling to reach the bottom of a long window'
+      ]},
       { version: 'v10.4', date: 'Jul 2026', items: [
         '👤 Client purchases → sale: in the Clients tab, a client\'s purchases now open the SALE (with discount, totals, all items) instead of jumping straight to inventory. Multi-item (cart) sales show as ONE row with a "🛍 N items" badge, just like the Sales list. From inside the sale, the "View Item" button takes you to the piece in inventory',
         '💵 Cash button on multi-item sales: the combined view of a cart sale now has a "💵 CASH" toggle next to the total. One tap sets (or clears) cash for ALL items at once and recomputes each item\'s profit (no VAT removed) — no need to edit items one by one'
@@ -16781,7 +16787,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.4';
+const APP_VERSION = '10.5';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -17206,7 +17212,7 @@ function openNotifPanel() {
       }).join('');
 
   overlay.innerHTML = `
-    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto">
+    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${t('notifPanelTitle')}</div>
@@ -17943,7 +17949,7 @@ async function invShareToTeam(qrInput) {
       }).join('');
 
   overlay.innerHTML = `
-    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto">
+    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">📤 ${t('notifSendTitle')}</div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);margin-bottom:4px">${isSingleItem ? (firstItem && firstItem.seqId ? formatSeqId(firstItem.seqId, firstItem.jewelryType) + ' · ' : '') + qrCodes[0] : qrCodes.length + (lang==='el'?' αντικείμενα επιλεγμένα':' items selected')}</div>
@@ -18544,7 +18550,7 @@ async function showClientPurchases(clientName) {
       }).join('');
 
   overlay.innerHTML = `
-    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:20px 16px 44px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto">
+    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:20px 16px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 16px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);font-weight:600">👤 ${clientName}</div>
@@ -18800,7 +18806,7 @@ function addVfOtherCatRow(name='', multiplier='') {
 
 <!-- Add / Edit User Modal -->
 <div id="addUserModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;align-items:flex-start;justify-content:center;padding:0" onclick="if(event.target===this)closeAddUserModal()">
-  <div style="background:var(--dark-2);border:0 0 1px 1px solid var(--card-border);border-radius:0 0 16px 16px;padding:24px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto">
+  <div style="background:var(--dark-2);border:0 0 1px 1px solid var(--card-border);border-radius:0 0 16px 16px;padding:24px;max-width:400px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
     <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold);margin-bottom:18px">👤 <span id="addUserModalTitle">Νέο Μέλος</span></div>
 
     <div style="margin-bottom:12px">
