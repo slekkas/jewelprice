@@ -12344,6 +12344,15 @@ function _bulkSellCalc() {
   if (!w || w <= 0 || !ppg) return null;
   const base = w * ppg; // full retail (incl VAT, no discount)
   const preVatBase = w * pvpg;
+  // If an explicit rounding target is set, use it directly as the final price
+  // so the entered amount is honoured exactly (avoids drift from a % round-trip).
+  const roundVal = parseFloat(document.getElementById('bulkSellRound')?.value);
+  if (!isNaN(roundVal) && roundVal > 0 && roundVal < base) {
+    const final = roundVal;
+    const discAmt = base - final;
+    const disc = (discAmt / base) * 100;
+    return { base, preVatBase, final, disc, discAmt, vatRate, w };
+  }
   const disc = parseFloat(document.getElementById('bulkSellDiscount')?.value) || 0;
   const discAmt = base * (disc / 100);
   let final = base - discAmt;
@@ -13253,6 +13262,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.94', date: 'Ιούλιος 2026', items: [
+        '⛓️ Διόρθωση στρογγυλοποίησης στην πώληση αλυσίδας (Bulk chains): όταν βάζετε τελική τιμή π.χ. 800, η τελική τιμή είναι ακριβώς 800 — δεν γίνεται πια 800,02'
+      ]},
       { version: 'v9.93', date: 'Ιούλιος 2026', items: [
         '🛒 Πιο σταθερή πώληση πολλών αντικειμένων: όταν πατάτε «Πωλήθηκε» ενώ έχετε 2+ αντικείμενα στο καλάθι, η εφαρμογή ρωτά αν θέλετε να καταχωρίσετε ΟΛΑ (με το σωστό σύνολο) ή μόνο το τρέχον — δεν καταγράφει πια σιωπηλά μόνο το ένα',
         '🛒 Διόρθωση: ακυρωμένη πώληση καλαθιού δεν «κολλάει» πια στην επόμενη πώληση'
@@ -13369,6 +13381,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.94', date: 'Jul 2026', items: [
+        '⛓️ Bulk chain sale rounding fix: entering a final price like 800 now gives you exactly 800 — no more 800.02'
+      ]},
       { version: 'v9.93', date: 'Jul 2026', items: [
         '🛒 More consistent multi-item sales: pressing "Sold" while 2+ items are in the cart now asks whether to record ALL of them (with the correct total) or just the current item — it no longer silently records only one',
         '🛒 Fix: a cancelled cart sale no longer leaks into the next sale'
@@ -16185,7 +16200,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.93';
+const APP_VERSION = '9.94';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
