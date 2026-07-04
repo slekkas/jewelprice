@@ -1,0 +1,74 @@
+name: Deploy to GitHub Pages
+
+# Publishes the repo to GitHub Pages (custom domain www.lekkasjewelry.com).
+# Why this exists: GitHub Pages' built-in "deploy from a branch" has no retry, so
+# an occasional transient "Deployment failed, try again later" from GitHub's Pages
+# service turned the deploy red with no second attempt. This workflow retries the
+# deploy step up to 3 times so those transient hiccups self-heal — no manual re-runs.
+#
+# Requires: Settings -> Pages -> Build and deployment -> Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # lets you trigger a deploy by hand from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; never cancel one that's already running.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .          # publishes the repo root (includes CNAME -> custom domain)
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.page-url.outputs.url }}
+    steps:
+      - name: Deploy attempt 1
+        id: deploy1
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait, then retry
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy attempt 2
+        id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait, then retry
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 45
+
+      # Final attempt — NOT continue-on-error, so the job goes red only if all
+      # three attempts fail (i.e. a genuine, sustained GitHub Pages outage).
+      - name: Deploy attempt 3 (final)
+        id: deploy3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+
+      - name: Resolve deployed URL
+        id: page-url
+        run: echo "url=${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}" >> "$GITHUB_OUTPUT"
