@@ -71,5 +71,10 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Push to GitHub only when asked (GitHub Pages deploys automatically from main).
 - **Update this CLAUDE.md as part of EVERY change**, in the same commit as the code. Whenever `jewelprice.htm` changes in a user-visible way, also: (1) bump the version reference(s) here to match the new `APP_VERSION`, and (2) if the change adds, removes, or meaningfully alters a feature, update the "Key features" section so it stays accurate. Do not treat CLAUDE.md as a separate follow-up task — it ships with the change.
 
+## Deployment notes
+- The live app is served by **GitHub Pages** (custom domain `www.lekkasjewelry.com`), which deploys automatically on every push to `main` via the built-in "pages build and deployment" workflow.
+- GitHub Pages occasionally returns a transient `Deployment failed, try again later` error in the deploy step even though the build (artifact) succeeded — this is a GitHub-side hiccup, not a code problem. When it happens, the fix is to re-run the deploy: open the repo **Actions** tab → the failed "pages build and deployment" run → **Re-run all jobs**, or push a trivial new commit to `main` to trigger a fresh run.
+- After a successful deploy, allow ~1–2 min for the CDN to update; the app's own green "new version" banner confirms the new `APP_VERSION` is live.
+
 ## First-session task
 On the first session with this file, read `jewelprice.htm` fully and update the "Key features" section above to match the actual current state of the app, since this document may be behind the code.
