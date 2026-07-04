@@ -12,7 +12,7 @@ JewelPrice Pro is a bilingual (Greek/English) jewelry pricing Progressive Web Ap
 - The QR camera scan button uses BarcodeDetector and must remain **hidden on Safari/iOS** (unsupported there).
 - Users are on mobile: employee uses a Xiaomi Redmi (Android/Chrome), another user is on iPhone (Safari). Test logic must account for both.
 
-## Key features (current — verified against jewelprice.htm at app v9.98)
+## Key features (current — verified against jewelprice.htm at app v9.99)
 The app has grown well past the v2.2 list. It is organized into navigable tabs/panels:
 **Calc, Inventory, Vendors, Clients, Sales, Sync, Settings, About** (some hidden until enabled/owner mode).
 
@@ -54,9 +54,9 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Bilingual item names shown on quotes per active language
 - JSON backup export and a data-recovery/force-restore tool
 - Configurable VAT %, default margin %, currency symbol
-- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v9.98)
+- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v9.99)
 
-> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'9.98'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
+> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'9.99'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).
