@@ -13262,6 +13262,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.95', date: 'Ιούλιος 2026', items: [
+        '🟢 Επανήλθε η πράσινη ειδοποίηση «Νέα έκδοση»: όταν ανοίγετε την εφαρμογή μετά από ενημέρωση, βλέπετε ξανά τι άλλαξε μαζί με κουμπί Ανανέωσης — τραβά πλέον αυτόματα τις αλλαγές από το ημερολόγιο αλλαγών, οπότε δεν θα ξαναχαθεί'
+      ]},
       { version: 'v9.94', date: 'Ιούλιος 2026', items: [
         '⛓️ Διόρθωση στρογγυλοποίησης στην πώληση αλυσίδας (Bulk chains): όταν βάζετε τελική τιμή π.χ. 800, η τελική τιμή είναι ακριβώς 800 — δεν γίνεται πια 800,02'
       ]},
@@ -13381,6 +13384,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.95', date: 'Jul 2026', items: [
+        '🟢 The green "new version" notification is back: after an update, opening the app again shows what changed with a Refresh button — it now pulls the notes straight from the changelog, so it can\'t silently disappear again'
+      ]},
       { version: 'v9.94', date: 'Jul 2026', items: [
         '⛓️ Bulk chain sale rounding fix: entering a final price like 800 now gives you exactly 800 — no more 800.02'
       ]},
@@ -16200,7 +16206,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.94';
+const APP_VERSION = '9.95';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -16218,33 +16224,24 @@ function goldColorLabel(value) {
   return lang === 'el' ? entry.el : entry.en;
 }
 
-const VERSION_CHANGELOG = {
-  el: {
-    '9.92': {
-      title: '💎 Καθαρό πεδίο ποσότητας πέτρας',
-      changes: [
-        '💎 Το πεδίο ποσότητας (Τεμ.) εμφανίζει πλέον αχνή παύλα «—» αντί για «1» — και στην επεξεργασία είδους μένει κενό όταν δεν έχει οριστεί ποσότητα'
-      ]
-    }
-  },
-  en: {
-    '9.92': {
-      title: '💎 Cleaner stone quantity field',
-      changes: [
-        '💎 The quantity (Qty) field now shows a faint "—" dash instead of "1" — and stays empty when editing an item that has no quantity set'
-      ]
-    }
-  }
-};
+// The green "new version" banner draws its contents straight from the About-page
+// changelog (ABOUT[lang].changelog) for the current APP_VERSION. This keeps it in
+// sync automatically: bumping APP_VERSION and adding a changelog entry — which we do
+// every release — is all that's needed. There is no separate list to maintain, so the
+// banner can't silently fall behind the version (which is what previously broke it).
 function checkForUpdate() {
   const lastSeen = localStorage.getItem('jpro_last_version');
   if (lastSeen === APP_VERSION) return; // already seen this version
-  // New version detected — show banner
-  const vl = (VERSION_CHANGELOG[lang] || VERSION_CHANGELOG['en'])[APP_VERSION];
-  if (!vl) return;
+  const changelog = ((ABOUT[lang] || ABOUT['en']).changelog) || [];
+  const entry = changelog.find(e => (e.version || '').replace(/^v/i, '') === APP_VERSION);
+  if (!entry || !entry.items || !entry.items.length) {
+    // No matching changelog entry for this version — record it so we don't keep re-checking
+    localStorage.setItem('jpro_last_version', APP_VERSION);
+    return;
+  }
   const banner = document.getElementById('updateBanner');
-  document.getElementById('updateBannerTitle').textContent = `v${APP_VERSION} — ${vl.title}`;
-  document.getElementById('updateBannerText').textContent = vl.changes.map(c => '• ' + c).join('\n');
+  document.getElementById('updateBannerTitle').textContent = lang === 'el' ? `v${APP_VERSION} — Νέα έκδοση` : `v${APP_VERSION} — What's new`;
+  document.getElementById('updateBannerText').textContent = entry.items.map(c => '• ' + c).join('\n');
   document.getElementById('updateBannerText').style.whiteSpace = 'pre-line';
   document.getElementById('updateRefreshBtn').textContent = lang === 'el' ? '↻ Ανανέωση' : '↻ Refresh';
   document.getElementById('updateDismissBtn').title = lang === 'el' ? 'Κλείσιμο' : 'Dismiss';
