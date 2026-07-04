@@ -1057,9 +1057,9 @@
             <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
             <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
             <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
-            <circle cx="10" cy="-12" r="6" fill="url(#gg)" opacity="0.9"/>
-            <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
-            <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+            <polygon points="9.12,-10.29 6.71,-7.88 3.29,-7.88 0.88,-10.29 0.88,-13.71 3.29,-16.12 6.71,-16.12 9.12,-13.71" fill="#F3EEDD" stroke="#fff" stroke-width="0.9" stroke-opacity="0.9"/>
+            <polygon points="6.90,-11.21 5.79,-10.10 4.21,-10.10 3.10,-11.21 3.10,-12.79 4.21,-13.90 5.79,-13.90 6.90,-12.79" fill="none" stroke="#967832" stroke-width="0.5" stroke-opacity="0.55"/>
+            <path d="M6.90,-11.21 L9.12,-10.29 M5.79,-10.10 L6.71,-7.88 M4.21,-10.10 L3.29,-7.88 M3.10,-11.21 L0.88,-10.29 M3.10,-12.79 L0.88,-13.71 M4.21,-13.90 L3.29,-16.12 M5.79,-13.90 L6.71,-16.12 M6.90,-12.79 L9.12,-13.71" fill="none" stroke="#967832" stroke-width="0.5" stroke-opacity="0.55"/>
           </g>
           <text x="82" y="50" font-family="Georgia,'Times New Roman',serif" font-size="36" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
           <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
@@ -1701,9 +1701,9 @@
             <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
             <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
             <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
-            <circle cx="10" cy="-12" r="6" fill="url(#gg2)" opacity="0.9"/>
-            <circle cx="10" cy="-12" r="3.5" fill="#fff" opacity="0.7"/>
-            <circle cx="10" cy="-12" r="6" fill="none" stroke="#C9A84C" stroke-width="0.8"/>
+            <polygon points="9.12,-10.29 6.71,-7.88 3.29,-7.88 0.88,-10.29 0.88,-13.71 3.29,-16.12 6.71,-16.12 9.12,-13.71" fill="#F3EEDD" stroke="#fff" stroke-width="0.9" stroke-opacity="0.9"/>
+            <polygon points="6.90,-11.21 5.79,-10.10 4.21,-10.10 3.10,-11.21 3.10,-12.79 4.21,-13.90 5.79,-13.90 6.90,-12.79" fill="none" stroke="#967832" stroke-width="0.5" stroke-opacity="0.55"/>
+            <path d="M6.90,-11.21 L9.12,-10.29 M5.79,-10.10 L6.71,-7.88 M4.21,-10.10 L3.29,-7.88 M3.10,-11.21 L0.88,-10.29 M3.10,-12.79 L0.88,-13.71 M4.21,-13.90 L3.29,-16.12 M5.79,-13.90 L6.71,-16.12 M6.90,-12.79 L9.12,-13.71" fill="none" stroke="#967832" stroke-width="0.5" stroke-opacity="0.55"/>
           </g>
           <text x="82" y="50" font-family="Georgia,'Times New Roman',serif" font-size="36" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
           <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
@@ -13603,6 +13603,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.1', date: 'Ιούλιος 2026', items: [
+        '💎 Ανανεωμένο λογότυπο: η πέτρα του σήματος είναι πλέον ένα μικρότερο, κομμένο διαμάντι τοποθετημένο μέσα στο σχέδιο (αντί για μαργαριτάρι στην άκρη) — ίδιο παντού: εφαρμογή, ιστοσελίδα και showroom'
+      ]},
       { version: 'v10.0', date: 'Ιούλιος 2026', items: [
         '🛍 Οι πωλήσεις πολλαπλών αντικειμένων (πούλημα ολόκληρου καλαθιού μαζί) εμφανίζονται πλέον ως ΜΙΑ πώληση στη λίστα πωλήσεων — με σήμανση «🛍 X τεμ.» — αντί για ξεχωριστές εγγραφές. Ο αριθμός «πωλήσεων» μετράει τώρα κάθε τέτοιο πούλημα ως μία συναλλαγή',
         '🛍 Πατώντας μια τέτοια πώληση βλέπετε το συνολικό ποσό, το κέρδος και τη λίστα των αντικειμένων· μπορείτε να ανοίξετε κάθε αντικείμενο ξεχωριστά (για επεξεργασία/διαγραφή) ή να διαγράψετε όλη την πώληση μαζί',
@@ -13744,6 +13747,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.1', date: 'Jul 2026', items: [
+        '💎 Refreshed logo: the mark\'s stone is now a smaller, cut diamond set inside the design (instead of a pearl at the edge) — consistent everywhere: app, website and showroom'
+      ]},
       { version: 'v10.0', date: 'Jul 2026', items: [
         '🛍 Multi-item sales (selling a whole cart at once) now show as ONE sale in the sales list — tagged "🛍 X items" — instead of separate entries. The "sales" count now treats each such checkout as a single transaction',
         '🛍 Tap one of these sales to see the combined total, profit and the list of items; open any item on its own (to edit/delete it) or delete the whole sale together',
@@ -16598,7 +16604,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.0';
+const APP_VERSION = '10.1';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
