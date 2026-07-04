@@ -9,10 +9,10 @@ JewelPrice Pro is a bilingual (Greek/English) jewelry pricing Progressive Web Ap
 - Backend: **Firebase Realtime Database** (migrated from JSONBin and jsonstorage.net — do not reintroduce those).
 - All UI text must exist in **both Greek and English**, following the app's existing i18n pattern.
 - Greek characters CANNOT be encoded in QR codes generated for BarTender UltraLite (SHIFT-JIS limitation). Label codes therefore use parallel Greek/Latin codes.
-- The QR camera scan button uses BarcodeDetector and must remain **hidden on Safari/iOS** (unsupported there).
+- QR camera scanning prefers the browser's native **BarcodeDetector** and falls back to an **inlined jsQR** decoder (in a `<script id="jsqr-lib">` block) for desktop browsers that lack it (Chrome on Windows/Linux). The Calc scan icon shows wherever `canDecodeQr()` is true and must remain **hidden on Safari/iOS** (the jsQR fallback is deliberately gated off there, so iOS/mobile behaviour is unchanged).
 - Users are on mobile: employee uses a Xiaomi Redmi (Android/Chrome), another user is on iPhone (Safari). Test logic must account for both.
 
-## Key features (current — verified against jewelprice.htm at app v10.1)
+## Key features (current — verified against jewelprice.htm at app v10.2)
 The app has grown well past the v2.2 list. It is organized into navigable tabs/panels:
 **Calc, Inventory, Vendors, Clients, Sales, Sync, Settings, About** (some hidden until enabled/owner mode).
 
@@ -28,7 +28,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 
 ### Labels, codes & scanning
 - Label code system with parallel Greek/Latin codes for BarTender UltraLite (SHIFT-JIS constraint)
-- QR camera scanning via BarcodeDetector with automatic calculation (Android/Chrome only; hidden on Safari/iOS)
+- QR camera scanning with automatic calculation — native BarcodeDetector on Android/Chrome, with an inlined jsQR fallback so it also works on desktop Chrome (Windows/Linux); can also scan a photo of a tag. Hidden on Safari/iOS.
 - Duplicate-QR scan tool; label history; printable code reference card
 
 ### Quotes, sales & inventory
@@ -55,9 +55,9 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Bilingual item names shown on quotes per active language
 - JSON backup export and a data-recovery/force-restore tool
 - Configurable VAT %, default margin %, currency symbol
-- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.1)
+- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.2)
 
-> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.1'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
+> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.2'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).
