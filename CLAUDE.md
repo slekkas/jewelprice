@@ -63,6 +63,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Explain changes in plain language; the owner is not a professional developer.
 
 ## Workflow rules
+- At the start of every session, if working in a local folder, run `git pull` to get the latest from GitHub before reading or changing anything.
 - After completing a change, summarize what was modified before committing.
 - Use clear, descriptive commit messages.
 - Push to GitHub only when asked (GitHub Pages deploys automatically from main).
