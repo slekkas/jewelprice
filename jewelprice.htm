@@ -2794,7 +2794,7 @@ const T = {
     quoteCustomerName:'Όνομα Πελάτη (προαιρετικό)', quoteCustomerNamePh:'π.χ. Γιώργος Παπαδόπουλος',
     addToCartBtn:'Προσθήκη', cartTitle:'Καλάθι Προσφοράς', cartSubtotal:'Σύνολο',
     roundLabel:'ΣΤΡΟΓΓ. →', roundPh:'π.χ. 940',
-    clearCart:'🗑 Εκκαθάριση Καλαθιού', itemNameTitle:'Όνομα Αντικειμένου',
+    clearCart:'🗑 Εκκαθάριση Καλαθιού', markAllSold:'Πώληση Όλων', itemNameTitle:'Όνομα Αντικειμένου',
     itemNamePh:'π.χ. Κρεμαστό Σταυρός', addToCartConfirm:'➕ Προσθήκη',
     extraDiscountLbl:'Έκπτωση %',
     quoteRoundLbl:'Στρογγυλοποίηση',
@@ -3077,7 +3077,7 @@ const T = {
     quoteCustomerName:'Customer Name (optional)', quoteCustomerNamePh:'e.g. George Papadopoulos',
     addToCartBtn:'Add', cartTitle:'Quote Cart', cartSubtotal:'Subtotal',
     roundLabel:'Round price →', roundPh:'e.g. 940',
-    clearCart:'🗑 Clear Cart', itemNameTitle:'Item Name',
+    clearCart:'🗑 Clear Cart', markAllSold:'Sell All', itemNameTitle:'Item Name',
     itemNamePh:'e.g. Cross Pendant', addToCartConfirm:'➕ Add',
     extraDiscountLbl:'Discount %',
     quoteRoundLbl:'Round to',
@@ -13264,6 +13264,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.97', date: 'Ιούλιος 2026', items: [
+        '🛒 Διόρθωση: το κουμπί «Πώληση Όλων» μέσα στο καλάθι εμφανιζόταν στα αγγλικά («MARKALLSOLD») ενώ η εφαρμογή ήταν στα ελληνικά — τώρα δείχνει σωστά «Πώληση Όλων»'
+      ]},
       { version: 'v9.96', date: 'Ιούλιος 2026', items: [
         '⛓️ Πώληση αλυσίδας: το ποσοστό έκπτωσης εμφανίζεται ξανά στρογγυλεμένο (π.χ. -22,91%) αντί για έναν πολύ μεγάλο αριθμό με πολλά δεκαδικά'
       ]},
@@ -13389,6 +13392,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v9.97', date: 'Jul 2026', items: [
+        '🛒 Fix: the "Sell All" button inside the cart showed in English ("MARKALLSOLD") while the app was in Greek — it now displays the correct translated label'
+      ]},
       { version: 'v9.96', date: 'Jul 2026', items: [
         '⛓️ Chain sale: the discount percentage is shown rounded again (e.g. -22.91%) instead of a very long many-decimal number'
       ]},
@@ -16214,7 +16220,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '9.96';
+const APP_VERSION = '9.97';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
