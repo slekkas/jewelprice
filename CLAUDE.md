@@ -12,7 +12,7 @@ JewelPrice Pro is a bilingual (Greek/English) jewelry pricing Progressive Web Ap
 - The QR camera scan button uses BarcodeDetector and must remain **hidden on Safari/iOS** (unsupported there).
 - Users are on mobile: employee uses a Xiaomi Redmi (Android/Chrome), another user is on iPhone (Safari). Test logic must account for both.
 
-## Key features (current — verified against jewelprice.htm at app v9.92)
+## Key features (current — verified against jewelprice.htm at app v9.96)
 The app has grown well past the v2.2 list. It is organized into navigable tabs/panels:
 **Calc, Inventory, Vendors, Clients, Sales, Sync, Settings, About** (some hidden until enabled/owner mode).
 
@@ -35,6 +35,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Quote cart (multi-item quotes) with rounding; single/multi A4 print quotes with optional jewelry photo
 - Quote history (searchable) and certificate generation
 - Inventory management with type/stone filters; sold flow and sale modals
+- Bulk chain ("by the gram") sale flow: sells part of a chain batch by weight, deducting from the remaining grams; a rounding-target field sets the exact final price (the entered amount is honoured exactly, discount % is derived from it for display only)
 - Sales tracking: sales dashboard, sales search, and a sales leaderboard by employee (monthly drill-down, medal ranking)
 - Sales bonus % per team member (live preview, stored on each sale)
 - Purchase-cost tracking for profit calculation; value-since-added ("gain") display
@@ -49,12 +50,13 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 
 ### Platform & misc
 - Installable PWA (inline manifest) on Android & iOS; bilingual Greek/English throughout (`data-i18n` + `ABOUT`/i18n dictionaries)
+- Green "new version" banner on load after an update: `checkForUpdate()` reads the changelog entry for the current `APP_VERSION` straight from `ABOUT[lang].changelog`, so it stays in sync automatically (there is no separate list to maintain)
 - Bilingual item names shown on quotes per active language
 - JSON backup export and a data-recovery/force-restore tool
 - Configurable VAT %, default margin %, currency symbol
-- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v9.92)
+- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v9.96)
 
-> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'9.92'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object.
+> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'9.96'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).
