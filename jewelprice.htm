@@ -13605,7 +13605,6 @@ function startTextDecode(video, status) {
     ? 'Στρέψτε την κάμερα στον κωδικό — κρατήστε τον οριζόντιο (π.χ. PE0142)…'
     : 'Point the camera at the code — keep it level (e.g. PE0142)…';
   _ocrBusy = false;
-  const recent = []; // rolling window of recent decoded codes (stability check)
   const wrap = document.getElementById('qrVideoWrap');
   // Warm up the engine; surface a clear message if the CDN can't be reached.
   getOcrWorker().catch(() => {
@@ -13623,21 +13622,18 @@ function startTextDecode(video, status) {
       canvas.getContext('2d').drawImage(video, 0, 0);
       const code = await decodeTextFromCanvas(canvas, false);
       if (code && await refCodeExists(code)) {
-        // A valid, real code is readable in this frame → the tag is aligned well
-        // enough. Go green ("hold still"), and show the candidate so an obvious
-        // misread can be caught by eye before it commits.
+        // A valid code that matches a real inventory item → accept immediately.
+        // (The existence check already rejects misreads into codes that don't
+        // exist; after this, lookupCode shows the item so a wrong read is caught
+        // by eye.) Accepting on the first good frame keeps it instant and, unlike
+        // the old two-frame gate, it can never get stuck waiting for a second read
+        // once the user has moved the tag away.
         if (wrap) wrap.classList.add('aligned');
-        recent.push(code);
-        if (recent.length > 4) recent.shift();
-        status.textContent = (lang === 'el' ? '✓ Ανάγνωση: ' : '✓ Reading: ') + code + '…';
-        // Accept only once the SAME code has been read on two frames — this filters
-        // out one-off OCR errors (e.g. a tilted 8 misread as 5).
-        const agree = recent.filter(c => c === code).length;
-        if (agree >= 2) {
-          clearInterval(qrInterval);
-          closeQrScanner();
-          handleScannedCode(code);
-        }
+        status.textContent = (lang === 'el' ? '✓ Κωδικός: ' : '✓ Code: ') + code;
+        clearInterval(qrInterval);
+        closeQrScanner();
+        handleScannedCode(code);
+        return;
       } else if (wrap) {
         // Nothing readable/valid this frame → not aligned; drop the green.
         wrap.classList.remove('aligned');
@@ -13963,6 +13959,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.7', date: 'Ιούλιος 2026', items: [
+        '⚡ Σάρωση κειμένου πιο γρήγορη & χωρίς «κόλλημα»: μόλις διαβαστεί ένας έγκυρος κωδικός που υπάρχει στο απόθεμα, μπαίνει ΑΜΕΣΩΣ (δεν περιμένει πλέον δεύτερη ανάγνωση, που ενίοτε άφηνε τον κωδικό να «κρέμεται» αν απομακρύνατε την κάμερα). Ο κωδικός συμπληρώνεται και το είδος εμφανίζεται αμέσως για επιβεβαίωση'
+      ]},
       { version: 'v10.6', date: 'Ιούλιος 2026', items: [
         '🔤 Σάρωση του τυπωμένου κωδικού (όχι μόνο του QR): στην κάμερα σάρωσης υπάρχει πλέον κουμπί «Σάρωση κειμένου». Αν το QR έχει ξεθωριάσει ή γδαρθεί από τον ήλιο, στρέψτε την κάμερα στον τυπωμένο κωδικό αναφοράς (π.χ. PE0142) και η εφαρμογή τον διαβάζει με OCR και ανοίγει κανονικά το είδος. Λειτουργεί και από φωτογραφία της ετικέτας. Δουλεύει τώρα και σε iPhone/Safari, όπου η σάρωση με κάμερα δεν ήταν διαθέσιμη. Την πρώτη φορά χρειάζεται σύνδεση στο διαδίκτυο (μετά αποθηκεύεται και δουλεύει χωρίς σύνδεση)'
       ]},
@@ -14123,6 +14122,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.7', date: 'Jul 2026', items: [
+        '⚡ Text scanning is faster and no longer gets stuck: as soon as a valid code that exists in inventory is read, it is accepted INSTANTLY (it no longer waits for a second read, which sometimes left the code just "hanging" if you moved the camera away). The code fills in and the item is shown right away for confirmation'
+      ]},
       { version: 'v10.6', date: 'Jul 2026', items: [
         '🔤 Scan the printed code (not just the QR): the scanner camera now has a "Scan code text" button. If the QR is faded or scratched by the sun, point the camera at the printed reference code (e.g. PE0142) and the app reads it with OCR and opens the item as usual. Also works from a photo of the tag. This now works on iPhone/Safari too, where camera scanning wasn\'t available before. The first use needs an internet connection (after that it\'s saved and works offline)'
       ]},
@@ -16994,7 +16996,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.6';
+const APP_VERSION = '10.7';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
