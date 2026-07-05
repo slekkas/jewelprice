@@ -1582,6 +1582,19 @@
         <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0" data-i18n="backupDesc">Κατεβάστε όλα τα δεδομένα (ρυθμίσεις, αποσπάσματα, πελάτες, πωλήσεις, πέτρες) σε ένα αρχείο JSON.</p>
         <button onclick="exportBackup()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="backupBtn">⬇️ Εξαγωγή JSON</button>
         <div class="status-bar" id="backupStatus"></div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(212,175,55,0.15)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="width:8px;height:8px;border-radius:50%;background:#27AE60;flex-shrink:0"></span>
+            <span style="font-family:var(--font-body);font-size:11px;color:var(--gold-light)" data-i18n="autoBackupOn">Αυτόματα αντίγραφα: ενεργά</span>
+          </div>
+          <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0" data-i18n="autoBackupDesc">Η εφαρμογή κρατά αυτόματα ένα αντίγραφο όλων των δεδομένων μία φορά την ημέρα (τελευταία 30). Ιδιωτικά — δεν εμφανίζονται πουθενά δημόσια.</p>
+          <div style="display:flex;gap:8px">
+            <button onclick="backupNowToCloud()" style="flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="backupNowBtn">☁️ Αντίγραφο Τώρα</button>
+            <button onclick="toggleCloudBackups()" style="flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="restoreBackupBtn">↩️ Επαναφορά</button>
+          </div>
+          <div id="cloudBackupList" style="display:none;margin-top:12px"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2924,6 +2937,11 @@ const T = {
     backupFetching:'Φόρτωση δεδομένων…',
     backupDone:'✓ Αρχείο αποθηκεύτηκε',
     backupFail:'Αποτυχία εξαγωγής',
+    cloudBackupDone:'✓ Αντίγραφο αποθηκεύτηκε στο cloud',
+    autoBackupOn:'Αυτόματα αντίγραφα: ενεργά',
+    autoBackupDesc:'Η εφαρμογή κρατά αυτόματα ένα αντίγραφο όλων των δεδομένων μία φορά την ημέρα (τελευταία 30). Ιδιωτικά — δεν εμφανίζονται πουθενά δημόσια.',
+    backupNowBtn:'☁️ Αντίγραφο Τώρα',
+    restoreBackupBtn:'↩️ Επαναφορά',
     navInventory:'Απόθ.',
     invTitle:'📦 Απόθεμα',
     invScanBtn:'📷 Σάρωση QR',
@@ -3222,6 +3240,11 @@ const T = {
     backupFetching:'Fetching data…',
     backupDone:'✓ File saved',
     backupFail:'Export failed',
+    cloudBackupDone:'✓ Backup saved to cloud',
+    autoBackupOn:'Automatic backups: on',
+    autoBackupDesc:'The app automatically keeps a snapshot of all your data once a day (last 30 kept). Private — never shown anywhere public.',
+    backupNowBtn:'☁️ Back Up Now',
+    restoreBackupBtn:'↩️ Restore',
     navInventory:'Stock',
     invTitle:'📦 Inventory',
     invScanBtn:'📷 Scan QR',
@@ -3566,6 +3589,8 @@ async function autoSync() {
   if (creds.binId) {
     try { await pullSalesFromCloud(); } catch(e) { /* silent */ }
   }
+  // Automatic daily backup (owner/manager devices only) — fire-and-forget.
+  autoBackupIfDue();
 }
 
 function setSyncStatus(type, msg) {
@@ -9520,29 +9545,36 @@ async function _fixDupQrFromScanner(fbKey) {
 }
 
 // ── Database Backup ──────────────────────────────────────────────────────────
+// All data nodes that make up a full backup (shared by export + cloud backups).
+const BACKUP_PATHS = [
+  ['config',      '/jewelprice.json'],
+  ['quotes',      '/jewelprice_quotes.json'],
+  ['clients',     '/jewelprice_clients.json'],
+  ['sales',       '/jewelprice_sales.json'],
+  ['users',       '/jewelprice_users.json'],
+  ['stone_cache', '/jewelprice_stone_cache.json'],
+  ['labels',      '/jewelprice_labels.json'],
+  ['qr_images',   '/jewelprice_qr_images.json'],
+  ['inventory',   '/jewelprice_inventory.json'],
+];
+
+// Fetch every node and bundle it into one object.
+async function collectBackupData() {
+  const backup = { exportedAt: new Date().toISOString(), version: APP_VERSION };
+  for (const [key, path] of BACKUP_PATHS) {
+    try {
+      const res = await fetch(fbUrl(path), { cache: 'no-store' });
+      backup[key] = res.ok ? await res.json() : null;
+    } catch(e) { backup[key] = null; }
+  }
+  return backup;
+}
+
 async function exportBackup() {
   if (!creds.binId) { showStatus('backupStatus', t('backupFail'), 'error'); return; }
   showStatus('backupStatus', t('backupFetching'), '');
-  const base = creds.binId.replace(/\/+$/, '');
-  const paths = [
-    ['config',      '/jewelprice.json'],
-    ['quotes',      '/jewelprice_quotes.json'],
-    ['clients',     '/jewelprice_clients.json'],
-    ['sales',       '/jewelprice_sales.json'],
-    ['users',       '/jewelprice_users.json'],
-    ['stone_cache', '/jewelprice_stone_cache.json'],
-    ['labels',      '/jewelprice_labels.json'],
-    ['qr_images',   '/jewelprice_qr_images.json'],
-    ['inventory',   '/jewelprice_inventory.json'],
-  ];
   try {
-    const backup = { exportedAt: new Date().toISOString(), version: APP_VERSION };
-    for (const [key, path] of paths) {
-      try {
-        const res = await fetch(fbUrl(path), { cache: 'no-store' });
-        backup[key] = res.ok ? await res.json() : null;
-      } catch(e) { backup[key] = null; }
-    }
+    const backup = await collectBackupData();
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -9552,6 +9584,144 @@ async function exportBackup() {
     a.click();
     URL.revokeObjectURL(url);
     showStatus('backupStatus', t('backupDone'), 'ok');
+  } catch(e) {
+    showStatus('backupStatus', t('backupFail'), 'error');
+  }
+}
+
+// ─── AUTOMATIC CLOUD BACKUPS ──────────────────────────────────────────────────
+// Rolling snapshots kept in a PRIVATE Firebase node (/jewelprice_backups/<ms>).
+// Written with the DB secret so they stay private (never exposed on the public
+// showroom / repo). Only owner/manager devices (which hold the secret) create them.
+const BACKUP_KEEP = 30; // keep this many most-recent snapshots
+
+// Save one snapshot of everything, then trim old ones. Returns the snapshot key.
+async function createCloudBackup(kind) {
+  const bundle = await collectBackupData();
+  bundle.kind = kind || 'manual';
+  const key = String(Date.now());
+  const res = await fetch(fbUrl('/jewelprice_backups/' + key + '.json'), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bundle)
+  });
+  if (!res.ok) throw new Error('backup write failed');
+  await pruneCloudBackups();
+  return key;
+}
+
+// Keep only the newest BACKUP_KEEP snapshots.
+async function pruneCloudBackups() {
+  try {
+    const res = await fetch(fbUrl('/jewelprice_backups.json?shallow=true'), { cache: 'no-store' });
+    if (!res.ok) return;
+    const keys = Object.keys((await res.json()) || {}).sort((a, b) => Number(a) - Number(b));
+    const excess = keys.length - BACKUP_KEEP;
+    for (let i = 0; i < excess; i++) {
+      await fetch(fbUrl('/jewelprice_backups/' + keys[i] + '.json'), { method: 'DELETE' });
+    }
+  } catch(e) { /* silent */ }
+}
+
+// Runs on app open: makes at most one automatic snapshot per calendar day.
+async function autoBackupIfDue() {
+  if (!creds.binId || !creds.dbSecret) return; // only writable (owner/manager) devices
+  const today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem('jpro_lastAutoBackup') === today) return;
+  try {
+    await createCloudBackup('auto');
+    localStorage.setItem('jpro_lastAutoBackup', today);
+  } catch(e) { /* never block the app over a backup */ }
+}
+
+// Manual "Back up now" button in Settings.
+async function backupNowToCloud() {
+  if (!creds.binId || !creds.dbSecret) { showStatus('backupStatus', t('backupFail'), 'error'); return; }
+  showStatus('backupStatus', t('backupFetching'), '');
+  try {
+    await createCloudBackup('manual');
+    localStorage.setItem('jpro_lastAutoBackup', new Date().toISOString().slice(0, 10));
+    showStatus('backupStatus', t('cloudBackupDone'), 'ok');
+    if (document.getElementById('cloudBackupList')?.style.display === 'block') openCloudBackups();
+  } catch(e) { showStatus('backupStatus', t('backupFail'), 'error'); }
+}
+
+function _countNode(n) {
+  if (Array.isArray(n)) return n.length;
+  if (n && typeof n === 'object') return Object.keys(n).length;
+  return 0;
+}
+
+// Show the list of saved snapshots with a Restore button on each.
+async function openCloudBackups() {
+  const box = document.getElementById('cloudBackupList');
+  if (!box) return;
+  box.style.display = 'block';
+  box.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);padding:8px 0">${lang==='el'?'Φόρτωση…':'Loading…'}</div>`;
+  try {
+    const res = await fetch(fbUrl('/jewelprice_backups.json'), { cache: 'no-store' });
+    const data = res.ok ? (await res.json() || {}) : {};
+    const keys = Object.keys(data).sort((a, b) => Number(b) - Number(a)); // newest first
+    if (keys.length === 0) {
+      box.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);padding:8px 0">${lang==='el'?'Δεν υπάρχουν αντίγραφα ακόμα.':'No backups yet.'}</div>`;
+      return;
+    }
+    const loc = state.dateLocale || 'el-GR';
+    box.innerHTML = keys.map(k => {
+      const b = data[k] || {};
+      const when = b.exportedAt ? new Date(b.exportedAt).toLocaleString(loc, {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : k;
+      const kindLabel = b.kind === 'manual' ? (lang==='el'?'χειροκίνητο':'manual')
+                      : b.kind === 'pre-restore' ? (lang==='el'?'πριν επαναφορά':'pre-restore')
+                      : (lang==='el'?'αυτόματο':'auto');
+      const parts = [
+        `${_countNode(b.inventory)} ${lang==='el'?'είδη':'items'}`,
+        `${_countNode(b.clients)} ${lang==='el'?'πελάτες':'clients'}`,
+        `${_countNode(b.sales)} ${lang==='el'?'πωλήσεις':'sales'}`,
+      ].join(' · ');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.15);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+        <div style="min-width:0">
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gold-light)">${when}<span style="color:var(--text-muted);font-size:10px;margin-left:6px">${kindLabel}</span></div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px">${parts}</div>
+        </div>
+        <button onclick="confirmRestoreBackup('${k}')" style="flex-shrink:0;padding:7px 12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);border-radius:6px;color:var(--gold-light);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.05em;cursor:pointer">${lang==='el'?'Επαναφορά':'Restore'}</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    box.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:#E74C3C;padding:8px 0">${t('backupFail')}</div>`;
+  }
+}
+
+function toggleCloudBackups() {
+  const box = document.getElementById('cloudBackupList');
+  if (!box) return;
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  openCloudBackups();
+}
+
+function confirmRestoreBackup(key) {
+  showConfirm(
+    lang==='el'
+      ? '⚠️ ΠΡΟΣΟΧΗ: Θα αντικατασταθούν ΟΛΑ τα τρέχοντα δεδομένα (είδη, πελάτες, πωλήσεις, ρυθμίσεις) με αυτό το αντίγραφο. Θα κρατηθεί αντίγραφο των τωρινών δεδομένων πριν την επαναφορά. Συνέχεια;'
+      : '⚠️ WARNING: This REPLACES ALL current data (inventory, clients, sales, settings) with this backup. A snapshot of the current data is saved first. Continue?',
+    () => restoreCloudBackup(key)
+  );
+}
+
+async function restoreCloudBackup(key) {
+  showStatus('backupStatus', lang==='el'?'Επαναφορά…':'Restoring…', '');
+  try {
+    // Safety net: snapshot the current data first, so a bad restore is itself reversible.
+    try { await createCloudBackup('pre-restore'); } catch(e) { /* proceed anyway */ }
+    const res = await fetch(fbUrl('/jewelprice_backups/' + key + '.json'), { cache: 'no-store' });
+    if (!res.ok) throw new Error('load fail');
+    const b = await res.json();
+    for (const [k, path] of BACKUP_PATHS) {
+      // Only restore nodes that actually held data — never wipe a node from a
+      // snapshot where that fetch had failed (stored as null).
+      if (b[k] === undefined || b[k] === null) continue;
+      await fetch(fbUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b[k]) });
+    }
+    showStatus('backupStatus', lang==='el'?'✓ Επαναφορά ολοκληρώθηκε. Επαναφόρτωση…':'✓ Restored. Reloading…', 'ok');
+    localStorage.removeItem('jpro_sales'); localStorage.removeItem('jpro_clients');
+    setTimeout(() => location.reload(), 1300);
   } catch(e) {
     showStatus('backupStatus', t('backupFail'), 'error');
   }
@@ -13991,6 +14161,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.9', date: 'Ιούλιος 2026', items: [
+        '🛡️ Αυτόματα αντίγραφα ασφαλείας: η εφαρμογή κρατά πλέον μόνη της ένα πλήρες αντίγραφο όλων των δεδομένων (είδη, πελάτες, πωλήσεις, ρυθμίσεις) μία φορά την ημέρα, κρατώντας τα τελευταία 30. Αποθηκεύονται ιδιωτικά στο cloud σας — δεν εμφανίζονται πουθενά δημόσια. Στις Ρυθμίσεις → Αντίγραφο Ασφαλείας υπάρχει «☁️ Αντίγραφο Τώρα» για άμεσο αντίγραφο και «↩️ Επαναφορά» για να επαναφέρετε τα δεδομένα σε οποιαδήποτε προηγούμενη ημέρα (κρατείται αυτόματα αντίγραφο των τωρινών δεδομένων πριν από κάθε επαναφορά)'
+      ]},
       { version: 'v10.8', date: 'Ιούλιος 2026', items: [
         '👥 Ταξινόμηση & φίλτρα στους Πελάτες: νέο μενού ταξινόμησης (Όνομα Α→Ω / Ω→Α, Πιο πρόσφατοι, Παλαιότεροι) και κουμπί «📅 Ημ/νία» για φιλτράρισμα ανά διάστημα ημερομηνιών προσθήκης. Με ένα άγγιγμα σε ένα κουμπί «Σεζόν» (π.χ. 2024) βλέπετε όσους πελάτες προστέθηκαν εκείνη τη σεζόν (Απρ–Νοε), ιδανικό για να θυμηθείτε ποιος είχε έρθει πριν από μία-δύο σεζόν. Κάθε πελάτης δείχνει πλέον και την ημερομηνία που προστέθηκε'
       ]},
@@ -14157,6 +14330,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.9', date: 'Jul 2026', items: [
+        '🛡️ Automatic backups: the app now keeps a full snapshot of all your data (inventory, clients, sales, settings) once a day on its own, keeping the last 30. They\'re stored privately in your cloud — never shown anywhere public. Under Settings → Data Backup there\'s a "☁️ Back Up Now" button for an instant snapshot and "↩️ Restore" to roll your data back to any earlier day (a snapshot of the current data is saved automatically before every restore)'
+      ]},
       { version: 'v10.8', date: 'Jul 2026', items: [
         '👥 Sort & filter in Clients: a new sort menu (Name A→Z / Z→A, Newest first, Oldest first) plus a "📅 Date" button to filter clients by when they were added. One tap on a "Season" chip (e.g. 2024) shows everyone added that season (Apr–Nov) — handy for remembering who visited a season or two ago. Each client now also shows its date added'
       ]},
@@ -17125,7 +17301,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.8';
+const APP_VERSION = '10.9';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
