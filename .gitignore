@@ -1,0 +1,14 @@
+# Local Claude Code helpers / machine-specific files — never deploy these
+.claude/launch.json
+.claude/settings.local.json
+.claude/go-live.sh
+
+# Temp/scratch artifacts
+jsQR.js
+jsQR.min.js
+jewelprice.new.htm
+open_pr.py
+pr_body.md
+*.tmp
+put_resp.json
+pub.json
