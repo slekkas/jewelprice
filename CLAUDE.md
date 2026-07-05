@@ -13,7 +13,7 @@ JewelPrice Pro is a bilingual (Greek/English) jewelry pricing Progressive Web Ap
 - **Text (OCR) scanning** (v10.6): a "Scan code text" toggle inside the scanner overlay (`toggleScanMode`) reads the **printed reference code** (e.g. `PE0142`, from `formatSeqId`) instead of the QR square — the fallback for sun-faded/scratched tags that killed the old attempt (which tried to OCR the free-form Greek code `ΚΑΛ18Σ4.5`). Uses **Tesseract.js**, lazy-loaded from CDN on first use (`loadTesseract`) and cached in IndexedDB (needs internet the first time only). The engine runs with a narrow char whitelist (`BCEGHKLNOPRTWX0123456789`) + single-line PSM; `extractRefCode` pulls a `[A-Z]{2}\d{4}` token, applies position-aware confusion fixes (O↔0, B↔8, etc.) and validates the 2-letter prefix against `REF_PREFIXES`. The live path crops a **wide, short strip** across the centre whose height scales with the frame **width** (not height) so it stays a tight one-line strip in any orientation — a fixed fraction of frame *height* produced a tall, sparse crop on portrait phones that single-line OCR couldn't read — and it OCRs that strip at a few normalised heights, taking the first valid read (text size varies with how close the tag is held); gallery/photo OCRs the whole image. The live loop accepts a code as soon as one frame reads a valid token that **matches a real inventory item** (`refCodeExists`) — the existence check rejects misreads into non-existent codes, and `lookupCode` then shows the item so a wrong read is caught by eye. (An earlier two-frame agreement gate was removed in v10.7: it caused a ~2s delay and could get stuck showing "Reading…" forever if the user moved the tag away before the second confirming frame.) Text mode shows a dashed **read-zone guide band** (`.qr-textguide`) marking where to place the code, and the frame turns **green** (`.qr-video-wrap.aligned`) the moment a valid code is readable — a live "aligned, hold still" signal driven by OCR success itself (no tilt sensor; readability *is* alignment). Result is fed to `handleScannedCode` → `lookupCode`, which already resolves ref codes to items. Because the Calc scanner now always has a working path (QR where possible, else OCR), the Calc scan icon **shows on all devices including iOS/Safari** — where it opens straight into text mode. **Inventory scanning stays QR-only** (its confirm flow parses QR, not ref codes), so the text toggle is hidden there.
 - Users are on mobile: employee uses a Xiaomi Redmi (Android/Chrome), another user is on iPhone (Safari). Test logic must account for both.
 
-## Key features (current — verified against jewelprice.htm at app v10.7)
+## Key features (current — verified against jewelprice.htm at app v10.8)
 The app has grown well past the v2.2 list. It is organized into navigable tabs/panels:
 **Calc, Inventory, Vendors, Clients, Sales, Sync, Settings, About** (some hidden until enabled/owner mode).
 
@@ -45,7 +45,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - "Promo Image" generator for Instagram/Facebook (logo + photo + type/description, no price; Story or Post formats, live preview)
 
 ### Clients, team & sync
-- Clients panel (client records/modals); a client's purchase-history popup collapses multi-item (cart) sales into one row (`🛍 N items` badge, via `_groupSalesForDisplay`) and each row opens the SALE detail (`showSaleDetail`) — from which the "View Item" button jumps to the sold inventory item (v10.4)
+- Clients panel (client records/modals); a client's purchase-history popup collapses multi-item (cart) sales into one row (`🛍 N items` badge, via `_groupSalesForDisplay`) and each row opens the SALE detail (`showSaleDetail`) — from which the "View Item" button jumps to the sold inventory item (v10.4). The list has a sort menu (name A→Z / Z→A, newest/oldest) and a "date added" range filter with one-tap **Season** chips (v10.8): each client's date-added is derived from its id (`String(Date.now())`) via `getClientDate`; a season chip picks that year's operating window (Apr 1 – Nov 30) into the from/to date inputs, and every client card now shows its date added
 - Cloud sync via Firebase Realtime Database across devices; cloud identity (change phone, reopen link, everything restored)
 - PIN-protected Owner mode; team management (add employees/managers with personalised install links); employee setup via URL parameter
 - Optional Telegram notifications (bot token stored in Sync settings)
@@ -57,9 +57,9 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Bilingual item names shown on quotes per active language
 - JSON backup export and a data-recovery/force-restore tool
 - Configurable VAT %, default margin %, currency symbol
-- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.7)
+- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.8)
 
-> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.7'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
+> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.8'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).

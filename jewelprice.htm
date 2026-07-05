@@ -1772,6 +1772,30 @@
         <input type="text" id="clientSearch" data-i18n-ph="clientSearchPh" oninput="renderClients(this.value)" autocomplete="off"
           style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 12px">
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:stretch">
+        <select id="clientSort" onchange="renderClients()" style="flex:1;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:9px 10px;cursor:pointer">
+          <option value="name_asc" data-i18n="clientSortNameAsc">Όνομα Α→Ω</option>
+          <option value="name_desc" data-i18n="clientSortNameDesc">Όνομα Ω→Α</option>
+          <option value="newest" data-i18n="clientSortNewest">Πιο πρόσφατοι</option>
+          <option value="oldest" data-i18n="clientSortOldest">Παλαιότεροι</option>
+        </select>
+        <button id="clientDateToggle" onclick="toggleClientDateFilter()" style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:4px;padding:9px 12px;font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;white-space:nowrap">📅 <span data-i18n="clientDateRange">Ημ/νία</span></button>
+      </div>
+      <div id="clientDatePanel" style="display:none;background:var(--dark-3);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:11px 12px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:9px">
+          <div style="flex:1">
+            <label style="display:block;font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px" data-i18n="clientDateFrom">Από</label>
+            <input type="date" id="clientDateFrom" onchange="renderClients()" style="width:100%;background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px">
+          </div>
+          <div style="flex:1">
+            <label style="display:block;font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px" data-i18n="clientDateTo">Έως</label>
+            <input type="date" id="clientDateTo" onchange="renderClients()" style="width:100%;background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px">
+          </div>
+        </div>
+        <div style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px" data-i18n="clientSeasons">Σεζόν</div>
+        <div id="clientSeasonChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px"></div>
+        <button onclick="clearClientDateFilter()" style="width:100%;background:transparent;border:1px solid rgba(201,168,76,0.25);color:var(--text-muted);border-radius:4px;padding:7px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer" data-i18n="clientDateClear">Καθαρισμός</button>
+      </div>
     </div>
     <div id="clientList" style="padding:0 14px;overflow-y:auto;flex:1"></div>
 
@@ -2871,6 +2895,10 @@ const T = {
     clientsTitle:'👥 Πελάτες',
     clientAdd:'+ Προσθήκη',
     clientSearchPh:'Αναζήτηση πελάτη...',
+    clientSortNameAsc:'Όνομα Α→Ω', clientSortNameDesc:'Όνομα Ω→Α',
+    clientSortNewest:'Πιο πρόσφατοι', clientSortOldest:'Παλαιότεροι',
+    clientDateRange:'Ημ/νία', clientDateFrom:'Από', clientDateTo:'Έως',
+    clientSeasons:'Σεζόν', clientDateClear:'Καθαρισμός φίλτρου',
     clientName:'Όνομα *', clientEmail:'Email', clientPhone:'Κινητό Τηλέφωνο', clientNotes:'Σημειώσεις',
     clientNewTitle:'Νέος Πελάτης', clientEditTitleStr:'Επεξεργασία Πελάτη',
     clientDeleteConfirm:'Διαγραφή πελάτη;',
@@ -3165,6 +3193,10 @@ const T = {
     clientsTitle:'👥 Clients',
     clientAdd:'+ Add',
     clientSearchPh:'Search clients...',
+    clientSortNameAsc:'Name A→Z', clientSortNameDesc:'Name Z→A',
+    clientSortNewest:'Newest first', clientSortOldest:'Oldest first',
+    clientDateRange:'Date', clientDateFrom:'From', clientDateTo:'To',
+    clientSeasons:'Seasons', clientDateClear:'Clear filter',
     clientName:'Name *', clientEmail:'Email', clientPhone:'Mobile Phone', clientNotes:'Notes',
     clientNewTitle:'New Client', clientEditTitleStr:'Edit Client',
     clientDeleteConfirm:'Delete client?',
@@ -13959,6 +13991,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.8', date: 'Ιούλιος 2026', items: [
+        '👥 Ταξινόμηση & φίλτρα στους Πελάτες: νέο μενού ταξινόμησης (Όνομα Α→Ω / Ω→Α, Πιο πρόσφατοι, Παλαιότεροι) και κουμπί «📅 Ημ/νία» για φιλτράρισμα ανά διάστημα ημερομηνιών προσθήκης. Με ένα άγγιγμα σε ένα κουμπί «Σεζόν» (π.χ. 2024) βλέπετε όσους πελάτες προστέθηκαν εκείνη τη σεζόν (Απρ–Νοε), ιδανικό για να θυμηθείτε ποιος είχε έρθει πριν από μία-δύο σεζόν. Κάθε πελάτης δείχνει πλέον και την ημερομηνία που προστέθηκε'
+      ]},
       { version: 'v10.7', date: 'Ιούλιος 2026', items: [
         '⚡ Σάρωση κειμένου πιο γρήγορη & χωρίς «κόλλημα»: μόλις διαβαστεί ένας έγκυρος κωδικός που υπάρχει στο απόθεμα, μπαίνει ΑΜΕΣΩΣ (δεν περιμένει πλέον δεύτερη ανάγνωση, που ενίοτε άφηνε τον κωδικό να «κρέμεται» αν απομακρύνατε την κάμερα). Ο κωδικός συμπληρώνεται και το είδος εμφανίζεται αμέσως για επιβεβαίωση'
       ]},
@@ -14122,6 +14157,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.8', date: 'Jul 2026', items: [
+        '👥 Sort & filter in Clients: a new sort menu (Name A→Z / Z→A, Newest first, Oldest first) plus a "📅 Date" button to filter clients by when they were added. One tap on a "Season" chip (e.g. 2024) shows everyone added that season (Apr–Nov) — handy for remembering who visited a season or two ago. Each client now also shows its date added'
+      ]},
       { version: 'v10.7', date: 'Jul 2026', items: [
         '⚡ Text scanning is faster and no longer gets stuck: as soon as a valid code that exists in inventory is read, it is accepted INSTANTLY (it no longer waits for a second read, which sometimes left the code just "hanging" if you moved the camera away). The code fills in and the item is shown right away for confirmation'
       ]},
@@ -16055,20 +16093,110 @@ async function deleteClient(id) {
   await pushClientsToCloud(list);
 }
 
+// A client's id is its creation time (String(Date.now())); use dateAdded if present, else the numeric id.
+function getClientDate(c) {
+  if (c && c.dateAdded) return c.dateAdded;
+  const n = c ? Number(c.id) : 0;
+  return (Number.isFinite(n) && n > 1e12) ? n : 0; // guard against non-timestamp legacy ids
+}
+
+function toggleClientDateFilter() {
+  const p = document.getElementById('clientDatePanel');
+  if (!p) return;
+  const show = p.style.display === 'none';
+  p.style.display = show ? 'block' : 'none';
+  if (show) renderClientSeasonChips();
+}
+
+function clearClientDateFilter() {
+  const from = document.getElementById('clientDateFrom'); if (from) from.value = '';
+  const to = document.getElementById('clientDateTo'); if (to) to.value = '';
+  renderClients();
+}
+
+// Season = the store's operating window (Apr 1 – Nov 30) of a given year.
+function pickClientSeason(y) {
+  const from = document.getElementById('clientDateFrom');
+  const to = document.getElementById('clientDateTo');
+  if (!from || !to) return;
+  const f = `${y}-04-01`, tt = `${y}-11-30`;
+  if (from.value === f && to.value === tt) { from.value = ''; to.value = ''; } // toggle off
+  else { from.value = f; to.value = tt; }
+  renderClients();
+}
+
+function renderClientSeasonChips() {
+  const box = document.getElementById('clientSeasonChips');
+  if (!box) return;
+  const years = new Set();
+  getClients().forEach(c => { const d = getClientDate(c); if (d) years.add(new Date(d).getFullYear()); });
+  years.add(new Date().getFullYear());
+  const sorted = [...years].sort((a, b) => b - a);
+  const fromV = document.getElementById('clientDateFrom')?.value || '';
+  const toV = document.getElementById('clientDateTo')?.value || '';
+  box.innerHTML = sorted.map(y => {
+    const active = fromV === `${y}-04-01` && toV === `${y}-11-30`;
+    return `<button onclick="pickClientSeason(${y})" style="background:${active?'var(--gold)':'rgba(201,168,76,0.1)'};border:1px solid ${active?'var(--gold)':'rgba(201,168,76,0.3)'};color:${active?'#0F0D09':'var(--gold-light)'};border-radius:14px;padding:5px 12px;font-family:'DM Mono',monospace;font-size:11px;font-weight:${active?'700':'400'};cursor:pointer">${y}</button>`;
+  }).join('');
+}
+
 function renderClients(filter) {
   const q = (filter || document.getElementById('clientSearch')?.value || '').toLowerCase();
-  const list = getClients().filter(c =>
+  const sort = document.getElementById('clientSort')?.value || 'name_asc';
+  const fromV = document.getElementById('clientDateFrom')?.value || '';
+  const toV = document.getElementById('clientDateTo')?.value || '';
+  const fromTs = fromV ? new Date(fromV + 'T00:00:00').getTime() : null;
+  const toTs = toV ? new Date(toV + 'T23:59:59.999').getTime() : null;
+  const loc = lang === 'el' ? 'el' : undefined;
+
+  // reflect active date filter on the toggle button + refresh season chips
+  const dtBtn = document.getElementById('clientDateToggle');
+  if (dtBtn) {
+    const on = !!(fromV || toV);
+    dtBtn.style.background = on ? 'rgba(201,168,76,0.28)' : 'rgba(201,168,76,0.1)';
+    dtBtn.style.borderColor = on ? 'var(--gold)' : 'rgba(201,168,76,0.3)';
+  }
+  if (document.getElementById('clientDatePanel')?.style.display !== 'none') renderClientSeasonChips();
+
+  let list = getClients().filter(c =>
     !q || (c.name||'').toLowerCase().includes(q) || (c.email||'').toLowerCase().includes(q) || (c.phone||'').includes(q)
   );
+  if (fromTs !== null || toTs !== null) {
+    list = list.filter(c => {
+      const d = getClientDate(c);
+      if (!d) return false;
+      if (fromTs !== null && d < fromTs) return false;
+      if (toTs !== null && d > toTs) return false;
+      return true;
+    });
+  }
+  list = list.slice().sort((a, b) => {
+    switch (sort) {
+      case 'name_desc': return (b.name||'').localeCompare(a.name||'', loc, {sensitivity:'base'});
+      case 'newest':    return getClientDate(b) - getClientDate(a);
+      case 'oldest':    return getClientDate(a) - getClientDate(b);
+      default:          return (a.name||'').localeCompare(b.name||'', loc, {sensitivity:'base'});
+    }
+  });
+
   const el = document.getElementById('clientList');
   if (!el) return;
+  const rangeActive = fromTs !== null || toTs !== null;
   if (list.length === 0) {
-    el.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:30px 0">${q ? (lang==='el'?'Δεν βρέθηκαν αποτελέσματα':'No results found') : (lang==='el'?'Δεν υπάρχουν πελάτες ακόμα. Πατήστε + Προσθήκη.':'No clients yet. Tap + Add.')}</div>`;
+    const emptyMsg = (q || rangeActive)
+      ? (lang==='el'?'Δεν βρέθηκαν αποτελέσματα':'No results found')
+      : (lang==='el'?'Δεν υπάρχουν πελάτες ακόμα. Πατήστε + Προσθήκη.':'No clients yet. Tap + Add.');
+    el.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:30px 0">${emptyMsg}</div>`;
     return;
   }
-  el.innerHTML = list.map(c => {
+  const summary = rangeActive
+    ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:0.05em;margin-bottom:10px">${list.length} ${lang==='el'?(list.length===1?'πελάτης':'πελάτες'):(list.length===1?'client':'clients')}</div>`
+    : '';
+  el.innerHTML = summary + list.map(c => {
     const avatarColor = vendorAvatarColor(c.name);
     const avatarLetter = (c.name||'?')[0].toUpperCase();
+    const added = getClientDate(c);
+    const addedStr = added ? fmtDate(new Date(added)) : '';
     return `
     <div style="background:linear-gradient(135deg,rgba(212,175,55,0.07) 0%,rgba(212,175,55,0.02) 100%);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:14px 16px;margin-bottom:10px;box-shadow:0 2px 14px rgba(0,0,0,0.3);display:flex;gap:12px;align-items:flex-start">
       <div style="width:40px;height:40px;border-radius:50%;background:${avatarColor};border:1px solid rgba(212,175,55,0.3);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:17px;font-weight:700;color:#0F0D09;flex-shrink:0">${avatarLetter}</div>
@@ -16083,6 +16211,7 @@ function renderClients(filter) {
         </div>
         ${c.email?`<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:2px">✉ ${c.email}</div>`:''}
         ${c.phone?`<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:2px">📞 ${c.phone}</div>`:''}
+        ${addedStr?`<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:3px">🗓 ${lang==='el'?'Προστέθηκε':'Added'} ${addedStr}</div>`:''}
         ${c.notes?`<div style="font-family:var(--font-body);font-size:11px;color:var(--text-dim);font-style:italic;margin-top:5px;line-height:1.4">${c.notes}</div>`:''}
       </div>
     </div>
@@ -16996,7 +17125,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.7';
+const APP_VERSION = '10.8';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
