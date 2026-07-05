@@ -176,6 +176,13 @@
   .qr-corners::before,.qr-corners::after { content:''; position:absolute; width:24px; height:24px; border-color:var(--gold); border-style:solid; }
   .qr-corners::before { top:0; left:0; border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
   .qr-corners::after { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
+  /* Text-scan mode: a guide band marking the read zone (where the code should sit). */
+  .qr-textguide { position:absolute; left:14%; right:14%; top:36%; height:28%; border:1.5px dashed rgba(255,255,255,0.55); border-radius:4px; pointer-events:none; display:none; transition:border-color .15s, box-shadow .15s; }
+  .qr-video-wrap.textmode .qr-textguide { display:block; }
+  /* Aligned = OCR just read a valid code here → go green, "hold still". */
+  .qr-video-wrap.aligned .qr-textguide { border-color:#3ddc84; border-style:solid; box-shadow:0 0 14px rgba(61,220,132,0.6), inset 0 0 14px rgba(61,220,132,0.25); }
+  .qr-video-wrap.aligned .qr-crosshair { border-color:#3ddc84; box-shadow:0 0 0 2px rgba(61,220,132,0.45); }
+  .qr-video-wrap.aligned .qr-corners::before, .qr-video-wrap.aligned .qr-corners::after { border-color:#3ddc84; }
   .qr-btn-row { display:flex; gap:12px; margin-top:20px; }
   .qr-close-btn { padding:12px 32px; background:transparent; border:1px solid var(--gold); color:var(--gold); border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; }
   .qr-gallery-btn { padding:12px 22px; background:transparent; border:1px solid rgba(212,175,55,0.45); color:var(--text-muted); border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; }
@@ -2175,15 +2182,17 @@
 
 <!-- QR SCANNER OVERLAY -->
 <div class="qr-overlay" id="qrOverlay">
-  <h3 data-i18n="scanQr">Σάρωση QR Κωδικού</h3>
-  <div class="qr-video-wrap">
+  <h3 id="qrScanTitle" data-i18n="scanQr">Σάρωση QR Κωδικού</h3>
+  <div class="qr-video-wrap" id="qrVideoWrap">
     <video id="qrVideo" playsinline autoplay muted></video>
     <div class="qr-crosshair"></div>
     <div class="qr-corners"></div>
+    <div class="qr-textguide"></div>
   </div>
   <div class="qr-status" id="qrStatus"></div>
   <input type="file" id="qrFileInput" accept="image/*" style="display:none" onchange="scanQrFromFile(this)">
   <div class="qr-btn-row">
+    <button class="qr-gallery-btn" id="qrModeBtn" onclick="toggleScanMode()">🔤 <span id="qrModeBtnLabel">Σάρωση κειμένου</span></button>
     <button class="qr-gallery-btn" id="qrGalleryBtn" onclick="document.getElementById('qrFileInput').click()">📁 <span data-i18n="qrFromGallery">Από Γκαλερί</span></button>
     <button class="qr-close-btn" onclick="closeQrScanner()"><span data-i18n="qrClose">✕ Κλείσιμο</span></button>
   </div>
@@ -13488,6 +13497,178 @@ function showStatus(id, msg, type) {
 let qrStream = null;
 let qrInterval = null;
 let _qrBusy = false; // guards against overlapping decode passes (jsQR is CPU-heavy)
+let _scanMode = 'qr';        // 'qr' | 'text' — text reads the printed ref code via OCR
+let _ocrWorker = null;       // lazily-created Tesseract worker, cached across scans
+let _ocrBusy = false;        // guards overlapping OCR passes (recognition is slow)
+let _tessLoadPromise = null; // de-dupes the CDN <script> load
+
+// ─── TEXT (OCR) SCANNING ─────────────────────────────────────────────────────
+// Fallback for when the QR square is faded or scratched (e.g. a sun-bleached tag):
+// read the printed reference code (e.g. PE0142) with OCR instead. That code is a
+// tightly-constrained token — 2 letters from a known prefix set + 4 digits — which
+// makes OCR reliable where the old free-form Greek code (ΚΑΛ18Σ4.5) never was.
+const REF_PREFIXES = Object.values(JEWELRY_TYPE_PREFIX); // ['RG','BR','NK',...]
+
+// Load Tesseract.js from CDN on first use. It caches its language model in
+// IndexedDB, so later scans work offline; only the very first use needs internet.
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (_tessLoadPromise) return _tessLoadPromise;
+  _tessLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error('no-tesseract'));
+    s.onerror = () => { _tessLoadPromise = null; reject(new Error('load-failed')); };
+    document.head.appendChild(s);
+  });
+  return _tessLoadPromise;
+}
+
+async function getOcrWorker() {
+  if (_ocrWorker) return _ocrWorker;
+  const T = await loadTesseract();
+  const worker = await T.createWorker('eng');
+  // Only the characters a ref code can contain — a narrow whitelist sharply cuts
+  // OCR errors. Letters are the union of those used by REF_PREFIXES.
+  await worker.setParameters({
+    tessedit_char_whitelist: 'BCEGHKLNOPRTWX0123456789',
+    tessedit_pageseg_mode: '7' // treat the image as a single text line
+  });
+  _ocrWorker = worker;
+  return _ocrWorker;
+}
+
+// Position-aware OCR confusion fixes (first 2 chars must be letters, last 4 digits).
+const _toLetter = { '0':'O','1':'I','2':'Z','4':'A','5':'S','6':'G','8':'B' };
+const _toDigit  = { 'O':'0','I':'1','L':'1','Z':'2','A':'4','S':'5','G':'6','B':'8','T':'7' };
+
+// Pull a valid reference code out of raw OCR text. Returns e.g. 'PE0142' or null.
+function extractRefCode(text) {
+  if (!text) return null;
+  const up = text.toUpperCase();
+  // Fast path: a clean 2-letters-then-4-digits token with a known prefix.
+  const direct = up.match(/[A-Z]{2}\d{4}/g) || [];
+  for (const m of direct) if (REF_PREFIXES.includes(m.slice(0, 2))) return m;
+  // Correction path: take any 6-char alphanumeric run and fix it by position.
+  const tokens = up.replace(/[^A-Z0-9]+/g, ' ').split(' ').filter(t => t.length === 6);
+  for (const tok of tokens) {
+    const letters = tok.slice(0, 2).replace(/[0-9]/g, c => _toLetter[c] || c);
+    const digits  = tok.slice(2).replace(/[A-Z]/g, c => _toDigit[c] || c);
+    if (/^[A-Z]{2}$/.test(letters) && /^\d{4}$/.test(digits) && REF_PREFIXES.includes(letters))
+      return letters + digits;
+  }
+  return null;
+}
+
+// OCR a frame. `whole` = read the entire image (a still photo); otherwise read a
+// centred band under the crosshair (live camera, where the tag is aimed).
+async function decodeTextFromCanvas(canvas, whole) {
+  const worker = await getOcrWorker();
+  let target = canvas;
+  if (!whole) {
+    const w = canvas.width, h = canvas.height;
+    const cw = Math.floor(w * 0.72), ch = Math.floor(h * 0.28);
+    const sx = Math.floor((w - cw) / 2), sy = Math.floor((h - ch) / 2);
+    // Upscale the crop ~2x so small print gives Tesseract more pixels to chew on.
+    target = document.createElement('canvas');
+    target.width = cw * 2; target.height = ch * 2;
+    target.getContext('2d').drawImage(canvas, sx, sy, cw, ch, 0, 0, target.width, target.height);
+  }
+  const { data } = await worker.recognize(target);
+  return extractRefCode(data.text);
+}
+
+// True if a ref code (e.g. 'ER0408') matches a real inventory item. Used to gate
+// live text-scan acceptance so a misread into a non-existent code is never taken.
+async function refCodeExists(refNorm) {
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    _inventoryCache = await loadInventory();
+  }
+  return Object.values(_inventoryCache || {}).some(it =>
+    it.seqId && formatSeqId(it.seqId, it.jewelryType) === refNorm);
+}
+
+function startTextDecode(video, status) {
+  status.textContent = lang === 'el'
+    ? 'Στρέψτε την κάμερα στον κωδικό — κρατήστε τον οριζόντιο (π.χ. PE0142)…'
+    : 'Point the camera at the code — keep it level (e.g. PE0142)…';
+  _ocrBusy = false;
+  const recent = []; // rolling window of recent decoded codes (stability check)
+  const wrap = document.getElementById('qrVideoWrap');
+  // Warm up the engine; surface a clear message if the CDN can't be reached.
+  getOcrWorker().catch(() => {
+    status.textContent = lang === 'el'
+      ? '⚠️ Η σάρωση κειμένου χρειάζεται σύνδεση στο διαδίκτυο την πρώτη φορά'
+      : '⚠️ Text scanning needs internet the first time';
+  });
+  qrInterval = setInterval(async () => {
+    if (_ocrBusy || !window.Tesseract) return;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
+    _ocrBusy = true;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const code = await decodeTextFromCanvas(canvas, false);
+      if (code && await refCodeExists(code)) {
+        // A valid, real code is readable in this frame → the tag is aligned well
+        // enough. Go green ("hold still"), and show the candidate so an obvious
+        // misread can be caught by eye before it commits.
+        if (wrap) wrap.classList.add('aligned');
+        recent.push(code);
+        if (recent.length > 4) recent.shift();
+        status.textContent = (lang === 'el' ? '✓ Ανάγνωση: ' : '✓ Reading: ') + code + '…';
+        // Accept only once the SAME code has been read on two frames — this filters
+        // out one-off OCR errors (e.g. a tilted 8 misread as 5).
+        const agree = recent.filter(c => c === code).length;
+        if (agree >= 2) {
+          clearInterval(qrInterval);
+          closeQrScanner();
+          handleScannedCode(code);
+        }
+      } else if (wrap) {
+        // Nothing readable/valid this frame → not aligned; drop the green.
+        wrap.classList.remove('aligned');
+      }
+    } catch(e) {
+      /* transient frame/OCR error — try again on the next tick */
+    } finally {
+      _ocrBusy = false;
+    }
+  }, 500);
+}
+
+// Switch between QR and text (OCR) scanning without closing the camera.
+function toggleScanMode() {
+  _scanMode = (_scanMode === 'qr') ? 'text' : 'qr';
+  clearInterval(qrInterval);
+  updateScanModeUi();
+  const video = document.getElementById('qrVideo');
+  const status = document.getElementById('qrStatus');
+  if (_scanMode === 'text') startTextDecode(video, status);
+  else {
+    status.textContent = lang === 'el' ? 'Στρέψτε την κάμερα στο QR code' : 'Point camera at QR code';
+    startQrDecode(video, status);
+  }
+}
+
+// Reflect the current scan mode in the overlay title, hint and toggle button.
+function updateScanModeUi() {
+  const title = document.getElementById('qrScanTitle');
+  const btnLabel = document.getElementById('qrModeBtnLabel');
+  const modeBtn = document.getElementById('qrModeBtn');
+  const wrap = document.getElementById('qrVideoWrap');
+  if (wrap) { wrap.classList.toggle('textmode', _scanMode === 'text'); wrap.classList.remove('aligned'); }
+  // The toggle only makes sense where QR can also work, and inventory scanning
+  // stays QR-only — so hide it on iOS/Safari (no QR) and during inventory scans.
+  if (modeBtn) modeBtn.style.display = (canDecodeQr() && !_invScanMode) ? '' : 'none';
+  if (title) title.textContent = _scanMode === 'text'
+    ? (lang === 'el' ? 'Σάρωση Κωδικού (κείμενο)' : 'Scan Code (text)')
+    : (lang === 'el' ? 'Σάρωση QR Κωδικού' : 'Scan QR Code');
+  if (btnLabel) btnLabel.textContent = _scanMode === 'text'
+    ? (lang === 'el' ? 'Σάρωση QR' : 'Scan QR')
+    : (lang === 'el' ? 'Σάρωση κειμένου' : 'Scan code text');
+}
 
 async function openQrScanner() {
   const overlay = document.getElementById('qrOverlay');
@@ -13495,6 +13676,10 @@ async function openQrScanner() {
   const status = document.getElementById('qrStatus');
   overlay.classList.add('show');
   status.textContent = lang === 'el' ? 'Ανοίγει κάμερα...' : 'Opening camera...';
+  // Default to QR where it works; on iOS/Safari (no QR decode) start in text mode
+  // so the camera button still does something. Inventory scanning stays QR-only.
+  _scanMode = (_invScanMode || canDecodeQr()) ? 'qr' : 'text';
+  updateScanModeUi();
   // Desktop uses the software jsQR fallback, which benefits from more pixels and
   // an autofocus nudge. Mobile keeps the native BarcodeDetector path unchanged.
   const hires = !('BarcodeDetector' in window);
@@ -13516,8 +13701,12 @@ async function openQrScanner() {
         }
       } catch(e) {}
     }
-    status.textContent = lang === 'el' ? 'Στρέψτε την κάμερα στο QR code' : 'Point camera at QR code';
-    startQrDecode(video, status);
+    if (_scanMode === 'text') {
+      startTextDecode(video, status);
+    } else {
+      status.textContent = lang === 'el' ? 'Στρέψτε την κάμερα στο QR code' : 'Point camera at QR code';
+      startQrDecode(video, status);
+    }
   } catch(e) {
     status.textContent = lang === 'el' ? 'Δεν επιτρέπεται η πρόσβαση στην κάμερα' : 'Camera access denied';
   }
@@ -13633,6 +13822,8 @@ function closeQrScanner() {
   if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
   document.getElementById('qrVideo').srcObject = null;
   document.getElementById('qrOverlay').classList.remove('show');
+  const wrap = document.getElementById('qrVideoWrap');
+  if (wrap) wrap.classList.remove('aligned', 'textmode');
   // Reset file input so the same file can be selected again
   const fi = document.getElementById('qrFileInput');
   if (fi) fi.value = '';
@@ -13641,7 +13832,8 @@ function closeQrScanner() {
 async function scanQrFromFile(input) {
   if (!input.files || !input.files[0]) return;
   const status = document.getElementById('qrStatus');
-  if (!canDecodeQr()) {
+  const textMode = (_scanMode === 'text');
+  if (!textMode && !canDecodeQr()) {
     status.textContent = lang === 'el' ? 'Χρησιμοποιήστε Chrome για σάρωση QR' : 'Use Chrome to scan QR codes';
     return;
   }
@@ -13657,12 +13849,14 @@ async function scanQrFromFile(input) {
       canvas.height = img.naturalHeight;
       canvas.getContext('2d').drawImage(img, 0, 0);
       try {
-        const raw = await decodeQrFromCanvas(canvas);
+        const raw = textMode ? await decodeTextFromCanvas(canvas, true) : await decodeQrFromCanvas(canvas);
         if (raw) {
           closeQrScanner();
           handleScannedCode(raw);
         } else {
-          status.textContent = lang === 'el' ? 'Δεν βρέθηκε QR code στην εικόνα' : 'No QR code found in image';
+          status.textContent = textMode
+            ? (lang === 'el' ? 'Δεν βρέθηκε κωδικός στην εικόνα' : 'No code found in image')
+            : (lang === 'el' ? 'Δεν βρέθηκε QR code στην εικόνα' : 'No QR code found in image');
         }
       } catch(e) {
         status.textContent = lang === 'el' ? 'Σφάλμα ανάγνωσης εικόνας' : 'Error reading image';
@@ -13757,6 +13951,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.6', date: 'Ιούλιος 2026', items: [
+        '🔤 Σάρωση του τυπωμένου κωδικού (όχι μόνο του QR): στην κάμερα σάρωσης υπάρχει πλέον κουμπί «Σάρωση κειμένου». Αν το QR έχει ξεθωριάσει ή γδαρθεί από τον ήλιο, στρέψτε την κάμερα στον τυπωμένο κωδικό αναφοράς (π.χ. PE0142) και η εφαρμογή τον διαβάζει με OCR και ανοίγει κανονικά το είδος. Λειτουργεί και από φωτογραφία της ετικέτας. Δουλεύει τώρα και σε iPhone/Safari, όπου η σάρωση με κάμερα δεν ήταν διαθέσιμη. Την πρώτη φορά χρειάζεται σύνδεση στο διαδίκτυο (μετά αποθηκεύεται και δουλεύει χωρίς σύνδεση)'
+      ]},
       { version: 'v10.5', date: 'Ιούλιος 2026', items: [
         '📄 Πιο ψηλά αναδυόμενα παράθυρα: τα «φύλλα» που ανοίγουν από κάτω (Λεπτομέρειες Πώλησης, Αγορές πελάτη, Ειδοποιήσεις, φίλτρα, μαζική προσθήκη) και από πάνω (νέος πελάτης/προμηθευτής/μέλος) εκτείνονται πλέον σχεδόν σε όλο το ύψος της οθόνης. Έτσι δεν μένει άδειος χώρος στην κορυφή και χρειάζεται πολύ λιγότερο κύλισμα για να φτάσετε στο κάτω μέρος'
       ]},
@@ -13914,6 +14111,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.6', date: 'Jul 2026', items: [
+        '🔤 Scan the printed code (not just the QR): the scanner camera now has a "Scan code text" button. If the QR is faded or scratched by the sun, point the camera at the printed reference code (e.g. PE0142) and the app reads it with OCR and opens the item as usual. Also works from a photo of the tag. This now works on iPhone/Safari too, where camera scanning wasn\'t available before. The first use needs an internet connection (after that it\'s saved and works offline)'
+      ]},
       { version: 'v10.5', date: 'Jul 2026', items: [
         '📄 Taller pop-up windows: the "sheets" that slide up from the bottom (Sale Details, client purchases, Notifications, filters, bulk add) and drop down from the top (new client/vendor/member) now stretch to nearly the full height of the screen. No more empty space left at the top, and far less scrolling to reach the bottom of a long window'
       ]},
@@ -15783,17 +15983,12 @@ function copyToClipboard(text) {
   }
 }
 
-// Hide the Calc QR camera button only where QR scanning genuinely can't work.
-// canDecodeQr() is true when the native BarcodeDetector exists (Android/ChromeOS/
-// macOS) OR the inlined jsQR fallback can run (desktop Chrome on Windows/Linux).
-// It stays false on iOS/Safari, so the button remains hidden there as before.
+// The Calc scan button now shows everywhere. Where the browser can decode a QR
+// (BarcodeDetector on Android/ChromeOS/macOS, or the inlined jsQR fallback on
+// desktop Chrome) it opens in QR mode; on iOS/Safari (no QR) it opens straight
+// into text mode, reading the printed reference code via OCR. So there's nothing
+// left to hide — every device has a working scan path.
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-if (!canDecodeQr()) {
-  const camBtn = document.querySelector('.cam-btn');
-  if (camBtn) camBtn.style.display = 'none';
-  const galleryBtn = document.getElementById('qrGalleryBtn');
-  if (galleryBtn) galleryBtn.style.display = 'none';
-}
 
 // ─── VERSION & UPDATE BANNER ─────────────────────────────────────────────────
 
@@ -16787,7 +16982,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.5';
+const APP_VERSION = '10.6';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [

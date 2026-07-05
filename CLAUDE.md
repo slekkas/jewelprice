@@ -9,10 +9,11 @@ JewelPrice Pro is a bilingual (Greek/English) jewelry pricing Progressive Web Ap
 - Backend: **Firebase Realtime Database** (migrated from JSONBin and jsonstorage.net — do not reintroduce those).
 - All UI text must exist in **both Greek and English**, following the app's existing i18n pattern.
 - Greek characters CANNOT be encoded in QR codes generated for BarTender UltraLite (SHIFT-JIS limitation). Label codes therefore use parallel Greek/Latin codes.
-- QR camera scanning prefers the browser's native **BarcodeDetector** and falls back to an **inlined jsQR** decoder (in a `<script id="jsqr-lib">` block) for desktop browsers that lack it (Chrome on Windows/Linux). The Calc scan icon shows wherever `canDecodeQr()` is true and must remain **hidden on Safari/iOS** (the jsQR fallback is deliberately gated off there, so iOS/mobile behaviour is unchanged).
+- QR camera scanning prefers the browser's native **BarcodeDetector** and falls back to an **inlined jsQR** decoder (in a `<script id="jsqr-lib">` block) for desktop browsers that lack it (Chrome on Windows/Linux). `canDecodeQr()` is true where QR decoding works and false on Safari/iOS.
+- **Text (OCR) scanning** (v10.6): a "Scan code text" toggle inside the scanner overlay (`toggleScanMode`) reads the **printed reference code** (e.g. `PE0142`, from `formatSeqId`) instead of the QR square — the fallback for sun-faded/scratched tags that killed the old attempt (which tried to OCR the free-form Greek code `ΚΑΛ18Σ4.5`). Uses **Tesseract.js**, lazy-loaded from CDN on first use (`loadTesseract`) and cached in IndexedDB (needs internet the first time only). The engine runs with a narrow char whitelist (`BCEGHKLNOPRTWX0123456789`) + single-line PSM; `extractRefCode` pulls a `[A-Z]{2}\d{4}` token, applies position-aware confusion fixes (O↔0, B↔8, etc.) and validates the 2-letter prefix against `REF_PREFIXES`. The live path crops a centre band under the crosshair (so surrounding tag text is ignored); gallery/photo OCRs the whole image. To avoid a confident *wrong* read (OCR can misread a tilted `8` as `5`, etc.), the live loop only accepts a code once it has been read on **two frames** AND it **matches a real inventory item** (`refCodeExists`) — otherwise it keeps scanning; the current candidate is shown live as "✓ Reading: ER0408…". Text mode shows a dashed **read-zone guide band** (`.qr-textguide`) marking where to place the code, and the frame turns **green** (`.qr-video-wrap.aligned`) the moment a valid code is readable — a live "aligned, hold still" signal driven by OCR success itself (no tilt sensor; readability *is* alignment). Result is fed to `handleScannedCode` → `lookupCode`, which already resolves ref codes to items. Because the Calc scanner now always has a working path (QR where possible, else OCR), the Calc scan icon **shows on all devices including iOS/Safari** — where it opens straight into text mode. **Inventory scanning stays QR-only** (its confirm flow parses QR, not ref codes), so the text toggle is hidden there.
 - Users are on mobile: employee uses a Xiaomi Redmi (Android/Chrome), another user is on iPhone (Safari). Test logic must account for both.
 
-## Key features (current — verified against jewelprice.htm at app v10.5)
+## Key features (current — verified against jewelprice.htm at app v10.6)
 The app has grown well past the v2.2 list. It is organized into navigable tabs/panels:
 **Calc, Inventory, Vendors, Clients, Sales, Sync, Settings, About** (some hidden until enabled/owner mode).
 
@@ -28,7 +29,8 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 
 ### Labels, codes & scanning
 - Label code system with parallel Greek/Latin codes for BarTender UltraLite (SHIFT-JIS constraint)
-- QR camera scanning with automatic calculation — native BarcodeDetector on Android/Chrome, with an inlined jsQR fallback so it also works on desktop Chrome (Windows/Linux); can also scan a photo of a tag. Hidden on Safari/iOS.
+- QR camera scanning with automatic calculation — native BarcodeDetector on Android/Chrome, with an inlined jsQR fallback so it also works on desktop Chrome (Windows/Linux); can also scan a photo of a tag.
+- Text (OCR) scanning of the printed reference code (e.g. `PE0142`) as a fallback for faded/damaged QR squares (Tesseract.js, toggle in the scanner). Works on all devices — including iPhone/Safari, which now gets a working camera scan path for the first time.
 - Duplicate-QR scan tool; label history; printable code reference card
 
 ### Quotes, sales & inventory
@@ -55,9 +57,9 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 - Bilingual item names shown on quotes per active language
 - JSON backup export and a data-recovery/force-restore tool
 - Configurable VAT %, default margin %, currency symbol
-- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.5)
+- About/Info page with the Lekkas Jewelry SVG logo, in-app Feature List, User Manual, and Changelog (currently at v10.6)
 
-> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.5'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
+> Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.6'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).
