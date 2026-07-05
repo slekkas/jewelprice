@@ -177,7 +177,7 @@
   .qr-corners::before { top:0; left:0; border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
   .qr-corners::after { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
   /* Text-scan mode: a guide band marking the read zone (where the code should sit). */
-  .qr-textguide { position:absolute; left:14%; right:14%; top:36%; height:28%; border:1.5px dashed rgba(255,255,255,0.55); border-radius:4px; pointer-events:none; display:none; transition:border-color .15s, box-shadow .15s; }
+  .qr-textguide { position:absolute; left:8%; right:8%; top:40%; height:20%; border:1.5px dashed rgba(255,255,255,0.55); border-radius:4px; pointer-events:none; display:none; transition:border-color .15s, box-shadow .15s; }
   .qr-video-wrap.textmode .qr-textguide { display:block; }
   /* Aligned = OCR just read a valid code here → go green, "hold still". */
   .qr-video-wrap.aligned .qr-textguide { border-color:#3ddc84; border-style:solid; box-shadow:0 0 14px rgba(61,220,132,0.6), inset 0 0 14px rgba(61,220,132,0.25); }
@@ -13561,21 +13561,33 @@ function extractRefCode(text) {
 }
 
 // OCR a frame. `whole` = read the entire image (a still photo); otherwise read a
-// centred band under the crosshair (live camera, where the tag is aimed).
+// centred strip under the crosshair (live camera, where the tag is aimed).
 async function decodeTextFromCanvas(canvas, whole) {
   const worker = await getOcrWorker();
-  let target = canvas;
-  if (!whole) {
-    const w = canvas.width, h = canvas.height;
-    const cw = Math.floor(w * 0.72), ch = Math.floor(h * 0.28);
-    const sx = Math.floor((w - cw) / 2), sy = Math.floor((h - ch) / 2);
-    // Upscale the crop ~2x so small print gives Tesseract more pixels to chew on.
-    target = document.createElement('canvas');
-    target.width = cw * 2; target.height = ch * 2;
-    target.getContext('2d').drawImage(canvas, sx, sy, cw, ch, 0, 0, target.width, target.height);
+  if (whole) {
+    const { data } = await worker.recognize(canvas);
+    return extractRefCode(data.text);
   }
-  const { data } = await worker.recognize(target);
-  return extractRefCode(data.text);
+  // Live path: a WIDE, SHORT strip across the centre. Its height scales with the
+  // frame WIDTH, not its height — so it stays a tight one-line strip whether the
+  // phone is held portrait or landscape. (A fixed fraction of frame HEIGHT made a
+  // tall, sparse crop on portrait phones that single-line OCR couldn't read.)
+  const w = canvas.width, h = canvas.height;
+  const cw = Math.round(w * 0.86), ch = Math.max(1, Math.round(cw * 0.24));
+  const sx = Math.round((w - cw) / 2), sy = Math.round((h - ch) / 2);
+  // The printed code's size on screen depends on how close the tag is held, and
+  // OCR is fussy about text height — so normalise to a few target heights and
+  // take the first valid read. Success usually hits the first pass (cheap); only
+  // an unreadable frame pays for all three.
+  for (const targetH of [64, 110, 170]) {
+    const scale = targetH / ch;
+    const t = document.createElement('canvas');
+    t.width = Math.max(1, Math.round(cw * scale)); t.height = targetH;
+    t.getContext('2d').drawImage(canvas, sx, sy, cw, ch, 0, 0, t.width, t.height);
+    const code = extractRefCode((await worker.recognize(t)).data.text);
+    if (code) return code;
+  }
+  return null;
 }
 
 // True if a ref code (e.g. 'ER0408') matches a real inventory item. Used to gate
