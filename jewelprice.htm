@@ -3008,6 +3008,7 @@ const T = {
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
     invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε',
+    invFilterHd:'HD Φωτό', invFilterHdYes:'HD ✓', invFilterHdNo:'Χωρίς HD',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
     invEmpty:'Δεν υπάρχουν αντικείμενα στο απόθεμα. Σαρώστε ένα QR για να ξεκινήσετε.',
@@ -3311,6 +3312,7 @@ const T = {
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
     invFilterInStock:'In Stock', invFilterSold2:'Sold',
+    invFilterHd:'HD Photo', invFilterHdYes:'HD ✓', invFilterHdNo:'Needs HD',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
     invEmpty:'No items in inventory. Scan a QR code to get started.',
@@ -10356,7 +10358,7 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], dateFrom: '', dateTo: '', dateMode: 'added' };
 
 // ── Inventory Sort ────────────────────────────────────────────────────────────
 const INV_SORT_OPTIONS = [
@@ -10426,7 +10428,7 @@ let _invSelected = new Set();
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.hd||[]).length + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -10447,6 +10449,7 @@ function updateInvFilterBadge() {
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
+    if ((_invFilters.hd||[]).length) parts.push((_invFilters.hd||[]).map(v => v==='yes'?t('invFilterHdYes'):t('invFilterHdNo')).join(', '));
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
     summary.textContent = parts.join(' · ');
   }
@@ -10584,6 +10587,11 @@ function openInvFilterSheet() {
   })();
   // Mixed metal toggle pill
   const mixedMetalGroup = `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterMixed')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_invFilters.mixedMetal?' sel':''}" data-group="mixedMetal" data-val="1">${t('invFilterMixed')}</button></div></div>`;
+  // HD photo toggle (temporary — helps track which items still need a high-res upload)
+  const hdGroup = `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterHd')}</div><div class="inv-fs-pills">` +
+    `<button class="inv-fs-pill${_invFilters.hd.includes('yes')?' sel':''}" data-group="hd" data-val="yes">${t('invFilterHdYes')}</button>` +
+    `<button class="inv-fs-pill${_invFilters.hd.includes('no')?' sel':''}" data-group="hd" data-val="no">${t('invFilterHdNo')}</button>` +
+    `</div></div>`;
 
   content.innerHTML =
     pillGroup('invFilterMetal',  metals,   _invFilters.metals,  'metals',  v => v === 'gold' ? t('gold') : v === 'silver' ? t('silver') : t('invFilterOther')) +
@@ -10659,6 +10667,7 @@ function openInvFilterSheet() {
     goldColorGroup +
     genderGroup +
     mixedMetalGroup +
+    hdGroup +
     dateSection;
 
   // Pills — click toggling
@@ -10785,7 +10794,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -10989,6 +10998,12 @@ function renderInvList() {
     }
     if (f.mixedMetal) {
       if (!item.secondaryMetal) return false;
+    }
+    // HD photo filter (temporary) — only meaningful for photographed items
+    if (f.hd && f.hd.length) {
+      if (!item.photoUrl) return false;
+      const hv = item.photoUrlHi ? 'yes' : 'no';
+      if (!f.hd.includes(hv)) return false;
     }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
@@ -11202,7 +11217,7 @@ function renderInvList() {
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-            ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
+            ${item.photoUrl ? `<div style="position:relative;flex-shrink:0;line-height:0"><img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer" loading="lazy">${item.photoUrlHi ? `<span title="High-res photo uploaded" style="position:absolute;top:3px;left:3px;background:#2e9e6b;color:#fff;font-size:8px;font-weight:700;letter-spacing:0.05em;padding:1px 4px;border-radius:4px;line-height:1.35;box-shadow:0 1px 3px rgba(0,0,0,0.5)">HD</span>` : ''}</div>` : ''}
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
@@ -14191,6 +14206,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.11', date: 'Ιούλιος 2026', items: [
+        '🖼️ Σήμανση «HD» (προσωρινό): στη λίστα Αποθέματος, τα είδη που έχουν ήδη φωτογραφία υψηλής ανάλυσης δείχνουν ένα πράσινο σήμα «HD» πάνω στη μικρογραφία τους — έτσι βλέπετε με μια ματιά ποια έχουν ανέβει και ποια όχι. Στα φίλτρα προστέθηκε επιλογή «HD Φωτό» με «HD ✓» (έχουν) και «Χωρίς HD» (θέλουν ακόμα ανέβασμα), για να βρίσκετε γρήγορα όσα απομένουν. Θα αφαιρεθεί όταν ολοκληρωθούν όλες οι φωτογραφίες'
+      ]},
       { version: 'v10.10', date: 'Ιούλιος 2026', items: [
         '📷 Φωτογραφίες υψηλής ανάλυσης για το Showroom: κάθε φωτογραφία που ανεβάζετε αποθηκεύεται πλέον σε δύο εκδόσεις — μία μικρή για την εφαρμογή (μένει ελαφριά & γρήγορη, όπως πριν) και μία υψηλής ανάλυσης που χρησιμοποιείται μόνο στο δημόσιο Showroom, στη σελίδα του κάθε είδους και στις Προωθητικές Εικόνες (Instagram/Facebook). Έτσι το Showroom δείχνει καθαρές, ευκρινείς φωτογραφίες χωρίς να επιβαρύνεται η εφαρμογή. Ισχύει για νέα είδη· για παλιά, ανοίξτε το είδος και επιλέξτε ξανά την αρχική φωτογραφία (ή βγάλτε νέα) για να αποκτήσει και αυτό την έκδοση υψηλής ανάλυσης'
       ]},
@@ -14363,6 +14381,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.11', date: 'Jul 2026', items: [
+        '🖼️ "HD" mark (temporary): in the Inventory list, items that already have a high-resolution photo show a small green "HD" badge on their thumbnail — so you can see at a glance which ones are done and which still need re-uploading. The filters gained an "HD Photo" option with "HD ✓" (has one) and "Needs HD" (still to upload), to quickly find the ones left. It\'ll be removed once all photos are done'
+      ]},
       { version: 'v10.10', date: 'Jul 2026', items: [
         '📷 High-resolution photos for the Showroom: every photo you upload is now saved in two versions — a small one for the app (stays light & fast, exactly as before) and a high-resolution one used only by the public Showroom, the single-item page, and Promo Images (Instagram/Facebook). So the Showroom shows crisp, sharp photos without slowing the app down. This applies to new items; for older ones, open the item and re-select the original photo (or take a new one) to give it the high-res version too'
       ]},
@@ -17337,7 +17358,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.10';
+const APP_VERSION = '10.11';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
