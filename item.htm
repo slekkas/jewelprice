@@ -345,7 +345,11 @@ function render(item, qr) {
   if (typeEn)          rows += row('Type', typeEn + handmade);
   if (metalStr)        rows += row('Metal', metalStr);
   if (item.gender)     rows += row('For', genderLabel[item.gender] || item.gender);
-  if (item.stonesDesc) rows += row('Stones', item.stonesDesc);
+  // Hide the internal "melee" prefix from public visitors — show plain stone names
+  const stonesPublic = item.stonesDesc
+    ? item.stonesDesc.split(' · ').map(s => s.trim().replace(/^melee\s+/i, '')).join(' · ')
+    : '';
+  if (stonesPublic)    rows += row('Stones', stonesPublic);
   if (item.seqId)      rows += row('Ref.', formatSeqId(item.seqId, item.jewelryType));
 
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qr);
