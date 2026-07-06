@@ -8599,7 +8599,11 @@ const STONE_ABBREV_MAP = {
   'ATR': 'Ametrine', 'MAL': 'Malachite', 'KES': 'Keshi Pearl', 'ZIR': 'Zircon',
   'LAP': 'Lapis Lazuli', 'LAB': 'Labradorite', 'AMA': 'Amazonite', 'CAR': 'Carnelian',
   'COR': 'Coral', 'COB': 'Cobalt Calcite',
-  'APT': 'Apatite', 'BLP': 'Black Pearl'
+  'APT': 'Apatite', 'BLP': 'Black Pearl',
+  // Pearl varieties & Jade — 4-letter codes matching the historical no-carat fallback
+  // (type.slice(0,4)), so tags already printed for these types keep scanning correctly.
+  'AKOY': 'Akoya Pearl', 'FRES': 'Freshwater Pearl', 'JADE': 'Jade',
+  'SOUT': 'South Sea Pearl', 'TAHI': 'Tahitian Pearl'
 };
 
 function parseStoneFromCode(stonePart) {
@@ -8611,13 +8615,15 @@ function parseStoneFromCode(stonePart) {
   const COLOR = ['D','E','F','G','H','I','J','K','L','M'];
   const COLORED_FULL = ['Ruby','Emerald','Sapphire','Alexandrite','Aquamarine','Amethyst',
     'Citrine','Garnet','Morganite','Opal','Pearl','Peridot','Spinel',
-    'Tanzanite','Topaz','Tourmaline','Turquoise','Agate','Onyx','Crystal'];
+    'Tanzanite','Topaz','Tourmaline','Turquoise','Agate','Onyx','Crystal',
+    'Jade','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
   // Also check full name without carat (e.g. "Coral", "Sapphire" written fully)
   const COLORED_FULL_EARLY = ['Ruby','Emerald','Sapphire','Alexandrite','Aquamarine','Amethyst',
     'Citrine','Garnet','Morganite','Opal','Pearl','Peridot','Spinel',
     'Tanzanite','Topaz','Tourmaline','Turquoise','Agate','Onyx','Crystal',
     'Moonstone','Quartz','Hematite','Lapis Lazuli','Labradorite','Amazonite','Carnelian',
-    'Ametrine','Malachite','Zircon','Coral','Cobalt Calcite','Baroque Pearl','Keshi Pearl'];
+    'Ametrine','Malachite','Zircon','Coral','Cobalt Calcite','Baroque Pearl','Keshi Pearl',
+    'Jade','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
 
   // Attempt to parse a (prefix-stripped) token as a stone with a known qty
   function tryParse(remaining, qty) {
@@ -10020,25 +10026,22 @@ async function saveToInventoryFromLabel(labelData) {
     : (document.getElementById('karat')?.value || '');
   const weight = isOther ? 0 : (parseFloat(document.getElementById('weight')?.value) || 0);
 
-  // Build stonesDesc from the QR code — this is the ground truth (what was printed & scans correctly).
-  // Also cross-check with the live stone section rows in case they have richer data (price, shape).
-  const _lsiParsed = parseCodeInput(labelData.fullQR || '');
-  const _lsiQrStones = (_lsiParsed.stones || []).map(s => ({
-    type: s.stoneType || 'Diamond', qty: s.qty || 1,
-    carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: '', price: 0
-  }));
-  // Get DOM rows for price/shape data (these fields aren't in the QR)
-  const _lsiDomRows = (getStoneRows ? getStoneRows() : []);
-  // If QR has stone data, use QR as the type/carat/clarity source; merge price/shape from DOM
-  let stoneRows;
-  if (_lsiQrStones.length > 0) {
-    stoneRows = _lsiQrStones.map((qs, i) => {
-      const domRow = _lsiDomRows[i] || {};
-      return { ...qs, shape: domRow.shape || '', price: domRow.price || 0 };
-    });
-  } else {
-    // No stones in QR — use DOM rows (stone section may have been open with no QR encoding)
-    stoneRows = _lsiDomRows;
+  // Build stonesDesc from the stone rows the user actually entered — these are the
+  // complete, authoritative source (labelData.fullQR was itself built from them). Using
+  // them directly means nothing is lost: a no-carat Diamond, for example, is intentionally
+  // absent from the printed QR but must still appear in the description, and per-row
+  // shape/price stay attached to the correct stone (deriving from the QR and merging by
+  // index misaligned them whenever a stone was skipped in the code). Only fall back to the
+  // QR when there are no DOM rows. Mirror buildLabelStrings' stone-section-open gate so the
+  // description never lists stones the tag doesn't carry.
+  const _lsiSectionOpen = document.getElementById('stoneSectionBody')?.style.display !== 'none';
+  let stoneRows = (_lsiSectionOpen && getStoneRows) ? getStoneRows().filter(s => s.type) : [];
+  if (stoneRows.length === 0) {
+    const _lsiParsed = parseCodeInput(labelData.fullQR || '');
+    stoneRows = (_lsiParsed.stones || []).map(s => ({
+      type: s.stoneType || 'Diamond', qty: s.qty || 1,
+      carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: '', price: 0
+    }));
   }
   const stonesDesc = buildStoneDescription(stoneRows);
   const stoneCost = parseFloat(document.getElementById('stoneCostInput')?.value) || 0;
@@ -11354,7 +11357,7 @@ async function prepareInvConfirm(raw) {
     vendorName: match.vendorName,
     catName: match.catName,
     stonesDesc: stones && stones.length > 0
-      ? buildStoneDescription(stones.map(s => ({ type: s.stoneType || s.type || '', qty: 1, carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: s.shape || '' })))
+      ? buildStoneDescription(stones.map(s => ({ type: s.stoneType || s.type || '', qty: s.qty || 1, carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: s.shape || '' })))
       : '',
     stoneCost: cachedStoneCost,
     handmade: calcHandmadeActive || false,
@@ -14257,6 +14260,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.15', date: 'Ιούλιος 2026', items: [
+        '💎 Γενικός έλεγχος & θωράκιση του συστήματος πετρών: (1) Πέντε τύποι που δεν είχαν κωδικό — Μαργαριτάρι Akoya, Γλυκού Νερού, South Sea, Tahiti και Νεφρίτης (Jade) — διαβάζονταν λάθος στη σάρωση (ως διαμάντι) ή χάνονταν· τώρα έχουν σωστό κωδικό και σαρώνονται κανονικά. (2) Σαρώνοντας ετικέτα με πολλές πέτρες (π.χ. «4xRUB») ή melee απευθείας στο απόθεμα, διατηρείται πλέον η ποσότητα/η ένδειξη melee (πριν γινόταν πάντα «1»). (3) Κατά την αποθήκευση νέου είδους, η περιγραφή πετρών φτιάχνεται από αυτά που πληκτρολογήσατε, ώστε ένα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) να μη χάνεται και το σχήμα/η τιμή κάθε πέτρας να μένουν σωστά.'
+      ]},
       { version: 'v10.14', date: 'Ιούλιος 2026', items: [
         '📷 Αλλαγή μόνο φωτογραφίας δεν ζητά πια νέα ετικέτα: όταν επεξεργάζεστε ένα είδος και αλλάζετε μόνο τη φωτογραφία (π.χ. για την έκδοση υψηλής ανάλυσης), η εφαρμογή δεν σας ζητά πλέον να τυπώσετε νέα ετικέτα. Η ειδοποίηση επανεκτύπωσης εμφανίζεται μόνο αν πραγματικά αλλάξετε τις πέτρες. Έτσι η μαζική ενημέρωση φωτογραφιών γίνεται γρήγορα'
       ]},
@@ -14441,6 +14447,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.15', date: 'Jul 2026', items: [
+        '💎 Stone-system review & hardening: (1) Five types that had no code — Akoya, Freshwater, South Sea and Tahitian pearls, and Jade — used to mis-scan (read back as Diamond) or disappear; they now have proper codes and scan correctly. (2) Scanning a multi-stone tag (e.g. "4xRUB") or a melee tag straight into inventory now keeps the quantity / melee marking (it was always saved as "1" before). (3) When saving a new item, the stone description is built from what you actually entered, so a no-carat Diamond (which isn\'t written into the code) is no longer dropped and each stone\'s shape/price stays with the right stone.'
+      ]},
       { version: 'v10.14', date: 'Jul 2026', items: [
         '📷 Changing only the photo no longer asks for a new tag: when you edit an item and change just the photo (e.g. for the high-resolution version), the app no longer prompts you to print a new tag. The reprint prompt now appears only if you actually change the stones. This makes bulk photo updates quick'
       ]},
@@ -17427,7 +17436,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.14';
+const APP_VERSION = '10.15';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
