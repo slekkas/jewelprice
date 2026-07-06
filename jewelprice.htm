@@ -11301,56 +11301,20 @@ function renderInvList() {
         ${vendorCodeLine ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light);opacity:0.75;letter-spacing:0.08em;margin-bottom:3px">${vendorCodeLine}</div>` : ''}
         ${item.seqId ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:0.1em;margin-bottom:2px"># ${formatSeqId(item.seqId, item.jewelryType)}</div>` : ''}
         <div class="inv-card-meta">${metaLine}${vendorLine ? '<br>' + vendorLine : ''}${stonesLine ? '<br>' + stonesLine : ''}${dateLine ? '<br>' + dateLine : ''}</div>
-        ${_isEmpInv ? '' : `<div class="inv-card-price"${item.stonesDesc && (item.stoneCost === null || item.stoneCost === undefined) ? ` data-inv-id="${id}"` : ''}>${priceStr}</div>`}
+        ${_isEmpInv ? '' : `<div class="inv-card-price">${priceStr}</div>`}
         ${appreciationHtml}
         ${actionsHtml}
       </div>`;
   }).join('');
 
-  // Async patch: items with stones but stoneCost=0 — re-parse QR code to get correct stone format,
-  // look up cache, update displayed price, and persist to Firebase
-  if (!_isEmpInv) {
-    const staleCards = container.querySelectorAll('.inv-card-price[data-inv-id]');
-    if (staleCards.length > 0) {
-      (async () => {
-        const cur2 = state.currency || '€';
-        for (const el of staleCards) {
-          const itemId = el.getAttribute('data-inv-id');
-          const entry = (_inventoryCache || {})[itemId];
-          // skip if no stone desc, already has price, or explicitly set to 0 (no price intended)
-          if (!entry || !entry.stonesDesc || entry.stoneCost > 0 || entry.stoneCost === 0) continue;
-          try {
-            // Re-parse the stored QR code to get stones in the correct format for cache lookup
-            const qr = entry.qrCode || entry.code || '';
-            if (!qr) continue;
-            const parsed = parseCodeInput(qr);
-            if (!parsed.stones || parsed.stones.length === 0) continue;
-            const normStones = parsed.stones.map(s => ({
-              type: s.stoneType || 'Diamond',
-              qty: s.qty || 1,
-              carat: s.carat || '',
-              clarity: s.clarity || '',
-              color: s.color || '',
-            }));
-            const hit = await lookupStonePriceCache(normStones);
-            if (!hit || !hit.entry) continue;
-            const cached = hit.entry.wholesale !== undefined ? hit.entry.wholesale : (hit.entry.price || 0);
-            if (!(cached > 0)) continue;
-            // Recalculate price with found stone cost
-            const patchedItem = Object.assign({}, entry, { stoneCost: cached });
-            const pp = calcInvItemPrice(patchedItem);
-            if (pp) {
-              el.textContent = cur2 + pp.retail.toFixed(2);
-              el.removeAttribute('data-inv-id');
-              // Persist so future renders are instant and Edit Item doesn't auto-run estimate
-              entry.stoneCost = cached;
-              saveInventoryItem(itemId, entry).catch(() => {});
-            }
-          } catch(e) {}
-        }
-      })();
-    }
-  }
+  // NOTE (v10.19): a background self-heal used to live here — for any stone item whose
+  // stone price was left blank (stoneCost null), it looked the stone up in the shared
+  // price cache and silently wrote that price onto the item, persisting it to Firebase.
+  // That changed the item's actual selling price (adding a cost the owner never entered)
+  // and inflated the "gain %" (the initial price was captured before the auto-added stone
+  // cost). Removed so the app NEVER writes a stone price the owner didn't type; a blank
+  // stone price simply counts as €0. Owners price stones manually or via the ✨ Estimate
+  // button in Edit, which requires an explicit tap.
 
   if (_needRestoreSelectMode) {
     container.querySelectorAll('.inv-select-cb').forEach(cb => {
@@ -14327,6 +14291,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.19', date: 'Ιούλιος 2026', items: [
+        '💎 Σημαντική διόρθωση τιμών πετρών: η εφαρμογή ΔΕΝ προσθέτει πια μόνη της τιμή σε πέτρα που αφήσατε χωρίς τιμή. Παλιότερα, ένα είδος με πέτρα (π.χ. μαργαριτάρι) που το είχατε αφήσει χωρίς τιμή, «δανειζόταν» αυτόματα μια τιμή από την προσωρινή μνήμη πετρών — αλλάζοντας κρυφά την τελική τιμή του κοσμήματος και φουσκώνοντας την «υπεραξία». Πλέον, κενή τιμή πέτρας μετράει ως 0€. Οι τιμές που καταχωρήσατε εσείς ΔΕΝ επηρεάστηκαν ποτέ (η παλιά συμπεριφορά άγγιζε μόνο κενές τιμές). Τις πέτρες τις τιμολογείτε χειροκίνητα ή με το κουμπί ✨ στην Επεξεργασία.'
+      ]},
       { version: 'v10.18', date: 'Ιούλιος 2026', items: [
         '📅 Η γραμμή «Αρχική τιμή» δείχνει τώρα και την ημερομηνία προσθήκης του είδους, π.χ. «Αρχική τιμή (προσθήκη 07/07/2026): €744.17 (+5.6%)». Έτσι, βλέποντας μια αύξηση, ξέρετε από ποια ημερομηνία να ελέγξετε πόσο έχει ανέβει ο χρυσός. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
       ]},
@@ -14524,6 +14491,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.19', date: 'Jul 2026', items: [
+        '💎 Important stone-pricing fix: the app no longer adds a price to a stone you left unpriced. Before, an item with a stone (e.g. a pearl) that you left with no price would silently "borrow" a price from the stone-price cache — quietly changing the piece\'s final price and inflating its "gain %". Now a blank stone price counts as €0. Prices you entered yourself were never affected (the old behavior only ever touched blank ones). You price stones manually or with the ✨ Estimate button in Edit.'
+      ]},
       { version: 'v10.18', date: 'Jul 2026', items: [
         '📅 The "Initial price" line now also shows the date the item was added, e.g. "Initial price (added 07/07/2026): €744.17 (+5.6%)". So when you see a gain, you know which date to check the gold price against. (Owner/manager only.)'
       ]},
@@ -17523,7 +17493,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.18';
+const APP_VERSION = '10.19';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
