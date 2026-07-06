@@ -12210,6 +12210,10 @@ function invEdit(id) {
       _existingStones.forEach(s => _invEditAddStoneRow(s));
       // Pre-fill cost from item.stoneCost (don't auto-sum — user entered it separately)
     }
+    // Baseline of the stone suffix as loaded — used on save to detect whether the
+    // user ACTUALLY changed the stones. A photo-only edit leaves this untouched, so
+    // it must never trigger a tag reprint (see the save handler).
+    _invEditStoneRowsEl.dataset.baselineSuffix = _buildStoneQRSuffix(_invEditGetStoneRows());
     // Wire Add Stone button
     const _addStoneBtn = document.getElementById('invEditAddStoneRowBtn');
     if (_addStoneBtn) {
@@ -12634,20 +12638,22 @@ RETAIL: \u20ac[integer]`;
         const _manualCost = parseFloat(document.getElementById('invEditStoneCostInput')?.value) || 0;
         if (_manualCost > 0) item.stoneCost = _manualCost;
       }
-      // The printed tag only ever encodes carat/clarity/color/qty (never shape — shape has no
-      // representation on the tag). Check whether that encoded data actually changed vs. what's
-      // on the current physical tag, so we can offer a reprint rather than let it go silently stale.
+      // Only offer a reprint if the STONES actually changed in this edit session.
+      // We compare the rebuilt suffix against a baseline captured when the form
+      // opened — NOT against the stored code. This way a photo-only edit (which
+      // leaves the stone rows untouched) never nags for a reprint, even on legacy
+      // items whose stored code is malformed (the scanner already tolerates those).
       const _existingQR = (item.qrCode || item.code || '');
-      // Find where the stone suffix starts. Normally that's the '-'; but a malformed
-      // legacy code (leading stone skipped) may have a '+' there instead, with no '-'
-      // at all — treat that first '+' as the boundary so we regenerate a correct '-'
-      // code rather than appending onto the broken one.
-      let _dashIdx = _existingQR.indexOf('-');
-      if (_dashIdx === -1) _dashIdx = _existingQR.indexOf('+');
-      const _oldSuffix = _dashIdx !== -1 ? _existingQR.slice(_dashIdx) : '';
+      const _baselineSuffix = _invEditStoneRowsEl?.dataset.baselineSuffix || '';
       const _newSuffix = _buildStoneQRSuffix(_editedRows);
-      if (_existingQR && _oldSuffix !== _newSuffix) {
+      if (_existingQR && _newSuffix !== _baselineSuffix) {
         _stoneTagStale = true;
+        // Find where the stone suffix starts. Normally that's the '-'; but a malformed
+        // legacy code (leading stone skipped) may have a '+' there instead, with no '-'
+        // at all — treat that first '+' as the boundary so we regenerate a correct '-'
+        // code rather than appending onto the broken one.
+        let _dashIdx = _existingQR.indexOf('-');
+        if (_dashIdx === -1) _dashIdx = _existingQR.indexOf('+');
         const _baseQR = _dashIdx !== -1 ? _existingQR.slice(0, _dashIdx) : _existingQR;
         _newFullQRForStones = _baseQR + _newSuffix;
       }
@@ -14251,6 +14257,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.14', date: 'Ιούλιος 2026', items: [
+        '📷 Αλλαγή μόνο φωτογραφίας δεν ζητά πια νέα ετικέτα: όταν επεξεργάζεστε ένα είδος και αλλάζετε μόνο τη φωτογραφία (π.χ. για την έκδοση υψηλής ανάλυσης), η εφαρμογή δεν σας ζητά πλέον να τυπώσετε νέα ετικέτα. Η ειδοποίηση επανεκτύπωσης εμφανίζεται μόνο αν πραγματικά αλλάξετε τις πέτρες. Έτσι η μαζική ενημέρωση φωτογραφιών γίνεται γρήγορα'
+      ]},
       { version: 'v10.13', date: 'Ιούλιος 2026', items: [
         '🏷️ Σοβαρή διόρθωση κωδικών με πέτρες: όταν ένα κόσμημα είχε πρώτη πέτρα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) ακολουθούμενη από άλλες πέτρες, ο κωδικός τυπωνόταν λάθος — με «+» αντί για «-» πριν τις πέτρες (π.χ. «KAL18S1.3+4xRUB» αντί «KAL18S1.3-4xRUB»). Έτσι, σαρώνοντας την ετικέτα, εμφανιζόταν «Κωδικός δεν βρέθηκε». Πλέον οι νέοι κωδικοί παράγονται σωστά ΚΑΙ οι ήδη τυπωμένες λάθος ετικέτες σαρώνονται κανονικά. (Αν επεξεργαστείτε/επανεκτυπώσετε ένα τέτοιο είδος, ο κωδικός διορθώνεται αυτόματα.)'
       ]},
@@ -14432,6 +14441,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.14', date: 'Jul 2026', items: [
+        '📷 Changing only the photo no longer asks for a new tag: when you edit an item and change just the photo (e.g. for the high-resolution version), the app no longer prompts you to print a new tag. The reprint prompt now appears only if you actually change the stones. This makes bulk photo updates quick'
+      ]},
       { version: 'v10.13', date: 'Jul 2026', items: [
         '🏷️ Important stone-code fix: when a piece had a first stone that was a Diamond with no carats (which isn\'t written into the code) followed by other stones, the code was generated wrong — with a "+" instead of the "-" that starts the stone section (e.g. "KAL18S1.3+4xRUB" instead of "KAL18S1.3-4xRUB"). Scanning that tag showed "Code not found". New codes are now generated correctly AND already-printed wrong tags scan fine again. (Editing/reprinting such an item auto-corrects its code.)'
       ]},
@@ -17415,7 +17427,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.13';
+const APP_VERSION = '10.14';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
