@@ -2975,6 +2975,7 @@ const T = {
     invSortWeightHigh:'Βάρος: Βαρύ → Ελαφρύ', invSortWeightLow:'Βάρος: Ελαφρύ → Βαρύ',
     invSortNameAZ:'Όνομα: Α → Ω', invSortNameZA:'Όνομα: Ω → Α',
     invSortVendorAZ:'Προμηθευτής: Α → Ω', invSortMetalHigh:'Αξία Μετάλλου: Υψηλή → Χαμηλή',
+    invSortGainHigh:'Υπεραξία: Υψηλή → Χαμηλή', invSortGainLow:'Υπεραξία: Χαμηλή → Υψηλή',
     invSortInStockFirst:'Σε απόθεμα πρώτα', invSortSoldFirst:'Πουλήθηκαν πρώτα',
     invFilterBtn:'Φίλτρο', invFilterTitle:'Φίλτρα', invFilterClear:'Καθαρισμός', invFilterApply:'Εφαρμογή',
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
@@ -3009,6 +3010,7 @@ const T = {
     invFilterOther:'Άλλο',
     invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε',
     invFilterHd:'HD Φωτό', invFilterHdYes:'HD ✓', invFilterHdNo:'Χωρίς HD',
+    invFilterGain:'Υπεραξία τιμής',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
     invEmpty:'Δεν υπάρχουν αντικείμενα στο απόθεμα. Σαρώστε ένα QR για να ξεκινήσετε.',
@@ -3279,6 +3281,7 @@ const T = {
     invSortWeightHigh:'Weight: Heavy → Light', invSortWeightLow:'Weight: Light → Heavy',
     invSortNameAZ:'Name: A → Z', invSortNameZA:'Name: Z → A',
     invSortVendorAZ:'Vendor: A → Z', invSortMetalHigh:'Metal Value: High → Low',
+    invSortGainHigh:'Gain: High → Low', invSortGainLow:'Gain: Low → High',
     invSortInStockFirst:'In stock first', invSortSoldFirst:'Sold first',
     invFilterBtn:'Filter', invFilterTitle:'Filters', invFilterClear:'Clear', invFilterApply:'Apply',
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
@@ -3313,6 +3316,7 @@ const T = {
     invFilterOther:'Other',
     invFilterInStock:'In Stock', invFilterSold2:'Sold',
     invFilterHd:'HD Photo', invFilterHdYes:'HD ✓', invFilterHdNo:'Needs HD',
+    invFilterGain:'Price Gain',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
     invEmpty:'No items in inventory. Scan a QR code to get started.',
@@ -10382,7 +10386,19 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+
+// Gain % of an item versus its recorded initial price (owner metric — same value
+// shown on the inventory card's "Initial price (+x%)" line). Returns null when it
+// can't be computed: no baseline, an Other-type item, or a sold item.
+function invGainPct(item) {
+  if (!item || item.metal === 'other' || item.status === 'sold') return null;
+  const _init = parseFloat(item.initialRetail);
+  if (!(_init > 0)) return null;
+  const p = calcInvItemPrice(item);
+  if (!p) return null;
+  return (p.retail - _init) / _init * 100;
+}
 
 // ── Inventory Sort ────────────────────────────────────────────────────────────
 const INV_SORT_OPTIONS = [
@@ -10396,6 +10412,8 @@ const INV_SORT_OPTIONS = [
   { key: 'name_za',     icon: '🔤', i18n: 'invSortNameZA' },
   { key: 'vendor_az',   icon: '🏪', i18n: 'invSortVendorAZ' },
   { key: 'metal_high',  icon: '🥇', i18n: 'invSortMetalHigh' },
+  { key: 'gain_high',   icon: '📈', i18n: 'invSortGainHigh', ownerOnly: true },
+  { key: 'gain_low',    icon: '📉', i18n: 'invSortGainLow',  ownerOnly: true },
   { key: 'stock_first', icon: '📦', i18n: 'invSortInStockFirst' },
   { key: 'sold_first',  icon: '✅', i18n: 'invSortSoldFirst' },
 ];
@@ -10405,7 +10423,8 @@ function openInvSortSheet() {
   const sheet = document.getElementById('invSortSheet');
   const opts = document.getElementById('invSortOptions');
   if (!sheet || !opts) return;
-  opts.innerHTML = INV_SORT_OPTIONS.map(o => {
+  const _empInv = creds.role === 'employee';
+  opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv)).map(o => {
     const active = _invSort === o.key;
     return `<button onclick="setInvSort('${o.key}')" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:${active ? 'rgba(212,175,55,0.15)' : 'rgba(255,255,255,0.03)'};border:1px solid ${active ? 'rgba(212,175,55,0.5)' : 'rgba(255,255,255,0.08)'};border-radius:10px;color:${active ? 'var(--gold-light)' : 'var(--text-light)'};font-family:var(--font-body);font-size:13px;cursor:pointer;text-align:left">
       <span style="font-size:15px">${o.icon}</span>
@@ -10452,7 +10471,7 @@ let _invSelected = new Set();
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.hd||[]).length + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.hd||[]).length + (f.gainMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -10474,6 +10493,7 @@ function updateInvFilterBadge() {
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if ((_invFilters.hd||[]).length) parts.push((_invFilters.hd||[]).map(v => v==='yes'?t('invFilterHdYes'):t('invFilterHdNo')).join(', '));
+    if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
     summary.textContent = parts.join(' · ');
   }
@@ -10616,6 +10636,11 @@ function openInvFilterSheet() {
     `<button class="inv-fs-pill${_invFilters.hd.includes('yes')?' sel':''}" data-group="hd" data-val="yes">${t('invFilterHdYes')}</button>` +
     `<button class="inv-fs-pill${_invFilters.hd.includes('no')?' sel':''}" data-group="hd" data-val="no">${t('invFilterHdNo')}</button>` +
     `</div></div>`;
+  // Gain % threshold (owner/manager only — mirrors the appreciation line, hidden from employees)
+  const gainGroup = (creds.role === 'employee') ? '' :
+    `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterGain')}</div><div class="inv-fs-pills">` +
+    [3, 5, 10].map(v => `<button class="inv-fs-pill${_invFilters.gainMin===v?' sel':''}" data-group="gain" data-val="${v}">&gt; +${v}%</button>`).join('') +
+    `</div></div>`;
 
   content.innerHTML =
     pillGroup('invFilterMetal',  metals,   _invFilters.metals,  'metals',  v => v === 'gold' ? t('gold') : v === 'silver' ? t('silver') : t('invFilterOther')) +
@@ -10692,6 +10717,7 @@ function openInvFilterSheet() {
     genderGroup +
     mixedMetalGroup +
     hdGroup +
+    gainGroup +
     dateSection;
 
   // Pills — click toggling
@@ -10701,6 +10727,15 @@ function openInvFilterSheet() {
     const grp = btn.dataset.group;
     const val = btn.dataset.val;
     if (!grp || !val) return;
+    if (grp === 'gain') {
+      // Single-select threshold: tapping the active pill clears it, tapping another switches.
+      const v = Number(val);
+      const wasActive = _invFilters.gainMin === v;
+      _invFilters.gainMin = wasActive ? 0 : v;
+      content.querySelectorAll('.inv-fs-pill[data-group="gain"]').forEach(p => p.classList.remove('sel'));
+      if (!wasActive) btn.classList.add('sel');
+      return;
+    }
     if (grp === 'mixedMetal') {
       _invFilters.mixedMetal = !_invFilters.mixedMetal;
       btn.classList.toggle('sel', _invFilters.mixedMetal);
@@ -10818,7 +10853,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -11029,6 +11064,12 @@ function renderInvList() {
       const hv = item.photoUrlHi ? 'yes' : 'no';
       if (!f.hd.includes(hv)) return false;
     }
+    // Gain % filter — show only items whose price rose at least this much vs their
+    // recorded initial price (a quick way to spot unrealistic jumps).
+    if (f.gainMin > 0) {
+      const g = invGainPct(item);
+      if (g === null || g < f.gainMin) return false;
+    }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
     if (f.status.length) {
@@ -11091,6 +11132,10 @@ function renderInvList() {
       case 'name_za':     return bName.localeCompare(aName);
       case 'vendor_az':   return (a.vendorName||'').localeCompare(b.vendorName||'') || aName.localeCompare(bName);
       case 'metal_high':  return bMetal - aMetal;
+      case 'gain_high': { const ag = invGainPct(a), bg = invGainPct(b);
+                          return (bg===null?-Infinity:bg) - (ag===null?-Infinity:ag); }
+      case 'gain_low':  { const ag = invGainPct(a), bg = invGainPct(b);
+                          return (ag===null?Infinity:ag) - (bg===null?Infinity:bg); }
       case 'stock_first': return (b.dateAdded||0) - (a.dateAdded||0);
       case 'sold_first':  return (b.dateAdded||0) - (a.dateAdded||0);
       default:            return (b.dateAdded||0) - (a.dateAdded||0); // newest
@@ -13356,7 +13401,20 @@ async function confirmBulkRestock(id) {
   const addWeight = parseFloat(document.getElementById('bulkRestockWeightInput')?.value);
   if (!addWeight || addWeight <= 0) { showToast('⚠️ ' + (lang==='el'?'Εισάγετε βάρος':'Enter weight')); return; }
 
+  // Credit the newly added stock into the item's initial price, so a restock does
+  // not masquerade as a price rise. We measure retail at the CURRENT gold price
+  // before and after adding the grams (gold price is identical in that instant, so
+  // the whole delta is the value of the new metal) and add that delta to
+  // initialRetail. This keeps the "gain since added" % reflecting only real gold
+  // price movement, not how much stock is on hand.
+  const _pBefore = calcInvItemPrice(item);
+  const _oldInitR = parseFloat(item.initialRetail);
   item.weight = parseFloat((parseFloat(item.weight) + addWeight).toFixed(2));
+  const _pAfter = calcInvItemPrice(item);
+  if (_oldInitR > 0 && _pBefore && _pAfter) {
+    const _addedValue = _pAfter.retail - _pBefore.retail;
+    item.initialRetail = parseFloat((_oldInitR + _addedValue).toFixed(2));
+  }
   _inventoryCache[id] = item;
   await saveInventoryItem(id, item);
   document.getElementById('bulkRestockOverlay')?.remove();
@@ -14262,6 +14320,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.17', date: 'Ιούλιος 2026', items: [
+        '⛓️ Ο ανεφοδιασμός αλυσίδων δεν «φουσκώνει» πια την υπεραξία: όταν προσθέτατε γραμμάρια σε ένα απόθεμα αλυσίδων, η νέα ποσότητα μετρούσε λανθασμένα ως αύξηση τιμής (π.χ. +32%). Πλέον η αξία του νέου εμπορεύματος προστίθεται στην αρχική τιμή, οπότε το ποσοστό υπεραξίας δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού — όχι πόσο απόθεμα υπάρχει.',
+        '📈 Νέα ταξινόμηση & φίλτρο «Υπεραξία»: στην Ταξινόμηση μπορείτε να δείτε τα είδη με τη μεγαλύτερη ανατίμηση πρώτα (Υψηλή → Χαμηλή) και στα Φίλτρα να δείτε μόνο όσα ανέβηκαν πάνω από 3%, 5% ή 10% — για να εντοπίζετε γρήγορα μη ρεαλιστικές αυξήσεις. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
+      ]},
       { version: 'v10.16', date: 'Ιούλιος 2026', items: [
         '🔧 Διόρθωση σήμανσης «HD»: όταν η φωτογραφία που ανεβάζατε ήταν ήδη μικρή (≤480px), το είδος έμενε κολλημένο στο «Χωρίς HD» ακόμα κι αν το ξανανεβάζατε. Τώρα κάθε φωτογραφία που ανεβάζετε σημαίνεται σωστά ως «HD» και φεύγει από τη λίστα.'
       ]},
@@ -14452,6 +14514,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.17', date: 'Jul 2026', items: [
+        '⛓️ Restocking chains no longer inflates the gain: when you added grams to a chain stock, the extra quantity was wrongly counted as a price rise (e.g. +32%). Now the value of the new stock is added to the initial price, so the gain % reflects only real gold-price movement — not how much stock is on hand.',
+        '📈 New "Gain" sort & filter: Sort can now show the items that rose the most first (High → Low), and Filters can show only items that went up over 3%, 5% or 10% — a quick way to catch unrealistic increases. (Owner/manager only.)'
+      ]},
       { version: 'v10.16', date: 'Jul 2026', items: [
         '🔧 "HD" mark fix: when the photo you uploaded was already small (≤480px), the item stayed stuck on "Needs HD" even after re-uploading. Now every photo you upload is correctly flagged as "HD" and leaves the list.'
       ]},
@@ -17444,7 +17510,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.16';
+const APP_VERSION = '10.17';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
