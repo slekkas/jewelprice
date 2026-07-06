@@ -1596,6 +1596,14 @@
           <div id="cloudBackupList" style="display:none;margin-top:12px"></div>
         </div>
       </div>
+
+      <!-- STONE PRICE AUDIT (temporary — remove once cleanup is done, see v10.19) -->
+      <div class="settings-section" id="stoneAuditSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stoneAuditTitle">💎 Έλεγχος Τιμών Πετρών</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="stoneAuditDesc">Βρίσκει είδη με πέτρα των οποίων η τιμή μοιάζει να προστέθηκε αυτόματα από παλιό σφάλμα (όχι από εσάς). Ελέγξτε το καθένα· «Μηδενισμός πέτρας» βάζει την τιμή πέτρας στο 0 και διορθώνει την υπεραξία. Δεν αγγίζει τιμές που καταχωρήσατε εσείς χωρίς να το εγκρίνετε.</p>
+        <button onclick="runStonePriceAudit()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="stoneAuditRun">🔍 Σάρωση Αποθέματος</button>
+        <div id="stoneAuditList" style="display:none;margin-top:12px"></div>
+      </div>
     </div>
   </div>
 
@@ -2931,6 +2939,9 @@ const T = {
     clientSyncOk:'Πελάτες αποθηκεύτηκαν ✓',
     clientSyncFail:'Αποτυχία αποθήκευσης',
     dupScanTitle:'Έλεγχος Διπλότυπων QR', dupScanDesc:'Σάρωση αποθέματος για αντικείμενα που μοιράζονται τον ίδιο κωδικό QR.', dupScanBtn:'🔍 Σάρωση Τώρα',
+    stoneAuditTitle:'💎 Έλεγχος Τιμών Πετρών',
+    stoneAuditDesc:'Βρίσκει είδη με πέτρα των οποίων η τιμή μοιάζει να προστέθηκε αυτόματα από παλιό σφάλμα (όχι από εσάς). Ελέγξτε το καθένα· «Μηδενισμός πέτρας» βάζει την τιμή πέτρας στο 0 και διορθώνει την υπεραξία. Δεν αλλάζει καμία τιμή χωρίς την έγκρισή σας.',
+    stoneAuditRun:'🔍 Σάρωση Αποθέματος',
     backupTitle:'💾 Αντίγραφο Ασφαλείας',
     backupDesc:'Κατεβάστε όλα τα δεδομένα (ρυθμίσεις, αποσπάσματα, πελάτες, πωλήσεις, πέτρες) σε ένα αρχείο JSON.',
     backupBtn:'⬇️ Εξαγωγή JSON',
@@ -3237,6 +3248,9 @@ const T = {
     clientSyncOk:'Clients saved ✓',
     clientSyncFail:'Save failed',
     dupScanTitle:'Duplicate QR Check', dupScanDesc:'Scan inventory for items sharing the same QR code.', dupScanBtn:'🔍 Scan Now',
+    stoneAuditTitle:'💎 Stone Price Audit',
+    stoneAuditDesc:'Finds stone items whose price looks like it was auto-added by the old bug (not by you). Review each — "Set stone free" puts the stone price to 0 and fixes the gain. It never changes a price without your confirmation.',
+    stoneAuditRun:'🔍 Scan Inventory',
     backupTitle:'💾 Data Backup',
     backupDesc:'Download all your data (settings, quotes, clients, sales, stones) as a single JSON file.',
     backupBtn:'⬇️ Export JSON',
@@ -3815,6 +3829,7 @@ function applyRoleUI() {
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
   const _ss = document.getElementById('salesSection'); if (_ss) _ss.style.display = isOwnerMgr ? '' : 'none';
   const _bs = document.getElementById('backupSection'); if (_bs) _bs.style.display = isOwnerMgr ? '' : 'none';
+  const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
   const _ds = document.getElementById('dupScanSection'); if (_ds) _ds.style.display = isOwnerMgr ? '' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -9676,6 +9691,111 @@ async function backupNowToCloud() {
   } catch(e) { showStatus('backupStatus', t('backupFail'), 'error'); }
 }
 
+// ── TEMPORARY (v10.19): Stone Price Audit ──────────────────────────────────
+// Finds in-stock stone items whose stone price looks like it was auto-added by
+// the old background self-heal (removed in v10.19) rather than typed by the
+// owner. Definitive signal: the item's stored initial price matches the
+// STONE-FREE retail more closely than the with-stone retail — i.e. the baseline
+// was captured before the stone cost appeared, which only happens when the
+// self-heal added it. (Prices the owner typed always had the stone in the
+// baseline.) Read-only until the owner taps a per-row fix. Remove this whole
+// block, the Settings section, and the stoneAudit* i18n keys once cleanup is done.
+let _stoneAuditCandidates = {};
+async function runStonePriceAudit() {
+  const listEl = document.getElementById('stoneAuditList');
+  if (!listEl) return;
+  listEl.style.display = 'block';
+  listEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);padding:8px">⏳ ${lang==='el'?'Σάρωση…':'Scanning…'}</div>`;
+  const cur = state.currency || '€';
+  const entries = Object.entries(_inventoryCache || {}).filter(([id, it]) =>
+    it && it.status !== 'sold' && it.metal !== 'other' && it.stonesDesc &&
+    (parseFloat(it.stoneCost) || 0) > 0 && it.initialRetail);
+  _stoneAuditCandidates = {};
+  const candidates = [];
+  for (const [id, it] of entries) {
+    const pWith = calcInvItemPrice(it);
+    const pNo = calcInvItemPrice(Object.assign({}, it, { stoneCost: 0 }));
+    if (!pWith || !pNo) continue;
+    const initR = parseFloat(it.initialRetail);
+    const stoneContribution = pWith.retail - pNo.retail;
+    if (!(stoneContribution > 0.5)) continue;
+    const diffNo = pNo.retail > 0 ? Math.abs(initR - pNo.retail) / pNo.retail : 1;
+    const diffWith = pWith.retail > 0 ? Math.abs(initR - pWith.retail) / pWith.retail : 1;
+    const gainPct = initR > 0 ? (pWith.retail - initR) / initR * 100 : 0;
+    // Initial matches the stone-FREE price better than the with-stone price →
+    // the stone cost was added after the baseline was set → likely auto-filled.
+    const initialExcludesStone = (diffNo + 0.001 < diffWith) && diffNo < 0.08;
+    if (!initialExcludesStone) continue;
+    // Extra context: does the stored stone cost exactly equal the cache wholesale?
+    let cacheMatch = false;
+    try {
+      const parsed = parseCodeInput(it.qrCode || it.code || '');
+      const norm = (parsed.stones || []).map(s => ({ type: s.stoneType||'Diamond', qty: s.qty||1, carat: s.carat||'', clarity: s.clarity||'', color: s.color||'' }));
+      if (norm.length) {
+        const hit = await lookupStonePriceCache(norm);
+        if (hit && hit.entry) {
+          const w = hit.entry.wholesale !== undefined ? hit.entry.wholesale : (hit.entry.price || 0);
+          if (Math.abs((parseFloat(it.stoneCost)||0) - w) < 0.01) cacheMatch = true;
+        }
+      }
+    } catch(e) {}
+    candidates.push({ id, it, gainPct, cacheMatch, currentRetail: pWith.retail, freeRetail: pNo.retail, initR });
+  }
+  candidates.sort((a, b) => b.gainPct - a.gainPct);
+
+  if (!candidates.length) {
+    listEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:#4caf84;padding:10px;text-align:center">${lang==='el'?'✓ Δεν βρέθηκαν ύποπτα είδη':'✓ No suspicious items found'}</div>`;
+    return;
+  }
+  const rows = candidates.map(c => {
+    _stoneAuditCandidates[c.id] = c;
+    const it = c.it;
+    const ref = it.seqId ? formatSeqId(it.seqId, it.jewelryType) : (it.qrCode || it.code || c.id);
+    const desc = _itemDesc(it) || (it.jewelryType ? invTypeLabel(it.jewelryType) : '') || ref;
+    const cacheTag = c.cacheMatch ? ` · ${lang==='el'?'ίδιο με cache':'= cache'}` : '';
+    return `<div style="border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,0.02)">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gold-light)">${ref}</span>
+        <span style="font-family:var(--font-body);font-size:10px;color:#e05a5a">+${c.gainPct.toFixed(1)}%</span>
+      </div>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text-light);margin:2px 0 6px">${desc}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.7">
+        ${lang==='el'?'Τιμή πέτρας':'Stone price'}: ${cur}${(parseFloat(it.stoneCost)||0).toFixed(2)}${cacheTag}<br>
+        ${lang==='el'?'Τώρα':'Now'}: ${cur}${c.currentRetail.toFixed(2)} · ${lang==='el'?'Χωρίς πέτρα':'No stone'}: ${cur}${c.freeRetail.toFixed(2)} · ${lang==='el'?'Αρχική':'Initial'}: ${cur}${c.initR.toFixed(2)}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="stoneAuditFix('${c.id}')" style="flex:1;padding:8px;background:rgba(80,180,120,0.12);border:1px solid rgba(80,180,120,0.4);color:#6fce9a;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer;text-transform:uppercase">${lang==='el'?'Μηδενισμός πέτρας':'Set stone free'}</button>
+        <button onclick="stoneAuditOpen('${c.id}')" style="flex:1;padding:8px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer;text-transform:uppercase">${lang==='el'?'Άνοιγμα':'Open'}</button>
+      </div>
+    </div>`;
+  }).join('');
+  listEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-bottom:8px">${candidates.length} ${lang==='el'?'είδη προς έλεγχο':'items to review'}</div>` + rows;
+}
+
+// Set an item's stone price to 0 (free) and re-baseline its initial price to the
+// stone-free retail, so both the price and the gain % return to what the owner intended.
+function stoneAuditFix(id) {
+  const it = (_inventoryCache || {})[id];
+  if (!it) return;
+  showConfirm(
+    lang==='el' ? 'Μηδενισμός τιμής πέτρας και επαναφορά αρχικής τιμής;' : 'Set this stone price to €0 and re-baseline the initial price?',
+    async () => {
+      it.stoneCost = 0;
+      const p = calcInvItemPrice(it);
+      if (p && it.metal !== 'other') it.initialRetail = parseFloat(p.retail.toFixed(2));
+      _inventoryCache[id] = it;
+      await saveInventoryItem(id, it);
+      showToast(lang==='el' ? '✅ Μηδενίστηκε' : '✅ Stone set free');
+      runStonePriceAudit();
+      if (typeof renderInvList === 'function') renderInvList();
+    }
+  );
+}
+
+function stoneAuditOpen(id) {
+  if (typeof invEdit === 'function') invEdit(id);
+}
+
 function _countNode(n) {
   if (Array.isArray(n)) return n.length;
   if (n && typeof n === 'object') return Object.keys(n).length;
@@ -14292,7 +14412,8 @@ const ABOUT = {
     ],
     changelog: [
       { version: 'v10.19', date: 'Ιούλιος 2026', items: [
-        '💎 Σημαντική διόρθωση τιμών πετρών: η εφαρμογή ΔΕΝ προσθέτει πια μόνη της τιμή σε πέτρα που αφήσατε χωρίς τιμή. Παλιότερα, ένα είδος με πέτρα (π.χ. μαργαριτάρι) που το είχατε αφήσει χωρίς τιμή, «δανειζόταν» αυτόματα μια τιμή από την προσωρινή μνήμη πετρών — αλλάζοντας κρυφά την τελική τιμή του κοσμήματος και φουσκώνοντας την «υπεραξία». Πλέον, κενή τιμή πέτρας μετράει ως 0€. Οι τιμές που καταχωρήσατε εσείς ΔΕΝ επηρεάστηκαν ποτέ (η παλιά συμπεριφορά άγγιζε μόνο κενές τιμές). Τις πέτρες τις τιμολογείτε χειροκίνητα ή με το κουμπί ✨ στην Επεξεργασία.'
+        '💎 Σημαντική διόρθωση τιμών πετρών: η εφαρμογή ΔΕΝ προσθέτει πια μόνη της τιμή σε πέτρα που αφήσατε χωρίς τιμή. Παλιότερα, ένα είδος με πέτρα (π.χ. μαργαριτάρι) που το είχατε αφήσει χωρίς τιμή, «δανειζόταν» αυτόματα μια τιμή από την προσωρινή μνήμη πετρών — αλλάζοντας κρυφά την τελική τιμή του κοσμήματος και φουσκώνοντας την «υπεραξία». Πλέον, κενή τιμή πέτρας μετράει ως 0€. Οι τιμές που καταχωρήσατε εσείς ΔΕΝ επηρεάστηκαν ποτέ (η παλιά συμπεριφορά άγγιζε μόνο κενές τιμές). Τις πέτρες τις τιμολογείτε χειροκίνητα ή με το κουμπί ✨ στην Επεξεργασία.',
+        '🔍 Νέο εργαλείο «Έλεγχος Τιμών Πετρών» (Ρυθμίσεις → προσωρινό): εντοπίζει τα είδη που επηρεάστηκαν από το παραπάνω σφάλμα, ώστε να τα ελέγξετε ένα-ένα. Με ένα πάτημα μηδενίζει την τιμή της πέτρας και διορθώνει την υπεραξία — πάντα με δική σας επιβεβαίωση. Θα αφαιρεθεί όταν ολοκληρωθεί το «σκούπισμα».'
       ]},
       { version: 'v10.18', date: 'Ιούλιος 2026', items: [
         '📅 Η γραμμή «Αρχική τιμή» δείχνει τώρα και την ημερομηνία προσθήκης του είδους, π.χ. «Αρχική τιμή (προσθήκη 07/07/2026): €744.17 (+5.6%)». Έτσι, βλέποντας μια αύξηση, ξέρετε από ποια ημερομηνία να ελέγξετε πόσο έχει ανέβει ο χρυσός. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
@@ -14492,7 +14613,8 @@ const ABOUT = {
     ],
     changelog: [
       { version: 'v10.19', date: 'Jul 2026', items: [
-        '💎 Important stone-pricing fix: the app no longer adds a price to a stone you left unpriced. Before, an item with a stone (e.g. a pearl) that you left with no price would silently "borrow" a price from the stone-price cache — quietly changing the piece\'s final price and inflating its "gain %". Now a blank stone price counts as €0. Prices you entered yourself were never affected (the old behavior only ever touched blank ones). You price stones manually or with the ✨ Estimate button in Edit.'
+        '💎 Important stone-pricing fix: the app no longer adds a price to a stone you left unpriced. Before, an item with a stone (e.g. a pearl) that you left with no price would silently "borrow" a price from the stone-price cache — quietly changing the piece\'s final price and inflating its "gain %". Now a blank stone price counts as €0. Prices you entered yourself were never affected (the old behavior only ever touched blank ones). You price stones manually or with the ✨ Estimate button in Edit.',
+        '🔍 New "Stone Price Audit" tool (Settings → temporary): finds the items affected by the bug above so you can review them one by one. One tap sets the stone price to €0 and fixes the gain — always with your confirmation. It will be removed once the cleanup is done.'
       ]},
       { version: 'v10.18', date: 'Jul 2026', items: [
         '📅 The "Initial price" line now also shows the date the item was added, e.g. "Initial price (added 07/07/2026): €744.17 (+5.6%)". So when you see a gain, you know which date to check the gold price against. (Owner/manager only.)'
