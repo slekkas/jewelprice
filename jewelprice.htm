@@ -9883,7 +9883,9 @@ async function uploadToImgBB(dataUrl, name) {
 
 // Upload the app-sized photo plus a high-res copy (for the public showroom &
 // promo images) in parallel. Returns { url, name, hiUrl }, or null if the main
-// upload failed. hiUrl is '' when there is no distinct high-res version.
+// upload failed. When the source is too small to warrant a distinct high-res
+// copy, hiUrl falls back to the small url (no second upload) so the item is
+// still flagged as processed — the showroom/promo use photoUrlHi||photoUrl anyway.
 async function uploadInventoryPhoto(smallDataUrl, hiDataUrl, name) {
   const wantHi = hiDataUrl && hiDataUrl !== smallDataUrl;
   const [small, hi] = await Promise.all([
@@ -9891,7 +9893,7 @@ async function uploadInventoryPhoto(smallDataUrl, hiDataUrl, name) {
     wantHi ? uploadToImgBB(hiDataUrl, name ? name + '_hi' : 'hi') : Promise.resolve(null)
   ]);
   if (!small) return null;
-  return { url: small.url, name: small.name, hiUrl: hi ? hi.url : '' };
+  return { url: small.url, name: small.name, hiUrl: hi ? hi.url : small.url };
 }
 
 // ── PHOTO PICKER — global callback pattern ───────────────────────────────────
@@ -14260,6 +14262,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.16', date: 'Ιούλιος 2026', items: [
+        '🔧 Διόρθωση σήμανσης «HD»: όταν η φωτογραφία που ανεβάζατε ήταν ήδη μικρή (≤480px), το είδος έμενε κολλημένο στο «Χωρίς HD» ακόμα κι αν το ξανανεβάζατε. Τώρα κάθε φωτογραφία που ανεβάζετε σημαίνεται σωστά ως «HD» και φεύγει από τη λίστα.'
+      ]},
       { version: 'v10.15', date: 'Ιούλιος 2026', items: [
         '💎 Γενικός έλεγχος & θωράκιση του συστήματος πετρών: (1) Πέντε τύποι που δεν είχαν κωδικό — Μαργαριτάρι Akoya, Γλυκού Νερού, South Sea, Tahiti και Νεφρίτης (Jade) — διαβάζονταν λάθος στη σάρωση (ως διαμάντι) ή χάνονταν· τώρα έχουν σωστό κωδικό και σαρώνονται κανονικά. (2) Σαρώνοντας ετικέτα με πολλές πέτρες (π.χ. «4xRUB») ή melee απευθείας στο απόθεμα, διατηρείται πλέον η ποσότητα/η ένδειξη melee (πριν γινόταν πάντα «1»). (3) Κατά την αποθήκευση νέου είδους, η περιγραφή πετρών φτιάχνεται από αυτά που πληκτρολογήσατε, ώστε ένα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) να μη χάνεται και το σχήμα/η τιμή κάθε πέτρας να μένουν σωστά.'
       ]},
@@ -14447,6 +14452,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.16', date: 'Jul 2026', items: [
+        '🔧 "HD" mark fix: when the photo you uploaded was already small (≤480px), the item stayed stuck on "Needs HD" even after re-uploading. Now every photo you upload is correctly flagged as "HD" and leaves the list.'
+      ]},
       { version: 'v10.15', date: 'Jul 2026', items: [
         '💎 Stone-system review & hardening: (1) Five types that had no code — Akoya, Freshwater, South Sea and Tahitian pearls, and Jade — used to mis-scan (read back as Diamond) or disappear; they now have proper codes and scan correctly. (2) Scanning a multi-stone tag (e.g. "4xRUB") or a melee tag straight into inventory now keeps the quantity / melee marking (it was always saved as "1" before). (3) When saving a new item, the stone description is built from what you actually entered, so a no-carat Diamond (which isn\'t written into the code) is no longer dropped and each stone\'s shape/price stays with the right stone.'
       ]},
@@ -17436,7 +17444,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.15';
+const APP_VERSION = '10.16';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
