@@ -4264,10 +4264,12 @@ function stoneToLabelPart(stone) {
 // Never encodes shape — shape has no representation in the printed code, by design.
 function _buildStoneQRSuffix(stoneRows) {
   let suffix = '';
-  (stoneRows || []).filter(s => s.type).forEach((stone, idx) => {
+  let emitted = 0; // count of parts actually written — NOT the array index
+  (stoneRows || []).filter(s => s.type).forEach((stone) => {
     const part = stoneToLabelPart(stone);
-    if (!part) return;
-    suffix += (idx === 0 ? '-' : '+') + part;
+    if (!part) return; // e.g. a carat-less Diamond emits nothing
+    suffix += (emitted === 0 ? '-' : '+') + part; // first emitted stone gets '-', rest '+'
+    emitted++;
   });
   return suffix;
 }
@@ -4301,19 +4303,27 @@ function buildLabelStrings() {
   const baseGreek = greekCode + weightStr + uniqueId + costSuffix;
   const stoneSectionOpen = document.getElementById('stoneSectionBody')?.style.display !== 'none';
   const stones = stoneSectionOpen ? getStoneRows().filter(s => s.type) : []; // include stones without carat (semi-precious)
+  // Separator must track the count of stones ACTUALLY emitted, not the array index:
+  // a skipped stone (e.g. a carat-less Diamond emits nothing) must not consume the
+  // leading '-'. Otherwise a code like "KAL18S1.3+4xRUB" is produced (no '-'), which
+  // can't be parsed back and scans as "Code not found".
   let stoneSuffix = '';
-  stones.forEach((stone, idx) => {
+  let _emitted = 0;
+  stones.forEach((stone) => {
     const part = stoneToLabelPart(stone);
     if (!part) return;
-    stoneSuffix += (idx === 0 ? '-' : '+') + part;
+    stoneSuffix += (_emitted === 0 ? '-' : '+') + part;
+    _emitted++;
   });
   const fullQR = baseQR + stoneSuffix;
   const lines = [baseGreek];
   if (stones.length > 0) {
-    stones.forEach((stone, idx) => {
+    let _emittedL = 0;
+    stones.forEach((stone) => {
       const part = stoneToLabelPart(stone);
       if (!part) return;
-      lines.push((idx === 0 ? '-' : '+') + part);
+      lines.push((_emittedL === 0 ? '-' : '+') + part);
+      _emittedL++;
     });
   }
   return { fullQR, baseQR, greekCode: baseGreek, lines, hasStones: stones.length > 0 };
@@ -8681,12 +8691,21 @@ function parseCodeInput(raw) {
   // Split on '-' separator (stone data)
   // Supports: KAL18S3.5 | KAL18S3.5-.20VS1H | KAL18S12.5-8.00SAP+.80SI2G
   const str = raw.trim();
-  const dashIdx = str.indexOf('-');
+  let dashIdx = str.indexOf('-');
+  // Tolerate malformed codes where the leading stone was skipped during generation
+  // so the first real stone got a '+' separator instead of the '-' that marks the
+  // start of the stone suffix (e.g. "KAL18S1.3+4xRUB" that should be "...-4xRUB").
+  // A base code never contains '+' — it only ever appears as a stone joiner — so if
+  // there's no '-' at all, the first '+' is the true stone-suffix boundary.
+  if (dashIdx === -1) {
+    const plusIdx = str.indexOf('+');
+    if (plusIdx !== -1) dashIdx = plusIdx;
+  }
   let baseStr = str;
   let stoneStr = null;
   if (dashIdx !== -1) {
     baseStr = str.slice(0, dashIdx);
-    stoneStr = str.slice(dashIdx + 1); // e.g. ".20VS1H" or "8.00SAP+.80SI2G"
+    stoneStr = str.slice(dashIdx + 1); // e.g. ".20VS1H" or "8.00SAP+.80SI2G" or "4xRUB"
   }
 
   // Walk backwards from end of baseStr to extract weight
@@ -12619,7 +12638,12 @@ RETAIL: \u20ac[integer]`;
       // representation on the tag). Check whether that encoded data actually changed vs. what's
       // on the current physical tag, so we can offer a reprint rather than let it go silently stale.
       const _existingQR = (item.qrCode || item.code || '');
-      const _dashIdx = _existingQR.indexOf('-');
+      // Find where the stone suffix starts. Normally that's the '-'; but a malformed
+      // legacy code (leading stone skipped) may have a '+' there instead, with no '-'
+      // at all — treat that first '+' as the boundary so we regenerate a correct '-'
+      // code rather than appending onto the broken one.
+      let _dashIdx = _existingQR.indexOf('-');
+      if (_dashIdx === -1) _dashIdx = _existingQR.indexOf('+');
       const _oldSuffix = _dashIdx !== -1 ? _existingQR.slice(_dashIdx) : '';
       const _newSuffix = _buildStoneQRSuffix(_editedRows);
       if (_existingQR && _oldSuffix !== _newSuffix) {
@@ -13403,6 +13427,8 @@ function invRestock(id) {
     const _afterBase = _existingQR.slice(_latinBase.length);
     const _weightMatch = _afterBase.match(/^[0-9]+(?:\.[0-9]+)?/);
     _stoneSuffix = _weightMatch ? _afterBase.slice(_weightMatch[0].length) : _afterBase;
+    // Repair a malformed legacy suffix that starts with '+' instead of '-'
+    if (_stoneSuffix.startsWith('+')) _stoneSuffix = '-' + _stoneSuffix.slice(1);
   }
   function buildRestockQR(w) {
     return _canRegenQR ? (_latinBase + w.toString() + _stoneSuffix) : _existingQR;
@@ -14225,6 +14251,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.13', date: 'Ιούλιος 2026', items: [
+        '🏷️ Σοβαρή διόρθωση κωδικών με πέτρες: όταν ένα κόσμημα είχε πρώτη πέτρα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) ακολουθούμενη από άλλες πέτρες, ο κωδικός τυπωνόταν λάθος — με «+» αντί για «-» πριν τις πέτρες (π.χ. «KAL18S1.3+4xRUB» αντί «KAL18S1.3-4xRUB»). Έτσι, σαρώνοντας την ετικέτα, εμφανιζόταν «Κωδικός δεν βρέθηκε». Πλέον οι νέοι κωδικοί παράγονται σωστά ΚΑΙ οι ήδη τυπωμένες λάθος ετικέτες σαρώνονται κανονικά. (Αν επεξεργαστείτε/επανεκτυπώσετε ένα τέτοιο είδος, ο κωδικός διορθώνεται αυτόματα.)'
+      ]},
       { version: 'v10.12', date: 'Ιούλιος 2026', items: [
         '💎 Διόρθωση melee σε επεξεργασία είδους: παλαιότερα είδη με πέτρες melee (κωδικός με «t», π.χ. tZIR) έχαναν τη σήμανση melee όταν τα ανοίγατε για επεξεργασία — έτσι, αλλάζοντας π.χ. τη φωτογραφία, η εφαρμογή σας ζητούσε άσκοπα νέα ετικέτα και ο κωδικός γινόταν απλός (ZIR). Τώρα η σήμανση melee διαβάζεται σωστά από τον τυπωμένο κωδικό, δεν χάνεται στην επεξεργασία και δεν ζητείται περιττή επανεκτύπωση'
       ]},
@@ -14403,6 +14432,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.13', date: 'Jul 2026', items: [
+        '🏷️ Important stone-code fix: when a piece had a first stone that was a Diamond with no carats (which isn\'t written into the code) followed by other stones, the code was generated wrong — with a "+" instead of the "-" that starts the stone section (e.g. "KAL18S1.3+4xRUB" instead of "KAL18S1.3-4xRUB"). Scanning that tag showed "Code not found". New codes are now generated correctly AND already-printed wrong tags scan fine again. (Editing/reprinting such an item auto-corrects its code.)'
+      ]},
       { version: 'v10.12', date: 'Jul 2026', items: [
         '💎 Fixed melee stones on item edit: older items with melee stones (code with a "t", e.g. tZIR) lost their melee marking when opened for editing — so just changing the photo made the app needlessly ask to print a new tag and the code dropped to plain (ZIR). The melee marking is now read correctly from the printed code, so it survives editing and no unnecessary reprint is prompted'
       ]},
@@ -17383,7 +17415,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.12';
+const APP_VERSION = '10.13';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
