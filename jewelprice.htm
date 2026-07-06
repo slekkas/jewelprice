@@ -11168,8 +11168,15 @@ function renderInvList() {
       const _pctStr = (_absPct < 0.05) ? '0.0' : _absPct.toFixed(1);
       const _sign = (_absPct < 0.05) ? '±' : (_diff >= 0 ? '+' : '-');
       const _color = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+      // Include the date the item was added, so a gain % can be checked against how
+      // much gold has moved since that date. Falls back to the plain label if the
+      // item predates the dateAdded field.
+      const _addedStr = item.dateAdded ? fmtDate(new Date(item.dateAdded)) : '';
+      const _initLbl = _addedStr
+        ? (lang === 'el' ? `${t('initialPriceLbl')} (προσθήκη ${_addedStr})` : `${t('initialPriceLbl')} (added ${_addedStr})`)
+        : t('initialPriceLbl');
       appreciationHtml = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">` +
-        `${t('initialPriceLbl')}: ${cur}${_initR.toFixed(2)} ` +
+        `${_initLbl}: ${cur}${_initR.toFixed(2)} ` +
         `<span style="color:${_color}">(${_sign}${_pctStr}%)</span></div>`;
     }
     const badge = isSold
@@ -14320,6 +14327,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.18', date: 'Ιούλιος 2026', items: [
+        '📅 Η γραμμή «Αρχική τιμή» δείχνει τώρα και την ημερομηνία προσθήκης του είδους, π.χ. «Αρχική τιμή (προσθήκη 07/07/2026): €744.17 (+5.6%)». Έτσι, βλέποντας μια αύξηση, ξέρετε από ποια ημερομηνία να ελέγξετε πόσο έχει ανέβει ο χρυσός. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
+      ]},
       { version: 'v10.17', date: 'Ιούλιος 2026', items: [
         '⛓️ Ο ανεφοδιασμός αλυσίδων δεν «φουσκώνει» πια την υπεραξία: όταν προσθέτατε γραμμάρια σε ένα απόθεμα αλυσίδων, η νέα ποσότητα μετρούσε λανθασμένα ως αύξηση τιμής (π.χ. +32%). Πλέον η αξία του νέου εμπορεύματος προστίθεται στην αρχική τιμή, οπότε το ποσοστό υπεραξίας δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού — όχι πόσο απόθεμα υπάρχει.',
         '📈 Νέα ταξινόμηση & φίλτρο «Υπεραξία»: στην Ταξινόμηση μπορείτε να δείτε τα είδη με τη μεγαλύτερη ανατίμηση πρώτα (Υψηλή → Χαμηλή) και στα Φίλτρα να δείτε μόνο όσα ανέβηκαν πάνω από 3%, 5% ή 10% — για να εντοπίζετε γρήγορα μη ρεαλιστικές αυξήσεις. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
@@ -14514,6 +14524,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.18', date: 'Jul 2026', items: [
+        '📅 The "Initial price" line now also shows the date the item was added, e.g. "Initial price (added 07/07/2026): €744.17 (+5.6%)". So when you see a gain, you know which date to check the gold price against. (Owner/manager only.)'
+      ]},
       { version: 'v10.17', date: 'Jul 2026', items: [
         '⛓️ Restocking chains no longer inflates the gain: when you added grams to a chain stock, the extra quantity was wrongly counted as a price rise (e.g. +32%). Now the value of the new stock is added to the initial price, so the gain % reflects only real gold-price movement — not how much stock is on hand.',
         '📈 New "Gain" sort & filter: Sort can now show the items that rose the most first (High → Low), and Filters can show only items that went up over 3%, 5% or 10% — a quick way to catch unrealistic increases. (Owner/manager only.)'
@@ -17510,7 +17523,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.17';
+const APP_VERSION = '10.18';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
