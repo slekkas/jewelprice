@@ -12167,7 +12167,26 @@ function invEdit(id) {
   const _invEditStoneRowsEl = document.getElementById('invEditStoneRows');
   if (_invEditStoneRowsEl && !isOtherEdit) {
     // Pre-populate from existing stonesDesc
-    const _existingStones = _invEditParseStoredStones(item.stonesDesc || '');
+    let _existingStones = _invEditParseStoredStones(item.stonesDesc || '');
+    // The printed QR code is the authoritative source for stone quantity / melee
+    // ('t' prefix, e.g. "-tZIR"). Older items may have a stonesDesc that lost the
+    // melee marker; recover the qty from the code so editing doesn't silently drop
+    // melee and force an unnecessary tag reprint.
+    try {
+      const _qrStones = (parseCodeInput(item.qrCode || '').stones) || [];
+      if (_existingStones.length === 0 && _qrStones.length > 0) {
+        // No usable stonesDesc — rebuild rows straight from the code
+        _existingStones = _qrStones.map(q => ({
+          type: q.stoneType, qty: q.qty, carat: q.carat || '',
+          clarity: q.clarity || '', color: q.color || '', shape: '', price: 0
+        }));
+      } else if (_qrStones.length === _existingStones.length) {
+        // Same stones in both — overlay the code's qty (melee) onto each row
+        _existingStones.forEach((s, i) => {
+          if (_qrStones[i] && _qrStones[i].qty !== undefined) s.qty = _qrStones[i].qty;
+        });
+      }
+    } catch (e) { /* fall back to stonesDesc-only parse */ }
     if (_existingStones.length > 0) {
       _existingStones.forEach(s => _invEditAddStoneRow(s));
       // Pre-fill cost from item.stoneCost (don't auto-sum — user entered it separately)
@@ -14206,6 +14225,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.12', date: 'Ιούλιος 2026', items: [
+        '💎 Διόρθωση melee σε επεξεργασία είδους: παλαιότερα είδη με πέτρες melee (κωδικός με «t», π.χ. tZIR) έχαναν τη σήμανση melee όταν τα ανοίγατε για επεξεργασία — έτσι, αλλάζοντας π.χ. τη φωτογραφία, η εφαρμογή σας ζητούσε άσκοπα νέα ετικέτα και ο κωδικός γινόταν απλός (ZIR). Τώρα η σήμανση melee διαβάζεται σωστά από τον τυπωμένο κωδικό, δεν χάνεται στην επεξεργασία και δεν ζητείται περιττή επανεκτύπωση'
+      ]},
       { version: 'v10.11', date: 'Ιούλιος 2026', items: [
         '🖼️ Σήμανση «HD» (προσωρινό): στη λίστα Αποθέματος, τα είδη που έχουν ήδη φωτογραφία υψηλής ανάλυσης δείχνουν ένα πράσινο σήμα «HD» πάνω στη μικρογραφία τους — έτσι βλέπετε με μια ματιά ποια έχουν ανέβει και ποια όχι. Στα φίλτρα προστέθηκε επιλογή «HD Φωτό» με «HD ✓» (έχουν) και «Χωρίς HD» (θέλουν ακόμα ανέβασμα), για να βρίσκετε γρήγορα όσα απομένουν. Θα αφαιρεθεί όταν ολοκληρωθούν όλες οι φωτογραφίες'
       ]},
@@ -14381,6 +14403,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.12', date: 'Jul 2026', items: [
+        '💎 Fixed melee stones on item edit: older items with melee stones (code with a "t", e.g. tZIR) lost their melee marking when opened for editing — so just changing the photo made the app needlessly ask to print a new tag and the code dropped to plain (ZIR). The melee marking is now read correctly from the printed code, so it survives editing and no unnecessary reprint is prompted'
+      ]},
       { version: 'v10.11', date: 'Jul 2026', items: [
         '🖼️ "HD" mark (temporary): in the Inventory list, items that already have a high-resolution photo show a small green "HD" badge on their thumbnail — so you can see at a glance which ones are done and which still need re-uploading. The filters gained an "HD Photo" option with "HD ✓" (has one) and "Needs HD" (still to upload), to quickly find the ones left. It\'ll be removed once all photos are done'
       ]},
@@ -17358,7 +17383,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.11';
+const APP_VERSION = '10.12';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
