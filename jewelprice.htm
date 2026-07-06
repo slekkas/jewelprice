@@ -4809,12 +4809,13 @@ function _openLabelModalInner(data, modal, content) {
   }
   // Reset pending photo and render photo picker
   _pendingLabelPhoto = null;
+  _pendingLabelPhotoHi = null;
   const photoWrap = document.getElementById('labelPhotoPickerWrap');
   if (photoWrap) {
     renderPhotoPicker(photoWrap, {
       previewId: 'labelPhotoPreview',
       existingUrl: null,
-      onCapture: (dataUrl) => { _pendingLabelPhoto = dataUrl; }
+      onCapture: (dataUrl, hiUrl) => { _pendingLabelPhoto = dataUrl; _pendingLabelPhotoHi = hiUrl; }
     });
   }
   // Show/hide and populate gold color selector based on metal type
@@ -9788,8 +9789,20 @@ function invFbBase() { return (creds.binId || '').replace(/\/+$/, ''); }
 
 // ── PHOTO / IMGBB HELPERS ────────────────────────────────────────────────────
 let _pendingLabelPhoto = null; // base64 dataURL captured in label modal, used on save
+let _pendingLabelPhotoHi = null; // high-res dataURL for the public showroom
 let _pendingSalePhoto = null;     // base64 dataURL captured in Record Sale modal
 let _pendingSaleEditPhoto = null; // base64 dataURL captured in Edit Sale modal
+
+// Draw an already-loaded <img> scaled to fit maxPx on its long side → JPEG dataURL
+function _scaleToJpeg(img, maxPx, quality) {
+  const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(img, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', quality);
+}
 
 // Compress an image File/Blob to a small JPEG dataURL
 function compressPhoto(file, maxPx = 480, quality = 0.72) {
@@ -9841,6 +9854,19 @@ async function uploadToImgBB(dataUrl, name) {
   }
 }
 
+// Upload the app-sized photo plus a high-res copy (for the public showroom &
+// promo images) in parallel. Returns { url, name, hiUrl }, or null if the main
+// upload failed. hiUrl is '' when there is no distinct high-res version.
+async function uploadInventoryPhoto(smallDataUrl, hiDataUrl, name) {
+  const wantHi = hiDataUrl && hiDataUrl !== smallDataUrl;
+  const [small, hi] = await Promise.all([
+    uploadToImgBB(smallDataUrl, name),
+    wantHi ? uploadToImgBB(hiDataUrl, name ? name + '_hi' : 'hi') : Promise.resolve(null)
+  ]);
+  if (!small) return null;
+  return { url: small.url, name: small.name, hiUrl: hi ? hi.url : '' };
+}
+
 // ── PHOTO PICKER — global callback pattern ───────────────────────────────────
 let _photoCallback = null; // set before opening picker
 
@@ -9855,19 +9881,18 @@ function _photoInputChanged(inputEl, previewId) {
   reader.onload = function(e) {
     const img = new Image();
     img.onload = function() {
-      const maxPx = 480;
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      const dataUrl = c.toDataURL('image/jpeg', 0.72);
+      // Small version — used everywhere in the app (keeps it light & fast)
+      const dataUrl = _scaleToJpeg(img, 480, 0.72);
+      // High-res version — used only by the public showroom & promo images.
+      // Only worth a distinct copy when the source is bigger than the app size.
+      const hiUrl = Math.max(img.width, img.height) > 480
+        ? _scaleToJpeg(img, 1200, 0.85)
+        : dataUrl;
       showToast('✓ ' + Math.round(dataUrl.length/1024) + 'KB — tap Save to upload');
       const wrap = document.getElementById(previewId + '_wrap');
       if (wrap) wrap.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px">';
       const cb = _photoCaptureFns[previewId];
-      if (cb) cb(dataUrl);
+      if (cb) cb(dataUrl, hiUrl);
     };
     img.onerror = function() { showToast('⚠️ Could not read image'); };
     img.src = e.target.result;
@@ -10037,15 +10062,17 @@ async function saveToInventoryFromLabel(labelData) {
     dateAdded: Date.now(),
     addedBy: creds.displayName || creds.userName || '',
     photoUrl: '',
-    photoName: ''
+    photoName: '',
+    photoUrlHi: ''
   };
 
   // Upload pending photo if one was captured in the label modal
   if (_pendingLabelPhoto) {
     showToast('📤 ' + (lang==='el'?'Αποστολή φωτογραφίας...':'Uploading photo...'));
-    const result = await uploadToImgBB(_pendingLabelPhoto, labelData.fullQR);
-    if (result) { item.photoUrl = result.url; item.photoName = result.name; }
+    const result = await uploadInventoryPhoto(_pendingLabelPhoto, _pendingLabelPhotoHi, labelData.fullQR);
+    if (result) { item.photoUrl = result.url; item.photoName = result.name; item.photoUrlHi = result.hiUrl; }
     _pendingLabelPhoto = null;
+    _pendingLabelPhotoHi = null;
   }
 
   // Assign sequential reference ID (use pre-fetched one from label modal if available)
@@ -10089,7 +10116,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType',
-  'metal','karat','goldColor','weight','gender','handmade','stonesDesc','seqId','photoUrl','status','dateAdded'];
+  'metal','karat','goldColor','weight','gender','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -11396,12 +11423,13 @@ function showInvScanConfirm(item, rows, priceStr, isSilver, cacheFound, invStone
 
   // Wire up photo picker
   let _scanPendingPhoto = null;
+  let _scanPendingPhotoHi = null;
   const scanPhotoWrap = document.getElementById('invScanPhotoPickerWrap');
   if (scanPhotoWrap) {
     renderPhotoPicker(scanPhotoWrap, {
       previewId: 'invScanPhotoPreview',
       existingUrl: null,
-      onCapture: (dataUrl) => { _scanPendingPhoto = dataUrl; }
+      onCapture: (dataUrl, hiUrl) => { _scanPendingPhoto = dataUrl; _scanPendingPhotoHi = hiUrl; }
     });
   }
 
@@ -11693,12 +11721,13 @@ RETAIL: €[integer]`;
     item.gender = document.getElementById('invScanGenderSelect')?.value || 'unisex';
     item.photoUrl = '';
     item.photoName = '';
+    item.photoUrlHi = '';
     // Upload photo if captured
     if (_scanPendingPhoto) {
       const saveBtn = document.getElementById('invScanSaveBtn');
       if (saveBtn) saveBtn.textContent = lang==='el'?'⏳ Αποστολή...':'⏳ Uploading...';
-      const result = await uploadToImgBB(_scanPendingPhoto, item.qrCode || item.code || '');
-      if (result) { item.photoUrl = result.url; item.photoName = result.name; }
+      const result = await uploadInventoryPhoto(_scanPendingPhoto, _scanPendingPhotoHi, item.qrCode || item.code || '');
+      if (result) { item.photoUrl = result.url; item.photoName = result.name; item.photoUrlHi = result.hiUrl; }
       _scanPendingPhoto = null;
     }
     const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
@@ -12413,12 +12442,13 @@ RETAIL: \u20ac[integer]`;
 
   // Wire up photo picker
   let _editPendingPhoto = null;
+  let _editPendingPhotoHi = null;
   const editPhotoWrap = document.getElementById('invEditPhotoPickerWrap');
   if (editPhotoWrap) {
     renderPhotoPicker(editPhotoWrap, {
       previewId: 'invEditPhotoPreview',
       existingUrl: item.photoUrl || null,
-      onCapture: (dataUrl) => { _editPendingPhoto = dataUrl; }
+      onCapture: (dataUrl, hiUrl) => { _editPendingPhoto = dataUrl; _editPendingPhotoHi = hiUrl; }
     });
   }
 
@@ -12581,8 +12611,8 @@ RETAIL: \u20ac[integer]`;
     if (_editPendingPhoto) {
       const saveBtn = document.getElementById('invEditSaveBtn');
       if (saveBtn) saveBtn.textContent = lang==='el'?'⏳ Αποστολή...':'⏳ Uploading...';
-      const result = await uploadToImgBB(_editPendingPhoto, item.qrCode || item.code || '');
-      if (result) { item.photoUrl = result.url; item.photoName = result.name; }
+      const result = await uploadInventoryPhoto(_editPendingPhoto, _editPendingPhotoHi, item.qrCode || item.code || '');
+      if (result) { item.photoUrl = result.url; item.photoName = result.name; item.photoUrlHi = result.hiUrl; }
       else { item.photoUrl = item.photoUrl || ''; }
       if (result) showToast('📷 OK: ' + result.url.slice(0,50));
       _editPendingPhoto = null;
@@ -14161,6 +14191,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.10', date: 'Ιούλιος 2026', items: [
+        '📷 Φωτογραφίες υψηλής ανάλυσης για το Showroom: κάθε φωτογραφία που ανεβάζετε αποθηκεύεται πλέον σε δύο εκδόσεις — μία μικρή για την εφαρμογή (μένει ελαφριά & γρήγορη, όπως πριν) και μία υψηλής ανάλυσης που χρησιμοποιείται μόνο στο δημόσιο Showroom, στη σελίδα του κάθε είδους και στις Προωθητικές Εικόνες (Instagram/Facebook). Έτσι το Showroom δείχνει καθαρές, ευκρινείς φωτογραφίες χωρίς να επιβαρύνεται η εφαρμογή. Ισχύει για νέα είδη· για παλιά, ανοίξτε το είδος και επιλέξτε ξανά την αρχική φωτογραφία (ή βγάλτε νέα) για να αποκτήσει και αυτό την έκδοση υψηλής ανάλυσης'
+      ]},
       { version: 'v10.9', date: 'Ιούλιος 2026', items: [
         '🛡️ Αυτόματα αντίγραφα ασφαλείας: η εφαρμογή κρατά πλέον μόνη της ένα πλήρες αντίγραφο όλων των δεδομένων (είδη, πελάτες, πωλήσεις, ρυθμίσεις) μία φορά την ημέρα, κρατώντας τα τελευταία 30. Αποθηκεύονται ιδιωτικά στο cloud σας — δεν εμφανίζονται πουθενά δημόσια. Στις Ρυθμίσεις → Αντίγραφο Ασφαλείας υπάρχει «☁️ Αντίγραφο Τώρα» για άμεσο αντίγραφο και «↩️ Επαναφορά» για να επαναφέρετε τα δεδομένα σε οποιαδήποτε προηγούμενη ημέρα (κρατείται αυτόματα αντίγραφο των τωρινών δεδομένων πριν από κάθε επαναφορά)'
       ]},
@@ -14330,6 +14363,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.10', date: 'Jul 2026', items: [
+        '📷 High-resolution photos for the Showroom: every photo you upload is now saved in two versions — a small one for the app (stays light & fast, exactly as before) and a high-resolution one used only by the public Showroom, the single-item page, and Promo Images (Instagram/Facebook). So the Showroom shows crisp, sharp photos without slowing the app down. This applies to new items; for older ones, open the item and re-select the original photo (or take a new one) to give it the high-res version too'
+      ]},
       { version: 'v10.9', date: 'Jul 2026', items: [
         '🛡️ Automatic backups: the app now keeps a full snapshot of all your data (inventory, clients, sales, settings) once a day on its own, keeping the last 30. They\'re stored privately in your cloud — never shown anywhere public. Under Settings → Data Backup there\'s a "☁️ Back Up Now" button for an instant snapshot and "↩️ Restore" to roll your data back to any earlier day (a snapshot of the current data is saved automatically before every restore)'
       ]},
@@ -17301,7 +17337,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.9';
+const APP_VERSION = '10.10';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18297,13 +18333,14 @@ async function drawPromoCanvas(item, style, format) {
       document.fonts.load('400 30px "DM Mono"')
     ]);
   } catch(e) {}
-  // load photo (ImgBB serves CORS headers)
+  // load photo (ImgBB serves CORS headers) — prefer the high-res copy for the
+  // big promo canvas, fall back to the app-sized photo for older items
   const img = await new Promise((res, rej) => {
     const im = new Image();
     im.crossOrigin = 'anonymous';
     im.onload = () => res(im);
     im.onerror = () => rej(new Error(t('promoPhotoFail')));
-    im.src = item.photoUrl;
+    im.src = item.photoUrlHi || item.photoUrl;
     setTimeout(() => rej(new Error(t('promoPhotoFail'))), 12000);
   });
 

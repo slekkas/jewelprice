@@ -351,7 +351,7 @@ function render(item, qr) {
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qr);
 
   const photoHtml = item.photoUrl
-    ? `<img class="item-photo" src="${item.photoUrl}" alt="${name}">`
+    ? `<img class="item-photo" src="${item.photoUrlHi || item.photoUrl}" alt="${name}">`
     : `<div class="photo-placeholder">💎</div>`;
 
   show(`

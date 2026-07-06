@@ -2221,7 +2221,7 @@ function openLightbox(key) {
 
   document.getElementById('lightboxBody').innerHTML = `
     <div class="lb-img-col">
-      <img class="lb-img" src="${item.photoUrl}" alt="${name}"
+      <img class="lb-img" src="${item.photoUrlHi || item.photoUrl}" alt="${name}"
            onerror="this.style.background='#F0EAD9';this.src=''">
     </div>
     <div class="lb-detail-col">
@@ -2311,7 +2311,7 @@ function renderCompare(items) {
 
     return `<div class="compare-card">
       <button class="compare-remove" onclick="removeFromCompare('${item._key}')" title="${lang==='el'?'Αφαίρεση':'Remove'}">✕</button>
-      <img class="compare-img" src="${item.photoUrl}" alt="${name}"
+      <img class="compare-img" src="${item.photoUrlHi || item.photoUrl}" alt="${name}"
            onerror="this.style.background='#F0EAD9';this.src=''">
       <div class="compare-name">${name}</div>
       ${rows}
