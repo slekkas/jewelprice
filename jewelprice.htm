@@ -3020,7 +3020,6 @@ const T = {
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
     invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε',
-    invFilterHd:'HD Φωτό', invFilterHdYes:'HD ✓', invFilterHdNo:'Χωρίς HD',
     invFilterGain:'Υπεραξία τιμής',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
@@ -3329,7 +3328,6 @@ const T = {
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
     invFilterInStock:'In Stock', invFilterSold2:'Sold',
-    invFilterHd:'HD Photo', invFilterHdYes:'HD ✓', invFilterHdNo:'Needs HD',
     invFilterGain:'Price Gain',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
@@ -10554,7 +10552,7 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 
 // Gain % of an item versus its recorded initial price (owner metric — same value
 // shown on the inventory card's "Initial price (+x%)" line). Returns null when it
@@ -10639,7 +10637,7 @@ let _invSelected = new Set();
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.hd||[]).length + (f.gainMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -10660,7 +10658,6 @@ function updateInvFilterBadge() {
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
-    if ((_invFilters.hd||[]).length) parts.push((_invFilters.hd||[]).map(v => v==='yes'?t('invFilterHdYes'):t('invFilterHdNo')).join(', '));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
     summary.textContent = parts.join(' · ');
@@ -10799,11 +10796,6 @@ function openInvFilterSheet() {
   })();
   // Mixed metal toggle pill
   const mixedMetalGroup = `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterMixed')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_invFilters.mixedMetal?' sel':''}" data-group="mixedMetal" data-val="1">${t('invFilterMixed')}</button></div></div>`;
-  // HD photo toggle (temporary — helps track which items still need a high-res upload)
-  const hdGroup = `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterHd')}</div><div class="inv-fs-pills">` +
-    `<button class="inv-fs-pill${_invFilters.hd.includes('yes')?' sel':''}" data-group="hd" data-val="yes">${t('invFilterHdYes')}</button>` +
-    `<button class="inv-fs-pill${_invFilters.hd.includes('no')?' sel':''}" data-group="hd" data-val="no">${t('invFilterHdNo')}</button>` +
-    `</div></div>`;
   // Gain % threshold (owner/manager only — mirrors the appreciation line, hidden from employees)
   const gainGroup = (creds.role === 'employee') ? '' :
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterGain')}</div><div class="inv-fs-pills">` +
@@ -10884,7 +10876,6 @@ function openInvFilterSheet() {
     goldColorGroup +
     genderGroup +
     mixedMetalGroup +
-    hdGroup +
     gainGroup +
     dateSection;
 
@@ -11021,7 +11012,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, hd: [], gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -11225,12 +11216,6 @@ function renderInvList() {
     }
     if (f.mixedMetal) {
       if (!item.secondaryMetal) return false;
-    }
-    // HD photo filter (temporary) — only meaningful for photographed items
-    if (f.hd && f.hd.length) {
-      if (!item.photoUrl) return false;
-      const hv = item.photoUrlHi ? 'yes' : 'no';
-      if (!f.hd.includes(hv)) return false;
     }
     // Gain % filter — show only items whose price rose at least this much vs their
     // recorded initial price (a quick way to spot unrealistic jumps).
@@ -11461,7 +11446,7 @@ function renderInvList() {
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-            ${item.photoUrl ? `<div style="position:relative;flex-shrink:0;line-height:0"><img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer" loading="lazy">${item.photoUrlHi ? `<span title="High-res photo uploaded" style="position:absolute;top:3px;left:3px;background:#2e9e6b;color:#fff;font-size:8px;font-weight:700;letter-spacing:0.05em;padding:1px 4px;border-radius:4px;line-height:1.35;box-shadow:0 1px 3px rgba(0,0,0,0.5)">HD</span>` : ''}</div>` : ''}
+            ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
@@ -14482,6 +14467,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.21', date: 'Ιούλιος 2026', items: [
+        '✅ Αφαιρέθηκε η προσωρινή σήμανση «HD»: όλες οι 363 φωτογραφίες ανέβηκαν πλέον σε υψηλή ανάλυση, οπότε το πράσινο σήμα «HD» στις μικρογραφίες και το φίλτρο «HD Φωτό» (HD ✓ / Χωρίς HD) δεν χρειάζονται πια και αφαιρέθηκαν.'
+      ]},
       { version: 'v10.20', date: 'Ιούλιος 2026', items: [
         '🏷️ Ο κωδικός αναφοράς «κλειδώνει» στην ετικέτα: μέχρι τώρα, αν άλλαζες τον τύπο ενός είδους (π.χ. από Κολιέ σε Σταυρό), ο κωδικός αναφοράς άλλαζε αυτόματα παντού (NK0342 → CR0342) — αλλά η τυπωμένη ετικέτα και η αναζήτηση στην ιστοσελίδα έδειχναν ακόμα το παλιό NK0342, οπότε ο πελάτης δεν έβρισκε το είδος. Πλέον, μόλις τυπωθεί μια ετικέτα, ο κωδικός της μένει σταθερός: αλλάζεις ελεύθερα τον τύπο και ο κωδικός παραμένει NK0342 σε εφαρμογή, αναζήτηση, σάρωση κειμένου και ιστοσελίδα. Καμία ανάγκη επανεκτύπωσης.',
         '🖨️ Ερώτηση μόνο όταν τυπώνεις νέα ετικέτα: αν το είδος έχει αλλάξει τύπο και πατήσεις «Εκτύπωση Ετικέτας» (π.χ. φθαρμένη ετικέτα ή ανανέωση αποθέματος), η εφαρμογή σε ρωτάει: «Το είδος είναι τώρα Σταυρός αλλά ο κωδικός είναι NK0342 — να αλλάξει σε CR0342 και να εκτυπωθεί;». Επιλέγεις «Ενημέρωση & Εκτύπωση» ή «Διατήρηση NK0342». Το τετράγωνο QR δεν αλλάζει ποτέ — η σάρωση δουλεύει σε κάθε περίπτωση.'
@@ -14687,6 +14675,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.21', date: 'Jul 2026', items: [
+        '✅ Removed the temporary "HD" mark: all 363 photos are now uploaded in high resolution, so the green "HD" badge on thumbnails and the "HD Photo" filter (HD ✓ / Needs HD) are no longer needed and have been removed.'
+      ]},
       { version: 'v10.20', date: 'Jul 2026', items: [
         '🏷️ The reference code now "locks" to the printed tag: until now, changing an item\'s type (e.g. Necklace → Cross) silently rewrote its reference code everywhere (NK0342 → CR0342) — but the printed tag and the website search still showed the old NK0342, so a customer couldn\'t find the item. Now, once a tag is printed, its code stays put: you can freely change the type and the code remains NK0342 in the app, in search, in text-scan and on the public website. No reprint needed.',
         '🖨️ You\'re only asked when you print a new tag: if an item\'s type has changed and you press "Print Tag" (e.g. a damaged tag or a restock), the app asks: "This item is now a Cross but its code is NK0342 — update it to CR0342 and print?". You choose "Update & Print" or "Keep NK0342". The QR square itself never changes, so scanning works either way.'
@@ -17694,7 +17685,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.20';
+const APP_VERSION = '10.21';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
