@@ -74,6 +74,8 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 
 > Note: the in-app "About" version badge derives from the `APP_VERSION` constant (currently `'10.21'`), not the stale "2.9" hardcoded fallback in the markup. The canonical version to bump is `APP_VERSION` plus the `changelog` arrays (both `el` and `en`) in the `ABOUT` object. The green update banner also reads those same `changelog` arrays, so a normal version bump keeps everything in sync.
 
+> **Changelog "keep 10" rule:** the `changelog` arrays (both `el` and `en`) hold only the **10 most recent versions**, newest first. When you bump the version and add a new entry to the top, delete the oldest entry from the bottom of BOTH language arrays so each stays at 10. This keeps the file from bloating (the changelog had grown to 39 versions / ~42 KB before being trimmed back to 10). The current `APP_VERSION` entry must always remain (the update banner reads it), which it will since it's the newest.
+
 ## Owner preferences
 - Clean, professional UI. **No emojis in printed documents** (quotes, labels).
 - Keep changes minimal and targeted — this is a production app used in a live store.
