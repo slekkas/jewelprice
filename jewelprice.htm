@@ -3989,6 +3989,9 @@ let _jpExitArmed = false;
 let _jpExitTimer = null;
 let _jpNavBack = false;                 // true while WE drive showPanel from a back gesture
 let _jpFrames = [];                     // one entry per pushed forward tab-step; holds the return tab
+let _jpExited = false;                  // true after we asked to exit — used to re-arm on resume
+let _jpUnwind = 0;                      // count of our own history.go() pops still to swallow
+let _jpUnwindTimer = null;
 
 function _jpPush() {
   try { history.pushState({ jp: 1 }, ''); } catch (e) {}
@@ -4003,11 +4006,25 @@ function _jpCurTab() {
 
 // Called from the top of showPanel. On a genuine forward tab change we push a real
 // history entry and remember the tab we came from, so back can return to it.
+// Calc is the hard home floor: arriving at Calc (by tap or code) unwinds the history
+// back to the floor so a back gesture from Calc ALWAYS shows the exit warning, never
+// walks forward into a tab you tapped through.
 function _jpTrackPanel(name) {
   if (!_jpBackReady || _jpNavBack) return;   // ignore until armed / during our own back-steps
   const prev = _jpCurTab();                  // DOM hasn't switched yet at this point
   _jpSaveTab(name);
   if (name === prev) return;
+  if (name === 'calc') {
+    // Collapse any tab frames back to the home floor.
+    if (_jpFrames.length) {
+      _jpUnwind += _jpFrames.length;
+      history.go(-_jpFrames.length);         // pops our own entries; swallowed in _jpHandleBack
+      _jpFrames = [];
+      clearTimeout(_jpUnwindTimer);
+      _jpUnwindTimer = setTimeout(() => { _jpUnwind = 0; }, 700); // self-heal if a pop is missed
+    }
+    return;
+  }
   _jpFrames.push(prev);
   _jpPush();
 }
@@ -4073,6 +4090,8 @@ function _jpShowExitToast() {
 }
 
 function _jpHandleBack() {
+  // 0) Swallow the popstate events caused by our own history.go() when collapsing to home.
+  if (_jpUnwind > 0) { _jpUnwind--; return; }
   // 1) An overlay/modal is open → close it and re-push one entry so the tab depth we
   //    just consumed is restored (modals don't have their own frame).
   const ov = _jpTopOverlay();
@@ -4091,7 +4110,8 @@ function _jpHandleBack() {
   // 3) At the home floor → confirm before the swipe is allowed to close the app.
   if (_jpExitArmed) {
     _jpExitArmed = false;
-    history.back();     // let the gesture through → the app closes
+    _jpExited = true;  // if Android only backgrounds us, re-arm the guard on resume
+    history.back();    // let the gesture through → the app leaves the foreground
     return;
   }
   _jpExitArmed = true;
@@ -4099,6 +4119,18 @@ function _jpHandleBack() {
   _jpPush();            // re-arm the home guard so the confirming swipe has an entry to pop
   clearTimeout(_jpExitTimer);
   _jpExitTimer = setTimeout(() => { _jpExitArmed = false; }, 3000);
+}
+
+// After we ask to exit, Android typically only BACKGROUNDS the PWA (there is no web API
+// to force-quit). When it comes back to the foreground the same page resumes with its
+// history stack emptied, so a back gesture would close it with no warning. Re-arm a
+// fresh home guard on resume so the first back is caught again.
+function _jpResumeRearm() {
+  if (!_jpBackReady || !_jpExited) return;
+  _jpExited = false;
+  _jpFrames = [];
+  _jpExitArmed = false;
+  _jpPush();
 }
 
 function _jpInitBackGuard() {
@@ -4126,6 +4158,10 @@ function _jpInitBackGuard() {
   if (_jpCurTab() !== 'calc') { _jpFrames.push('calc'); _jpPush(); }
   _jpSaveTab(_jpCurTab());
   window.addEventListener('popstate', _jpHandleBack);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') _jpResumeRearm();
+  });
+  window.addEventListener('pageshow', _jpResumeRearm);
 }
 
 // ─── METAL TOGGLE ─────────────────────────────────────────────────────────────
