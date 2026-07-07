@@ -3906,6 +3906,7 @@ function updateSpotDisplay() {
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 function showPanel(name) {
+  _jpTrackPanel(name);
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -3964,6 +3965,153 @@ function adjustCalcPadding() {
     // Price bar hidden: just clear the nav bar
     panel.style.paddingBottom = (navH + 20) + 'px';
   }
+}
+
+// ─── ANDROID BACK-GESTURE GUARD (v10.22) ──────────────────────────────────────
+// On gesture-navigation phones (e.g. Pixel), the edge back-swipe used to exit the
+// installed PWA in a single stroke — because switching tabs and opening modals
+// never added entries to the browser history, so the very first "back" popped the
+// app's only history entry and closed it. We keep one guard history entry alive and
+// intercept every back gesture: it first closes an open overlay/modal, otherwise
+// steps back one tab toward Calc, and only on the Calc home tab does a *second*
+// swipe actually exit (after a "swipe again to exit" confirmation toast).
+let _jpBackReady = false;
+let _jpExitArmed = false;
+let _jpExitTimer = null;
+let _jpNavBack = false;                 // true while WE drive showPanel from a back gesture
+const _jpTabStack = ['calc'];           // visited tabs; Calc is the home floor
+
+function _jpPushGuard() {
+  try { history.pushState({ jpGuard: true }, ''); } catch (e) {}
+}
+
+// Record forward tab navigation so the back gesture can retrace it. Called from showPanel.
+function _jpTrackPanel(name) {
+  if (_jpNavBack) return;               // don't record our own back-steps
+  if (_jpTabStack[_jpTabStack.length - 1] !== name) _jpTabStack.push(name);
+  if (_jpTabStack.length > 20) _jpTabStack.splice(0, _jpTabStack.length - 20);
+  // Remember the tab so a genuine reload/reopen lands where the user left off.
+  try { localStorage.setItem('jpro_lastPanel', name); } catch (e) {}
+}
+
+// Find the topmost currently-open full-screen overlay/modal (static markup or one
+// created on the fly). Real modals live at z-index ≥ 99996; tab panels are z:100,
+// so a high z-index threshold plus a full-screen size check separates them cleanly.
+function _jpTopOverlay() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let best = null, bestZ = -1, bestIdx = -1, idx = 0;
+  document.querySelectorAll('div').forEach(el => {
+    idx++;
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed') return;
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
+    const z = parseInt(cs.zIndex, 10) || 0;
+    if (z < 50000) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < vw * 0.8 || r.height < vh * 0.55) return;   // must cover the screen
+    if (z > bestZ || (z === bestZ && idx > bestIdx)) { best = el; bestZ = z; bestIdx = idx; }
+  });
+  return best;
+}
+
+// Dismiss an overlay the same way the user would — by triggering its own Cancel/close
+// control (so proper cleanup, e.g. stopping the camera, still runs).
+function _jpCloseOverlay(el) {
+  const controls = el.querySelectorAll('[onclick]');
+  for (const c of controls) {
+    const oc = c.getAttribute('onclick') || '';
+    const txt = (c.textContent || '').trim();
+    // Never trigger a destructive or confirming action from a back gesture.
+    if (/delete|remove|\bsave\b|submit|print|\bok\b|διαγρ|αποθ|εκτύπ/i.test(oc)) continue;
+    if (/close|cancel|dismiss|_confirmCancel|hide|goBack/i.test(oc) ||
+        /^(✕|×|✖|⨯|Ακύρ|Κλείσ|Cancel|Close|Άκυρο|Πίσω|Back)/.test(txt)) {
+      c.click();
+      return;
+    }
+  }
+  // Overlays that dismiss when their backdrop is tapped.
+  const selfOc = el.getAttribute('onclick') || '';
+  if (/event\.target\s*===\s*this/.test(selfOc)) { el.click(); return; }
+  const cs = getComputedStyle(el);
+  if (selfOc && (cs.cursor === 'pointer' || cs.cursor === 'zoom-out')) { el.click(); return; }
+  // Last resort: hide static markup / remove a dynamically-added overlay node.
+  if (!el.id && el.parentElement === document.body) el.remove();
+  else el.style.display = 'none';
+}
+
+function _jpShowExitToast() {
+  let toast = document.getElementById('jpExitToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'jpExitToast';
+    toast.style.cssText = 'position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:rgba(20,20,20,0.96);color:#fff;border:1px solid rgba(201,168,76,0.6);border-radius:24px;padding:12px 20px;font-family:DM Mono,monospace;font-size:13px;letter-spacing:0.03em;z-index:1000000;box-shadow:0 6px 24px rgba(0,0,0,0.6);pointer-events:none;transition:opacity 0.2s;white-space:nowrap';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = (typeof lang !== 'undefined' && lang === 'el')
+    ? '← Σύρετε ξανά για έξοδο' : '← Swipe again to exit';
+  toast.style.opacity = '1';
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+}
+
+function _jpHandleBack() {
+  // 1) An overlay/modal is open → close it, stay in the app.
+  const ov = _jpTopOverlay();
+  if (ov) { _jpCloseOverlay(ov); _jpPushGuard(); return; }
+  // 2) Not on the Calc home tab → step back one tab (toward Calc).
+  const curEl = document.querySelector('.panel.active');
+  const curName = curEl ? curEl.id.replace('panel-', '') : 'calc';
+  if (curName !== 'calc') {
+    _jpNavBack = true;
+    if (_jpTabStack[_jpTabStack.length - 1] === curName) _jpTabStack.pop();
+    let target = _jpTabStack[_jpTabStack.length - 1] || 'calc';
+    if (target === curName) target = 'calc';
+    showPanel(target);
+    _jpNavBack = false;
+    _jpPushGuard();
+    return;
+  }
+  // 3) On Calc → confirm before the swipe is allowed to close the app.
+  if (_jpExitArmed) {
+    _jpExitArmed = false;
+    history.back();     // let the gesture through → the app closes
+    return;
+  }
+  _jpExitArmed = true;
+  _jpShowExitToast();
+  _jpPushGuard();
+  clearTimeout(_jpExitTimer);
+  _jpExitTimer = setTimeout(() => { _jpExitArmed = false; }, 2500);
+}
+
+function _jpInitBackGuard() {
+  if (_jpBackReady) return;
+  // Only guard where the accidental-close problem exists: installed/standalone PWAs
+  // and touch phones. Leaves a desktop browser's Back button working normally.
+  const standalone = (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches)) || navigator.standalone === true;
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (!standalone && !coarse) return;
+  _jpBackReady = true;
+  // Best-effort "continue where I was": reopen the last tab, unless we're following a
+  // deep link into a specific item. Uses the same code path as tapping the tab.
+  try {
+    const saved = localStorage.getItem('jpro_lastPanel');
+    const safe = ['calc', 'inventory', 'vendors', 'clients', 'sales', 'about'];
+    const deepLink = window._pendingDeepLinkItem || (location.hash && location.hash.startsWith('#item='));
+    if (saved && safe.indexOf(saved) !== -1 && !deepLink) {
+      const c = document.querySelector('.panel.active');
+      if ((c ? c.id.replace('panel-', '') : 'calc') !== saved) showPanel(saved);
+    }
+  } catch (e) {}
+  // Seed the back-stack from wherever we actually ended up.
+  const cur = document.querySelector('.panel.active');
+  const curName = cur ? cur.id.replace('panel-', '') : 'calc';
+  _jpTabStack.length = 0;
+  if (curName !== 'calc') _jpTabStack.push('calc');
+  _jpTabStack.push(curName);
+  _jpPushGuard();
+  window.addEventListener('popstate', _jpHandleBack);
 }
 
 // ─── METAL TOGGLE ─────────────────────────────────────────────────────────────
@@ -8113,6 +8261,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkDeepLinkHash();
   // Restore cart UI if items were persisted in sessionStorage
   if (quoteCart.length > 0) updateCartUI();
+  _jpInitBackGuard();
 });
 
 function toggleRateType(btn) {
@@ -14467,6 +14616,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.22', date: 'Ιούλιος 2026', items: [
+        '↩️ Το σάρωμα «πίσω» δεν κλείνει πια κατά λάθος την εφαρμογή: σε κινητά με χειρονομίες πλοήγησης (π.χ. Pixel), το σάρωμα από την άκρη της οθόνης προς τα μέσα έκλεινε αμέσως όλη την εφαρμογή — ακόμα κι ενώ καταχωρούσατε ένα είδος — και χανόταν η δουλειά σας. Τώρα το «πίσω» πρώτα κλείνει το ανοιχτό παράθυρο/φόρμα· αλλιώς σας πάει ένα βήμα πίσω (στην προηγούμενη καρτέλα)· και μόνο στην αρχική καρτέλα «Υπολογισμός» χρειάζεται δεύτερο σάρωμα για έξοδο, με το μήνυμα «Σύρετε ξανά για έξοδο». Ανοίγοντας ξανά την εφαρμογή, επιστρέφετε στην καρτέλα που είχατε ανοιχτή.'
+      ]},
       { version: 'v10.21', date: 'Ιούλιος 2026', items: [
         '✅ Αφαιρέθηκε η προσωρινή σήμανση «HD»: όλες οι 363 φωτογραφίες ανέβηκαν πλέον σε υψηλή ανάλυση, οπότε το πράσινο σήμα «HD» στις μικρογραφίες και το φίλτρο «HD Φωτό» (HD ✓ / Χωρίς HD) δεν χρειάζονται πια και αφαιρέθηκαν.'
       ]},
@@ -14496,9 +14648,6 @@ const ABOUT = {
       ]},
       { version: 'v10.13', date: 'Ιούλιος 2026', items: [
         '🏷️ Σοβαρή διόρθωση κωδικών με πέτρες: όταν ένα κόσμημα είχε πρώτη πέτρα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) ακολουθούμενη από άλλες πέτρες, ο κωδικός τυπωνόταν λάθος — με «+» αντί για «-» πριν τις πέτρες (π.χ. «KAL18S1.3+4xRUB» αντί «KAL18S1.3-4xRUB»). Έτσι, σαρώνοντας την ετικέτα, εμφανιζόταν «Κωδικός δεν βρέθηκε». Πλέον οι νέοι κωδικοί παράγονται σωστά ΚΑΙ οι ήδη τυπωμένες λάθος ετικέτες σαρώνονται κανονικά. (Αν επεξεργαστείτε/επανεκτυπώσετε ένα τέτοιο είδος, ο κωδικός διορθώνεται αυτόματα.)'
-      ]},
-      { version: 'v10.12', date: 'Ιούλιος 2026', items: [
-        '💎 Διόρθωση melee σε επεξεργασία είδους: παλαιότερα είδη με πέτρες melee (κωδικός με «t», π.χ. tZIR) έχαναν τη σήμανση melee όταν τα ανοίγατε για επεξεργασία — έτσι, αλλάζοντας π.χ. τη φωτογραφία, η εφαρμογή σας ζητούσε άσκοπα νέα ετικέτα και ο κωδικός γινόταν απλός (ZIR). Τώρα η σήμανση melee διαβάζεται σωστά από τον τυπωμένο κωδικό, δεν χάνεται στην επεξεργασία και δεν ζητείται περιττή επανεκτύπωση'
       ]},
           ]
   },
@@ -14582,6 +14731,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.22', date: 'Jul 2026', items: [
+        '↩️ The back-swipe no longer closes the app by accident: on gesture-navigation phones (e.g. Pixel), swiping in from the screen edge used to close the whole app in one stroke — even while you were entering an item — and you lost your work. Now "back" first closes any open window/form; otherwise it takes you one step back (to the previous tab); and only on the Calc home tab does a second swipe exit, with a "Swipe again to exit" message. Reopening the app also returns you to the tab you had open.'
+      ]},
       { version: 'v10.21', date: 'Jul 2026', items: [
         '✅ Removed the temporary "HD" mark: all 363 photos are now uploaded in high resolution, so the green "HD" badge on thumbnails and the "HD Photo" filter (HD ✓ / Needs HD) are no longer needed and have been removed.'
       ]},
@@ -14611,9 +14763,6 @@ const ABOUT = {
       ]},
       { version: 'v10.13', date: 'Jul 2026', items: [
         '🏷️ Important stone-code fix: when a piece had a first stone that was a Diamond with no carats (which isn\'t written into the code) followed by other stones, the code was generated wrong — with a "+" instead of the "-" that starts the stone section (e.g. "KAL18S1.3+4xRUB" instead of "KAL18S1.3-4xRUB"). Scanning that tag showed "Code not found". New codes are now generated correctly AND already-printed wrong tags scan fine again. (Editing/reprinting such an item auto-corrects its code.)'
-      ]},
-      { version: 'v10.12', date: 'Jul 2026', items: [
-        '💎 Fixed melee stones on item edit: older items with melee stones (code with a "t", e.g. tZIR) lost their melee marking when opened for editing — so just changing the photo made the app needlessly ask to print a new tag and the code dropped to plain (ZIR). The melee marking is now read correctly from the printed code, so it survives editing and no unnecessary reprint is prompted'
       ]},
           ]
   }
@@ -17499,7 +17648,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.21';
+const APP_VERSION = '10.22';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
