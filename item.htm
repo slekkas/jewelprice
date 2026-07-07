@@ -280,6 +280,14 @@ function formatSeqId(seqId, jewelryType) {
   return (JEWELRY_TYPE_PREFIX[jewelryType] || 'IT') + String(seqId).padStart(4, '0');
 }
 
+// Ref code as printed on the tag — item.refType freezes the prefix through a later
+// type change in the app, so this stays matching the physical tag. Legacy items with
+// no refType fall back to their live type (mirrors jewelprice.htm itemRefCode).
+function itemRefCode(item) {
+  if (!item || !item.seqId) return '';
+  return formatSeqId(item.seqId, item.refType || item.jewelryType);
+}
+
 function copyQr() {
   const code = document.getElementById('qrText').textContent;
   const btn  = document.getElementById('copyBtn');
@@ -350,7 +358,7 @@ function render(item, qr) {
     ? item.stonesDesc.split(' · ').map(s => s.trim().replace(/^melee\s+/i, '')).join(' · ')
     : '';
   if (stonesPublic)    rows += row('Stones', stonesPublic);
-  if (item.seqId)      rows += row('Ref.', formatSeqId(item.seqId, item.jewelryType));
+  if (item.seqId)      rows += row('Ref.', itemRefCode(item));
 
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qr);
 

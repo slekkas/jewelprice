@@ -5810,7 +5810,7 @@ async function confirmSale() {
       const _item1Calc = calcInvItemPrice(_saleInvItem);
       if (_item1Calc?.baseCost != null) _saleCost = _item1Calc.baseCost;
     }
-    if (_saleInvItem?.seqId) _saleSeqRef = formatSeqId(_saleInvItem.seqId, _saleInvItem.jewelryType);
+    if (_saleInvItem?.seqId) _saleSeqRef = itemRefCode(_saleInvItem);
   } else if (window._saleFromInvQr && _inventoryCache) {
     const _qrMatch = Object.values(_inventoryCache).find(it => it.qrCode === window._saleFromInvQr);
     if (_qrMatch?.purchaseCost) {
@@ -5819,7 +5819,7 @@ async function confirmSale() {
       const _qrCalc = calcInvItemPrice(_qrMatch);
       if (_qrCalc?.baseCost != null) _saleCost = _qrCalc.baseCost;
     }
-    if (_qrMatch?.seqId) _saleSeqRef = formatSeqId(_qrMatch.seqId, _qrMatch.jewelryType);
+    if (_qrMatch?.seqId) _saleSeqRef = itemRefCode(_qrMatch);
   }
   const _isCashSale = document.getElementById('saleCashToggle')?.classList.contains('cash-active') || false;
   // Upload sale photo if captured
@@ -5962,7 +5962,7 @@ async function confirmSale() {
           await saveInventoryItem(id, _inventoryCache[id]);
         }
         // Always create the sale record for this item
-        const _restSeqRef = item.seqId ? formatSeqId(item.seqId, item.jewelryType) : '';
+        const _restSeqRef = itemRefCode(item);
         // Derive cost: use purchaseCost if available, otherwise calculate from current prices
         const _restCalc = calcInvItemPrice(item);
         const _restCost = item.purchaseCost
@@ -7541,7 +7541,7 @@ function calculate() {
   // Attach seqRef and item description/type if this item is already in inventory
   if (_lastScannedInvEntry) {
     lastCalcResult.seqRef = _lastScannedInvEntry.seqId
-      ? formatSeqId(_lastScannedInvEntry.seqId, _lastScannedInvEntry.jewelryType)
+      ? itemRefCode(_lastScannedInvEntry)
       : null;
     lastCalcResult.descEl = _lastScannedInvEntry.descEl || _lastScannedInvEntry.description || '';
     lastCalcResult.descEn = _lastScannedInvEntry.descEn || _lastScannedInvEntry.description || '';
@@ -8930,7 +8930,7 @@ function lookupCode(raw) {
         _inventoryCache = await loadInventory();
       }
       const found = Object.entries(_inventoryCache || {}).find(([, it]) =>
-        it.seqId && formatSeqId(it.seqId, it.jewelryType) === refNorm
+        it.seqId && itemRefCode(it) === refNorm
       );
       if (found) {
         const [fbKey, item] = found;
@@ -9750,7 +9750,7 @@ async function runStonePriceAudit() {
   const rows = candidates.map(c => {
     _stoneAuditCandidates[c.id] = c;
     const it = c.it;
-    const ref = it.seqId ? formatSeqId(it.seqId, it.jewelryType) : (it.qrCode || it.code || c.id);
+    const ref = it.seqId ? itemRefCode(it) : (it.qrCode || it.code || c.id);
     const desc = _itemDesc(it) || (it.jewelryType ? invTypeLabel(it.jewelryType) : '') || ref;
     const cacheTag = c.cacheMatch ? ` · ${lang==='el'?'ίδιο με cache':'= cache'}` : '';
     return `<div style="border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,0.02)">
@@ -9905,6 +9905,54 @@ function formatSeqId(seqId, jewelryType) {
   if (!seqId) return '';
   const prefix = JEWELRY_TYPE_PREFIX[jewelryType] || 'IT';
   return prefix + String(seqId).padStart(4, '0');
+}
+
+// The reference code as it appears on the item's PRINTED tag. The prefix is
+// "frozen" via item.refType the moment an item's type is changed, so editing an
+// item's jewelryType (e.g. Necklace→Cross) does NOT silently rewrite the code
+// that's already on the physical tag / in customers' hands. Legacy items have no
+// refType and fall back to their live jewelryType — identical to the old behaviour
+// until the first type change. The code only re-syncs when the user deliberately
+// reprints the tag and confirms (see _withRefSync).
+function itemRefCode(item) {
+  if (!item || !item.seqId) return '';
+  return formatSeqId(item.seqId, item.refType || item.jewelryType);
+}
+
+// True when the printed ref-code prefix no longer matches the item's current type
+// (i.e. the type was changed after the tag was printed and never re-synced).
+function refTypeMismatch(item) {
+  return !!(item && item.seqId && item.refType && item.refType !== item.jewelryType);
+}
+
+// Called at the moment a physical tag is (re)printed. If the item's type changed
+// since the tag was made, offer to bring the printed ref code back in line with the
+// current type before printing: "Update" re-syncs the frozen code (so the app, search
+// and public website all follow) and prints the new code; "Keep" prints the existing
+// frozen code unchanged. No mismatch → prints straight away. doPrint(refCode) performs
+// the actual print with whichever code was chosen.
+function _withRefSync(id, item, doPrint) {
+  const cur = itemRefCode(item);
+  if (!refTypeMismatch(item)) { doPrint(cur); return; }
+  const live = formatSeqId(item.seqId, item.jewelryType);
+  const isEl = lang === 'el';
+  const typeName = invTypeLabel(item.jewelryType) || item.jewelryType;
+  showConfirm(
+    isEl
+      ? `Το είδος είναι τώρα «${typeName}» αλλά ο κωδικός αναφοράς της ετικέτας είναι ${cur}. Να ενημερωθεί σε ${live} και να εκτυπωθεί;`
+      : `This item is now a ${typeName} but its tag reference code is ${cur}. Update it to ${live} and print?`,
+    async () => {
+      item.refType = item.jewelryType;    // codes match again from now on
+      _inventoryCache[id] = item;
+      await saveInventoryItem(id, item);   // also mirrors the new code to the public feed
+      renderInvList();
+      doPrint(itemRefCode(item));          // == live
+    },
+    () => doPrint(cur),                    // keep the old code, but still print it
+    { danger: false,
+      okLabel: isEl ? 'Ενημέρωση & Εκτύπωση' : 'Update & Print',
+      cancelLabel: isEl ? ('Διατήρηση ' + cur) : ('Keep ' + cur) }
+  );
 }
 
 async function getNextSeqId() {
@@ -10265,7 +10313,7 @@ async function saveInventoryItem(id, item) {
 // /jewelprice_public containing ONLY the safe fields below. Firebase rules make
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
-const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType',
+const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
   'metal','karat','goldColor','weight','gender','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
@@ -11207,7 +11255,7 @@ function renderInvList() {
       if (f.dateTo && relevantTs > new Date(f.dateTo).getTime() + 86399999) return false;
     }
     if (searchQuery) {
-      const _refCode = item.seqId ? formatSeqId(item.seqId, item.jewelryType).toLowerCase() : '';
+      const _refCode = item.seqId ? itemRefCode(item).toLowerCase() : '';
       const _typeLabel = item.jewelryType ? (invTypeLabel(item.jewelryType) || '').toLowerCase() : '';
       const hay = [item.description, item.descEl, item.descEn, item.vendorCode, item.qrCode, item.code, item.vendorName, item.catName, item.stonesDesc, _refCode, _typeLabel]
         .filter(Boolean).join(' ').toLowerCase();
@@ -11419,7 +11467,7 @@ function renderInvList() {
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
         ${vendorCodeLine ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light);opacity:0.75;letter-spacing:0.08em;margin-bottom:3px">${vendorCodeLine}</div>` : ''}
-        ${item.seqId ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:0.1em;margin-bottom:2px"># ${formatSeqId(item.seqId, item.jewelryType)}</div>` : ''}
+        ${item.seqId ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:0.1em;margin-bottom:2px"># ${itemRefCode(item)}</div>` : ''}
         <div class="inv-card-meta">${metaLine}${vendorLine ? '<br>' + vendorLine : ''}${stonesLine ? '<br>' + stonesLine : ''}${dateLine ? '<br>' + dateLine : ''}</div>
         ${_isEmpInv ? '' : `<div class="inv-card-price">${priceStr}</div>`}
         ${appreciationHtml}
@@ -12690,7 +12738,16 @@ RETAIL: \u20ac[integer]`;
     item.descEl = _editDescEl;
     item.descEn = _editDescEn;
     item.description = lang === 'el' ? (_editDescEl || _editDescEn) : (_editDescEn || _editDescEl);
-    item.jewelryType = document.getElementById('invEditTypeSelect')?.value || '';
+    const _prevType = item.jewelryType;
+    const _newType = document.getElementById('invEditTypeSelect')?.value || '';
+    // Freeze the printed ref-code prefix the first time the type changes, so the
+    // code already on the physical tag (e.g. NK0342) stays put even though the item
+    // is now a different type. It only re-syncs when the tag is deliberately
+    // reprinted (see _withRefSync). Legacy items get their old prefix captured here.
+    if (item.seqId && _newType !== _prevType && !item.refType && _prevType) {
+      item.refType = _prevType;
+    }
+    item.jewelryType = _newType;
     item.vendorCode = (document.getElementById('invEditVendorCodeInput')?.value || '').trim().toUpperCase();
     item.handmade = document.getElementById('invEditHandmadeToggle')?.style.opacity === '1';
     item.gender = document.getElementById('invEditGenderSelect')?.value || 'unisex';
@@ -12892,17 +12949,19 @@ function _promptStoneTagReprint(id, item, newQR) {
       btn.disabled = false;
       return;
     }
-    const refCode = item.seqId ? formatSeqId(item.seqId, item.jewelryType) : null;
     const dashIdx = newQR.indexOf('-');
     const baseQR = dashIdx !== -1 ? newQR.slice(0, dashIdx) : newQR;
     const stoneStr = dashIdx !== -1 ? newQR.slice(dashIdx + 1) : '';
     const stoneParts = stoneStr ? stoneStr.split('+').filter(Boolean) : [];
     const lines = [baseQR];
     stoneParts.forEach((p, i) => lines.push((i === 0 ? '-' : '+') + p));
-    const data = { fullQR: newQR, baseQR, greekCode: baseQR, lines, hasStones: stoneParts.length > 0, refCode };
-    await printLabel(data, statusEl || document.createElement('div'));
-    renderInvList();
-    setTimeout(() => overlay.remove(), 1200);
+    // Printing a fresh tag — offer to re-sync the ref code if the type changed since.
+    _withRefSync(id, item, async (refCode) => {
+      const data = { fullQR: newQR, baseQR, greekCode: baseQR, lines, hasStones: stoneParts.length > 0, refCode };
+      await printLabel(data, statusEl || document.createElement('div'));
+      renderInvList();
+      setTimeout(() => overlay.remove(), 1200);
+    });
   }
 
   document.getElementById('stoneReprintPrintBtn').addEventListener('click', function() {
@@ -13570,7 +13629,7 @@ function invRestock(id) {
   const karatLabel = item.metal === 'gold' ? item.karat + 'K' : item.karat;
   const currentWeight = parseFloat(item.weight) || 0;
 
-  const _oldRef = item.seqId ? formatSeqId(item.seqId, item.jewelryType) : null;
+  const _oldRef = item.seqId ? itemRefCode(item) : null;
 
   // Prep QR regeneration — the code encodes weight (e.g. KAL14KK3.1), so a new weight needs a new code.
   // Extract the stone/suffix part directly from the existing code (not from the stored weight — the
@@ -13695,29 +13754,32 @@ function invRestock(id) {
     }
     // Handle seqId: keep old ref or assign a new one
     if (_oldRef && keepRef) {
-      // Keep existing seqId (already copied by Object.assign)
+      // Keep existing seqId (already copied by Object.assign) — and its frozen refType,
+      // so a kept-code restock still reflects the original printed tag.
     } else {
       newItem.seqId = await getNextSeqId();
+      // A brand-new number must derive its code from the CURRENT type, not inherit a
+      // stale frozen prefix copied from the source item.
+      delete newItem.refType;
     }
     _inventoryCache[newId] = newItem;
     await saveInventoryItem(newId, newItem);
-    if (afterSave) await afterSave(newItem);
+    if (afterSave) await afterSave(newItem, newId);
     showToast(t('invRestockSaved'));
     document.getElementById('invRestockOverlay')?.remove();
     renderInvList();
   }
 
-  function buildDataFromItem(it) {
+  function buildDataFromItem(it, refCode) {
     // Reconstruct a label data object from the stored item's qrCode
     const qr = it.qrCode || it.code || '';
-    const refCode = it.seqId ? formatSeqId(it.seqId, it.jewelryType) : null;
     return {
       fullQR: qr,
       baseQR: qr,
       greekCode: qr,
       lines: [qr],
       hasStones: false,
-      refCode
+      refCode: refCode !== undefined ? refCode : itemRefCode(it)
     };
   }
 
@@ -13725,9 +13787,13 @@ function invRestock(id) {
     this.disabled = true;
     const statusEl = document.getElementById('invRestockStatus');
     if (statusEl) { statusEl.textContent = t('invRestockPrinting'); statusEl.style.color = 'var(--text-muted)'; }
-    await doRestock(async (newItem) => {
-      const data = buildDataFromItem(newItem);
-      await printLabel(data, statusEl || document.createElement('div'));
+    await doRestock(async (newItem, newId) => {
+      // Only a kept-code restock can carry a type/code mismatch; a fresh number
+      // already derives from the current type, so this prints without a prompt.
+      _withRefSync(newId, newItem, async (refCode) => {
+        const data = buildDataFromItem(newItem, refCode);
+        await printLabel(data, statusEl || document.createElement('div'));
+      });
     });
   });
 
@@ -13867,14 +13933,19 @@ function invPrintTagFromCard(id) {
   } else {
     _stoneParts.forEach((p, i) => _lines.push((i === 0 ? '-' : '+') + p));
   }
-  const _refCode = item.seqId ? formatSeqId(item.seqId, item.jewelryType) : null;
+  const _refCode = item.seqId ? itemRefCode(item) : null;
   const data = { fullQR: qr, baseQR: _baseQR, greekCode: _baseQR, lines: _lines, hasStones: _stoneParts.length > 0 || _isOtherQR, refCode: _refCode };
 
   document.getElementById('invPrintTagPrintBtn').addEventListener('click', async function() {
     this.disabled = true;
     const statusEl = document.getElementById('invPrintTagStatus');
-    await printLabel(data, statusEl);
-    setTimeout(() => { this.disabled = false; }, 2000);
+    const _btn = this;
+    // Reprinting the tag — offer to re-sync the ref code first if the type changed.
+    _withRefSync(id, item, async (refCode) => {
+      data.refCode = refCode;
+      await printLabel(data, statusEl);
+      setTimeout(() => { _btn.disabled = false; }, 2000);
+    });
   });
 
   document.getElementById('invPrintTagCopyBtn').addEventListener('click', async function() {
@@ -14049,7 +14120,7 @@ async function refCodeExists(refNorm) {
     _inventoryCache = await loadInventory();
   }
   return Object.values(_inventoryCache || {}).some(it =>
-    it.seqId && formatSeqId(it.seqId, it.jewelryType) === refNorm);
+    it.seqId && itemRefCode(it) === refNorm);
 }
 
 function startTextDecode(video, status) {
@@ -14411,6 +14482,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.20', date: 'Ιούλιος 2026', items: [
+        '🏷️ Ο κωδικός αναφοράς «κλειδώνει» στην ετικέτα: μέχρι τώρα, αν άλλαζες τον τύπο ενός είδους (π.χ. από Κολιέ σε Σταυρό), ο κωδικός αναφοράς άλλαζε αυτόματα παντού (NK0342 → CR0342) — αλλά η τυπωμένη ετικέτα και η αναζήτηση στην ιστοσελίδα έδειχναν ακόμα το παλιό NK0342, οπότε ο πελάτης δεν έβρισκε το είδος. Πλέον, μόλις τυπωθεί μια ετικέτα, ο κωδικός της μένει σταθερός: αλλάζεις ελεύθερα τον τύπο και ο κωδικός παραμένει NK0342 σε εφαρμογή, αναζήτηση, σάρωση κειμένου και ιστοσελίδα. Καμία ανάγκη επανεκτύπωσης.',
+        '🖨️ Ερώτηση μόνο όταν τυπώνεις νέα ετικέτα: αν το είδος έχει αλλάξει τύπο και πατήσεις «Εκτύπωση Ετικέτας» (π.χ. φθαρμένη ετικέτα ή ανανέωση αποθέματος), η εφαρμογή σε ρωτάει: «Το είδος είναι τώρα Σταυρός αλλά ο κωδικός είναι NK0342 — να αλλάξει σε CR0342 και να εκτυπωθεί;». Επιλέγεις «Ενημέρωση & Εκτύπωση» ή «Διατήρηση NK0342». Το τετράγωνο QR δεν αλλάζει ποτέ — η σάρωση δουλεύει σε κάθε περίπτωση.'
+      ]},
       { version: 'v10.19', date: 'Ιούλιος 2026', items: [
         '💎 Σημαντική διόρθωση τιμών πετρών: η εφαρμογή ΔΕΝ προσθέτει πια μόνη της τιμή σε πέτρα που αφήσατε χωρίς τιμή. Παλιότερα, ένα είδος με πέτρα (π.χ. μαργαριτάρι) που το είχατε αφήσει χωρίς τιμή, «δανειζόταν» αυτόματα μια τιμή από την προσωρινή μνήμη πετρών — αλλάζοντας κρυφά την τελική τιμή του κοσμήματος και φουσκώνοντας την «υπεραξία». Πλέον, κενή τιμή πέτρας μετράει ως 0€. Οι τιμές που καταχωρήσατε εσείς ΔΕΝ επηρεάστηκαν ποτέ (η παλιά συμπεριφορά άγγιζε μόνο κενές τιμές). Τις πέτρες τις τιμολογείτε χειροκίνητα ή με το κουμπί ✨ στην Επεξεργασία.',
         '🔍 Νέο εργαλείο «Έλεγχος Τιμών Πετρών» (Ρυθμίσεις → προσωρινό): εντοπίζει τα είδη που επηρεάστηκαν από το παραπάνω σφάλμα, ώστε να τα ελέγξετε ένα-ένα. Με ένα πάτημα μηδενίζει την τιμή της πέτρας και διορθώνει την υπεραξία — πάντα με δική σας επιβεβαίωση. Θα αφαιρεθεί όταν ολοκληρωθεί το «σκούπισμα».'
@@ -14612,6 +14687,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.20', date: 'Jul 2026', items: [
+        '🏷️ The reference code now "locks" to the printed tag: until now, changing an item\'s type (e.g. Necklace → Cross) silently rewrote its reference code everywhere (NK0342 → CR0342) — but the printed tag and the website search still showed the old NK0342, so a customer couldn\'t find the item. Now, once a tag is printed, its code stays put: you can freely change the type and the code remains NK0342 in the app, in search, in text-scan and on the public website. No reprint needed.',
+        '🖨️ You\'re only asked when you print a new tag: if an item\'s type has changed and you press "Print Tag" (e.g. a damaged tag or a restock), the app asks: "This item is now a Cross but its code is NK0342 — update it to CR0342 and print?". You choose "Update & Print" or "Keep NK0342". The QR square itself never changes, so scanning works either way.'
+      ]},
       { version: 'v10.19', date: 'Jul 2026', items: [
         '💎 Important stone-pricing fix: the app no longer adds a price to a stone you left unpriced. Before, an item with a stone (e.g. a pearl) that you left with no price would silently "borrow" a price from the stone-price cache — quietly changing the piece\'s final price and inflating its "gain %". Now a blank stone price counts as €0. Prices you entered yourself were never affected (the old behavior only ever touched blank ones). You price stones manually or with the ✨ Estimate button in Edit.',
         '🔍 New "Stone Price Audit" tool (Settings → temporary): finds the items affected by the bug above so you can review them one by one. One tap sets the stone price to €0 and fixes the gain — always with your confirmation. It will be removed once the cleanup is done.'
@@ -14922,7 +15001,7 @@ async function markCartAsSold() {
     const found = Object.entries(_inventoryCache).find(([, it]) =>
       it.status === 'in_stock' && !it.isBulk && (
         (it.qrCode||it.code||'').trim().toUpperCase() === qrNorm ||
-        (r.seqRef && it.seqId && formatSeqId(it.seqId, it.jewelryType) === r.seqRef)
+        (r.seqRef && it.seqId && itemRefCode(it) === r.seqRef)
       )
     );
     return found ? { id: found[0], item: found[1], price: parseFloat(r.finalPrice || 0) } : null;
@@ -17615,7 +17694,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.19';
+const APP_VERSION = '10.20';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18781,7 +18860,7 @@ async function invShareToTeam(qrInput) {
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">📤 ${t('notifSendTitle')}</div>
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);margin-bottom:4px">${isSingleItem ? (firstItem && firstItem.seqId ? formatSeqId(firstItem.seqId, firstItem.jewelryType) + ' · ' : '') + qrCodes[0] : qrCodes.length + (lang==='el'?' αντικείμενα επιλεγμένα':' items selected')}</div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);margin-bottom:4px">${isSingleItem ? (firstItem && firstItem.seqId ? itemRefCode(firstItem) + ' · ' : '') + qrCodes[0] : qrCodes.length + (lang==='el'?' αντικείμενα επιλεγμένα':' items selected')}</div>
       ${itemDesc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-bottom:18px">${itemDesc}</div>` : '<div style="margin-bottom:18px"></div>'}
 
       <div style="margin-bottom:18px">${memberRows}</div>
@@ -18828,7 +18907,7 @@ async function notifDoSend(qrCodeArg, itemDesc) {
   const _notifFirstRef = (() => {
     if (!_inventoryCache || qrCodes.length === 0) return '';
     const _fi = Object.values(_inventoryCache).find(it => (it.qrCode||it.code||'') === qrCodes[0]);
-    return _fi && _fi.seqId ? formatSeqId(_fi.seqId, _fi.jewelryType) : '';
+    return _fi && _fi.seqId ? itemRefCode(_fi) : '';
   })();
   const payload = { fromName, qrCode: qrCodes[0], qrCodes, itemDesc, note, sentAt, seqRef: _notifFirstRef };
   let sent = 0;
@@ -19115,7 +19194,7 @@ async function buildSharePDF(items, includePrice, mode) {
     // Ref code — small, below all content
     if (item.seqId) {
       setRegular(7.5, 150, 130, 80);
-      const _refLabel = mode === 'catalog' ? formatSeqId(item.seqId, item.jewelryType) : 'Ref. ' + formatSeqId(item.seqId, item.jewelryType);
+      const _refLabel = mode === 'catalog' ? itemRefCode(item) : 'Ref. ' + itemRefCode(item);
       doc.text(_refLabel, textX, curTextY);
     }
 
@@ -19200,7 +19279,7 @@ async function renderSalesSearch(query) {
         parts.push(invItem.descEn || '');
         parts.push(invItem.vendorName || '');
         parts.push(invItem.qrCode || '');
-        if (invItem.seqId) parts.push(formatSeqId(invItem.seqId, invItem.jewelryType));
+        if (invItem.seqId) parts.push(itemRefCode(invItem));
       }
     }
     return parts.some(p => p.toLowerCase().includes(q));
@@ -19253,7 +19332,7 @@ async function renderSalesSearch(query) {
       if (s.customer) metaParts.push('👤 ' + s.customer);
       if (s.vendor) metaParts.push(s.vendor);
       if (s.note) metaParts.push(s.note);
-      if (invItem && invItem.seqId) metaParts.push('# ' + formatSeqId(invItem.seqId, invItem.jewelryType));
+      if (invItem && invItem.seqId) metaParts.push('# ' + itemRefCode(invItem));
       if (invItem && invItem.vendorCode) metaParts.push('🏷️ ' + invItem.vendorCode);
       if (invItem && invItem.stonesDesc) metaParts.push('💎 ' + stonesDescDisplay(invItem.stonesDesc));
 

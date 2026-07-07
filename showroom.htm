@@ -1309,6 +1309,15 @@ function formatSeqId(seqId, jewelryType) {
   return prefix + String(seqId).padStart(4, '0');
 }
 
+// The ref code exactly as printed on the physical tag. item.refType "freezes" the
+// prefix when the item's type is changed in the app, so the code shown/searched here
+// keeps matching what a customer reads off the tag. Legacy items have no refType and
+// fall back to their live type (mirrors jewelprice.htm itemRefCode).
+function itemRefCode(item) {
+  if (!item || !item.seqId) return '';
+  return formatSeqId(item.seqId, item.refType || item.jewelryType);
+}
+
 // ─── JEWELRY TYPE TRANSLATIONS (mirrors jewelprice.htm INV_JEWELRY_TYPES) ───────
 const JEWELRY_TYPE_LABELS = {
   ring:      { el: 'Δαχτυλίδι',       en: 'Ring' },
@@ -2013,7 +2022,7 @@ let _sharedRefs = (() => {
 })();
 
 function _itemShareToken(item) {
-  if (item.seqId) return formatSeqId(item.seqId, item.jewelryType).toUpperCase();
+  if (item.seqId) return itemRefCode(item).toUpperCase();
   return (item.qrCode || '').toUpperCase();
 }
 
@@ -2080,7 +2089,7 @@ function applyFilters() {
     if (activeFilters.handmade && !item.handmade) return false;
     // Search filter
     if (searchQuery) {
-      const refCode = item.seqId ? formatSeqId(item.seqId, item.jewelryType).toLowerCase() : '';
+      const refCode = item.seqId ? itemRefCode(item).toLowerCase() : '';
       const numOnly = item.seqId ? String(item.seqId) : '';
       const typeRaw = (item.jewelryType || '').toLowerCase();
       const hay = [
@@ -2132,7 +2141,7 @@ function renderGrid() {
         <div class="card-type">${typeLabel(item.jewelryType)}</div>
         <div class="card-name">${name}</div>
         <div class="card-tags">${tags.join('')}</div>
-        ${item.seqId ? `<div class="card-ref">${formatSeqId(item.seqId, item.jewelryType)}</div>` : ''}
+        ${item.seqId ? `<div class="card-ref">${itemRefCode(item)}</div>` : ''}
       </div>
       <div class="card-select-badge">
         <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
@@ -2227,7 +2236,7 @@ function openLightbox(key) {
     <div class="lb-detail-col">
       ${rows}
       ${stonesHtml}
-      ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${formatSeqId(item.seqId, item.jewelryType)}</span></div>` : ''}
+      ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${itemRefCode(item)}</span></div>` : ''}
     </div>
   `;
 
@@ -2316,7 +2325,7 @@ function renderCompare(items) {
       <div class="compare-name">${name}</div>
       ${rows}
       ${stonesHtml}
-      ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${formatSeqId(item.seqId, item.jewelryType)}</span></div>` : ''}
+      ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${itemRefCode(item)}</span></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -2367,7 +2376,7 @@ async function submitInquiry() {
   const items = [...selected].map(k => allItems.find(i => i._key === k)).filter(Boolean);
   const itemList = items.map(i => {
     const qr = encodeURIComponent(i.qrCode||'');
-    const ref = i.seqId ? formatSeqId(i.seqId, i.jewelryType) : '';
+    const ref = i.seqId ? itemRefCode(i) : '';
     const link = `https://slekkas.github.io/jewelprice/item.htm?qr=${qr}`;
     return `• ${getLabel(i)}${ref ? ' [' + ref + ']' : ''}\n  View item: ${link}`;
   }).join('\n\n');
