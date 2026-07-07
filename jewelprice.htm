@@ -3971,27 +3971,45 @@ function adjustCalcPadding() {
 // On gesture-navigation phones (e.g. Pixel), the edge back-swipe used to exit the
 // installed PWA in a single stroke — because switching tabs and opening modals
 // never added entries to the browser history, so the very first "back" popped the
-// app's only history entry and closed it. We keep one guard history entry alive and
-// intercept every back gesture: it first closes an open overlay/modal, otherwise
-// steps back one tab toward Calc, and only on the Calc home tab does a *second*
-// swipe actually exit (after a "swipe again to exit" confirmation toast).
+// app's only history entry and closed it.
+//
+// The reliable fix is to make the browser's history literally mirror the app's tab
+// path: we push one real history entry PROACTIVELY on every forward tab change, and
+// push a single permanent "home" guard once at startup. A back gesture then just
+// consumes a pre-existing entry — we never depend on re-pushing history *during* a
+// back gesture (that is unreliable on Android Chrome and was the source of the app
+// closing with no warning). `_jpFrames` is our own mirror of the pushed tab entries;
+// its length IS the current depth, so we always know whether a back is a tab-step or
+// the final exit — regardless of what the browser reports in `history.state`.
+//   • back with a modal open  → close the modal (re-push once to keep depth in sync)
+//   • back with tab frames     → pop one, return to the previous tab
+//   • back at home (no frames) → show "swipe again to exit"; a second swipe exits
 let _jpBackReady = false;
 let _jpExitArmed = false;
 let _jpExitTimer = null;
 let _jpNavBack = false;                 // true while WE drive showPanel from a back gesture
-const _jpTabStack = ['calc'];           // visited tabs; Calc is the home floor
+let _jpFrames = [];                     // one entry per pushed forward tab-step; holds the return tab
 
-function _jpPushGuard() {
-  try { history.pushState({ jpGuard: true }, ''); } catch (e) {}
+function _jpPush() {
+  try { history.pushState({ jp: 1 }, ''); } catch (e) {}
+}
+function _jpSaveTab(name) {
+  try { localStorage.setItem('jpro_lastPanel', name); } catch (e) {}
+}
+function _jpCurTab() {
+  const c = document.querySelector('.panel.active');
+  return c ? c.id.replace('panel-', '') : 'calc';
 }
 
-// Record forward tab navigation so the back gesture can retrace it. Called from showPanel.
+// Called from the top of showPanel. On a genuine forward tab change we push a real
+// history entry and remember the tab we came from, so back can return to it.
 function _jpTrackPanel(name) {
-  if (_jpNavBack) return;               // don't record our own back-steps
-  if (_jpTabStack[_jpTabStack.length - 1] !== name) _jpTabStack.push(name);
-  if (_jpTabStack.length > 20) _jpTabStack.splice(0, _jpTabStack.length - 20);
-  // Remember the tab so a genuine reload/reopen lands where the user left off.
-  try { localStorage.setItem('jpro_lastPanel', name); } catch (e) {}
+  if (!_jpBackReady || _jpNavBack) return;   // ignore until armed / during our own back-steps
+  const prev = _jpCurTab();                  // DOM hasn't switched yet at this point
+  _jpSaveTab(name);
+  if (name === prev) return;
+  _jpFrames.push(prev);
+  _jpPush();
 }
 
 // Find the topmost currently-open full-screen overlay/modal (static markup or one
@@ -4051,27 +4069,26 @@ function _jpShowExitToast() {
     ? '← Σύρετε ξανά για έξοδο' : '← Swipe again to exit';
   toast.style.opacity = '1';
   clearTimeout(toast._hideTimer);
-  toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+  toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2200);
 }
 
 function _jpHandleBack() {
-  // 1) An overlay/modal is open → close it, stay in the app.
+  // 1) An overlay/modal is open → close it and re-push one entry so the tab depth we
+  //    just consumed is restored (modals don't have their own frame).
   const ov = _jpTopOverlay();
-  if (ov) { _jpCloseOverlay(ov); _jpPushGuard(); return; }
-  // 2) Not on the Calc home tab → step back one tab (toward Calc).
-  const curEl = document.querySelector('.panel.active');
-  const curName = curEl ? curEl.id.replace('panel-', '') : 'calc';
-  if (curName !== 'calc') {
+  if (ov) { _jpCloseOverlay(ov); _jpPush(); return; }
+  // 2) Tab frames remain → return to the previous tab. No re-push: we consumed a real
+  //    frame that we pushed proactively on the way in.
+  if (_jpFrames.length) {
     _jpNavBack = true;
-    if (_jpTabStack[_jpTabStack.length - 1] === curName) _jpTabStack.pop();
-    let target = _jpTabStack[_jpTabStack.length - 1] || 'calc';
-    if (target === curName) target = 'calc';
-    showPanel(target);
+    const ret = _jpFrames.pop();
+    showPanel(ret);
     _jpNavBack = false;
-    _jpPushGuard();
+    _jpSaveTab(ret);
+    _jpExitArmed = false;
     return;
   }
-  // 3) On Calc → confirm before the swipe is allowed to close the app.
+  // 3) At the home floor → confirm before the swipe is allowed to close the app.
   if (_jpExitArmed) {
     _jpExitArmed = false;
     history.back();     // let the gesture through → the app closes
@@ -4079,9 +4096,9 @@ function _jpHandleBack() {
   }
   _jpExitArmed = true;
   _jpShowExitToast();
-  _jpPushGuard();
+  _jpPush();            // re-arm the home guard so the confirming swipe has an entry to pop
   clearTimeout(_jpExitTimer);
-  _jpExitTimer = setTimeout(() => { _jpExitArmed = false; }, 2500);
+  _jpExitTimer = setTimeout(() => { _jpExitArmed = false; }, 3000);
 }
 
 function _jpInitBackGuard() {
@@ -4092,25 +4109,22 @@ function _jpInitBackGuard() {
     window.matchMedia('(display-mode: fullscreen)').matches)) || navigator.standalone === true;
   const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   if (!standalone && !coarse) return;
-  _jpBackReady = true;
   // Best-effort "continue where I was": reopen the last tab, unless we're following a
-  // deep link into a specific item. Uses the same code path as tapping the tab.
+  // deep link into a specific item. Done BEFORE arming so it pushes no frames.
   try {
     const saved = localStorage.getItem('jpro_lastPanel');
     const safe = ['calc', 'inventory', 'vendors', 'clients', 'sales', 'about'];
     const deepLink = window._pendingDeepLinkItem || (location.hash && location.hash.startsWith('#item='));
-    if (saved && safe.indexOf(saved) !== -1 && !deepLink) {
-      const c = document.querySelector('.panel.active');
-      if ((c ? c.id.replace('panel-', '') : 'calc') !== saved) showPanel(saved);
+    if (saved && safe.indexOf(saved) !== -1 && !deepLink && saved !== _jpCurTab()) {
+      showPanel(saved);
     }
   } catch (e) {}
-  // Seed the back-stack from wherever we actually ended up.
-  const cur = document.querySelector('.panel.active');
-  const curName = cur ? cur.id.replace('panel-', '') : 'calc';
-  _jpTabStack.length = 0;
-  if (curName !== 'calc') _jpTabStack.push('calc');
-  _jpTabStack.push(curName);
-  _jpPushGuard();
+  _jpBackReady = true;
+  _jpFrames = [];
+  _jpPush();                               // permanent home-floor guard (frames empty ⇒ at home)
+  // If we opened onto a non-Calc tab, seed one frame so the first back returns to Calc.
+  if (_jpCurTab() !== 'calc') { _jpFrames.push('calc'); _jpPush(); }
+  _jpSaveTab(_jpCurTab());
   window.addEventListener('popstate', _jpHandleBack);
 }
 
