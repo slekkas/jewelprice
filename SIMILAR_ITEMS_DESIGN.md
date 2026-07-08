@@ -55,14 +55,25 @@ today — the feature is purely additive and legacy items are untouched.
 | Field          | Type              | Meaning                                                        |
 |----------------|-------------------|---------------------------------------------------------------|
 | `groupId`      | string (optional) | Shared id for all pieces of one design. Absent = ungrouped.   |
-| `variant`      | string (optional) | Variant attribute, Phase 2 — currently **color** (e.g. `pink`).|
+| `color`        | string (optional) | **General field on ALL items** (single or grouped). Replaces manually-typed color in the description; filterable/searchable; doubles as the grouping variant that splits colored groups in the showroom (§8). |
 | `seqId`        | existing          | Per-piece sequence. Pieces in a batch may share one, or not.  |
 | `weight`       | existing          | Per-piece, exact. Drives QR and gain.                         |
 | `qrCode`       | existing          | Per-piece, **unique** (encodes weight → naturally differs).   |
 
 Nothing about the sale record, QR format, or `PUBLIC_SAFE_FIELDS` needs to change for
-Phase 1 **except** adding `groupId` (and later `variant`) to `PUBLIC_SAFE_FIELDS` so the
-showroom can group by it.
+Phase 1 **except** adding `groupId` and `color` to `PUBLIC_SAFE_FIELDS` (so the showroom
+can group by `groupId` and display/split by `color`).
+
+**`color` is a first-class field independent of grouping.** It is added to all three item
+forms (label creation, scan-to-inventory, edit) in Phase 1 and applies to single items too
+— it replaces the color the owner currently types by hand into the description and makes
+color filterable/searchable in the app (and shown in the showroom). Grouped colored items
+(§8) simply reuse this same field as the split dimension.
+
+**Grouping never changes the item count.** It is display-only — no record is deleted,
+merged, or combined. 407 items grouped in any way remain 407 items; only the number of
+*cards* shown changes. (Same principle as multi-item sales: 3 items sold together are still
+3 records, shown as one row.)
 
 ### 3.3 The canonical / representative piece
 
@@ -158,6 +169,18 @@ one normally, then group them:
   of them still resolves; the collapsed card shows the representative's code.
 - Reprinting to unify the printed code is **optional**, offered but not forced.
 
+### 6.4 Adding one more to an existing group (the "third piece later" case)
+
+Once a group exists, a new piece can join it **three ways** — all end with the group's count
++1, no limit on group size:
+
+1. **At tag time:** Calc → enter values → Tag screen shows an **"Add to existing group?"**
+   selector → pick the group. Best when you're pricing it anyway.
+2. **"＋ Add more" on the group card:** open the group, weigh-tap the new piece straight in
+   (this is §6.2 restock). Fastest when the group is in front of you.
+3. **"Group these" again:** add it as a normal single item, then multi-select it **plus the
+   group card** → Group these folds it in.
+
 ## 7. Selling
 
 ### 7.1 Sell one piece
@@ -192,16 +215,17 @@ like a sold single item. The sold pieces remain in Sales. (Optional future nicet
 Unchanged. Deleting a member's sale restores that one piece to in-stock (existing logic),
 so the group's count goes back up by 1.
 
-## 8. Color / variant support (Phase 2)
+## 8. Color grouping (Phase 2 — builds on the Phase 1 `color` field)
 
 The pink-cross vs blue-cross baby bracelets are the **same design, different color**: grouped
-for the owner, but **both colors must show in the showroom**. Modeled as a **variant**:
+for the owner, but **both colors must show in the showroom**. This reuses the `color` field
+that Phase 1 already added to every item (§3.2):
 
-- Optional per-piece **`variant`** field (Phase 2 = color, e.g. `pink` / `blue`). Values are
-  free but ideally chosen from a small list for clean showroom labels.
+- The `color` field is set per piece (e.g. `pink` / `blue`). Values ideally chosen from a
+  small pick-list for clean showroom labels.
 - **App (owner) card:** still **one card** for the design, with a breakdown —
   `Baby ID bracelet · 🔗 5 in stock (3 pink · 2 blue)`.
-- **Showroom:** groups by **`groupId` + `variant`**, so it shows **one public card per color**,
+- **Showroom:** groups by **`groupId` + `color`**, so it shows **one public card per color**,
   each with its own photo and its own count. This is the "both show up" requirement.
 - **Photos per color:** the first piece of each color supplies that color's showroom photo —
   you don't photograph every physical piece, just one per color.
@@ -210,10 +234,10 @@ Grouping by `groupId` (not ref code) is what lets one group span multiple showro
 
 ## 9. Showroom (public site)
 
-- Publish **all** in-stock members (as today), plus `groupId` (and Phase 2 `variant`) in
+- Publish **all** in-stock members (as today), plus `groupId` and `color` in
   `PUBLIC_SAFE_FIELDS`.
-- `showroom.htm` **groups the public mirror** by `groupId` (Phase 2: `groupId + variant`) and
-  renders **one card per group/variant** with a **live "N in stock"** count = number of
+- `showroom.htm` **groups the public mirror** by `groupId` (Phase 2: `groupId + color`) and
+  renders **one card per group/color** with a **live "N in stock"** count = number of
   in-stock members in that bucket.
 - Count decrements automatically as pieces sell (the mirror already re-syncs on every sale).
 - No prices are shown publicly, so choosing a representative photo/description per bucket is
@@ -240,7 +264,8 @@ Grouping by `groupId` (not ref code) is what lets one group span multiple showro
 New user-visible text needs entries in both language dictionaries, following the existing
 `data-i18n` pattern. At minimum:
 - "N in stock" / count badge, "Add similar items", "＋ Add more", "Group these",
-  "Sell quantity", per-color breakdown labels, and (Phase 2) color/variant labels.
+  "Sell quantity", "Add to existing group?", the **Color** field label + color values,
+  and per-color breakdown labels.
 
 ## 12. Versioning & docs (per CLAUDE.md)
 
@@ -252,6 +277,8 @@ New user-visible text needs entries in both language dictionaries, following the
 ## 13. Suggested build order
 
 **Phase 1 — identical grouping (most of the daily value, low risk):**
+0. `color` field on all three item forms (single items too) + show/filter it + add to
+   `PUBLIC_SAFE_FIELDS`. Independent of grouping; can ship first on its own.
 1. `groupId` field + `PUBLIC_SAFE_FIELDS` addition.
 2. Display-time grouping in `renderInvList` → collapsed card (count + price/range) +
    expanded view. (Read/render only; no data-write behaviour change.)
@@ -261,9 +288,9 @@ New user-visible text needs entries in both language dictionaries, following the
 6. "Sell quantity" from the group card (reuses cart + `saleGroup`).
 7. Showroom: group by `groupId`, show live "N in stock".
 
-**Phase 2 — color variants:**
-8. `variant` field + per-color breakdown on the app card.
-9. Showroom split by `groupId + variant`, per-color photo + count.
+**Phase 2 — color variants (builds on the Phase 1 `color` field):**
+8. Per-color breakdown on the grouped app card ("N in stock — 1 pink · 1 blue").
+9. Showroom split by `groupId + color`, per-color photo + count.
 
 Phase 1 fully covers the necklaces and the 3 pendants. Phase 2 covers the pink/blue
 bracelets once Phase 1 is proven in the store.
