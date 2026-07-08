@@ -82,6 +82,14 @@ For any display that needs "the group as one thing" (card header, showroom card)
 supplies the representative photo, description, type, metal, and the ref code shown on the
 collapsed card.
 
+### 3.4 Metal- and type-agnostic
+
+Grouping and the `color` field apply **identically to gold, silver, and Other-type items** —
+nothing here is gold-specific. The color field, grouping, count, price (single or range),
+and showroom split all work the same for a silver bracelet or an "Other" fixed-price piece
+as for a gold necklace. A **blank** color labels its bucket by the item's **metal**
+(Gold / Silver); Other-type items with no metal simply show no color word.
+
 ## 4. Pricing across the three methods
 
 Grouping is **pricing-method-agnostic** because prices live on the individual items, not on
@@ -250,15 +258,15 @@ another color value.
 
 *Worked example (real case):* a design comes in as **4 pieces — 2 plain gold, 1 green,
 1 blue**. Three color buckets:
-- **App card:** one card — `… · 🔗 4 in stock (2 plain · 1 green · 1 blue)`.
-- **Showroom:** three cards — Plain (2 in stock), Green (1), Blue (1) — each with its own
+- **App card:** one card — `… · 🔗 4 in stock (2 gold · 1 green · 1 blue)`.
+- **Showroom:** three cards — Gold (2 in stock), Green (1), Blue (1) — each with its own
   photo, each counting down independently.
 - **Photos:** three (plain, green, blue); a bucket with >1 piece (the 2 plain) shares one.
 
-**Labeling "plain":** give no-enamel pieces an explicit color value like **"Plain"** (or
-"None") rather than leaving it blank, so the showroom card has a clean label. Blank still
-works (blank is its own bucket) but reads worse to customers. The color pick-list should
-include a "Plain" option.
+**Labeling "plain":** leave the color **blank** for plain / no-enamel pieces. The card and
+showroom already display the **metal** (Gold / Silver), so a blank-color bucket is simply
+**labeled by its metal** — no separate "Plain" word needed. A color value is labeled by that
+color. So: blank → "Gold"/"Silver"; `green` → "Green"; etc.
 
 Grouping by `groupId` (not ref code) is what lets one group span multiple showroom cards.
 
