@@ -244,6 +244,22 @@ that Phase 1 already added to every item (§3.2):
 - **Photos per color:** the first piece of each color supplies that color's showroom photo —
   you don't photograph every physical piece, just one per color.
 
+**A group can hold any number of color buckets, including a "plain" one.** The color field
+doesn't care how many distinct values a group contains, and "plain / no enamel" is just
+another color value.
+
+*Worked example (real case):* a design comes in as **4 pieces — 2 plain gold, 1 green,
+1 blue**. Three color buckets:
+- **App card:** one card — `… · 🔗 4 in stock (2 plain · 1 green · 1 blue)`.
+- **Showroom:** three cards — Plain (2 in stock), Green (1), Blue (1) — each with its own
+  photo, each counting down independently.
+- **Photos:** three (plain, green, blue); a bucket with >1 piece (the 2 plain) shares one.
+
+**Labeling "plain":** give no-enamel pieces an explicit color value like **"Plain"** (or
+"None") rather than leaving it blank, so the showroom card has a clean label. Blank still
+works (blank is its own bucket) but reads worse to customers. The color pick-list should
+include a "Plain" option.
+
 Grouping by `groupId` (not ref code) is what lets one group span multiple showroom cards.
 
 ## 9. Showroom (public site)
