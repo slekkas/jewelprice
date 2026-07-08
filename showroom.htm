@@ -1497,8 +1497,14 @@ function getLabel(item) {
 function getFilterOptions() {
   const types      = [...new Set(allItems.map(i => i.jewelryType).filter(Boolean))].sort();
   // Unisex is not offered as a filter choice — unisex items surface under both Men and
-  // Women (see genderMatches). Only Women/Men/Kids appear as selectable options.
-  const genders    = [...new Set(allItems.map(i => i.gender).filter(g => g && g !== 'unisex'))];
+  // Women (see genderMatches). Only Women/Men/Kids appear as selectable options, and a
+  // category also counts if any item cross-lists into it via alsoGenders.
+  const _gset = new Set();
+  allItems.forEach(i => {
+    if (i.gender && i.gender !== 'unisex') _gset.add(i.gender);
+    (i.alsoGenders || []).forEach(x => _gset.add(x));
+  });
+  const genders    = [..._gset];
   const metals     = [...new Set(allItems.map(i => i.metal).filter(Boolean))];
   const karats     = [...new Set(allItems.filter(i => i.metal==='gold').map(i => (i.karat||'').replace(/s$/,'')).filter(Boolean))].sort((a,b)=>Number(b)-Number(a));
   const goldColors = [...new Set(allItems.filter(i => i.metal==='gold').map(i => i.goldColor||'gold'))];
@@ -1646,7 +1652,17 @@ function renderNavMenuFacetLevel(typeKey) {
   const genderLabel = { women: isEl?'Γυναικεία':'Women', men: isEl?'Ανδρικά':'Men', unisex: 'Unisex', children: isEl?'Παιδικά':'Kids' };
   const genderOrder = ['women','men','children'];
   const genderCounts = {};
-  itemsInType.forEach(i => { if (i.gender) genderCounts[i.gender] = (genderCounts[i.gender]||0) + 1; });
+  // Count each item under every category it matches, so the facet number lines
+  // up with what the filter actually returns: primary gender, unisex → Men+Women,
+  // plus any extra "also appears under" categories.
+  itemsInType.forEach(i => {
+    const buckets = new Set();
+    const g = i.gender;
+    if (g && g !== 'unisex') buckets.add(g);
+    if (g === 'unisex') { buckets.add('men'); buckets.add('women'); }
+    (i.alsoGenders || []).forEach(x => buckets.add(x));
+    buckets.forEach(b => genderCounts[b] = (genderCounts[b] || 0) + 1);
+  });
   const gendersPresent = genderOrder.filter(g => genderCounts[g] > 0);
 
   let html = '';
@@ -1691,7 +1707,7 @@ function _navFacetResultCount(typeKey) {
   return allItems.filter(i =>
     i.jewelryType === typeKey &&
     (_navDraftMetals.length === 0 || _navDraftMetals.includes(i.metal)) &&
-    genderMatches(_navDraftGenders, i.gender)
+    genderMatches(_navDraftGenders, i)
   ).length;
 }
 
@@ -2067,13 +2083,16 @@ function shareSelection() {
   }
 }
 
-// Gender match: unisex pieces are meant for both men and women, so a Men or Women
-// selection also returns unisex items (customers no longer need to tick both).
-function genderMatches(selected, itemGender) {
+// Gender match: an item shows for a selected gender if it's the item's primary
+// gender, one of its extra "also appears under" categories (item.alsoGenders),
+// or — for unisex pieces — either Men or Women (no need to tick both).
+function genderMatches(selected, item) {
   if (!selected.length) return true;
-  if (selected.includes(itemGender)) return true;
-  if (itemGender === 'unisex' && (selected.includes('men') || selected.includes('women'))) return true;
-  return false;
+  const g = item.gender;
+  const also = item.alsoGenders || [];
+  return selected.some(sel =>
+    sel === g || also.includes(sel) ||
+    (g === 'unisex' && (sel === 'men' || sel === 'women')));
 }
 
 function applyFilters() {
@@ -2081,7 +2100,7 @@ function applyFilters() {
     if (_sharedRefs && !_sharedRefs.has(_itemShareToken(item))) return false;
     if (activeFilters.types.length && !activeFilters.types.includes(item.jewelryType)) return false;
     if (activeFilters.vendors.length && !activeFilters.vendors.includes(item.vendorName)) return false;
-    if (!genderMatches(activeFilters.genders, item.gender)) return false;
+    if (!genderMatches(activeFilters.genders, item)) return false;
     if (activeFilters.metals.length && !activeFilters.metals.includes(item.metal)) return false;
     if (activeFilters.karats.length) {
       const k = (item.karat||'').replace(/s$/,'');

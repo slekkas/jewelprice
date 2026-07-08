@@ -2039,12 +2039,13 @@
     </div>
     <div style="margin-bottom:16px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="genderLabel">Κοινό Αγοραστικό</label>
-      <select id="labelGenderSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+      <select id="labelGenderSelect" onchange="_syncGenderAlso(this,'label')" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
         <option value="unisex">✨ Unisex</option>
         <option value="women">♀️ Γυναικείο / Women</option>
         <option value="men">♂️ Ανδρικό / Men</option>
         <option value="children">👶 Παιδικό / Children</option>
       </select>
+      <div id="labelGenderAlsoWrap"></div>
     </div>
     <div id="labelGoldColorWrap" style="margin-bottom:16px;display:none">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="goldColorLabel">Χρώμα Χρυσού</label>
@@ -4849,6 +4850,66 @@ function _showDupQrWarning(data, existing) {
   });
 }
 
+// ─── SECONDARY GENDER ("Also appears under") ─────────────────────────────────
+// An item keeps ONE primary gender (drives the badge), but can be cross-listed
+// under extra categories so e.g. a children pendant also shows in Women searches.
+const GENDER_ALSO_OPTS = ['women','men','children'];
+function _genderAlsoLabel(g) {
+  const el = lang === 'el';
+  if (g === 'women')    return el ? '♀️ Γυναικείο' : '♀️ Women';
+  if (g === 'men')      return el ? '♂️ Ανδρικό'   : '♂️ Men';
+  return el ? '👶 Παιδικό' : '👶 Children';
+}
+function _genderAlsoPillStyle(sel) {
+  return `display:inline-flex;align-items:center;padding:7px 12px;border-radius:16px;`
+    + `border:1px solid ${sel?'rgba(100,160,255,0.5)':'rgba(255,255,255,0.12)'};`
+    + `background:${sel?'rgba(100,160,255,0.15)':'rgba(255,255,255,0.03)'};`
+    + `color:${sel?'#80b4ff':'var(--text-muted)'};font-family:var(--font-body);font-size:12px;cursor:pointer;transition:all .15s`;
+}
+// Build the "Also appears under" pill group. `idPrefix` namespaces the pills so
+// the three forms (label / scan / edit) don't collide.
+function genderAlsoGroupHtml(idPrefix, primary, alsoArr) {
+  const also = Array.isArray(alsoArr) ? alsoArr : [];
+  const pills = GENDER_ALSO_OPTS.map(g => {
+    const sel = also.includes(g);
+    const hidden = (g === primary);
+    return `<button type="button" id="${idPrefix}_also_${g}" data-g="${g}" onclick="_toggleGenderAlso(this)"`
+      + ` style="${_genderAlsoPillStyle(sel)}${hidden?';display:none':''}"${sel?' data-sel="1"':''}>${_genderAlsoLabel(g)}</button>`;
+  }).join('');
+  const lbl = lang === 'el' ? 'Εμφανίζεται επίσης σε' : 'Also appears under';
+  const hint = lang === 'el'
+    ? '(προαιρετικό — εμφανίζεται και σε αυτές τις κατηγορίες στα φίλτρα)'
+    : '(optional — also shows under these categories in filters)';
+  return `<div style="margin-top:10px">
+    <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lbl}</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:5px">${hint}</div>
+  </div>`;
+}
+function _toggleGenderAlso(btn) {
+  const on = btn.dataset.sel !== '1';
+  btn.dataset.sel = on ? '1' : '';
+  btn.style.cssText = _genderAlsoPillStyle(on);
+}
+// Called from the primary <select> onchange: hide the pill that now equals the
+// primary (an item can't be "also" its own category) and clear its selection.
+function _syncGenderAlso(selectEl, idPrefix) {
+  const primary = selectEl.value;
+  GENDER_ALSO_OPTS.forEach(g => {
+    const pill = document.getElementById(`${idPrefix}_also_${g}`);
+    if (!pill) return;
+    if (g === primary) { pill.dataset.sel = ''; pill.style.display = 'none'; }
+    else { pill.style.cssText = _genderAlsoPillStyle(pill.dataset.sel === '1'); }
+  });
+}
+// Read the selected extra genders from a rendered group.
+function readGenderAlso(idPrefix) {
+  return GENDER_ALSO_OPTS.filter(g => {
+    const pill = document.getElementById(`${idPrefix}_also_${g}`);
+    return pill && pill.dataset.sel === '1';
+  });
+}
+
 function openLabelModal() {
   const data = buildLabelStrings();
   const modal = document.getElementById('labelModal');
@@ -5006,6 +5067,12 @@ function _openLabelModalInner(data, modal, content) {
         if (_refDisplay) _refDisplay.textContent = data.refCode;
       });
     }
+  }
+  // Build a fresh "Also appears under" pill group for this item (cleared each open)
+  const _lblGenderSel = document.getElementById('labelGenderSelect');
+  const _lblAlsoWrap = document.getElementById('labelGenderAlsoWrap');
+  if (_lblGenderSel && _lblAlsoWrap) {
+    _lblAlsoWrap.innerHTML = genderAlsoGroupHtml('label', _lblGenderSel.value || 'unisex', []);
   }
   // Sync handmade toggle with calc state
   const _lblHmBtn = document.getElementById('labelHandmadeToggle');
@@ -10484,6 +10551,7 @@ async function saveToInventoryFromLabel(labelData) {
       return null;
     })(),
     gender: (document.getElementById('labelGenderSelect')?.value) || 'unisex',
+    alsoGenders: readGenderAlso('label'),
     goldColor: (metal === 'gold') ? (document.getElementById('labelGoldColorSelect')?.value || 'gold') : null,
     secondaryMetal: r ? (r.secondaryMetal || null) : null,
     secondaryKarat: r ? (r.secondaryKarat || null) : null,
@@ -10546,7 +10614,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','weight','gender','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
+  'metal','karat','goldColor','weight','gender','alsoGenders','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -11489,9 +11557,12 @@ function renderInvList() {
     }
     if (f.gender && f.gender.length) {
       const g = item.gender || 'unisex';
-      // Unisex pieces are for both men and women, so a Men or Women filter also matches them.
-      const genderOk = f.gender.includes(g) ||
-        (g === 'unisex' && (f.gender.includes('men') || f.gender.includes('women')));
+      const also = item.alsoGenders || [];
+      // An item matches a selected gender if it's its primary, one of its extra
+      // "also appears under" categories, or (for unisex) either Men or Women.
+      const genderOk = f.gender.some(sel =>
+        sel === g || also.includes(sel) ||
+        (g === 'unisex' && (sel === 'men' || sel === 'women')));
       if (!genderOk) return false;
     }
     if (f.goldColors && f.goldColors.length) {
@@ -11646,9 +11717,16 @@ function renderInvList() {
     const handmadeBadge = _isHandmade ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
     const _genderBadge = (function() {
       const g = item.gender;
-      if (!g || g === 'unisex') return '';
       const gMap = { women: '♀️', men: '♂️', children: '👶' };
-      return `<span class="inv-card-badge" style="background:rgba(100,160,255,0.13);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;font-size:11px">${gMap[g]||''}</span>`;
+      let out = '';
+      if (g && g !== 'unisex') {
+        out += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.13);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;font-size:11px">${gMap[g]||''}</span>`;
+      }
+      // Extra "also appears under" categories — shown dimmer with a + prefix
+      (item.alsoGenders || []).forEach(x => {
+        if (gMap[x]) out += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.07);border:1px solid rgba(100,160,255,0.2);color:#6a90c0;font-size:11px">+${gMap[x]}</span>`;
+      });
+      return out;
     })();
     // Gold color badge — only shown for non-yellow-gold items
     const _goldColorBadge = (function() {
@@ -11935,12 +12013,13 @@ function showInvScanConfirm(item, rows, priceStr, isSilver, cacheFound, invStone
     </div>
     <div style="margin:0 0 14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Κοινό Αγοραστικό':'Target Audience'}</label>
-      <select id="invScanGenderSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+      <select id="invScanGenderSelect" onchange="_syncGenderAlso(this,'invScan')" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
         <option value="unisex">✨ Unisex</option>
         <option value="women">♀️ ${lang==='el'?'Γυναικείο':'Women'}</option>
         <option value="men">♂️ ${lang==='el'?'Ανδρικό':'Men'}</option>
         <option value="children">👶 ${lang==='el'?'Παιδικό':'Children'}</option>
       </select>
+      ${genderAlsoGroupHtml('invScan', item.gender || 'unisex', item.alsoGenders)}
     </div>
     <div style="margin:0 0 18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">🇬🇷 Περιγραφή (Ελληνικά)</label>
@@ -12270,6 +12349,7 @@ RETAIL: €[integer]`;
     if (jType) item.jewelryType = jType;
     if (vCode) item.vendorCode = vCode;
     item.gender = document.getElementById('invScanGenderSelect')?.value || 'unisex';
+    item.alsoGenders = readGenderAlso('invScan');
     item.photoUrl = '';
     item.photoName = '';
     item.photoUrlHi = '';
@@ -12617,12 +12697,13 @@ function invEdit(id) {
     </div>
     <div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Κοινό Αγοραστικό':'Target Audience'}</label>
-      <select id="invEditGenderSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+      <select id="invEditGenderSelect" onchange="_syncGenderAlso(this,'invEdit')" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
         <option value="unisex" ${(!item.gender||item.gender==='unisex')?'selected':''}>✨ Unisex</option>
         <option value="women" ${item.gender==='women'?'selected':''}>♀️ ${lang==='el'?'Γυναικείο':'Women'}</option>
         <option value="men" ${item.gender==='men'?'selected':''}>♂️ ${lang==='el'?'Ανδρικό':'Men'}</option>
         <option value="children" ${item.gender==='children'?'selected':''}>👶 ${lang==='el'?'Παιδικό':'Children'}</option>
       </select>
+      ${genderAlsoGroupHtml('invEdit', item.gender || 'unisex', item.alsoGenders)}
     </div>
     ${!isOtherEdit && item.metal === 'gold' ? `
     <div style="margin-bottom:18px">
@@ -13079,6 +13160,7 @@ RETAIL: \u20ac[integer]`;
     item.vendorCode = (document.getElementById('invEditVendorCodeInput')?.value || '').trim().toUpperCase();
     item.handmade = document.getElementById('invEditHandmadeToggle')?.style.opacity === '1';
     item.gender = document.getElementById('invEditGenderSelect')?.value || 'unisex';
+    item.alsoGenders = readGenderAlso('invEdit');
     // Save gold color (only for gold items)
     if (item.metal === 'gold') {
       item.goldColor = document.getElementById('invEditGoldColorSelect')?.value || 'gold';
@@ -14810,6 +14892,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.26', date: 'Ιούλιος 2026', items: [
+        '⚧ Ένα είδος μπορεί τώρα να εμφανίζεται σε παραπάνω από μία κατηγορίες: π.χ. ένα παιδικό μενταγιόν που το αγοράζουν και γυναίκες. Επιλέγετε την κύρια κατηγορία όπως πάντα (π.χ. Παιδικό) και από κάτω, στο «Εμφανίζεται επίσης σε», τικάρετε και «Γυναικείο». Έτσι θα εμφανίζεται και στα δύο φίλτρα — και στην εφαρμογή και στην ιστοσελίδα (showroom). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους.'
+      ]},
       { version: 'v10.25', date: 'Ιούλιος 2026', items: [
         '🛒 Διόρθωση: το «✕» δίπλα σε κάθε είδος του καλαθιού αφαιρεί τώρα κανονικά το είδος (πριν δεν έκανε τίποτα).',
         '🔢 Διόρθωση στη στρογγυλοποίηση με πολλά είδη: αφού πρόσθετες στο καλάθι ένα είδος με στρογγυλοποιημένη τιμή, στο επόμενο είδος το κουμπί εμφάνιζε «✕» αντί για «+», οπότε δεν μπορούσες να εφαρμόσεις τη νέα στρογγυλοποίηση. Τώρα το κουμπί επανέρχεται σωστά σε «+» για κάθε νέο είδος.'
@@ -14840,9 +14925,6 @@ const ABOUT = {
       { version: 'v10.17', date: 'Ιούλιος 2026', items: [
         '⛓️ Ο ανεφοδιασμός αλυσίδων δεν «φουσκώνει» πια την υπεραξία: όταν προσθέτατε γραμμάρια σε ένα απόθεμα αλυσίδων, η νέα ποσότητα μετρούσε λανθασμένα ως αύξηση τιμής (π.χ. +32%). Πλέον η αξία του νέου εμπορεύματος προστίθεται στην αρχική τιμή, οπότε το ποσοστό υπεραξίας δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού — όχι πόσο απόθεμα υπάρχει.',
         '📈 Νέα ταξινόμηση & φίλτρο «Υπεραξία»: στην Ταξινόμηση μπορείτε να δείτε τα είδη με τη μεγαλύτερη ανατίμηση πρώτα (Υψηλή → Χαμηλή) και στα Φίλτρα να δείτε μόνο όσα ανέβηκαν πάνω από 3%, 5% ή 10% — για να εντοπίζετε γρήγορα μη ρεαλιστικές αυξήσεις. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
-      ]},
-      { version: 'v10.16', date: 'Ιούλιος 2026', items: [
-        '🔧 Διόρθωση σήμανσης «HD»: όταν η φωτογραφία που ανεβάζατε ήταν ήδη μικρή (≤480px), το είδος έμενε κολλημένο στο «Χωρίς HD» ακόμα κι αν το ξανανεβάζατε. Τώρα κάθε φωτογραφία που ανεβάζετε σημαίνεται σωστά ως «HD» και φεύγει από τη λίστα.'
       ]},
           ]
   },
@@ -14926,6 +15008,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.26', date: 'Jul 2026', items: [
+        '⚧ An item can now appear in more than one category: e.g. a children\'s pendant that grown women also buy. You pick the main category as usual (e.g. Children), then just below, under "Also appears under", tick "Women" too. It then shows up under both filters — in the app and on the showroom website. Available when creating a label, scanning, and editing an item.'
+      ]},
       { version: 'v10.25', date: 'Jul 2026', items: [
         '🛒 Fix: the "✕" next to each cart item now actually removes that item (before it did nothing).',
         '🔢 Rounding fix with multiple items: after you added a rounded-price item to the cart, the next item\'s button showed "✕" instead of "+", so you couldn\'t apply a new rounding. The button now correctly resets to "+" for each new item.'
@@ -14956,9 +15041,6 @@ const ABOUT = {
       { version: 'v10.17', date: 'Jul 2026', items: [
         '⛓️ Restocking chains no longer inflates the gain: when you added grams to a chain stock, the extra quantity was wrongly counted as a price rise (e.g. +32%). Now the value of the new stock is added to the initial price, so the gain % reflects only real gold-price movement — not how much stock is on hand.',
         '📈 New "Gain" sort & filter: Sort can now show the items that rose the most first (High → Low), and Filters can show only items that went up over 3%, 5% or 10% — a quick way to catch unrealistic increases. (Owner/manager only.)'
-      ]},
-      { version: 'v10.16', date: 'Jul 2026', items: [
-        '🔧 "HD" mark fix: when the photo you uploaded was already small (≤480px), the item stayed stuck on "Needs HD" even after re-uploading. Now every photo you upload is correctly flagged as "HD" and leaves the list.'
       ]},
           ]
   }
@@ -17843,7 +17925,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.25';
+const APP_VERSION = '10.26';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
