@@ -11485,7 +11485,10 @@ function renderInvList() {
     }
     if (f.gender && f.gender.length) {
       const g = item.gender || 'unisex';
-      if (!f.gender.includes(g)) return false;
+      // Unisex pieces are for both men and women, so a Men or Women filter also matches them.
+      const genderOk = f.gender.includes(g) ||
+        (g === 'unisex' && (f.gender.includes('men') || f.gender.includes('women')));
+      if (!genderOk) return false;
     }
     if (f.goldColors && f.goldColors.length) {
       if (item.metal !== 'gold') return false;
@@ -14803,6 +14806,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.24', date: 'Ιούλιος 2026', items: [
+        '⚧ Τα Unisex εμφανίζονται σε ανδρικά ΚΑΙ γυναικεία: όταν φιλτράρετε π.χ. «Ανδρικοί Σταυροί», εμφανίζονται τώρα και οι Unisex σταυροί — το ίδιο και στα γυναικεία. Δεν χρειάζεται πλέον να επιλέγετε και «Unisex» ξεχωριστά, ώστε να μη σας ξεφεύγει κανένα κομμάτι. Στην ιδιωτική ιστοσελίδα (showroom) το φίλτρο «Unisex» αφαιρέθηκε τελείως — τα κοινά κομμάτια εμφανίζονται αυτόματα και στις δύο κατηγορίες. Στην εφαρμογή το «Unisex» παραμένει ως επιλογή φίλτρου.'
+      ]},
       { version: 'v10.23', date: 'Ιούλιος 2026', items: [
         '⚡ Πιο γρήγορη καρτέλα «Απόθεμα»: το άνοιγμα της λίστας ειδών ήταν το μόνο που «κολλούσε» για μια στιγμή, και θα χειροτέρευε όσο μεγαλώνει το απόθεμα (προς 1000+ είδη). Τώρα η λίστα ανοίγει ακαριαία σαν τις υπόλοιπες καρτέλες: (1) εμφανίζεται αμέσως από τη μνήμη και ανανεώνεται αθόρυβα από το cloud στο παρασκήνιο, (2) η ταξινόμηση δεν ξαναϋπολογίζει πια τιμές χιλιάδες φορές, και (3) τα είδη φορτώνονται σε «σελίδες» καθώς κατεβαίνετε (αντί να χτίζονται και τα 1000 μαζί). Καμία αλλαγή στα δεδομένα ή στην εμφάνιση — μόνο ταχύτητα.'
       ]},
@@ -14832,9 +14838,6 @@ const ABOUT = {
       ]},
       { version: 'v10.15', date: 'Ιούλιος 2026', items: [
         '💎 Γενικός έλεγχος & θωράκιση του συστήματος πετρών: (1) Πέντε τύποι που δεν είχαν κωδικό — Μαργαριτάρι Akoya, Γλυκού Νερού, South Sea, Tahiti και Νεφρίτης (Jade) — διαβάζονταν λάθος στη σάρωση (ως διαμάντι) ή χάνονταν· τώρα έχουν σωστό κωδικό και σαρώνονται κανονικά. (2) Σαρώνοντας ετικέτα με πολλές πέτρες (π.χ. «4xRUB») ή melee απευθείας στο απόθεμα, διατηρείται πλέον η ποσότητα/η ένδειξη melee (πριν γινόταν πάντα «1»). (3) Κατά την αποθήκευση νέου είδους, η περιγραφή πετρών φτιάχνεται από αυτά που πληκτρολογήσατε, ώστε ένα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) να μη χάνεται και το σχήμα/η τιμή κάθε πέτρας να μένουν σωστά.'
-      ]},
-      { version: 'v10.14', date: 'Ιούλιος 2026', items: [
-        '📷 Αλλαγή μόνο φωτογραφίας δεν ζητά πια νέα ετικέτα: όταν επεξεργάζεστε ένα είδος και αλλάζετε μόνο τη φωτογραφία (π.χ. για την έκδοση υψηλής ανάλυσης), η εφαρμογή δεν σας ζητά πλέον να τυπώσετε νέα ετικέτα. Η ειδοποίηση επανεκτύπωσης εμφανίζεται μόνο αν πραγματικά αλλάξετε τις πέτρες. Έτσι η μαζική ενημέρωση φωτογραφιών γίνεται γρήγορα'
       ]},
           ]
   },
@@ -14918,6 +14921,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.24', date: 'Jul 2026', items: [
+        '⚧ Unisex pieces now show under both Men and Women: when you filter for e.g. "Men\'s Crosses", unisex crosses now appear too — and likewise for Women. You no longer have to also tick "Unisex" separately, so nothing slips through. On the private showroom website the "Unisex" filter was removed entirely — shared pieces surface automatically under both categories. In the app, "Unisex" stays as a filter option.'
+      ]},
       { version: 'v10.23', date: 'Jul 2026', items: [
         '⚡ Faster "Stock" tab: opening the inventory list was the only tab that stuttered for a moment, and it would only get worse as the stock grows (toward 1000+ items). It now opens instantly like the other tabs: (1) it shows immediately from memory and refreshes quietly from the cloud in the background, (2) sorting no longer recalculates prices thousands of times, and (3) items load in "pages" as you scroll down (instead of building all 1000 cards at once). No change to your data or how it looks — just speed.'
       ]},
@@ -14947,9 +14953,6 @@ const ABOUT = {
       ]},
       { version: 'v10.15', date: 'Jul 2026', items: [
         '💎 Stone-system review & hardening: (1) Five types that had no code — Akoya, Freshwater, South Sea and Tahitian pearls, and Jade — used to mis-scan (read back as Diamond) or disappear; they now have proper codes and scan correctly. (2) Scanning a multi-stone tag (e.g. "4xRUB") or a melee tag straight into inventory now keeps the quantity / melee marking (it was always saved as "1" before). (3) When saving a new item, the stone description is built from what you actually entered, so a no-carat Diamond (which isn\'t written into the code) is no longer dropped and each stone\'s shape/price stays with the right stone.'
-      ]},
-      { version: 'v10.14', date: 'Jul 2026', items: [
-        '📷 Changing only the photo no longer asks for a new tag: when you edit an item and change just the photo (e.g. for the high-resolution version), the app no longer prompts you to print a new tag. The reprint prompt now appears only if you actually change the stones. This makes bulk photo updates quick'
       ]},
           ]
   }
@@ -17835,7 +17838,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.23';
+const APP_VERSION = '10.24';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [

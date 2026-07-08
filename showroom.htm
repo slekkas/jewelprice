@@ -1496,7 +1496,9 @@ function getLabel(item) {
 // Collect distinct filter values from inventory
 function getFilterOptions() {
   const types      = [...new Set(allItems.map(i => i.jewelryType).filter(Boolean))].sort();
-  const genders    = [...new Set(allItems.map(i => i.gender).filter(Boolean))];
+  // Unisex is not offered as a filter choice — unisex items surface under both Men and
+  // Women (see genderMatches). Only Women/Men/Kids appear as selectable options.
+  const genders    = [...new Set(allItems.map(i => i.gender).filter(g => g && g !== 'unisex'))];
   const metals     = [...new Set(allItems.map(i => i.metal).filter(Boolean))];
   const karats     = [...new Set(allItems.filter(i => i.metal==='gold').map(i => (i.karat||'').replace(/s$/,'')).filter(Boolean))].sort((a,b)=>Number(b)-Number(a));
   const goldColors = [...new Set(allItems.filter(i => i.metal==='gold').map(i => i.goldColor||'gold'))];
@@ -1642,7 +1644,7 @@ function renderNavMenuFacetLevel(typeKey) {
   const metalsPresent = metalOrder.filter(m => metalCounts[m] > 0);
 
   const genderLabel = { women: isEl?'Γυναικεία':'Women', men: isEl?'Ανδρικά':'Men', unisex: 'Unisex', children: isEl?'Παιδικά':'Kids' };
-  const genderOrder = ['women','men','unisex','children'];
+  const genderOrder = ['women','men','children'];
   const genderCounts = {};
   itemsInType.forEach(i => { if (i.gender) genderCounts[i.gender] = (genderCounts[i.gender]||0) + 1; });
   const gendersPresent = genderOrder.filter(g => genderCounts[g] > 0);
@@ -1689,7 +1691,7 @@ function _navFacetResultCount(typeKey) {
   return allItems.filter(i =>
     i.jewelryType === typeKey &&
     (_navDraftMetals.length === 0 || _navDraftMetals.includes(i.metal)) &&
-    (_navDraftGenders.length === 0 || _navDraftGenders.includes(i.gender))
+    genderMatches(_navDraftGenders, i.gender)
   ).length;
 }
 
@@ -2065,12 +2067,21 @@ function shareSelection() {
   }
 }
 
+// Gender match: unisex pieces are meant for both men and women, so a Men or Women
+// selection also returns unisex items (customers no longer need to tick both).
+function genderMatches(selected, itemGender) {
+  if (!selected.length) return true;
+  if (selected.includes(itemGender)) return true;
+  if (itemGender === 'unisex' && (selected.includes('men') || selected.includes('women'))) return true;
+  return false;
+}
+
 function applyFilters() {
   filtered = allItems.filter(item => {
     if (_sharedRefs && !_sharedRefs.has(_itemShareToken(item))) return false;
     if (activeFilters.types.length && !activeFilters.types.includes(item.jewelryType)) return false;
     if (activeFilters.vendors.length && !activeFilters.vendors.includes(item.vendorName)) return false;
-    if (activeFilters.genders.length && !activeFilters.genders.includes(item.gender)) return false;
+    if (!genderMatches(activeFilters.genders, item.gender)) return false;
     if (activeFilters.metals.length && !activeFilters.metals.includes(item.metal)) return false;
     if (activeFilters.karats.length) {
       const k = (item.karat||'').replace(/s$/,'');
