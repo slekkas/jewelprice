@@ -7838,6 +7838,10 @@ function calculate() {
     const inp = document.getElementById('roundPriceInput');
     inp.value = '';
     inp.placeholder = lang === 'el' ? 'π.χ. 940' : 'e.g. 940';
+    // Reset the apply button back to "+" — otherwise it keeps the "✕" state
+    // left over from rounding the previous item (which then can't be applied).
+    const rBtn = document.getElementById('roundApplyBtn');
+    if (rBtn) rBtn.textContent = '+';
   }
 }
 
@@ -14806,6 +14810,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.25', date: 'Ιούλιος 2026', items: [
+        '🛒 Διόρθωση: το «✕» δίπλα σε κάθε είδος του καλαθιού αφαιρεί τώρα κανονικά το είδος (πριν δεν έκανε τίποτα).',
+        '🔢 Διόρθωση στη στρογγυλοποίηση με πολλά είδη: αφού πρόσθετες στο καλάθι ένα είδος με στρογγυλοποιημένη τιμή, στο επόμενο είδος το κουμπί εμφάνιζε «✕» αντί για «+», οπότε δεν μπορούσες να εφαρμόσεις τη νέα στρογγυλοποίηση. Τώρα το κουμπί επανέρχεται σωστά σε «+» για κάθε νέο είδος.'
+      ]},
       { version: 'v10.24', date: 'Ιούλιος 2026', items: [
         '⚧ Τα Unisex εμφανίζονται σε ανδρικά ΚΑΙ γυναικεία: όταν φιλτράρετε π.χ. «Ανδρικοί Σταυροί», εμφανίζονται τώρα και οι Unisex σταυροί — το ίδιο και στα γυναικεία. Δεν χρειάζεται πλέον να επιλέγετε και «Unisex» ξεχωριστά, ώστε να μη σας ξεφεύγει κανένα κομμάτι. Στην ιδιωτική ιστοσελίδα (showroom) το φίλτρο «Unisex» αφαιρέθηκε τελείως — τα κοινά κομμάτια εμφανίζονται αυτόματα και στις δύο κατηγορίες. Στην εφαρμογή το «Unisex» παραμένει ως επιλογή φίλτρου.'
       ]},
@@ -14835,9 +14843,6 @@ const ABOUT = {
       ]},
       { version: 'v10.16', date: 'Ιούλιος 2026', items: [
         '🔧 Διόρθωση σήμανσης «HD»: όταν η φωτογραφία που ανεβάζατε ήταν ήδη μικρή (≤480px), το είδος έμενε κολλημένο στο «Χωρίς HD» ακόμα κι αν το ξανανεβάζατε. Τώρα κάθε φωτογραφία που ανεβάζετε σημαίνεται σωστά ως «HD» και φεύγει από τη λίστα.'
-      ]},
-      { version: 'v10.15', date: 'Ιούλιος 2026', items: [
-        '💎 Γενικός έλεγχος & θωράκιση του συστήματος πετρών: (1) Πέντε τύποι που δεν είχαν κωδικό — Μαργαριτάρι Akoya, Γλυκού Νερού, South Sea, Tahiti και Νεφρίτης (Jade) — διαβάζονταν λάθος στη σάρωση (ως διαμάντι) ή χάνονταν· τώρα έχουν σωστό κωδικό και σαρώνονται κανονικά. (2) Σαρώνοντας ετικέτα με πολλές πέτρες (π.χ. «4xRUB») ή melee απευθείας στο απόθεμα, διατηρείται πλέον η ποσότητα/η ένδειξη melee (πριν γινόταν πάντα «1»). (3) Κατά την αποθήκευση νέου είδους, η περιγραφή πετρών φτιάχνεται από αυτά που πληκτρολογήσατε, ώστε ένα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) να μη χάνεται και το σχήμα/η τιμή κάθε πέτρας να μένουν σωστά.'
       ]},
           ]
   },
@@ -14921,6 +14926,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.25', date: 'Jul 2026', items: [
+        '🛒 Fix: the "✕" next to each cart item now actually removes that item (before it did nothing).',
+        '🔢 Rounding fix with multiple items: after you added a rounded-price item to the cart, the next item\'s button showed "✕" instead of "+", so you couldn\'t apply a new rounding. The button now correctly resets to "+" for each new item.'
+      ]},
       { version: 'v10.24', date: 'Jul 2026', items: [
         '⚧ Unisex pieces now show under both Men and Women: when you filter for e.g. "Men\'s Crosses", unisex crosses now appear too — and likewise for Women. You no longer have to also tick "Unisex" separately, so nothing slips through. On the private showroom website the "Unisex" filter was removed entirely — shared pieces surface automatically under both categories. In the app, "Unisex" stays as a filter option.'
       ]},
@@ -14950,9 +14959,6 @@ const ABOUT = {
       ]},
       { version: 'v10.16', date: 'Jul 2026', items: [
         '🔧 "HD" mark fix: when the photo you uploaded was already small (≤480px), the item stayed stuck on "Needs HD" even after re-uploading. Now every photo you upload is correctly flagged as "HD" and leaves the list.'
-      ]},
-      { version: 'v10.15', date: 'Jul 2026', items: [
-        '💎 Stone-system review & hardening: (1) Five types that had no code — Akoya, Freshwater, South Sea and Tahitian pearls, and Jade — used to mis-scan (read back as Diamond) or disappear; they now have proper codes and scan correctly. (2) Scanning a multi-stone tag (e.g. "4xRUB") or a melee tag straight into inventory now keeps the quantity / melee marking (it was always saved as "1" before). (3) When saving a new item, the stone description is built from what you actually entered, so a no-carat Diamond (which isn\'t written into the code) is no longer dropped and each stone\'s shape/price stays with the right stone.'
       ]},
           ]
   }
@@ -15105,7 +15111,6 @@ function confirmAddToCart() {
 
 function removeFromCart(idx) {
   quoteCart.splice(idx, 1);
-  _saveQuoteCart();
   updateCartUI();
   if (quoteCart.length === 0) {
     document.getElementById('cartPanel').style.display = 'none';
@@ -17838,7 +17843,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.24';
+const APP_VERSION = '10.25';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
