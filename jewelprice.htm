@@ -9099,12 +9099,13 @@ function _jumpToInvCard(fbKey) {
     if (!document.querySelector('.inv-card[data-inv-id]')) {
       await renderInvList();
     }
-    const card = document.querySelector(`.inv-card[data-inv-id="${fbKey}"]`);
+    let card = _invEnsureRendered(fbKey) ? document.querySelector(`.inv-card[data-inv-id="${fbKey}"]`) : null;
     if (!card) {
       // Item may be filtered out — clear filters and retry
       if (typeof _invFilters !== 'undefined') {
         _invFilters.status = [];
         await renderInvList();
+        _invEnsureRendered(fbKey);
       }
     }
     const target = document.querySelector(`.inv-card[data-inv-id="${fbKey}"]`);
@@ -10858,6 +10859,8 @@ function _initInvScrollTop() {
   panel.addEventListener('scroll', () => {
     const btn = document.getElementById('invScrollTopBtn');
     if (btn) btn.style.display = panel.scrollTop > 300 ? 'flex' : 'none';
+    // Reveal the next page of cards as we approach the bottom (windowed list).
+    if (panel.scrollHeight - panel.scrollTop - panel.clientHeight < 900) _invRenderNextPage();
   }, { passive: true });
 }
 
@@ -11285,6 +11288,25 @@ function applyInvFilters() {
 }
 
 async function renderInventory() {
+  // Instant path (v10.23): if inventory is already in memory, draw it immediately
+  // (like every other tab) and refresh from the cloud in the BACKGROUND, redrawing
+  // only if the data actually changed. This removes the "wait for the network"
+  // stall that made the Stock tab the only slow one to open.
+  const _hadCache = _inventoryCache && Object.keys(_inventoryCache).length > 0;
+  if (_hadCache) {
+    renderInvList();
+    loadInventory().then(fresh => {
+      if (!fresh) return;
+      if (JSON.stringify(fresh) === JSON.stringify(_inventoryCache)) return; // no change → no redraw
+      _inventoryCache = fresh;
+      // Don't yank the list out from under a user who has scrolled down; the fresh
+      // cache is already stored, so the next open (or scroll-to-top) shows it.
+      const panel = document.getElementById('panel-inventory');
+      if (!panel || panel.scrollTop < 200) renderInvList();
+    }).catch(() => {});
+    return;
+  }
+  // First inventory open of the session: fetch, then render.
   _inventoryCache = await loadInventory();
   renderInvList();
 }
@@ -11379,6 +11401,8 @@ function renderInvList() {
   const _isEmpInv = creds.role === 'employee';
   const container = document.getElementById('invList');
   if (!container) return;
+  // Reset windowing state — a real page render below re-populates it.
+  _invSortedRows = []; _invBuildCard = null; _invShownCount = 0;
   // Show spinner while inventory is still loading from Firebase
   if (_inventoryCache === null) {
     renderInvSummary([]);
@@ -11397,6 +11421,31 @@ function renderInvList() {
 
   // Keep the public showroom feed backfilled / self-healed (once per session, no-op if unchanged)
   republishPublicShowroom();
+
+  // Per-render price cache (v10.23). Computing an item's price walks its vendor /
+  // category / weight-tier tables, and the sort comparator alone would otherwise
+  // recompute each item's price O(n·log n) times. Memoizing by item reference for
+  // the duration of this one render collapses that back to O(n). A fresh Map each
+  // render means it can never serve a stale price after spot prices move.
+  const _priceMemo = new Map();
+  const _px = (it) => {
+    let p = _priceMemo.get(it);
+    if (p === undefined) { p = calcInvItemPrice(it); _priceMemo.set(it, p); }
+    return p;
+  };
+  const _gainMemo = new Map();
+  const _gn = (it) => {
+    let g = _gainMemo.get(it);
+    if (g !== undefined) return g;
+    if (!it || it.metal === 'other' || it.status === 'sold') { g = null; }
+    else {
+      const _init = parseFloat(it.initialRetail);
+      const p = _px(it);
+      g = (_init > 0 && p) ? (p.retail - _init) / _init * 100 : null;
+    }
+    _gainMemo.set(it, g);
+    return g;
+  };
 
   // Apply search query
   const searchQuery = (document.getElementById('invSearchInput')?.value || '').trim().toLowerCase();
@@ -11449,7 +11498,7 @@ function renderInvList() {
     // Gain % filter — show only items whose price rose at least this much vs their
     // recorded initial price (a quick way to spot unrealistic jumps).
     if (f.gainMin > 0) {
-      const g = invGainPct(item);
+      const g = _gn(item);
       if (g === null || g < f.gainMin) return false;
     }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
@@ -11498,25 +11547,23 @@ function renderInvList() {
       if (aStock && !bStock) return -1;
       if (!aStock && bStock) return 1;
     }
-    const aPrice = (() => { const p = calcInvItemPrice(a); return p ? p.retail : 0; })();
-    const bPrice = (() => { const p = calcInvItemPrice(b); return p ? p.retail : 0; })();
-    const aMetal = (() => { const p = calcInvItemPrice(a); return p ? p.metalValue : 0; })();
-    const bMetal = (() => { const p = calcInvItemPrice(b); return p ? p.metalValue : 0; })();
-    const aName = (lang==='el' ? (a.descEl||a.descEn||a.description||'') : (a.descEn||a.descEl||a.description||'')).toLowerCase();
-    const bName = (lang==='el' ? (b.descEl||b.descEn||b.description||'') : (b.descEn||b.descEl||b.description||'')).toLowerCase();
+    // Everything below is computed lazily via the memo — a "newest"/"oldest" sort
+    // (the default) never prices a single item, and price/metal/gain sorts price
+    // each item at most once for the whole sort instead of ~4× per comparison.
+    const _name = (it) => (lang==='el' ? (it.descEl||it.descEn||it.description||'') : (it.descEn||it.descEl||it.description||'')).toLowerCase();
     switch (_invSort) {
       case 'oldest':      return (a.dateAdded||0) - (b.dateAdded||0);
-      case 'price_high':  return bPrice - aPrice;
-      case 'price_low':   return aPrice - bPrice;
+      case 'price_high':  return ((_px(b)?.retail)||0) - ((_px(a)?.retail)||0);
+      case 'price_low':   return ((_px(a)?.retail)||0) - ((_px(b)?.retail)||0);
       case 'weight_high': return (parseFloat(b.weight)||0) - (parseFloat(a.weight)||0);
       case 'weight_low':  return (parseFloat(a.weight)||0) - (parseFloat(b.weight)||0);
-      case 'name_az':     return aName.localeCompare(bName);
-      case 'name_za':     return bName.localeCompare(aName);
-      case 'vendor_az':   return (a.vendorName||'').localeCompare(b.vendorName||'') || aName.localeCompare(bName);
-      case 'metal_high':  return bMetal - aMetal;
-      case 'gain_high': { const ag = invGainPct(a), bg = invGainPct(b);
+      case 'name_az':     return _name(a).localeCompare(_name(b));
+      case 'name_za':     return _name(b).localeCompare(_name(a));
+      case 'vendor_az':   return (a.vendorName||'').localeCompare(b.vendorName||'') || _name(a).localeCompare(_name(b));
+      case 'metal_high':  return ((_px(b)?.metalValue)||0) - ((_px(a)?.metalValue)||0);
+      case 'gain_high': { const ag = _gn(a), bg = _gn(b);
                           return (bg===null?-Infinity:bg) - (ag===null?-Infinity:ag); }
-      case 'gain_low':  { const ag = invGainPct(a), bg = invGainPct(b);
+      case 'gain_low':  { const ag = _gn(a), bg = _gn(b);
                           return (ag===null?Infinity:ag) - (bg===null?Infinity:bg); }
       case 'stock_first': return (b.dateAdded||0) - (a.dateAdded||0);
       case 'sold_first':  return (b.dateAdded||0) - (a.dateAdded||0);
@@ -11529,10 +11576,9 @@ function renderInvList() {
     return;
   }
 
-  const _needRestoreSelectMode = _invSelectMode;
-  container.innerHTML = filtered.map(([id, item]) => {
+  const buildCard = ([id, item]) => {
     const isSold = item.status === 'sold';
-    const p = calcInvItemPrice(item);
+    const p = _px(item);
     const priceStr = p ? cur + p.retail.toFixed(2) : '—';
     // Self-heal: store initialRetail if missing (existing items added before v9.24)
     if (p && item.metal !== 'other' && !item.initialRetail && !isSold) {
@@ -11687,7 +11733,7 @@ function renderInvList() {
         ${appreciationHtml}
         ${actionsHtml}
       </div>`;
-  }).join('');
+  };
 
   // NOTE (v10.19): a background self-heal used to live here — for any stone item whose
   // stone price was left blank (stoneCost null), it looked the stone up in the shared
@@ -11698,18 +11744,79 @@ function renderInvList() {
   // stone price simply counts as €0. Owners price stones manually or via the ✨ Estimate
   // button in Edit, which requires an explicit tap.
 
-  if (_needRestoreSelectMode) {
-    container.querySelectorAll('.inv-select-cb').forEach(cb => {
-      cb.style.display = 'flex';
-      const id = cb.getAttribute('data-id');
-      if (_invSelected.has(id)) {
-        cb.classList.add('checked');
-        cb.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="#D4AF37" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      }
-    });
-    container.querySelectorAll('.inv-share-btn').forEach(b => b.style.display = 'none');
-    updateInvShareBar();
+  // Windowed rendering (v10.23): draw only the first page of cards now and append the
+  // rest as the user scrolls (see _invRenderNextPage). Building all cards at once is
+  // what makes a large list stutter; at 1000+ items that would freeze the tab open.
+  _invSortedRows = filtered;
+  _invBuildCard = buildCard;
+  _invShownCount = 0;
+  container.innerHTML = '';
+  _invRenderNextPage();
+  _invMaybeFill();
+}
+
+// ── Inventory list windowing (v10.23) ────────────────────────────────────────
+// The Stock list can hold 1000+ items; rendering every card at once stalls the tab.
+// Instead renderInvList stores the full sorted rows and we reveal them a page at a
+// time, appending the next page as the user scrolls near the bottom.
+const INV_PAGE_SIZE = 50;
+let _invSortedRows = [];   // full sorted+filtered [id,item] rows for the current view
+let _invBuildCard = null;  // closure from the last renderInvList that builds one card's HTML
+let _invShownCount = 0;    // how many rows are currently in the DOM
+
+function _invRenderNextPage() {
+  const container = document.getElementById('invList');
+  if (!container || !_invBuildCard) return;
+  const start = _invShownCount;
+  const end = Math.min(start + INV_PAGE_SIZE, _invSortedRows.length);
+  if (start >= end) return;
+  container.insertAdjacentHTML('beforeend', _invSortedRows.slice(start, end).map(_invBuildCard).join(''));
+  _invShownCount = end;
+  if (_invSelectMode) _invRestoreSelectMode(container);
+}
+
+// Keep appending pages until the list overflows the viewport, so a short first page
+// (few tall cards, or a big screen) still leaves something to scroll for more.
+function _invMaybeFill() {
+  const panel = document.getElementById('panel-inventory');
+  // Only meaningful when the panel is actually on screen; if it's hidden its height
+  // reads as 0 and the loop below would render every card. A later visible render
+  // (from opening the tab) does the fill.
+  if (!panel || panel.clientHeight === 0) return;
+  let guard = 0;
+  while (_invShownCount < _invSortedRows.length &&
+         panel.scrollHeight <= panel.clientHeight + 200 && guard++ < 60) {
+    _invRenderNextPage();
   }
+}
+
+// Ensure the card for a specific item id is rendered (used by "jump to card" flows,
+// since the target may live on a page not yet revealed). Returns true if now in DOM.
+function _invEnsureRendered(id) {
+  if (document.querySelector(`.inv-card[data-inv-id="${id}"]`)) return true;
+  const idx = (_invSortedRows || []).findIndex(([rid]) => rid === id);
+  if (idx === -1) return false;
+  let guard = 0;
+  while (_invShownCount <= idx && _invShownCount < _invSortedRows.length && guard++ < 400) {
+    _invRenderNextPage();
+  }
+  return !!document.querySelector(`.inv-card[data-inv-id="${id}"]`);
+}
+
+// Show the select-mode checkboxes on freshly appended cards (idempotent — skips cards
+// already initialised) and re-check any that are in the current selection.
+function _invRestoreSelectMode(container) {
+  container.querySelectorAll('.inv-select-cb').forEach(cb => {
+    if (cb.style.display === 'flex') return;
+    cb.style.display = 'flex';
+    const id = cb.getAttribute('data-id');
+    if (_invSelected.has(id)) {
+      cb.classList.add('checked');
+      cb.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="#D4AF37" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+  });
+  container.querySelectorAll('.inv-share-btn').forEach(b => b.style.display = 'none');
+  updateInvShareBar();
 }
 
 // Scan existing QR into inventory (for pieces already tagged before inventory system)
@@ -14696,6 +14803,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.23', date: 'Ιούλιος 2026', items: [
+        '⚡ Πιο γρήγορη καρτέλα «Απόθεμα»: το άνοιγμα της λίστας ειδών ήταν το μόνο που «κολλούσε» για μια στιγμή, και θα χειροτέρευε όσο μεγαλώνει το απόθεμα (προς 1000+ είδη). Τώρα η λίστα ανοίγει ακαριαία σαν τις υπόλοιπες καρτέλες: (1) εμφανίζεται αμέσως από τη μνήμη και ανανεώνεται αθόρυβα από το cloud στο παρασκήνιο, (2) η ταξινόμηση δεν ξαναϋπολογίζει πια τιμές χιλιάδες φορές, και (3) τα είδη φορτώνονται σε «σελίδες» καθώς κατεβαίνετε (αντί να χτίζονται και τα 1000 μαζί). Καμία αλλαγή στα δεδομένα ή στην εμφάνιση — μόνο ταχύτητα.'
+      ]},
       { version: 'v10.22', date: 'Ιούλιος 2026', items: [
         '↩️ Το σάρωμα «πίσω» δεν κλείνει πια κατά λάθος την εφαρμογή: σε κινητά με χειρονομίες πλοήγησης (π.χ. Pixel), το σάρωμα από την άκρη της οθόνης προς τα μέσα έκλεινε αμέσως όλη την εφαρμογή — ακόμα κι ενώ καταχωρούσατε ένα είδος — και χανόταν η δουλειά σας. Τώρα το «πίσω» πρώτα κλείνει το ανοιχτό παράθυρο/φόρμα· αλλιώς σας πάει ένα βήμα πίσω (στην προηγούμενη καρτέλα)· και μόνο στην αρχική καρτέλα «Υπολογισμός» χρειάζεται δεύτερο σάρωμα για έξοδο, με το μήνυμα «Σύρετε ξανά για έξοδο». Ανοίγοντας ξανά την εφαρμογή, επιστρέφετε στην καρτέλα που είχατε ανοιχτή.'
       ]},
@@ -14725,9 +14835,6 @@ const ABOUT = {
       ]},
       { version: 'v10.14', date: 'Ιούλιος 2026', items: [
         '📷 Αλλαγή μόνο φωτογραφίας δεν ζητά πια νέα ετικέτα: όταν επεξεργάζεστε ένα είδος και αλλάζετε μόνο τη φωτογραφία (π.χ. για την έκδοση υψηλής ανάλυσης), η εφαρμογή δεν σας ζητά πλέον να τυπώσετε νέα ετικέτα. Η ειδοποίηση επανεκτύπωσης εμφανίζεται μόνο αν πραγματικά αλλάξετε τις πέτρες. Έτσι η μαζική ενημέρωση φωτογραφιών γίνεται γρήγορα'
-      ]},
-      { version: 'v10.13', date: 'Ιούλιος 2026', items: [
-        '🏷️ Σοβαρή διόρθωση κωδικών με πέτρες: όταν ένα κόσμημα είχε πρώτη πέτρα διαμάντι χωρίς καράτια (που δεν μπαίνει στον κωδικό) ακολουθούμενη από άλλες πέτρες, ο κωδικός τυπωνόταν λάθος — με «+» αντί για «-» πριν τις πέτρες (π.χ. «KAL18S1.3+4xRUB» αντί «KAL18S1.3-4xRUB»). Έτσι, σαρώνοντας την ετικέτα, εμφανιζόταν «Κωδικός δεν βρέθηκε». Πλέον οι νέοι κωδικοί παράγονται σωστά ΚΑΙ οι ήδη τυπωμένες λάθος ετικέτες σαρώνονται κανονικά. (Αν επεξεργαστείτε/επανεκτυπώσετε ένα τέτοιο είδος, ο κωδικός διορθώνεται αυτόματα.)'
       ]},
           ]
   },
@@ -14811,6 +14918,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.23', date: 'Jul 2026', items: [
+        '⚡ Faster "Stock" tab: opening the inventory list was the only tab that stuttered for a moment, and it would only get worse as the stock grows (toward 1000+ items). It now opens instantly like the other tabs: (1) it shows immediately from memory and refreshes quietly from the cloud in the background, (2) sorting no longer recalculates prices thousands of times, and (3) items load in "pages" as you scroll down (instead of building all 1000 cards at once). No change to your data or how it looks — just speed.'
+      ]},
       { version: 'v10.22', date: 'Jul 2026', items: [
         '↩️ The back-swipe no longer closes the app by accident: on gesture-navigation phones (e.g. Pixel), swiping in from the screen edge used to close the whole app in one stroke — even while you were entering an item — and you lost your work. Now "back" first closes any open window/form; otherwise it takes you one step back (to the previous tab); and only on the Calc home tab does a second swipe exit, with a "Swipe again to exit" message. Reopening the app also returns you to the tab you had open.'
       ]},
@@ -14840,9 +14950,6 @@ const ABOUT = {
       ]},
       { version: 'v10.14', date: 'Jul 2026', items: [
         '📷 Changing only the photo no longer asks for a new tag: when you edit an item and change just the photo (e.g. for the high-resolution version), the app no longer prompts you to print a new tag. The reprint prompt now appears only if you actually change the stones. This makes bulk photo updates quick'
-      ]},
-      { version: 'v10.13', date: 'Jul 2026', items: [
-        '🏷️ Important stone-code fix: when a piece had a first stone that was a Diamond with no carats (which isn\'t written into the code) followed by other stones, the code was generated wrong — with a "+" instead of the "-" that starts the stone section (e.g. "KAL18S1.3+4xRUB" instead of "KAL18S1.3-4xRUB"). Scanning that tag showed "Code not found". New codes are now generated correctly AND already-printed wrong tags scan fine again. (Editing/reprinting such an item auto-corrects its code.)'
       ]},
           ]
   }
@@ -17728,7 +17835,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.22';
+const APP_VERSION = '10.23';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18335,10 +18442,12 @@ function invShareSingle(id) {
 }
 
 function invSelectAll() {
+  // Select every item in the current filtered view — not just the cards currently
+  // rendered on screen (the list is windowed, so most may not be in the DOM yet).
+  (_invSortedRows || []).forEach(([id]) => { if (id) _invSelected.add(id); });
   document.querySelectorAll('.inv-select-cb').forEach(cb => {
     const id = cb.getAttribute('data-id');
-    if (id) {
-      _invSelected.add(id);
+    if (id && _invSelected.has(id)) {
       cb.classList.add('checked');
       cb.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="#D4AF37" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
@@ -18969,14 +19078,14 @@ async function notifDoSend(qrCodeArg, itemDesc) {
 
 function handleDeepLinkItem(qrCode) {
   if (!qrCode) return;
-  // Find the card whose item has this QR code and highlight it
-  const allCards = document.querySelectorAll('.inv-card[data-inv-id]');
-  let target = null;
-  allCards.forEach(c => {
-    const id = c.getAttribute('data-inv-id');
-    const item = (_inventoryCache || {})[id];
-    if (item && (item.qrCode || item.code || '') === qrCode) target = c;
+  // Find the item with this QR code in the data, ensure its (possibly not-yet-paged)
+  // card is rendered, then highlight it.
+  let targetId = null;
+  Object.entries(_inventoryCache || {}).forEach(([id, item]) => {
+    if (item && (item.qrCode || item.code || '') === qrCode) targetId = id;
   });
+  if (targetId) _invEnsureRendered(targetId);
+  const target = targetId ? document.querySelector(`.inv-card[data-inv-id="${targetId}"]`) : null;
   if (!target) { showToast('⚠️ ' + (lang==='el' ? 'Δεν βρέθηκε: ' : 'Not found: ') + qrCode); return; }
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   // Double rAF guarantees the browser has fully painted before animation starts
@@ -19419,7 +19528,8 @@ async function salesSearchGoToInventory(invId, status) {
     }
   }
 
-  // Find and highlight the card
+  // Find and highlight the card (rendering its page first if the list is windowed)
+  _invEnsureRendered(invId);
   const card = document.querySelector(`.inv-card[data-inv-id="${invId}"]`);
   if (card) {
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
