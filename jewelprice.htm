@@ -3993,6 +3993,7 @@ let _jpExited = false;                  // true after we asked to exit — used 
 let _jpUnwind = 0;                      // count of our own history.go() pops still to swallow
 let _jpUnwindTimer = null;
 let _jpArmedAt = 0;                     // timestamp of the arming swipe (dwell guard vs double-fire)
+let _jpGuardUp = false;                // base home guard established (must be within a user gesture)
 
 function _jpPush() {
   try { history.pushState({ jp: 1 }, ''); } catch (e) {}
@@ -4132,16 +4133,29 @@ function _jpHandleBack() {
   _jpExitTimer = setTimeout(() => { _jpExitArmed = false; }, 3000);
 }
 
+// Establish the home-floor guard entry. CRUCIAL: Chrome's "history manipulation
+// intervention" marks any pushState made WITHOUT a user gesture as skippable, so the
+// back gesture skips it and closes the PWA (no popstate, no warning). We therefore push
+// the guard from the FIRST real user gesture (pointerdown/touchstart/keydown/click),
+// where it is honoured. Idempotent — only the first call per armed cycle does anything.
+function _jpEstablishGuard() {
+  if (!_jpBackReady || _jpGuardUp) return;
+  _jpGuardUp = true;
+  _jpPush();                                                 // non-skippable: within a user gesture
+  if (_jpCurTab() !== 'calc') { _jpFrames.push('calc'); _jpPush(); }
+}
+
 // After we ask to exit, Android typically only BACKGROUNDS the PWA (there is no web API
 // to force-quit). When it comes back to the foreground the same page resumes with its
-// history stack emptied, so a back gesture would close it with no warning. Re-arm a
-// fresh home guard on resume so the first back is caught again.
+// history stack emptied, so a back gesture would close it with no warning. We can't
+// re-push a usable guard here (no user gesture ⇒ Chrome would mark it skippable), so we
+// reset state and let the next user gesture re-establish the guard.
 function _jpResumeRearm() {
   if (!_jpBackReady || !_jpExited) return;
   _jpExited = false;
   _jpFrames = [];
   _jpExitArmed = false;
-  _jpPush();
+  _jpGuardUp = false;                                        // next user gesture rebuilds the guard
 }
 
 function _jpInitBackGuard() {
@@ -4164,11 +4178,15 @@ function _jpInitBackGuard() {
   } catch (e) {}
   _jpBackReady = true;
   _jpFrames = [];
-  _jpPush();                               // permanent home-floor guard (frames empty ⇒ at home)
-  // If we opened onto a non-Calc tab, seed one frame so the first back returns to Calc.
-  if (_jpCurTab() !== 'calc') { _jpFrames.push('calc'); _jpPush(); }
+  _jpGuardUp = false;
   _jpSaveTab(_jpCurTab());
   window.addEventListener('popstate', _jpHandleBack);
+  // Establish the guard on the first user gesture (see _jpEstablishGuard). A pushState at
+  // load time is skipped by Chrome's history intervention, so this is what actually makes
+  // the first back gesture warn instead of closing. Capture phase so it runs before a tab
+  // button's own click handler; kept live so it also re-arms after a resume reset.
+  ['pointerdown', 'touchstart', 'keydown', 'click'].forEach(ev =>
+    window.addEventListener(ev, _jpEstablishGuard, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') _jpResumeRearm();
   });
