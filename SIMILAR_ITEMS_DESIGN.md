@@ -116,12 +116,21 @@ gain; a group matches a gender filter if the representative does).
 
 ## 6. Creation & restock flows
 
+**Grouping is always an explicit owner action — the app never auto-detects that two items
+are the same design.** There are two entry points: mark a batch **at add-time** (you know
+up front), or **"Group these"** afterwards (you found out later). Both end at one grouped
+card.
+
 ### 6.1 New batch — "Add similar items" (the real convenience win)
 
 A batch-add mode driven off the normal label/calc flow:
 
+Triggered by a **"This is part of a batch of similar items"** option shown in the normal
+add/label flow. Once ticked:
+
 1. Enter the shared attributes **once**: type, metal, karat, gold color, vendor + labor
    category (or fixed price), retail, cost, gender/alsoGenders, description, photo.
+   (Phase 2: also set a **color** per piece as you go, for mixed-color batches.)
 2. Then repeat, fast: **weigh → tap → weigh → tap …** Each tap:
    - Mints one `inv_...` record with the shared attributes + this piece's weight.
    - Stamps the shared `groupId`.
@@ -139,9 +148,12 @@ only.)
 
 ### 6.3 Group existing inventory items ("Group these")
 
-For pieces already entered separately (e.g. the 3 identical pendants):
+For pieces already entered separately (e.g. the 3 identical pendants), **including the
+common case of adding one today and discovering another days later** — just add the later
+one normally, then group them:
 
-- Multi-select their cards → **"Group these"** → assign a shared new `groupId`.
+- Multi-select their cards (existing Stock select-mode) → **"Group these"** → assign a
+  shared new `groupId`.
 - **No reprinting, no code changes required** — each keeps its own tag/ref code; scanning any
   of them still resolves; the collapsed card shows the representative's code.
 - Reprinting to unify the printed code is **optional**, offered but not forced.
