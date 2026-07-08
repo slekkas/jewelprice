@@ -157,6 +157,20 @@ with the **existing** `groupId` and printing a tag. Example: 12 → sell 6 → a
 shows **14**. (Sold pieces stay as their own sale records; the count is in-stock members
 only.)
 
+**Inherited vs. entered.** ＋ Add more copies **all shared attributes** from the group so
+they are NOT re-entered: type, metal, karat, gold color, **stones**, vendor + labor category
+(or fixed price), retail, cost, description, gender/alsoGenders, and photo. The owner only
+provides:
+- **Weight** — the per-piece value (drives price on a per-gram group; no effect on
+  fixed/per-item, where price stays identical).
+- **Color** — pre-filled with the group's color; untouched for a single-color batch, flipped
+  per piece for a mixed group.
+
+So the interaction is **weigh → tap** (single color) or **weigh → set color → tap** (mixed).
+Photo is inherited; swap it only when a color needs its own showroom photo (§8). The same
+"inherited vs. entered" rule applies to the initial "Add similar items" batch (§6.1) after
+the first piece establishes the shared attributes.
+
 ### 6.3 Group existing inventory items ("Group these")
 
 For pieces already entered separately (e.g. the 3 identical pendants), **including the
