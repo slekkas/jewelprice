@@ -753,6 +753,19 @@
     font-size: 18px; font-weight: 400;
     color: var(--text);
   }
+  /* Prominent piece name at the top of the detail column — the single title
+     for the view. On desktop it sits beside the photo at eye level; on mobile
+     the detail column stacks under the photo, so it lands right below it. */
+  .lb-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 30px; font-weight: 500; line-height: 1.12;
+    color: var(--text);
+    margin: 0 0 18px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  @media (min-width: 860px) {
+    .lb-name { font-size: 34px; margin-bottom: 22px; padding-top: 0; }
+  }
   .lb-actions { display: flex; gap: 8px; }
   .lb-select-btn {
     border: 1px solid var(--gold);
@@ -2307,7 +2320,9 @@ function openLightbox(key) {
   lightboxKey = key;
 
   const name = getLabel(item);
-  document.getElementById('lbTitle').textContent = name;
+  // Name now shown as a large heading atop the detail column (below); the small
+  // header-bar title is left empty so the piece has a single, easy-to-spot title.
+  document.getElementById('lbTitle').textContent = '';
 
   const isSel = selected.has(key);
   const btn = document.getElementById('lbSelectBtn');
@@ -2358,6 +2373,7 @@ function openLightbox(key) {
       </div>
     </div>
     <div class="lb-detail-col">
+      <h2 class="lb-name">${name}</h2>
       ${rows}
       ${stonesHtml}
       ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${itemRefCode(item)}</span></div>` : ''}
