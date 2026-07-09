@@ -611,13 +611,16 @@
   }
   .item-card.selected .card-select-badge { opacity: 1; }
   .card-select-badge svg { width: 14px; height: 14px; fill: var(--ink); }
-  /* "N in stock" ribbon for grouped similar items — top-left, clear of the select badge */
-  .card-stock-badge {
-    position: absolute; top: 10px; left: 10px; z-index: 2;
-    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
-    color: var(--ink); background: var(--gold);
-    padding: 3px 8px; border-radius: 2px; font-weight: 600;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  /* Ref code + "N in stock" sit on one row at the foot of the card body */
+  .card-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-top: 4px;
+  }
+  .card-foot .card-ref { margin: 0; }
+  /* Subtle "N in stock" for grouped similar items — bottom-right, quiet, not a ribbon */
+  .card-stock-count {
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.06em;
+    color: var(--gold-dim); white-space: nowrap;
   }
 
   /* ─── EMPTY / LOADING ─────────────────────────────────────────────────────── */
@@ -2203,8 +2206,8 @@ function renderGrid() {
     if (_colLbl) tags.push(`<span class="card-tag">${_colLbl}</span>`);
     if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
 
-    const stockBadge = count > 1
-      ? `<div class="card-stock-badge">${count} ${lang==='el'?'σε απόθεμα':'in stock'}</div>`
+    const stockCount = count > 1
+      ? `<div class="card-stock-count">${count} ${lang==='el'?'σε απόθεμα':'in stock'}</div>`
       : '';
 
     return `
@@ -2213,13 +2216,15 @@ function renderGrid() {
         <img class="card-img" src="${item.photoUrl}" alt="${name}" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="card-img-placeholder" style="display:none">💎</div>
-        ${stockBadge}
       </div>
       <div class="card-body">
         <div class="card-type">${typeLabel(item.jewelryType)}</div>
         <div class="card-name">${name}</div>
         <div class="card-tags">${tags.join('')}</div>
-        ${item.seqId ? `<div class="card-ref">${itemRefCode(item)}</div>` : ''}
+        <div class="card-foot">
+          ${item.seqId ? `<div class="card-ref">${itemRefCode(item)}</div>` : '<span></span>'}
+          ${stockCount}
+        </div>
       </div>
       <div class="card-select-badge">
         <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
@@ -2286,6 +2291,14 @@ function openLightbox(key) {
 
   let rows = '';
   if (item.jewelryType) rows += row(lang==='el'?'Τύπος':'Type', typeLabel(item.jewelryType));
+  // In-stock count for grouped similar items (same group + same colour), matching the grid card
+  if (item.groupId) {
+    const stockN = (filtered || allItems).filter(i =>
+      i.groupId === item.groupId && (i.color || '') === (item.color || '')).length;
+    if (stockN > 1) rows += row(lang==='el'?'Απόθεμα':'In stock', stockN + (lang==='el'?' διαθέσιμα':' available'));
+  }
+  const _colLbl = itemColorLabel(item.color);
+  if (_colLbl) rows += row(lang==='el'?'Χρώμα':'Colour', _colLbl);
   if (item.metal && item.metal !== 'other') {
     const k = item.karat ? item.karat.replace(/s$/,'') : '';
     let metalStr = `${metalLabel[item.metal]||item.metal}${k?' · '+k+'K':''}`;
