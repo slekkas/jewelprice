@@ -337,7 +337,14 @@ New user-visible text needs entries in both language dictionaries, following the
    group detail sheet).
 6. ✅ **DONE (v10.30)** — "Sell several" quantity picker in the group sheet
    (`invSellFromGroup`, routes through `openMultiSaleModal` → shared `saleGroup`).
-7. ⏳ TODO — Showroom: group by `groupId`, show live "N in stock".
+7. ✅ **DONE** — Showroom (`showroom.htm`): grid collapses by `groupId + color` (colour
+   variants split into separate public cards), shows a live "N in stock" ribbon, and shows
+   the item's colour as a tag. Uses a ported `ITEM_COLORS`/`itemColorLabel`. (Public-site
+   change — no `APP_VERSION` bump.)
+
+**Phase 1 + Phase 2 core are now complete.** Remaining polish (optional): showroom nav-drawer
+facet counts still count individual pieces rather than grouped cards; the group detail sheet
+could offer a combined mixed-colour multi-sale; deep-linking to a grouped member's own card.
 
 **Phase 2 — color variants (builds on the Phase 1 `color` field):**
 8. Per-color breakdown on the grouped app card ("N in stock — 1 pink · 1 blue").

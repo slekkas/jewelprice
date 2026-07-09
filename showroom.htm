@@ -611,6 +611,14 @@
   }
   .item-card.selected .card-select-badge { opacity: 1; }
   .card-select-badge svg { width: 14px; height: 14px; fill: var(--ink); }
+  /* "N in stock" ribbon for grouped similar items — top-left, clear of the select badge */
+  .card-stock-badge {
+    position: absolute; top: 10px; left: 10px; z-index: 2;
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+    color: var(--ink); background: var(--gold);
+    padding: 3px 8px; border-radius: 2px; font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  }
 
   /* ─── EMPTY / LOADING ─────────────────────────────────────────────────────── */
   .state-msg {
@@ -1353,6 +1361,26 @@ function goldColorLabel(value) {
   const e = GOLD_COLORS.find(c => c.value === value);
   if (!e) return value;
   return lang === 'el' ? e.el : e.en;
+}
+
+// Decorative item colours (enamel/stone) — mirror of ITEM_COLORS in jewelprice.htm.
+// Stored language-neutral on item.color; blank = plain (shown by the metal instead).
+const ITEM_COLORS = [
+  { value: 'white', el: 'Λευκό', en: 'White' }, { value: 'black', el: 'Μαύρο', en: 'Black' },
+  { value: 'red', el: 'Κόκκινο', en: 'Red' }, { value: 'bordeaux', el: 'Μπορντό', en: 'Bordeaux' },
+  { value: 'pink', el: 'Ροζ', en: 'Pink' }, { value: 'fuchsia', el: 'Φούξια', en: 'Fuchsia' },
+  { value: 'light_blue', el: 'Γαλάζιο', en: 'Light Blue' }, { value: 'blue', el: 'Μπλε', en: 'Blue' },
+  { value: 'navy', el: 'Σκούρο Μπλε', en: 'Navy' }, { value: 'turquoise', el: 'Τιρκουάζ', en: 'Turquoise' },
+  { value: 'green', el: 'Πράσινο', en: 'Green' }, { value: 'light_green', el: 'Ανοιχτό Πράσινο', en: 'Light Green' },
+  { value: 'yellow', el: 'Κίτρινο', en: 'Yellow' }, { value: 'orange', el: 'Πορτοκαλί', en: 'Orange' },
+  { value: 'purple', el: 'Μωβ', en: 'Purple' }, { value: 'lilac', el: 'Λιλά', en: 'Lilac' },
+  { value: 'brown', el: 'Καφέ', en: 'Brown' }, { value: 'grey', el: 'Γκρι', en: 'Grey' },
+  { value: 'silver', el: 'Ασημί', en: 'Silver' }, { value: 'multicolor', el: 'Πολύχρωμο', en: 'Multicolor' },
+];
+function itemColorLabel(value) {
+  if (!value) return '';
+  const e = ITEM_COLORS.find(c => c.value === value);
+  return e ? (lang === 'el' ? e.el : e.en) : '';
 }
 
 // Known stone types (same order as index.htm)
@@ -2147,7 +2175,20 @@ function renderGrid() {
 
   const metalLabel = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
 
-  grid.innerHTML = filtered.map(item => {
+  // Collapse "similar items": pieces sharing a groupId AND the same colour show as ONE
+  // card with a live in-stock count. Different colours of the same group split into
+  // separate cards (so a customer sees each colour). Ungrouped pieces stay individual.
+  const _rowMap = new Map();
+  const rows = [];
+  for (const item of filtered) {
+    const gid = item.groupId;
+    if (!gid) { rows.push({ item, count: 1 }); continue; }
+    const key = gid + '|' + (item.color || '');
+    if (_rowMap.has(key)) { rows[_rowMap.get(key)].count++; }
+    else { _rowMap.set(key, rows.length); rows.push({ item, count: 1 }); }
+  }
+
+  grid.innerHTML = rows.map(({ item, count }) => {
     const sel  = selected.has(item._key) ? 'selected' : '';
     const name = getLabel(item);
     const tags = [];
@@ -2158,7 +2199,13 @@ function renderGrid() {
         tags.push(`<span class="card-tag">${goldColorLabel(item.goldColor)}</span>`);
       }
     }
+    const _colLbl = itemColorLabel(item.color);
+    if (_colLbl) tags.push(`<span class="card-tag">${_colLbl}</span>`);
     if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
+
+    const stockBadge = count > 1
+      ? `<div class="card-stock-badge">${count} ${lang==='el'?'σε απόθεμα':'in stock'}</div>`
+      : '';
 
     return `
     <div class="item-card ${sel}" onclick="openLightbox('${item._key}')">
@@ -2166,6 +2213,7 @@ function renderGrid() {
         <img class="card-img" src="${item.photoUrl}" alt="${name}" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="card-img-placeholder" style="display:none">💎</div>
+        ${stockBadge}
       </div>
       <div class="card-body">
         <div class="card-type">${typeLabel(item.jewelryType)}</div>
