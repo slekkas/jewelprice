@@ -335,7 +335,8 @@ New user-visible text needs entries in both language dictionaries, following the
    the Edit Item form (starts a batch from the first piece).
 5. ✅ **DONE (v10.29)** — "＋ Add more" restock into a group (same `invAddSimilar`, from the
    group detail sheet).
-6. ⏳ TODO — "Sell quantity" from the group card (reuses cart + `saleGroup`).
+6. ✅ **DONE (v10.30)** — "Sell several" quantity picker in the group sheet
+   (`invSellFromGroup`, routes through `openMultiSaleModal` → shared `saleGroup`).
 7. ⏳ TODO — Showroom: group by `groupId`, show live "N in stock".
 
 **Phase 2 — color variants (builds on the Phase 1 `color` field):**
