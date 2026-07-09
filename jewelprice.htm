@@ -4770,9 +4770,10 @@ function closeLabelHistoryIfMobile() {
 function _showDupQrWarning(data, existing) {
   // Show an overlay warning the user that this QR already exists in inventory,
   // with the existing item's photo/description and a weight adjustment input.
-  const desc = lang==='el'
+  const desc = (lang==='el'
     ? (existing.descEl||existing.descEn||existing.description||'—')
-    : (existing.descEn||existing.descEl||existing.description||'—');
+    : (existing.descEn||existing.descEl||existing.description||'—'))
+    + (existing.status !== 'in_stock' ? (lang==='el' ? ' [πωλημένο]' : ' [sold]') : '');
   const photo = existing.photoUrl
     ? `<img src="${existing.photoUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);flex-shrink:0">`
     : `<div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">💎</div>`;
@@ -4825,7 +4826,7 @@ function _showDupQrWarning(data, existing) {
         wEl.value = oldVal;
         if (newData) {
           const isDup = Object.values(_inventoryCache||{}).some(it =>
-            it.status==='in_stock' && (it.qrCode||it.code||'').trim().toUpperCase() === newData.fullQR.trim().toUpperCase()
+            (it.qrCode||it.code||'').trim().toUpperCase() === newData.fullQR.trim().toUpperCase()
           );
           newCodeEl.style.color = isDup ? 'var(--danger)' : '#27AE60';
           newCodeEl.textContent = '→ ' + newData.fullQR + (isDup ? (isEl?' ⚠️ Ακόμα διπλό!':' ⚠️ Still duplicate!') : (isEl?' ✓ Μοναδικό':'  ✓ Unique'));
@@ -4936,9 +4937,13 @@ function openLabelModal() {
       _inventoryCache = await loadInventory();
     }
     const qrNorm = data.fullQR.trim().toUpperCase();
-    const existing = Object.values(_inventoryCache || {}).find(it =>
-      it.status === 'in_stock' && (it.qrCode||it.code||'').trim().toUpperCase() === qrNorm
-    );
+    // Match ANY existing item with this QR — sold included. The physical tag of a sold
+    // item can still be floating around, and the owner keeps every QR globally unique
+    // (nudging the weight slightly), so a collision with a sold item must warn too.
+    // Prefer an in-stock match for the shown details, else fall back to any status.
+    const _allMatches = Object.values(_inventoryCache || {}).filter(it =>
+      (it.qrCode||it.code||'').trim().toUpperCase() === qrNorm);
+    const existing = _allMatches.find(it => it.status === 'in_stock') || _allMatches[0];
     if (existing) {
       // Show duplicate warning overlay instead of label modal
       _showDupQrWarning(data, existing);
@@ -10598,16 +10603,18 @@ async function saveToInventoryFromLabel(labelData) {
       _inventoryCache = await loadInventory();
     }
     const _qn = (item.qrCode || '').trim().toUpperCase();
-    const _dup = _qn && Object.values(_inventoryCache || {}).find(it =>
-      it.status === 'in_stock' && (it.qrCode || it.code || '').trim().toUpperCase() === _qn);
+    const _matches = _qn ? Object.values(_inventoryCache || {}).filter(it =>
+      (it.qrCode || it.code || '').trim().toUpperCase() === _qn) : [];
+    const _dup = _matches.find(it => it.status === 'in_stock') || _matches[0];
     if (_dup) {
       const _dd = lang === 'el'
         ? (_dup.descEl || _dup.descEn || _dup.description || '—')
         : (_dup.descEn || _dup.descEl || _dup.description || '—');
+      const _soldTag = _dup.status !== 'in_stock' ? (lang === 'el' ? ' [πωλημένο]' : ' [sold]') : '';
       const _ok = await new Promise(res => showConfirm(
         lang === 'el'
-          ? `⚠️ Ο κωδικός QR "${item.qrCode}" υπάρχει ήδη σε άλλο αντικείμενο στο απόθεμα (${_dd}). Αλλάξτε ελαφρώς το βάρος για μοναδικό κωδικό. Αποθήκευση ούτως ή άλλως;`
-          : `⚠️ The QR code "${item.qrCode}" already exists on another in-stock item (${_dd}). Adjust the weight slightly for a unique code. Save anyway?`,
+          ? `⚠️ Ο κωδικός QR "${item.qrCode}" υπάρχει ήδη σε άλλο αντικείμενο (${_dd}${_soldTag}). Αλλάξτε ελαφρώς το βάρος για μοναδικό κωδικό. Αποθήκευση ούτως ή άλλως;`
+          : `⚠️ The QR code "${item.qrCode}" already exists on another item (${_dd}${_soldTag}). Adjust the weight slightly for a unique code. Save anyway?`,
         () => res(true), () => res(false),
         { okLabel: lang === 'el' ? 'Αποθήκευση' : 'Save anyway', danger: true }
       ));
@@ -15183,6 +15190,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.33', date: 'Ιούλιος 2026', items: [
+        '🛡️ Η προειδοποίηση διπλότυπου QR πιάνει τώρα ΚΑΙ τα πωλημένα είδη: μέχρι τώρα, αν ο κωδικός QR ενός νέου είδους ταίριαζε με είδος που είχε ΠΩΛΗΘΕΙ, δεν εμφανιζόταν προειδοποίηση (ο έλεγχος κοιτούσε μόνο ό,τι ήταν σε απόθεμα). Επειδή η ετικέτα ενός πωλημένου κομματιού μπορεί να κυκλοφορεί ακόμα και θέλετε κάθε QR μοναδικό, η εφαρμογή προειδοποιεί πλέον για ΟΠΟΙΑΔΗΠΟΤΕ σύμπτωση κωδικού (με ένδειξη «[πωλημένο]» όπου χρειάζεται), ώστε να αλλάξετε ελαφρώς το βάρος.'
+      ]},
       { version: 'v10.32', date: 'Ιούλιος 2026', items: [
         '🔧 Βελτιώσεις στα ομαδοποιημένα είδη: (1) Η ομαδοποιημένη κάρτα δείχνει τώρα δεξιά τα σήματα (φύλο, χειροποίητο, χρώμα χρυσού) όπως η κανονική κάρτα. (2) Στο «Δες κομμάτια», κάθε κομμάτι δείχνει και τη γραμμή «Αρχική τιμή (ημ/νία): €Χ (+Υ%)» ανάμεσα στα γραμμάρια και τα κουμπιά, όπως η κανονική κάρτα.',
         '🛡️ Ενισχυμένη προειδοποίηση διπλότυπου QR: κατά την αποθήκευση νέου είδους, αν ο κωδικός QR υπάρχει ήδη σε άλλο είδος στο απόθεμα, η εφαρμογή σας προειδοποιεί πάντα (αλλάξτε ελαφρώς το βάρος) — πιάνει και περιπτώσεις που ο προηγούμενος έλεγχος μπορούσε να χάσει.'
@@ -15211,9 +15221,6 @@ const ABOUT = {
       ]},
       { version: 'v10.24', date: 'Ιούλιος 2026', items: [
         '⚧ Τα Unisex εμφανίζονται σε ανδρικά ΚΑΙ γυναικεία: όταν φιλτράρετε π.χ. «Ανδρικοί Σταυροί», εμφανίζονται τώρα και οι Unisex σταυροί — το ίδιο και στα γυναικεία. Δεν χρειάζεται πλέον να επιλέγετε και «Unisex» ξεχωριστά, ώστε να μη σας ξεφεύγει κανένα κομμάτι. Στην ιδιωτική ιστοσελίδα (showroom) το φίλτρο «Unisex» αφαιρέθηκε τελείως — τα κοινά κομμάτια εμφανίζονται αυτόματα και στις δύο κατηγορίες. Στην εφαρμογή το «Unisex» παραμένει ως επιλογή φίλτρου.'
-      ]},
-      { version: 'v10.23', date: 'Ιούλιος 2026', items: [
-        '⚡ Πιο γρήγορη καρτέλα «Απόθεμα»: το άνοιγμα της λίστας ειδών ήταν το μόνο που «κολλούσε» για μια στιγμή, και θα χειροτέρευε όσο μεγαλώνει το απόθεμα (προς 1000+ είδη). Τώρα η λίστα ανοίγει ακαριαία σαν τις υπόλοιπες καρτέλες: (1) εμφανίζεται αμέσως από τη μνήμη και ανανεώνεται αθόρυβα από το cloud στο παρασκήνιο, (2) η ταξινόμηση δεν ξαναϋπολογίζει πια τιμές χιλιάδες φορές, και (3) τα είδη φορτώνονται σε «σελίδες» καθώς κατεβαίνετε (αντί να χτίζονται και τα 1000 μαζί). Καμία αλλαγή στα δεδομένα ή στην εμφάνιση — μόνο ταχύτητα.'
       ]},
           ]
   },
@@ -15297,6 +15304,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.33', date: 'Jul 2026', items: [
+        '🛡️ Duplicate-QR warning now catches SOLD items too: until now, if a new item\'s QR code matched an item that had been SOLD, no warning appeared (the check only looked at in-stock items). Since a sold piece\'s tag can still be around and you keep every QR unique, the app now warns for ANY code collision (marking it "[sold]" where relevant) so you can adjust the weight slightly.'
+      ]},
       { version: 'v10.32', date: 'Jul 2026', items: [
         '🔧 Grouped-item improvements: (1) The grouped card now shows the badges on the right (gender, handmade, gold colour) just like a normal card. (2) In "View pieces", each piece now shows the "Initial price (date): €X (+Y%)" line between the grams and the buttons, like a normal card.',
         '🛡️ Stronger duplicate-QR warning: when saving a new item, if its QR code already exists on another in-stock item, the app now always warns you (adjust the weight slightly) — catching cases the earlier check could miss.'
@@ -15325,9 +15335,6 @@ const ABOUT = {
       ]},
       { version: 'v10.24', date: 'Jul 2026', items: [
         '⚧ Unisex pieces now show under both Men and Women: when you filter for e.g. "Men\'s Crosses", unisex crosses now appear too — and likewise for Women. You no longer have to also tick "Unisex" separately, so nothing slips through. On the private showroom website the "Unisex" filter was removed entirely — shared pieces surface automatically under both categories. In the app, "Unisex" stays as a filter option.'
-      ]},
-      { version: 'v10.23', date: 'Jul 2026', items: [
-        '⚡ Faster "Stock" tab: opening the inventory list was the only tab that stuttered for a moment, and it would only get worse as the stock grows (toward 1000+ items). It now opens instantly like the other tabs: (1) it shows immediately from memory and refreshes quietly from the cloud in the background, (2) sorting no longer recalculates prices thousands of times, and (3) items load in "pages" as you scroll down (instead of building all 1000 cards at once). No change to your data or how it looks — just speed.'
       ]},
           ]
   }
@@ -18212,7 +18219,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.32';
+const APP_VERSION = '10.33';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
