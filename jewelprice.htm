@@ -2047,6 +2047,10 @@
       </select>
       <div id="labelGenderAlsoWrap"></div>
     </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="colorLabel">Χρώμα (σμάλτο/πέτρα)</label>
+      <select id="labelColorSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
+    </div>
     <div id="labelGoldColorWrap" style="margin-bottom:16px;display:none">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="goldColorLabel">Χρώμα Χρυσού</label>
       <select id="labelGoldColorSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
@@ -2835,6 +2839,7 @@ const T = {
     flatFee:'σταθερό', perItem:'ανά τεμάχιο',
     targetRetailLbl:'🎯 Τιμή Στόχος (με ΦΠΑ)', itemLaborCost:'Εργασία (ανά τεμάχιο)',
     purchaseCostLbl:'💰 Κόστος Αγοράς (χωρίς ΦΠΑ)', purchaseCostHint:'Χρησιμοποιείται για τον υπολογισμό κέρδους στις πωλήσεις.',
+    colorLabel:'Χρώμα (σμάλτο/πέτρα)',
     initialPriceLbl:'Αρχική τιμή', appreciation:'Υπεραξία από προσθήκη',
     stoneModePassthrough:'Pass-through', stoneModeWithMargin:'Με περιθώριο',
     stoneCostLbl:'Κόστος Πέτρας (€)', stoneModeLbl:'Τρόπος Κόστους',
@@ -3364,6 +3369,7 @@ const T = {
     genderChildren:'👶 Children',
     genderUnisex:'✨ Unisex',
     goldColorLabel:'Gold Color',
+    colorLabel:'Color (enamel/stone)',
     invFilterGender:'Gender',
     invFilterMixed:'Mixed Metal',
     secMetalLabel:'+ Secondary Metal',
@@ -5150,6 +5156,12 @@ function _openLabelModalInner(data, modal, content) {
   if (_lblGcSel) {
     _lblGcSel.innerHTML = GOLD_COLORS.map(c => `<option value="${c.value}">${lang==='el'?c.el:c.en}</option>`).join('');
     _lblGcSel.value = 'gold'; // always reset to default on new item
+  }
+  // Populate the decorative color selector (blank = plain) — reset on each open
+  const _lblColorSel = document.getElementById('labelColorSelect');
+  if (_lblColorSel) {
+    _lblColorSel.innerHTML = itemColorOptionsHtml('');
+    _lblColorSel.value = '';
   }
 }
 
@@ -10552,6 +10564,7 @@ async function saveToInventoryFromLabel(labelData) {
     })(),
     gender: (document.getElementById('labelGenderSelect')?.value) || 'unisex',
     alsoGenders: readGenderAlso('label'),
+    color: (document.getElementById('labelColorSelect')?.value) || null,
     goldColor: (metal === 'gold') ? (document.getElementById('labelGoldColorSelect')?.value || 'gold') : null,
     secondaryMetal: r ? (r.secondaryMetal || null) : null,
     secondaryKarat: r ? (r.secondaryKarat || null) : null,
@@ -10614,7 +10627,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','weight','gender','alsoGenders','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
+  'metal','karat','goldColor','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -10854,7 +10867,7 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 
 // Gain % of an item versus its recorded initial price (owner metric — same value
 // shown on the inventory card's "Initial price (+x%)" line). Returns null when it
@@ -10941,7 +10954,7 @@ let _invSelected = new Set();
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.colors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -10961,6 +10974,7 @@ function updateInvFilterBadge() {
     if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : t('invFilterInStock')).join(', '));
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
+    if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
@@ -11089,6 +11103,19 @@ function openInvFilterSheet() {
     if (!pills) return '';
     return `<div class="inv-fs-group"><div class="inv-fs-label">${lang==='el'?'Χρώμα Χρυσού':'Gold Color'}</div><div class="inv-fs-pills">${pills}</div></div>`;
   })();
+  // Decorative color filter pills — only colors actually present in stock
+  const colorGroup = (function() {
+    const used = new Set();
+    Object.values(_inventoryCache || {}).forEach(item => { if (item.color) used.add(item.color); });
+    if (used.size === 0) return '';
+    const pills = ITEM_COLORS.filter(c => c.value && used.has(c.value)).map(c => {
+      const sel = (_invFilters.colors||[]).includes(c.value);
+      const dotCss = itemColorSwatchCss(c.value) || 'background:#888';
+      return `<button class="inv-fs-pill${sel?' sel':''}" data-group="colors" data-val="${c.value}"><span style="width:9px;height:9px;border-radius:50%;${dotCss};display:inline-block;margin-right:5px;vertical-align:-1px;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>${lang==='el'?c.el:c.en}</button>`;
+    }).join('');
+    if (!pills) return '';
+    return `<div class="inv-fs-group"><div class="inv-fs-label">${lang==='el'?'Χρώμα':'Color'}</div><div class="inv-fs-pills">${pills}</div></div>`;
+  })();
   // Gender filter pills
   const genderGroup = (function() {
     const gVals = ['women','men','children','unisex'];
@@ -11178,6 +11205,7 @@ function openInvFilterSheet() {
     })() +
     pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : t('invFilterInStock')) +
     goldColorGroup +
+    colorGroup +
     genderGroup +
     mixedMetalGroup +
     gainGroup +
@@ -11316,7 +11344,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -11570,6 +11598,9 @@ function renderInvList() {
       const gc = item.goldColor || 'gold';
       if (!f.goldColors.includes(gc)) return false;
     }
+    if (f.colors && f.colors.length) {
+      if (!item.color || !f.colors.includes(item.color)) return false;
+    }
     if (f.mixedMetal) {
       if (!item.secondaryMetal) return false;
     }
@@ -11746,6 +11777,14 @@ function renderInvList() {
       const _gcDisplay = _gcParts.length > 1 ? _gcParts[0] + ' &<br>' + _gcParts.slice(1).join(' & ') : lbl;
       return `<span class="inv-card-badge" style="background:${c.bg};border:1px solid ${c.border};color:${c.text};font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${_gcDisplay}</span>`;
     })();
+    // Decorative color badge (enamel/stone) — only when a color is set (blank = plain)
+    const _colorBadge = (function() {
+      if (!item.color) return '';
+      const lbl = itemColorLabel(item.color);
+      if (!lbl) return '';
+      const dotCss = itemColorSwatchCss(item.color) || 'background:#888';
+      return `<span class="inv-card-badge" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-muted);font-size:10px;letter-spacing:0.03em;display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;${dotCss};display:inline-block;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>${lbl}</span>`;
+    })();
     const metalLabel = item.metal === 'gold' ? t('gold') : t('silver');
     const karatLabel = item.metal === 'gold' ? item.karat + 'K' : item.karat;
     // Secondary metal badge (e.g. "925 + 18K")
@@ -11807,7 +11846,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -12020,6 +12059,10 @@ function showInvScanConfirm(item, rows, priceStr, isSilver, cacheFound, invStone
         <option value="children">👶 ${lang==='el'?'Παιδικό':'Children'}</option>
       </select>
       ${genderAlsoGroupHtml('invScan', item.gender || 'unisex', item.alsoGenders)}
+    </div>
+    <div style="margin:0 0 14px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Χρώμα (σμάλτο/πέτρα)':'Color (enamel/stone)'}</label>
+      <select id="invScanColorSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">${itemColorOptionsHtml(item.color)}</select>
     </div>
     <div style="margin:0 0 18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">🇬🇷 Περιγραφή (Ελληνικά)</label>
@@ -12350,6 +12393,7 @@ RETAIL: €[integer]`;
     if (vCode) item.vendorCode = vCode;
     item.gender = document.getElementById('invScanGenderSelect')?.value || 'unisex';
     item.alsoGenders = readGenderAlso('invScan');
+    item.color = document.getElementById('invScanColorSelect')?.value || null;
     item.photoUrl = '';
     item.photoName = '';
     item.photoUrlHi = '';
@@ -12704,6 +12748,10 @@ function invEdit(id) {
         <option value="children" ${item.gender==='children'?'selected':''}>👶 ${lang==='el'?'Παιδικό':'Children'}</option>
       </select>
       ${genderAlsoGroupHtml('invEdit', item.gender || 'unisex', item.alsoGenders)}
+    </div>
+    <div style="margin-bottom:18px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Χρώμα (σμάλτο/πέτρα)':'Color (enamel/stone)'}</label>
+      <select id="invEditColorSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">${itemColorOptionsHtml(item.color)}</select>
     </div>
     ${!isOtherEdit && item.metal === 'gold' ? `
     <div style="margin-bottom:18px">
@@ -13161,6 +13209,7 @@ RETAIL: \u20ac[integer]`;
     item.handmade = document.getElementById('invEditHandmadeToggle')?.style.opacity === '1';
     item.gender = document.getElementById('invEditGenderSelect')?.value || 'unisex';
     item.alsoGenders = readGenderAlso('invEdit');
+    item.color = document.getElementById('invEditColorSelect')?.value || null;
     // Save gold color (only for gold items)
     if (item.metal === 'gold') {
       item.goldColor = document.getElementById('invEditGoldColorSelect')?.value || 'gold';
@@ -14892,6 +14941,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.27', date: 'Ιούλιος 2026', items: [
+        '🎨 Νέο πεδίο «Χρώμα» σε κάθε είδος: μπορείτε πλέον να ορίσετε το χρώμα ενός κοσμήματος (σμάλτο, πέτρα κ.λπ.) από μια έτοιμη λίστα — π.χ. Μπλε, Γαλάζιο, Μπορντό, Πράσινο — αντί να το γράφετε στην περιγραφή. Το χρώμα εμφανίζεται ως σήμα στην καρτέλα του είδους και μπορείτε να φιλτράρετε το απόθεμα ανά χρώμα. Αφήστε το κενό για απλά κομμάτια (εμφανίζονται με το μέταλλό τους, Χρυσό/Ασήμι). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους. (Πρώτο βήμα για το ομαδοποιημένο απόθεμα «όμοιων ειδών» που έρχεται.)'
+      ]},
       { version: 'v10.26', date: 'Ιούλιος 2026', items: [
         '⚧ Ένα είδος μπορεί τώρα να εμφανίζεται σε παραπάνω από μία κατηγορίες: π.χ. ένα παιδικό μενταγιόν που το αγοράζουν και γυναίκες. Επιλέγετε την κύρια κατηγορία όπως πάντα (π.χ. Παιδικό) και από κάτω, στο «Εμφανίζεται επίσης σε», τικάρετε και «Γυναικείο». Έτσι θα εμφανίζεται και στα δύο φίλτρα — και στην εφαρμογή και στην ιστοσελίδα (showroom). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους.'
       ]},
@@ -14921,10 +14973,6 @@ const ABOUT = {
       ]},
       { version: 'v10.18', date: 'Ιούλιος 2026', items: [
         '📅 Η γραμμή «Αρχική τιμή» δείχνει τώρα και την ημερομηνία προσθήκης του είδους, π.χ. «Αρχική τιμή (προσθήκη 07/07/2026): €744.17 (+5.6%)». Έτσι, βλέποντας μια αύξηση, ξέρετε από ποια ημερομηνία να ελέγξετε πόσο έχει ανέβει ο χρυσός. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
-      ]},
-      { version: 'v10.17', date: 'Ιούλιος 2026', items: [
-        '⛓️ Ο ανεφοδιασμός αλυσίδων δεν «φουσκώνει» πια την υπεραξία: όταν προσθέτατε γραμμάρια σε ένα απόθεμα αλυσίδων, η νέα ποσότητα μετρούσε λανθασμένα ως αύξηση τιμής (π.χ. +32%). Πλέον η αξία του νέου εμπορεύματος προστίθεται στην αρχική τιμή, οπότε το ποσοστό υπεραξίας δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού — όχι πόσο απόθεμα υπάρχει.',
-        '📈 Νέα ταξινόμηση & φίλτρο «Υπεραξία»: στην Ταξινόμηση μπορείτε να δείτε τα είδη με τη μεγαλύτερη ανατίμηση πρώτα (Υψηλή → Χαμηλή) και στα Φίλτρα να δείτε μόνο όσα ανέβηκαν πάνω από 3%, 5% ή 10% — για να εντοπίζετε γρήγορα μη ρεαλιστικές αυξήσεις. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
       ]},
           ]
   },
@@ -15008,6 +15056,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.27', date: 'Jul 2026', items: [
+        '🎨 New "Color" field on every item: you can now set a piece\'s color (enamel, stone, etc.) from a ready-made list — e.g. Blue, Light Blue, Bordeaux, Green — instead of typing it into the description. The color shows as a badge on the item card and you can filter your stock by color. Leave it blank for plain pieces (they show by their metal, Gold/Silver). Available when creating a label, scanning, and editing an item. (First step toward the "similar items" grouped stock that\'s coming.)'
+      ]},
       { version: 'v10.26', date: 'Jul 2026', items: [
         '⚧ An item can now appear in more than one category: e.g. a children\'s pendant that grown women also buy. You pick the main category as usual (e.g. Children), then just below, under "Also appears under", tick "Women" too. It then shows up under both filters — in the app and on the showroom website. Available when creating a label, scanning, and editing an item.'
       ]},
@@ -15037,10 +15088,6 @@ const ABOUT = {
       ]},
       { version: 'v10.18', date: 'Jul 2026', items: [
         '📅 The "Initial price" line now also shows the date the item was added, e.g. "Initial price (added 07/07/2026): €744.17 (+5.6%)". So when you see a gain, you know which date to check the gold price against. (Owner/manager only.)'
-      ]},
-      { version: 'v10.17', date: 'Jul 2026', items: [
-        '⛓️ Restocking chains no longer inflates the gain: when you added grams to a chain stock, the extra quantity was wrongly counted as a price rise (e.g. +32%). Now the value of the new stock is added to the initial price, so the gain % reflects only real gold-price movement — not how much stock is on hand.',
-        '📈 New "Gain" sort & filter: Sort can now show the items that rose the most first (High → Low), and Filters can show only items that went up over 3%, 5% or 10% — a quick way to catch unrealistic increases. (Owner/manager only.)'
       ]},
           ]
   }
@@ -17925,7 +17972,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.26';
+const APP_VERSION = '10.27';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -17941,6 +17988,51 @@ function goldColorLabel(value) {
   const entry = GOLD_COLORS.find(c => c.value === value);
   if (!entry) return '';
   return lang === 'el' ? entry.el : entry.en;
+}
+
+// Decorative colors for items (enamel / stone / cord) — INDEPENDENT of metal.
+// Stored language-neutral in item.color; blank = plain (labelled by the metal).
+// `sw` is a small swatch colour for the badge/pill dot (multicolor drawn as a gradient).
+const ITEM_COLORS = [
+  { value: '',            el: '— (απλό)',        en: '— (plain)',    sw: '' },
+  { value: 'white',       el: 'Λευκό',           en: 'White',        sw: '#f2f2f2' },
+  { value: 'black',       el: 'Μαύρο',           en: 'Black',        sw: '#242424' },
+  { value: 'red',         el: 'Κόκκινο',         en: 'Red',          sw: '#d3341f' },
+  { value: 'bordeaux',    el: 'Μπορντό',         en: 'Bordeaux',     sw: '#6b1f2e' },
+  { value: 'pink',        el: 'Ροζ',             en: 'Pink',         sw: '#f4a6c0' },
+  { value: 'fuchsia',     el: 'Φούξια',          en: 'Fuchsia',      sw: '#c2185b' },
+  { value: 'light_blue',  el: 'Γαλάζιο',         en: 'Light Blue',   sw: '#7fc4e8' },
+  { value: 'blue',        el: 'Μπλε',            en: 'Blue',         sw: '#2a5db0' },
+  { value: 'navy',        el: 'Σκούρο Μπλε',     en: 'Navy',         sw: '#1b2a4a' },
+  { value: 'turquoise',   el: 'Τιρκουάζ',        en: 'Turquoise',    sw: '#1abc9c' },
+  { value: 'green',       el: 'Πράσινο',         en: 'Green',        sw: '#2e8b57' },
+  { value: 'light_green', el: 'Ανοιχτό Πράσινο', en: 'Light Green',  sw: '#8bc34a' },
+  { value: 'yellow',      el: 'Κίτρινο',         en: 'Yellow',       sw: '#e8c840' },
+  { value: 'orange',      el: 'Πορτοκαλί',       en: 'Orange',       sw: '#e8842a' },
+  { value: 'purple',      el: 'Μωβ',             en: 'Purple',       sw: '#7b3fa0' },
+  { value: 'lilac',       el: 'Λιλά',            en: 'Lilac',        sw: '#c8a2d8' },
+  { value: 'brown',       el: 'Καφέ',            en: 'Brown',        sw: '#8a5a2b' },
+  { value: 'grey',        el: 'Γκρι',            en: 'Grey',         sw: '#9098a0' },
+  { value: 'silver',      el: 'Ασημί',           en: 'Silver',       sw: '#c0c8d0' },
+  { value: 'multicolor',  el: 'Πολύχρωμο',       en: 'Multicolor',   sw: 'multicolor' },
+];
+// Localised label for a stored color key ('' / unknown → '' so the badge falls back to metal).
+function itemColorLabel(value) {
+  if (!value) return '';
+  const entry = ITEM_COLORS.find(c => c.value === value);
+  return entry ? (lang === 'el' ? entry.el : entry.en) : '';
+}
+// Swatch background CSS for a color dot ('' for blank; a conic gradient for multicolor).
+function itemColorSwatchCss(value) {
+  const entry = ITEM_COLORS.find(c => c.value === value);
+  if (!entry || !entry.sw) return '';
+  if (entry.sw === 'multicolor') return 'background:conic-gradient(from 0deg,#e0344b,#e8a53a,#e8d23a,#4caf84,#3a7de8,#7b3fa0,#e0344b)';
+  return 'background:' + entry.sw;
+}
+// <option> list for a Color <select>, with `selected` pre-selected.
+function itemColorOptionsHtml(selected) {
+  const sel = selected || '';
+  return ITEM_COLORS.map(c => `<option value="${c.value}"${sel === c.value ? ' selected' : ''}>${lang === 'el' ? c.el : c.en}</option>`).join('');
 }
 
 // The green "new version" banner draws its contents straight from the About-page
