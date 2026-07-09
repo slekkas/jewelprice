@@ -12877,6 +12877,8 @@ function invEdit(id) {
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:8px">${lang==='el'?'Φωτογραφία Κοσμήματος':'Jewelry Photo'}</label>
       <div id="invEditPhotoPickerWrap"></div>
     </div>
+    ${(creds.role !== 'employee' && item.status !== 'sold' && !item.isBulk) ? `
+    <button type="button" onclick="invAddSimilar('${id}')" style="width:100%;padding:12px;margin-bottom:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</button>` : ''}
     <div style="display:flex;gap:10px">
       <button id="invEditSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('invEditSave')}</button>
       <button onclick="document.getElementById('invEditOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
@@ -14349,6 +14351,133 @@ function invRestock(id) {
   });
 }
 
+// ── Add similar items into a group (weigh-tap loop) (v10.29) ─────────────────
+// Clone the source's shared attributes, take just a new weight (+colour) each time,
+// keep the SAME reference code, regenerate the weight-encoded QR, save into the same
+// group (minting a groupId on the source on the first add so source+clone become a
+// group), and optionally print the tag — then stay open for the next piece. Serves
+// both "start a batch" (from any single item, via Edit) and "＋ Add more" (from a
+// group). Owner/manager only.
+function invAddSimilar(sourceId) {
+  if (creds.role === 'employee') return;
+  const source = _inventoryCache[sourceId];
+  if (!source) return;
+  // Close any edit / group overlay so the add sheet is on top
+  document.getElementById('invEditOverlay')?.remove();
+  closeInvGroup();
+  document.getElementById('invAddSimilarOverlay')?.remove();
+
+  // QR regeneration (same approach as restock): the code encodes weight, so a new
+  // weight needs a new code. Pull the stone/suffix straight from the source's code.
+  const _vendorIdx = state.vendors.findIndex(v => v.name === source.vendorName);
+  const _vendor = _vendorIdx >= 0 ? state.vendors[_vendorIdx] : null;
+  const _cats = _vendor ? getVendorCategories(_vendor) : [];
+  const _catIdx = _vendor ? (source.catName ? _cats.findIndex(c => c.name === source.catName) : (source.catIdx ?? -1)) : -1;
+  const _canRegenQR = source.metal !== 'other' && !!_vendor && _catIdx >= 0;
+  const _latinBase = _canRegenQR ? getLatinCodeForCat(_vendor, _catIdx, state.vendors) : '';
+  const _existingQR = (source.qrCode || source.code || '');
+  let _stoneSuffix = '';
+  if (_canRegenQR && _existingQR.toUpperCase().startsWith(_latinBase.toUpperCase())) {
+    const _after = _existingQR.slice(_latinBase.length);
+    const _wm = _after.match(/^[0-9]+(?:\.[0-9]+)?/);
+    _stoneSuffix = _wm ? _after.slice(_wm[0].length) : _after;
+    if (_stoneSuffix.startsWith('+')) _stoneSuffix = '-' + _stoneSuffix.slice(1);
+  }
+  const buildQR = (w) => _canRegenQR ? (_latinBase + w.toString() + _stoneSuffix) : _existingQR;
+
+  const typeStr = source.jewelryType ? invTypeLabel(source.jewelryType) : '';
+  const summary = [typeStr, _itemDesc(source)].filter(Boolean).join(' · ') || (source.qrCode || '—');
+  const refStr = source.seqId ? itemRefCode(source) : '';
+  let _added = 0;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'invAddSimilarOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:22px;width:100%;max-width:390px;max-height:90vh;overflow-y:auto">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">${summary}</div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:14px">${refStr ? refStr + ' · ' : ''}${lang==='el'?'ίδιος κωδικός σε όλα, μοναδικό QR ανά βάρος':'same ref code on all, unique QR per weight'}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}</div>
+      <input id="invAddSimWeight" type="number" step="0.01" min="0" inputmode="decimal"
+        style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα':'Color'}</div>
+      <select id="invAddSimColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${itemColorOptionsHtml(source.color)}</select>
+      <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
+      <div id="invAddSimCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:6px;font-family:var(--font-body);font-weight:600"></div>
+      <div id="invAddSimStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:14px;margin-bottom:10px;font-family:var(--font-mono)"></div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button id="invAddSimPrintBtn" style="flex:1.4;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση & Προσθήκη':'Print & Add'}</button>
+        <button id="invAddSimAddBtn" style="flex:1;padding:13px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;text-transform:uppercase">＋ ${lang==='el'?'Προσθήκη':'Add'}</button>
+      </div>
+      <button id="invAddSimDoneBtn" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Τέλος':'Done'}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const wEl = () => document.getElementById('invAddSimWeight');
+  const previewEl = document.getElementById('invAddSimPreview');
+  const counterEl = document.getElementById('invAddSimCounter');
+  function updatePreview() {
+    const w = parseFloat(wEl().value);
+    previewEl.textContent = (!isNaN(w) && w > 0) ? buildQR(w) : (_existingQR || '—');
+  }
+  wEl().addEventListener('input', updatePreview);
+
+  async function addOne(doPrint) {
+    const w = parseFloat(wEl().value);
+    if (isNaN(w) || w <= 0) { showToast(lang==='el'?'⚠️ Βάλτε βάρος':'⚠️ Enter a weight'); wEl().focus(); return; }
+    const colorVal = document.getElementById('invAddSimColor').value || null;
+    // Ensure the source carries a groupId (mint on first add so source + clone group up)
+    let gid = source.groupId;
+    if (!gid) {
+      gid = 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      source.groupId = gid;
+      _inventoryCache[sourceId] = source;
+      await saveInventoryItem(sourceId, source);
+    }
+    const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    const newItem = Object.assign({}, source, {
+      weight: w, color: colorVal, groupId: gid, status: 'in_stock',
+      dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || '', dateSold: null
+    });
+    delete newItem.dateSold;
+    if (_canRegenQR) { newItem.qrCode = buildQR(w); newItem.code = _latinBase + w.toString(); }
+    // Keep seqId + refType (shared reference code) — copied by Object.assign above.
+    // Re-baseline initialRetail to THIS piece's own retail so its gain % starts at 0
+    // (never inherit the source's baseline, which would be wrong for per-gram pricing).
+    if (newItem.metal !== 'other') {
+      const _p = calcInvItemPrice(newItem);
+      if (_p) newItem.initialRetail = parseFloat(_p.retail.toFixed(2));
+    }
+    _inventoryCache[newId] = newItem;
+    await saveInventoryItem(newId, newItem);
+    _added++;
+    counterEl.textContent = (lang==='el'?'Προστέθηκαν: ':'Added: ') + _added;
+    wEl().value = ''; updatePreview(); wEl().focus();
+    if (doPrint) {
+      const statusEl = document.getElementById('invAddSimStatus');
+      const qr = newItem.qrCode || newItem.code || '';
+      const di = qr.indexOf('-');
+      const baseQR = di !== -1 ? qr.slice(0, di) : qr;
+      const stoneStr = di !== -1 ? qr.slice(di + 1) : '';
+      const parts = stoneStr ? stoneStr.split('+').filter(Boolean) : [];
+      const isOther = parts.length === 1 && parts[0].includes('-');
+      const lines = [baseQR];
+      if (isOther) lines.push('-' + parts[0]); else parts.forEach((p, i) => lines.push((i === 0 ? '-' : '+') + p));
+      const data = { fullQR: qr, baseQR, greekCode: baseQR, lines, hasStones: parts.length > 0 || isOther, refCode: newItem.seqId ? itemRefCode(newItem) : null };
+      try { await printLabel(data, statusEl || document.createElement('div')); } catch(e) {}
+    }
+  }
+
+  document.getElementById('invAddSimPrintBtn').addEventListener('click', function(){ addOne(true); });
+  document.getElementById('invAddSimAddBtn').addEventListener('click', function(){ addOne(false); });
+  document.getElementById('invAddSimDoneBtn').addEventListener('click', function(){
+    overlay.remove();
+    if (_added > 0) { showToast((lang==='el'?'✅ Προστέθηκαν ':'✅ Added ') + _added + (lang==='el'?' όμοια είδη':' similar items')); renderInvList(); }
+  });
+  setTimeout(() => { try { wEl().focus(); } catch(e) {} }, 60);
+}
+
 // ── Inventory: Restore to Stock (mistake / return) ───────────────────────────
 async function invRestoreToStock(id) {
   const item = _inventoryCache[id];
@@ -15016,6 +15145,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.29', date: 'Ιούλιος 2026', items: [
+        '➕ Γρήγορη προσθήκη όμοιων ειδών (νέο): αντί να καταχωρείτε ένα-ένα π.χ. 12 σχεδόν ίδια κολιέ, καταχωρείτε το πρώτο κανονικά και μετά τα υπόλοιπα με «ζύγισμα → πάτημα». Ανοίξτε ένα είδος (Επεξεργασία) και πατήστε «🔗 Προσθήκη όμοιων ειδών» — ή, σε μια υπάρχουσα ομάδα, «＋ Προσθήκη κι άλλων». Βάζετε μόνο βάρος (και χρώμα αν διαφέρει), πατάτε «Εκτύπωση & Προσθήκη» και τυπώνεται η ετικέτα· επαναλαμβάνετε όσες φορές θέλετε. Όλα κρατούν τον ίδιο κωδικό αναφοράς, με μοναδικό QR ανά βάρος, και μπαίνουν στην ίδια κάρτα. (Ιδιοκτήτης/διαχειριστής.)'
+      ]},
       { version: 'v10.28', date: 'Ιούλιος 2026', items: [
         '🔗 Ομαδοποίηση όμοιων ειδών (νέο): πολλά σχεδόν ίδια κομμάτια (π.χ. οι ίδιοι σταυροί σε διαφορετικά χρώματα ή βάρη) μπορούν πλέον να εμφανίζονται σε ΜΙΑ κάρτα με μετρητή αποθέματος, αντί για πολλές ξεχωριστές καρτέλες. Στο «Απόθεμα» πατήστε «Επιλογή», τσεκάρετε τα όμοια είδη και πατήστε το 🔗 για να τα ενώσετε. Η κάρτα δείχνει «🔗 N σε απόθεμα», μία τιμή (ή εύρος αν διαφέρουν) και ανάλυση χρωμάτων. Με το «Δες κομμάτια» βλέπετε το καθένα ξεχωριστά (πώληση/επεξεργασία) και μπορείτε να καταργήσετε την ομαδοποίηση. Κάθε κομμάτι κρατά τον δικό του κωδικό/QR και την ακριβή του τιμή — τίποτα δεν συγχωνεύεται στα δεδομένα, μόνο η εμφάνιση. (Ιδιοκτήτης/διαχειριστής.)'
       ]},
@@ -15044,10 +15176,6 @@ const ABOUT = {
       { version: 'v10.20', date: 'Ιούλιος 2026', items: [
         '🏷️ Ο κωδικός αναφοράς «κλειδώνει» στην ετικέτα: μέχρι τώρα, αν άλλαζες τον τύπο ενός είδους (π.χ. από Κολιέ σε Σταυρό), ο κωδικός αναφοράς άλλαζε αυτόματα παντού (NK0342 → CR0342) — αλλά η τυπωμένη ετικέτα και η αναζήτηση στην ιστοσελίδα έδειχναν ακόμα το παλιό NK0342, οπότε ο πελάτης δεν έβρισκε το είδος. Πλέον, μόλις τυπωθεί μια ετικέτα, ο κωδικός της μένει σταθερός: αλλάζεις ελεύθερα τον τύπο και ο κωδικός παραμένει NK0342 σε εφαρμογή, αναζήτηση, σάρωση κειμένου και ιστοσελίδα. Καμία ανάγκη επανεκτύπωσης.',
         '🖨️ Ερώτηση μόνο όταν τυπώνεις νέα ετικέτα: αν το είδος έχει αλλάξει τύπο και πατήσεις «Εκτύπωση Ετικέτας» (π.χ. φθαρμένη ετικέτα ή ανανέωση αποθέματος), η εφαρμογή σε ρωτάει: «Το είδος είναι τώρα Σταυρός αλλά ο κωδικός είναι NK0342 — να αλλάξει σε CR0342 και να εκτυπωθεί;». Επιλέγεις «Ενημέρωση & Εκτύπωση» ή «Διατήρηση NK0342». Το τετράγωνο QR δεν αλλάζει ποτέ — η σάρωση δουλεύει σε κάθε περίπτωση.'
-      ]},
-      { version: 'v10.19', date: 'Ιούλιος 2026', items: [
-        '💎 Σημαντική διόρθωση τιμών πετρών: η εφαρμογή ΔΕΝ προσθέτει πια μόνη της τιμή σε πέτρα που αφήσατε χωρίς τιμή. Παλιότερα, ένα είδος με πέτρα (π.χ. μαργαριτάρι) που το είχατε αφήσει χωρίς τιμή, «δανειζόταν» αυτόματα μια τιμή από την προσωρινή μνήμη πετρών — αλλάζοντας κρυφά την τελική τιμή του κοσμήματος και φουσκώνοντας την «υπεραξία». Πλέον, κενή τιμή πέτρας μετράει ως 0€. Οι τιμές που καταχωρήσατε εσείς ΔΕΝ επηρεάστηκαν ποτέ (η παλιά συμπεριφορά άγγιζε μόνο κενές τιμές). Τις πέτρες τις τιμολογείτε χειροκίνητα ή με το κουμπί ✨ στην Επεξεργασία.',
-        '🔍 Νέο εργαλείο «Έλεγχος Τιμών Πετρών» (Ρυθμίσεις → προσωρινό): εντοπίζει τα είδη που επηρεάστηκαν από το παραπάνω σφάλμα, ώστε να τα ελέγξετε ένα-ένα. Με ένα πάτημα μηδενίζει την τιμή της πέτρας και διορθώνει την υπεραξία — πάντα με δική σας επιβεβαίωση. Θα αφαιρεθεί όταν ολοκληρωθεί το «σκούπισμα».'
       ]},
           ]
   },
@@ -15131,6 +15259,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.29', date: 'Jul 2026', items: [
+        '➕ Fast "Add similar items" (new): instead of entering e.g. 12 near-identical necklaces one by one, enter the first one normally, then add the rest by "weigh → tap". Open an item (Edit) and press "🔗 Add similar items" — or, on an existing group, "＋ Add more". You only enter a weight (and a color if it differs), press "Print & Add" and the tag prints; repeat as many times as you like. They all keep the same reference code, with a unique QR per weight, and land on the same card. (Owner/manager.)'
+      ]},
       { version: 'v10.28', date: 'Jul 2026', items: [
         '🔗 Group similar items (new): several near-identical pieces (e.g. the same crosses in different colors or weights) can now show as ONE card with a stock count, instead of many separate cards. In Stock, tap "Select", tick the similar items and press 🔗 to group them. The card shows "🔗 N in stock", one price (or a range if they differ) and a color breakdown. "View pieces" opens each one on its own (sell/edit) and lets you Ungroup. Every piece keeps its own code/QR and exact price — nothing is merged in the data, only the display. (Owner/manager.)'
       ]},
@@ -15159,10 +15290,6 @@ const ABOUT = {
       { version: 'v10.20', date: 'Jul 2026', items: [
         '🏷️ The reference code now "locks" to the printed tag: until now, changing an item\'s type (e.g. Necklace → Cross) silently rewrote its reference code everywhere (NK0342 → CR0342) — but the printed tag and the website search still showed the old NK0342, so a customer couldn\'t find the item. Now, once a tag is printed, its code stays put: you can freely change the type and the code remains NK0342 in the app, in search, in text-scan and on the public website. No reprint needed.',
         '🖨️ You\'re only asked when you print a new tag: if an item\'s type has changed and you press "Print Tag" (e.g. a damaged tag or a restock), the app asks: "This item is now a Cross but its code is NK0342 — update it to CR0342 and print?". You choose "Update & Print" or "Keep NK0342". The QR square itself never changes, so scanning works either way.'
-      ]},
-      { version: 'v10.19', date: 'Jul 2026', items: [
-        '💎 Important stone-pricing fix: the app no longer adds a price to a stone you left unpriced. Before, an item with a stone (e.g. a pearl) that you left with no price would silently "borrow" a price from the stone-price cache — quietly changing the piece\'s final price and inflating its "gain %". Now a blank stone price counts as €0. Prices you entered yourself were never affected (the old behavior only ever touched blank ones). You price stones manually or with the ✨ Estimate button in Edit.',
-        '🔍 New "Stone Price Audit" tool (Settings → temporary): finds the items affected by the bug above so you can review them one by one. One tap sets the stone price to €0 and fixes the gain — always with your confirmation. It will be removed once the cleanup is done.'
       ]},
           ]
   }
@@ -18047,7 +18174,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.28';
+const APP_VERSION = '10.29';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18801,7 +18928,8 @@ function openInvGroup(gid) {
         <button class="invGroupClose" onclick="closeInvGroup()" style="flex:0 0 auto;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;width:34px;height:34px;color:var(--text-muted);font-size:16px;cursor:pointer">✕</button>
       </div>
       <div style="margin:10px 0 4px">${rowsHtml}</div>
-      ${isEmp ? '' : `<button onclick="invUngroup('${gid}')" style="margin-top:14px;width:100%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.35);color:var(--danger,#e05a5a);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">${lang==='el' ? '⛓️‍💥 Κατάργηση ομαδοποίησης' : '⛓️‍💥 Ungroup'}</button>`}
+      ${isEmp ? '' : `<button onclick="invAddSimilar('${members[0][0]}')" style="margin-top:14px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">＋ ${lang==='el' ? 'Προσθήκη κι άλλων' : 'Add more'}</button>`}
+      ${isEmp ? '' : `<button onclick="invUngroup('${gid}')" style="margin-top:8px;width:100%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.35);color:var(--danger,#e05a5a);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">${lang==='el' ? '⛓️‍💥 Κατάργηση ομαδοποίησης' : '⛓️‍💥 Ungroup'}</button>`}
     </div>`;
   document.body.appendChild(overlay);
 }

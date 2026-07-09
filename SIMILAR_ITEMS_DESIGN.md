@@ -330,8 +330,11 @@ New user-visible text needs entries in both language dictionaries, following the
    price/range + colour breakdown) + group detail sheet (`openInvGroup`). Render-only.
 3. ✅ **DONE (v10.28)** — "Group these" for existing items (🔗 in select bar, retro-group,
    no reprint) + Ungroup (`invUngroup`).
-4. ⏳ TODO — "Add similar items" batch-create (weigh-tap loop, shared groupId, per-piece tags).
-5. ⏳ TODO — "＋ Add more" restock into a group.
+4. ✅ **DONE (v10.29)** — "Add similar items" weigh-tap create (`invAddSimilar`, shared ref
+   code + groupId, per-piece unique QR + tag print). Entry point: "🔗 Add similar items" in
+   the Edit Item form (starts a batch from the first piece).
+5. ✅ **DONE (v10.29)** — "＋ Add more" restock into a group (same `invAddSimilar`, from the
+   group detail sheet).
 6. ⏳ TODO — "Sell quantity" from the group card (reuses cart + `saleGroup`).
 7. ⏳ TODO — Showroom: group by `groupId`, show live "N in stock".
 
