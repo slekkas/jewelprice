@@ -11971,6 +11971,7 @@ function renderInvList() {
           <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0">
             <div class="inv-select-cb" data-id="${repId}" onclick="invSelectToggleItem('${repId}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${codeStr}</div>
+            <button onclick="invShareGroup('${gid}')" class="inv-share-btn" title="Share all ${count}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
@@ -15205,6 +15206,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.35', date: 'Ιούλιος 2026', items: [
+        '🔗 Κοινοποίηση όλης της ομάδας με ένα πάτημα: στην ομαδοποιημένη κάρτα προστέθηκε εικονίδιο κοινοποίησης (πάνω δεξιά, δίπλα στον κωδικό) που στέλνει ΟΛΑ τα κομμάτια μαζί — Φύλλο Παραγγελίας, Κατάλογος (με ή χωρίς τιμές) και αποστολή σε συνεργάτη. Η εικόνα για social media δεν εμφανίζεται εδώ, αφού αφορά ένα κομμάτι τη φορά.'
+      ]},
       { version: 'v10.34', date: 'Ιούλιος 2026', items: [
         '💎 Σημαντική διόρθωση: όταν σαρώνετε ένα νέο είδος, οι πέτρες του προηγούμενου καθαρίζονται πρώτα. Πριν, αν σαρώνατε ένα είδος ΜΕ πέτρα (π.χ. ζιργκόν) και μετά ένα ΧΩΡΙΣ πέτρα, η πέτρα «κολλούσε» και μπερδευόταν στον κωδικό QR του δεύτερου είδους (π.χ. «…-tZIR»). Έτσι, στην πώληση, ο κωδικός δεν ταίριαζε με το είδος στο απόθεμα και το είδος ΔΕΝ σημειωνόταν ως πουλημένο. Τώρα κάθε νέα σάρωση ξεκινά καθαρή — οι πέτρες (και το κόστος πέτρας) μηδενίζονται και μπαίνουν μόνο αυτές του νέου είδους.'
       ]},
@@ -15232,10 +15236,6 @@ const ABOUT = {
       ]},
       { version: 'v10.26', date: 'Ιούλιος 2026', items: [
         '⚧ Ένα είδος μπορεί τώρα να εμφανίζεται σε παραπάνω από μία κατηγορίες: π.χ. ένα παιδικό μενταγιόν που το αγοράζουν και γυναίκες. Επιλέγετε την κύρια κατηγορία όπως πάντα (π.χ. Παιδικό) και από κάτω, στο «Εμφανίζεται επίσης σε», τικάρετε και «Γυναικείο». Έτσι θα εμφανίζεται και στα δύο φίλτρα — και στην εφαρμογή και στην ιστοσελίδα (showroom). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους.'
-      ]},
-      { version: 'v10.25', date: 'Ιούλιος 2026', items: [
-        '🛒 Διόρθωση: το «✕» δίπλα σε κάθε είδος του καλαθιού αφαιρεί τώρα κανονικά το είδος (πριν δεν έκανε τίποτα).',
-        '🔢 Διόρθωση στη στρογγυλοποίηση με πολλά είδη: αφού πρόσθετες στο καλάθι ένα είδος με στρογγυλοποιημένη τιμή, στο επόμενο είδος το κουμπί εμφάνιζε «✕» αντί για «+», οπότε δεν μπορούσες να εφαρμόσεις τη νέα στρογγυλοποίηση. Τώρα το κουμπί επανέρχεται σωστά σε «+» για κάθε νέο είδος.'
       ]},
           ]
   },
@@ -15319,6 +15319,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.35', date: 'Jul 2026', items: [
+        '🔗 Share a whole group in one tap: the grouped card gets a share icon (top-right, next to the code) that sends ALL the pieces at once — Order Sheet, Catalog (with or without prices) and Send to a coworker. The social-media image isn\'t offered here since that\'s one item at a time.'
+      ]},
       { version: 'v10.34', date: 'Jul 2026', items: [
         '💎 Important fix: scanning a new item now clears the previous item\'s stones first. Before, if you scanned an item WITH a stone (e.g. zircon) and then one WITHOUT, the stone "stuck" and got mixed into the second item\'s QR code (e.g. "…-tZIR"). At sale time that code didn\'t match the item in stock, so the item was NOT marked sold. Now every new scan starts clean — the stones (and stone cost) reset and only the new item\'s stones are added.'
       ]},
@@ -15346,10 +15349,6 @@ const ABOUT = {
       ]},
       { version: 'v10.26', date: 'Jul 2026', items: [
         '⚧ An item can now appear in more than one category: e.g. a children\'s pendant that grown women also buy. You pick the main category as usual (e.g. Children), then just below, under "Also appears under", tick "Women" too. It then shows up under both filters — in the app and on the showroom website. Available when creating a label, scanning, and editing an item.'
-      ]},
-      { version: 'v10.25', date: 'Jul 2026', items: [
-        '🛒 Fix: the "✕" next to each cart item now actually removes that item (before it did nothing).',
-        '🔢 Rounding fix with multiple items: after you added a rounded-price item to the cart, the next item\'s button showed "✕" instead of "+", so you couldn\'t apply a new rounding. The button now correctly resets to "+" for each new item.'
       ]},
           ]
   }
@@ -18234,7 +18233,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.34';
+const APP_VERSION = '10.35';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -19034,6 +19033,17 @@ function openInvGroup(gid) {
 function closeInvGroup() {
   const ov = document.getElementById('invGroupOverlay');
   if (ov) ov.remove();
+}
+
+// Share ALL in-stock pieces of a group at once (order sheet / catalog / send to team).
+// Reuses the multi-item share sheet, which already hides single-only options
+// (the promo/social image) when more than one item is passed.
+function invShareGroup(gid) {
+  const members = Object.entries(_inventoryCache || {})
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk)
+    .map(([,it]) => it);
+  if (!members.length) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
+  showInvShareOptions(members);
 }
 
 // Ungroup: strip the groupId from every member so they render as individual cards again.
