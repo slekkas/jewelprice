@@ -191,6 +191,14 @@ one normally, then group them:
   of them still resolves; the collapsed card shows the representative's code.
 - Reprinting to unify the printed code is **optional**, offered but not forced.
 
+**Colors and grouping order are independent.** Setting a piece's color can happen **before or
+after** grouping — order doesn't matter. To save opening three separate edits, "Group these"
+should let the owner **assign each piece's color inline** in the grouping step. Plain pieces
+stay **blank** (labeled by metal). *Real example:* the 3 cross pendants already in stock —
+CR0245 (plain → blank), CR0244 (→ blue), CR0243 (→ green) — different ref codes, grouped by
+`groupId` with no reprint; the description's hand-typed "Blue enamel / Green enamel" text can
+then be cleared since the color field replaces it.
+
 ### 6.4 Adding one more to an existing group (the "third piece later" case)
 
 Once a group exists, a new piece can join it **three ways** — all end with the group's count
@@ -339,5 +347,41 @@ bracelets once Phase 1 is proven in the store.
   confirm showing the count.)
 - "Sold out — reorder?" visibility after a group hits 0: hide (like sold) for launch;
   optional filter later. (Current decision: **hide**.)
-- Variant vocabulary for colors: free text vs a fixed pick-list (recommended: small
-  pick-list for clean showroom labels).
+- Variant vocabulary for colors: free text vs a fixed pick-list (**decided: fixed
+  bilingual pick-list**, see Appendix A).
+
+## Appendix A — Color pick-list (bilingual)
+
+**Storage rule:** store a **language-neutral key** (e.g. `light_blue`) on the item, render
+the EL/EN label from a `COLORS` dictionary — same i18n pattern as the rest of the app. This
+keeps color grouping/labels language-independent (switching the UI language flips every color
+label; showroom grouping-by-color is unaffected). **Blank = plain**, labeled by the item's
+metal (Gold/Silver), so it is intentionally the first/default option.
+
+| Key         | English     | Ελληνικά        |
+|-------------|-------------|-----------------|
+| *(blank)*   | *(plain — shows metal)* | *(απλό — δείχνει μέταλλο)* |
+| white       | White       | Λευκό           |
+| black       | Black       | Μαύρο           |
+| red         | Red         | Κόκκινο         |
+| bordeaux    | Bordeaux    | Μπορντό         |
+| pink        | Pink        | Ροζ             |
+| fuchsia     | Fuchsia     | Φούξια          |
+| light_blue  | Light Blue  | Γαλάζιο         |
+| blue        | Blue        | Μπλε            |
+| navy        | Navy        | Σκούρο Μπλε     |
+| turquoise   | Turquoise   | Τιρκουάζ        |
+| green       | Green       | Πράσινο         |
+| light_green | Light Green | Ανοιχτό Πράσινο |
+| yellow      | Yellow      | Κίτρινο         |
+| orange      | Orange      | Πορτοκαλί       |
+| purple      | Purple      | Μωβ             |
+| lilac       | Lilac       | Λιλά            |
+| brown       | Brown       | Καφέ            |
+| grey        | Grey        | Γκρι            |
+| silver      | Silver      | Ασημί           |
+| multicolor  | Multicolor  | Πολύχρωμο       |
+
+*This list is the starting set (common enamel colors + owner-named light blue / blue /
+bordeaux); confirm/extend before building the pick-list. Adding a color later = one row in
+the `COLORS` dictionary, no data migration.*
