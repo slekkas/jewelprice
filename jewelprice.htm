@@ -15206,6 +15206,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.37', date: 'Ιούλιος 2026', items: [
+        '📄 Κατάλογος/Φύλλο Παραγγελίας: τα όμοια κομμάτια δεν εμφανίζονται πια πολλές φορές. Πλέον όσα μοιράζονται την ίδια ομάδα ΚΑΙ το ίδιο χρώμα συγκεντρώνονται σε ΜΙΑ καταχώριση με ένδειξη «N σε απόθεμα». Π.χ. ομάδα με 3 ίδια → 1 καταχώριση («3 σε απόθεμα»)· ομάδα με 1 μπλε, 1 κόκκινο, 3 πράσινα → 3 καταχωρίσεις (μπλε, κόκκινο, πράσινο «3 σε απόθεμα»). Εμφανίζεται και το χρώμα σε κάθε καταχώριση.'
+      ]},
       { version: 'v10.36', date: 'Ιούλιος 2026', items: [
         '✅ Επιλογή ομάδας = όλα τα κομμάτια της: σε λειτουργία «Επιλογή», όταν τσεκάρετε μια ομαδοποιημένη κάρτα επιλέγονται πλέον ΟΛΑ τα διαθέσιμα κομμάτια της (όχι μόνο ένα). Έτσι, αν διαλέξετε ένα μονό είδος κι μια ομάδα και στείλετε Κατάλογο/Φύλλο Παραγγελίας, μπαίνουν όλα τα κομμάτια — και τα σύνολα (κόστος/λιανική) υπολογίζονται σωστά.'
       ]},
@@ -15233,9 +15236,6 @@ const ABOUT = {
       ]},
       { version: 'v10.28', date: 'Ιούλιος 2026', items: [
         '🔗 Ομαδοποίηση όμοιων ειδών (νέο): πολλά σχεδόν ίδια κομμάτια (π.χ. οι ίδιοι σταυροί σε διαφορετικά χρώματα ή βάρη) μπορούν πλέον να εμφανίζονται σε ΜΙΑ κάρτα με μετρητή αποθέματος, αντί για πολλές ξεχωριστές καρτέλες. Στο «Απόθεμα» πατήστε «Επιλογή», τσεκάρετε τα όμοια είδη και πατήστε το 🔗 για να τα ενώσετε. Η κάρτα δείχνει «🔗 N σε απόθεμα», μία τιμή (ή εύρος αν διαφέρουν) και ανάλυση χρωμάτων. Με το «Δες κομμάτια» βλέπετε το καθένα ξεχωριστά (πώληση/επεξεργασία) και μπορείτε να καταργήσετε την ομαδοποίηση. Κάθε κομμάτι κρατά τον δικό του κωδικό/QR και την ακριβή του τιμή — τίποτα δεν συγχωνεύεται στα δεδομένα, μόνο η εμφάνιση. (Ιδιοκτήτης/διαχειριστής.)'
-      ]},
-      { version: 'v10.27', date: 'Ιούλιος 2026', items: [
-        '🎨 Νέο πεδίο «Χρώμα» σε κάθε είδος: μπορείτε πλέον να ορίσετε το χρώμα ενός κοσμήματος (σμάλτο, πέτρα κ.λπ.) από μια έτοιμη λίστα — π.χ. Μπλε, Γαλάζιο, Μπορντό, Πράσινο — αντί να το γράφετε στην περιγραφή. Το χρώμα εμφανίζεται ως σήμα στην καρτέλα του είδους και μπορείτε να φιλτράρετε το απόθεμα ανά χρώμα. Αφήστε το κενό για απλά κομμάτια (εμφανίζονται με το μέταλλό τους, Χρυσό/Ασήμι). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους. (Πρώτο βήμα για το ομαδοποιημένο απόθεμα «όμοιων ειδών» που έρχεται.)'
       ]},
           ]
   },
@@ -15319,6 +15319,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.37', date: 'Jul 2026', items: [
+        '📄 Catalog / Order Sheet no longer repeats identical pieces: pieces that share the same group AND the same colour are now collapsed into ONE entry marked "N in stock". E.g. a group of 3 identical → 1 entry ("3 in stock"); a group of 1 blue, 1 red, 3 green → 3 entries (blue, red, green "3 in stock"). Each entry also shows its colour.'
+      ]},
       { version: 'v10.36', date: 'Jul 2026', items: [
         '✅ Selecting a group selects all its pieces: in "Select" mode, ticking a grouped card now selects ALL of its in-stock pieces (not just one). So if you pick a single item and a group and send a Catalog / Order Sheet, every piece is included — and the totals (cost/retail) add up correctly.'
       ]},
@@ -15346,9 +15349,6 @@ const ABOUT = {
       ]},
       { version: 'v10.28', date: 'Jul 2026', items: [
         '🔗 Group similar items (new): several near-identical pieces (e.g. the same crosses in different colors or weights) can now show as ONE card with a stock count, instead of many separate cards. In Stock, tap "Select", tick the similar items and press 🔗 to group them. The card shows "🔗 N in stock", one price (or a range if they differ) and a color breakdown. "View pieces" opens each one on its own (sell/edit) and lets you Ungroup. Every piece keeps its own code/QR and exact price — nothing is merged in the data, only the display. (Owner/manager.)'
-      ]},
-      { version: 'v10.27', date: 'Jul 2026', items: [
-        '🎨 New "Color" field on every item: you can now set a piece\'s color (enamel, stone, etc.) from a ready-made list — e.g. Blue, Light Blue, Bordeaux, Green — instead of typing it into the description. The color shows as a badge on the item card and you can filter your stock by color. Leave it blank for plain pieces (they show by their metal, Gold/Silver). Available when creating a label, scanning, and editing an item. (First step toward the "similar items" grouped stock that\'s coming.)'
       ]},
           ]
   }
@@ -18233,7 +18233,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.36';
+const APP_VERSION = '10.37';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -19173,10 +19173,23 @@ function showInvShareOptions(items) {
 async function invDoShare(codes, includePrice, mode) {
   const overlayEl = document.getElementById('invShareOptionsOverlay');
   if (overlayEl) overlayEl.remove();
-  const items = codes.map(c => {
+  const rawItems = codes.map(c => {
     const cache = _inventoryCache || {};
     return Object.values(cache).find(i => (i.qrCode||i.code||'') === c);
   }).filter(Boolean);
+  // Collapse "similar items" (same groupId AND same colour) into ONE catalog entry with
+  // a stock count — no point listing 3 identical pieces. Different colours of a group
+  // still list separately. Ungrouped items always list individually. (Representatives
+  // are shallow copies so the cache is never mutated with the _stockCount marker.)
+  const _seen = new Map();
+  const items = [];
+  for (const it of rawItems) {
+    const gid = it.groupId;
+    if (!gid) { items.push(it); continue; }
+    const key = gid + '|' + (it.color || '');
+    if (_seen.has(key)) { _seen.get(key)._stockCount++; }
+    else { const rep = Object.assign({}, it, { _stockCount: 1 }); _seen.set(key, rep); items.push(rep); }
+  }
   if (!items.length) return;
   showToast(t('invShareGenerating'));
   try {
@@ -19963,6 +19976,20 @@ async function buildSharePDF(items, includePrice, mode) {
       setRegular(9, 107, 92, 58);
       doc.text(metaStr, textX, curTextY);
       curTextY += 6;
+    }
+
+    // Colour + "N in stock" (for grouped similar items collapsed into one entry)
+    {
+      const _colLbl = (typeof itemColorLabel === 'function') ? itemColorLabel(item.color) : '';
+      const _cnt = item._stockCount || 1;
+      const _cparts = [];
+      if (_colLbl) _cparts.push(_colLbl);
+      if (_cnt > 1) _cparts.push(_cnt + (isEl ? ' σε απόθεμα' : ' in stock'));
+      if (_cparts.length) {
+        setRegular(8.5, 90, 90, 90);
+        doc.text(_cparts.join('  ·  '), textX, curTextY);
+        curTextY += 5;
+      }
     }
 
     // Stones — English stone names (safe)
