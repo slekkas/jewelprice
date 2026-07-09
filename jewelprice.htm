@@ -10589,6 +10589,32 @@ async function saveToInventoryFromLabel(labelData) {
     _pendingLabelPhotoHi = null;
   }
 
+  // Safety net: never save a duplicate QR to stock without warning. This backs up the
+  // pre-modal check in openLabelModal (belt-and-suspenders — catches stale-cache or
+  // weight-format edge cases so a duplicate can't slip through). NOT reached by the
+  // "Add similar" flow, which saves via saveInventoryItem directly.
+  {
+    if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+      _inventoryCache = await loadInventory();
+    }
+    const _qn = (item.qrCode || '').trim().toUpperCase();
+    const _dup = _qn && Object.values(_inventoryCache || {}).find(it =>
+      it.status === 'in_stock' && (it.qrCode || it.code || '').trim().toUpperCase() === _qn);
+    if (_dup) {
+      const _dd = lang === 'el'
+        ? (_dup.descEl || _dup.descEn || _dup.description || '—')
+        : (_dup.descEn || _dup.descEl || _dup.description || '—');
+      const _ok = await new Promise(res => showConfirm(
+        lang === 'el'
+          ? `⚠️ Ο κωδικός QR "${item.qrCode}" υπάρχει ήδη σε άλλο αντικείμενο στο απόθεμα (${_dd}). Αλλάξτε ελαφρώς το βάρος για μοναδικό κωδικό. Αποθήκευση ούτως ή άλλως;`
+          : `⚠️ The QR code "${item.qrCode}" already exists on another in-stock item (${_dd}). Adjust the weight slightly for a unique code. Save anyway?`,
+        () => res(true), () => res(false),
+        { okLabel: lang === 'el' ? 'Αποθήκευση' : 'Save anyway', danger: true }
+      ));
+      if (!_ok) { showToast(lang === 'el' ? 'Ακυρώθηκε — προσαρμόστε το βάρος' : 'Cancelled — adjust the weight'); return; }
+    }
+  }
+
   // Assign sequential reference ID (use pre-fetched one from label modal if available)
   item.seqId = labelData._pendingSeqId || await getNextSeqId();
 
@@ -11904,6 +11930,18 @@ function renderInvList() {
     const karatLabel = rep.metal === 'gold' ? rep.karat + 'K' : rep.karat;
     const metaLine = rep.metal === 'other' ? '' : `${metalLabel} · ${karatLabel}`;
     const countBadge = `<span class="inv-card-badge" style="background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);font-weight:700">🔗 ${count} ${lang==='el'?'σε απόθεμα':'in stock'}</span>`;
+    // Shared badges from the representative — mirror the single card (handmade, gold
+    // colour, gender). The per-piece decorative colour is shown by the breakdown instead.
+    const _grpHandmade = (rep.handmade || !!(getItemCat(rep)?.handmade))
+      ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
+    const _grpGoldColor = (rep.metal === 'gold' && rep.goldColor && rep.goldColor !== 'gold')
+      ? `<span class="inv-card-badge" style="background:rgba(212,175,55,0.13);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${goldColorLabel(rep.goldColor)}</span>` : '';
+    const _grpGender = (function() {
+      const g = rep.gender, m = { women:'♀️', men:'♂️', children:'👶' }; let o = '';
+      if (g && g !== 'unisex') o += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.13);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;font-size:11px">${m[g]||''}</span>`;
+      (rep.alsoGenders || []).forEach(x => { if (m[x]) o += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.07);border:1px solid rgba(100,160,255,0.2);color:#6a90c0;font-size:11px">+${m[x]}</span>`; });
+      return o;
+    })();
     const codeStr = rep.seqId ? itemRefCode(rep) : (rep.qrCode || rep.code || '—');
     return `
       <div class="inv-card inv-group-card" data-inv-id="${repId}" data-group-id="${gid}" style="border-color:rgba(201,168,76,0.4)">
@@ -11914,7 +11952,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}${_grpHandmade}${_grpGoldColor}${_grpGender}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -15145,6 +15183,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.32', date: 'Ιούλιος 2026', items: [
+        '🔧 Βελτιώσεις στα ομαδοποιημένα είδη: (1) Η ομαδοποιημένη κάρτα δείχνει τώρα δεξιά τα σήματα (φύλο, χειροποίητο, χρώμα χρυσού) όπως η κανονική κάρτα. (2) Στο «Δες κομμάτια», κάθε κομμάτι δείχνει και τη γραμμή «Αρχική τιμή (ημ/νία): €Χ (+Υ%)» ανάμεσα στα γραμμάρια και τα κουμπιά, όπως η κανονική κάρτα.',
+        '🛡️ Ενισχυμένη προειδοποίηση διπλότυπου QR: κατά την αποθήκευση νέου είδους, αν ο κωδικός QR υπάρχει ήδη σε άλλο είδος στο απόθεμα, η εφαρμογή σας προειδοποιεί πάντα (αλλάξτε ελαφρώς το βάρος) — πιάνει και περιπτώσεις που ο προηγούμενος έλεγχος μπορούσε να χάσει.'
+      ]},
       { version: 'v10.31', date: 'Ιούλιος 2026', items: [
         '🔧 Πλήρεις ενέργειες για κάθε κομμάτι μιας ομάδας: ανοίγοντας «Δες κομμάτια» σε μια ομαδοποιημένη κάρτα, κάθε κομμάτι έχει τώρα ΟΛΕΣ τις ενέργειες όπως μια κανονική κάρτα — ➕ Calc, Κοινοποίηση, 🏷️ Εκτύπωση ετικέτας, 💰 Πώληση, ✏️ Επεξεργασία και 🗑 Διαγραφή. Έτσι δεν χάνετε καμία λειτουργία όταν τα είδη είναι ομαδοποιημένα (π.χ. να τυπώσετε ξανά μία ετικέτα ή να στείλετε ένα κομμάτι στον Υπολογισμό).'
       ]},
@@ -15172,9 +15214,6 @@ const ABOUT = {
       ]},
       { version: 'v10.23', date: 'Ιούλιος 2026', items: [
         '⚡ Πιο γρήγορη καρτέλα «Απόθεμα»: το άνοιγμα της λίστας ειδών ήταν το μόνο που «κολλούσε» για μια στιγμή, και θα χειροτέρευε όσο μεγαλώνει το απόθεμα (προς 1000+ είδη). Τώρα η λίστα ανοίγει ακαριαία σαν τις υπόλοιπες καρτέλες: (1) εμφανίζεται αμέσως από τη μνήμη και ανανεώνεται αθόρυβα από το cloud στο παρασκήνιο, (2) η ταξινόμηση δεν ξαναϋπολογίζει πια τιμές χιλιάδες φορές, και (3) τα είδη φορτώνονται σε «σελίδες» καθώς κατεβαίνετε (αντί να χτίζονται και τα 1000 μαζί). Καμία αλλαγή στα δεδομένα ή στην εμφάνιση — μόνο ταχύτητα.'
-      ]},
-      { version: 'v10.22', date: 'Ιούλιος 2026', items: [
-        '↩️ Το σάρωμα «πίσω» δεν κλείνει πια κατά λάθος την εφαρμογή: σε κινητά με χειρονομίες πλοήγησης (π.χ. Pixel), το σάρωμα από την άκρη της οθόνης προς τα μέσα έκλεινε αμέσως όλη την εφαρμογή — ακόμα κι ενώ καταχωρούσατε ένα είδος — και χανόταν η δουλειά σας. Τώρα το «πίσω» πρώτα κλείνει το ανοιχτό παράθυρο/φόρμα· αλλιώς σας πάει ένα βήμα πίσω (στην προηγούμενη καρτέλα)· και μόνο στην αρχική καρτέλα «Υπολογισμός» χρειάζεται δεύτερο σάρωμα για έξοδο, με το μήνυμα «Σύρετε ξανά για έξοδο». Ανοίγοντας ξανά την εφαρμογή, επιστρέφετε στην καρτέλα που είχατε ανοιχτή.'
       ]},
           ]
   },
@@ -15258,6 +15297,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.32', date: 'Jul 2026', items: [
+        '🔧 Grouped-item improvements: (1) The grouped card now shows the badges on the right (gender, handmade, gold colour) just like a normal card. (2) In "View pieces", each piece now shows the "Initial price (date): €X (+Y%)" line between the grams and the buttons, like a normal card.',
+        '🛡️ Stronger duplicate-QR warning: when saving a new item, if its QR code already exists on another in-stock item, the app now always warns you (adjust the weight slightly) — catching cases the earlier check could miss.'
+      ]},
       { version: 'v10.31', date: 'Jul 2026', items: [
         '🔧 Full actions for every piece of a group: opening "View pieces" on a grouped card, each piece now has ALL the actions of a normal card — ➕ Calc, Share, 🏷️ Print Tag, 💰 Sell, ✏️ Edit and 🗑 Delete. So you lose no functionality when items are grouped (e.g. reprint a single tag or send one piece to Calc).'
       ]},
@@ -15285,9 +15328,6 @@ const ABOUT = {
       ]},
       { version: 'v10.23', date: 'Jul 2026', items: [
         '⚡ Faster "Stock" tab: opening the inventory list was the only tab that stuttered for a moment, and it would only get worse as the stock grows (toward 1000+ items). It now opens instantly like the other tabs: (1) it shows immediately from memory and refreshes quietly from the cloud in the background, (2) sorting no longer recalculates prices thousands of times, and (3) items load in "pages" as you scroll down (instead of building all 1000 cards at once). No change to your data or how it looks — just speed.'
-      ]},
-      { version: 'v10.22', date: 'Jul 2026', items: [
-        '↩️ The back-swipe no longer closes the app by accident: on gesture-navigation phones (e.g. Pixel), swiping in from the screen edge used to close the whole app in one stroke — even while you were entering an item — and you lost your work. Now "back" first closes any open window/form; otherwise it takes you one step back (to the previous tab); and only on the Calc home tab does a second swipe exit, with a "Swipe again to exit" message. Reopening the app also returns you to the tab you had open.'
       ]},
           ]
   }
@@ -18172,7 +18212,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.31';
+const APP_VERSION = '10.32';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18903,6 +18943,24 @@ function openInvGroup(gid) {
     const colorLbl = it.color ? itemColorLabel(it.color) : '';
     const dot = it.color ? `<span style="width:9px;height:9px;border-radius:50%;${itemColorSwatchCss(it.color)||'background:#888'};display:inline-block;margin-right:5px;vertical-align:-1px;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>` : '';
     const sub = [w, colorLbl ? (dot + colorLbl) : '', isEmp ? '' : price].filter(Boolean).join(' · ');
+    // Owner/manager appreciation line — same as the single card: initial price + date
+    // added + gain %. Placed between the piece info and its action buttons.
+    let apprecHtml = '';
+    if (!isEmp && it.metal !== 'other' && it.initialRetail && p) {
+      const _initR = parseFloat(it.initialRetail);
+      if (_initR > 0) {
+        const _diff = p.retail - _initR;
+        const _pct = _diff / _initR * 100, _abs = Math.abs(_pct);
+        const _pctStr = _abs < 0.05 ? '0.0' : _abs.toFixed(1);
+        const _sign = _abs < 0.05 ? '±' : (_diff >= 0 ? '+' : '-');
+        const _col = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+        const _added = it.dateAdded ? fmtDate(new Date(it.dateAdded)) : '';
+        const _lbl = _added
+          ? (lang === 'el' ? `${t('initialPriceLbl')} (προσθήκη ${_added})` : `${t('initialPriceLbl')} (added ${_added})`)
+          : t('initialPriceLbl');
+        apprecHtml = `<div style="font-size:11px;color:var(--text-dim);margin:0 0 8px;font-family:'DM Mono',monospace">${_lbl}: ${cur}${_initR.toFixed(2)} <span style="color:${_col}">(${_sign}${_pctStr}%)</span></div>`;
+      }
+    }
     // Each piece exposes the SAME actions as a normal single card (Calc, Share, Tag,
     // Sold, Edit, Delete) so no functionality is lost when items are grouped. Actions
     // that navigate away close the sheet first.
@@ -18912,6 +18970,7 @@ function openInvGroup(gid) {
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);word-break:break-all">${it.qrCode || it.code || '—'}</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${sub}</div>
       </div>
+      ${apprecHtml}
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         <button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light)" onclick="closeInvGroup();invLoadToCalc('${id}')">➕ Calc</button>
         <button class="inv-action-btn" style="${_bStyle};background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-muted)" onclick="closeInvGroup();invShareSingle('${id}')">${lang==='el'?'Κοινοπ.':'Share'}</button>
