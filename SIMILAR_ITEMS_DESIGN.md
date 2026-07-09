@@ -323,16 +323,17 @@ New user-visible text needs entries in both language dictionaries, following the
 ## 13. Suggested build order
 
 **Phase 1 — identical grouping (most of the daily value, low risk):**
-0. `color` field on all three item forms (single items too) + show/filter it + add to
-   `PUBLIC_SAFE_FIELDS`. Independent of grouping; can ship first on its own.
-1. `groupId` field + `PUBLIC_SAFE_FIELDS` addition.
-2. Display-time grouping in `renderInvList` → collapsed card (count + price/range) +
-   expanded view. (Read/render only; no data-write behaviour change.)
-3. "Group these" for existing items (retro-group, no reprint).
-4. "Add similar items" batch-create (weigh-tap loop, shared groupId, per-piece tags).
-5. "＋ Add more" restock into a group.
-6. "Sell quantity" from the group card (reuses cart + `saleGroup`).
-7. Showroom: group by `groupId`, show live "N in stock".
+0. ✅ **DONE (v10.27)** — `color` field on all three item forms (single items too) + badge +
+   filter + `PUBLIC_SAFE_FIELDS`. Independent of grouping; shipped first on its own.
+1. ✅ **DONE (v10.28)** — `groupId` field + `PUBLIC_SAFE_FIELDS` addition.
+2. ✅ **DONE (v10.28)** — Display-time grouping in `renderInvList` → collapsed card (count +
+   price/range + colour breakdown) + group detail sheet (`openInvGroup`). Render-only.
+3. ✅ **DONE (v10.28)** — "Group these" for existing items (🔗 in select bar, retro-group,
+   no reprint) + Ungroup (`invUngroup`).
+4. ⏳ TODO — "Add similar items" batch-create (weigh-tap loop, shared groupId, per-piece tags).
+5. ⏳ TODO — "＋ Add more" restock into a group.
+6. ⏳ TODO — "Sell quantity" from the group card (reuses cart + `saleGroup`).
+7. ⏳ TODO — Showroom: group by `groupId`, show live "N in stock".
 
 **Phase 2 — color variants (builds on the Phase 1 `color` field):**
 8. Per-color breakdown on the grouped app card ("N in stock — 1 pink · 1 blue").

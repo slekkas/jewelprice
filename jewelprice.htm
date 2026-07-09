@@ -2432,6 +2432,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           <span data-i18n="invShareBtn">Κοινοποίηση</span>
         </button>
+        <button id="invGroupBtn" onclick="invGroupSelected()" title="Group similar items" style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:7px 12px;color:var(--gold-light);font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">🔗</button>
         <button onclick="invMarkSelectedSold()" style="background:rgba(61,170,106,0.15);border:1px solid rgba(61,170,106,0.4);border-radius:10px;padding:7px 14px;color:#3daa6a;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">✅</button>
       </div>
       <!-- Row 2: totals — owner/manager only, shown when ≥1 selected -->
@@ -3846,6 +3847,8 @@ function applyRoleUI() {
   const _invBulkBtn = document.getElementById('invAddBulkBtn');
   const _invScanBtn = document.querySelector('#panel-inventory .inv-scan-btn:first-of-type');
   if (_invBulkBtn) _invBulkBtn.style.display = isEmployee ? 'none' : '';
+  const _invGroupBtn = document.getElementById('invGroupBtn');
+  if (_invGroupBtn) _invGroupBtn.style.display = isEmployee ? 'none' : '';
   const vendorPanel = document.getElementById('panel-vendors');
   if (vendorPanel.classList.contains('active')) renderVendors();
   renderIdentityCard();
@@ -10627,7 +10630,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','photoUrl','photoUrlHi','status','dateAdded'];
+  'metal','karat','goldColor','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -11868,11 +11871,80 @@ function renderInvList() {
   // stone price simply counts as €0. Owners price stones manually or via the ✨ Estimate
   // button in Edit, which requires an explicit tap.
 
+  // ── Grouped card for "similar items" (v10.28) ───────────────────────────────
+  // A row shaped [repId, repItem, members[]] renders as ONE card standing in for the
+  // whole group: representative photo/desc/code + an in-stock count + a single price
+  // (or a min–max range when members differ) + a colour breakdown. Members are the
+  // in-stock pieces present in the current filtered view. Tapping opens the group
+  // detail (openInvGroup). Display-only — the underlying records are untouched.
+  const buildGroupCard = (row) => {
+    const repId = row[0], rep = row[1], members = row[2];
+    const count = members.length;
+    const gid = rep.groupId;
+    // Price: single if all equal, else a min–max range (owner/manager only)
+    let priceStr = '—';
+    if (!_isEmpInv) {
+      const prices = members.map(([,it]) => { const p = _px(it); return p ? p.retail : null; }).filter(v => v != null);
+      if (prices.length) {
+        const mn = Math.min(...prices), mx = Math.max(...prices);
+        priceStr = (mx - mn < 0.01) ? cur + mn.toFixed(2) : cur + mn.toFixed(2) + ' – ' + cur + mx.toFixed(2);
+      }
+    }
+    // Colour breakdown: label (blank → the piece's metal) → count, e.g. "2 Gold · 1 Blue"
+    const buckets = {};
+    members.forEach(([,it]) => {
+      const key = it.color ? itemColorLabel(it.color) : (it.metal === 'gold' ? t('gold') : it.metal === 'silver' ? t('silver') : '');
+      if (key) buckets[key] = (buckets[key] || 0) + 1;
+    });
+    const colorSummary = Object.keys(buckets).length > 1
+      ? Object.entries(buckets).map(([k, n]) => `${n} ${k}`).join(' · ') : '';
+    const typeStr = rep.jewelryType ? invTypeLabel(rep.jewelryType) : '';
+    const titleLine = [typeStr, _itemDesc(rep)].filter(Boolean).join(' · ');
+    const metalLabel = rep.metal === 'gold' ? t('gold') : rep.metal === 'silver' ? t('silver') : '';
+    const karatLabel = rep.metal === 'gold' ? rep.karat + 'K' : rep.karat;
+    const metaLine = rep.metal === 'other' ? '' : `${metalLabel} · ${karatLabel}`;
+    const countBadge = `<span class="inv-card-badge" style="background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);font-weight:700">🔗 ${count} ${lang==='el'?'σε απόθεμα':'in stock'}</span>`;
+    const codeStr = rep.seqId ? itemRefCode(rep) : (rep.qrCode || rep.code || '—');
+    return `
+      <div class="inv-card inv-group-card" data-inv-id="${repId}" data-group-id="${gid}" style="border-color:rgba(201,168,76,0.4)">
+        <div class="inv-card-top">
+          <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0">
+            <div class="inv-select-cb" data-id="${repId}" onclick="invSelectToggleItem('${repId}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
+            <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${codeStr}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}</div>
+          </div>
+        </div>
+        ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
+        ${(metaLine || colorSummary) ? `<div class="inv-card-meta">${metaLine}${colorSummary ? (metaLine ? '<br>' : '') + colorSummary : ''}</div>` : ''}
+        ${_isEmpInv ? '' : `<div class="inv-card-price">${priceStr}</div>`}
+        <div class="inv-card-actions">
+          <button class="inv-action-btn" style="flex:1;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="openInvGroup('${gid}')">${lang==='el' ? '🔗 Δες '+count+' κομμάτια' : '🔗 View '+count+' pieces'}</button>
+        </div>
+      </div>`;
+  };
+
+  // Collapse items sharing a groupId into one representative row (keeps sorted order;
+  // the first member met becomes the representative, the rest fold into its members[]).
+  // Ungrouped items pass through unchanged as plain [id, item] rows.
+  const _grpIndex = new Map();
+  const groupedRows = [];
+  for (const [id, item] of filtered) {
+    const gid = item.groupId;
+    if (gid && _grpIndex.has(gid)) { groupedRows[_grpIndex.get(gid)][2].push([id, item]); continue; }
+    if (gid) { _grpIndex.set(gid, groupedRows.length); groupedRows.push([id, item, [[id, item]]]); }
+    else groupedRows.push([id, item]);
+  }
+  // Dispatcher: a 3-element row (has members[]) → grouped card, else the normal card.
+  const buildRow = (row) => (row[2] ? buildGroupCard(row) : buildCard([row[0], row[1]]));
+
   // Windowed rendering (v10.23): draw only the first page of cards now and append the
   // rest as the user scrolls (see _invRenderNextPage). Building all cards at once is
   // what makes a large list stutter; at 1000+ items that would freeze the tab open.
-  _invSortedRows = filtered;
-  _invBuildCard = buildCard;
+  _invSortedRows = groupedRows;
+  _invBuildCard = buildRow;
   _invShownCount = 0;
   container.innerHTML = '';
   _invRenderNextPage();
@@ -11918,7 +11990,10 @@ function _invMaybeFill() {
 // since the target may live on a page not yet revealed). Returns true if now in DOM.
 function _invEnsureRendered(id) {
   if (document.querySelector(`.inv-card[data-inv-id="${id}"]`)) return true;
-  const idx = (_invSortedRows || []).findIndex(([rid]) => rid === id);
+  // A grouped row is keyed by its representative id, but the target may be any member —
+  // match either so paging still reveals the (grouped) card that stands in for it.
+  const idx = (_invSortedRows || []).findIndex(row =>
+    row[0] === id || (row[2] && row[2].some(([mid]) => mid === id)));
   if (idx === -1) return false;
   let guard = 0;
   while (_invShownCount <= idx && _invShownCount < _invSortedRows.length && guard++ < 400) {
@@ -14941,6 +15016,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.28', date: 'Ιούλιος 2026', items: [
+        '🔗 Ομαδοποίηση όμοιων ειδών (νέο): πολλά σχεδόν ίδια κομμάτια (π.χ. οι ίδιοι σταυροί σε διαφορετικά χρώματα ή βάρη) μπορούν πλέον να εμφανίζονται σε ΜΙΑ κάρτα με μετρητή αποθέματος, αντί για πολλές ξεχωριστές καρτέλες. Στο «Απόθεμα» πατήστε «Επιλογή», τσεκάρετε τα όμοια είδη και πατήστε το 🔗 για να τα ενώσετε. Η κάρτα δείχνει «🔗 N σε απόθεμα», μία τιμή (ή εύρος αν διαφέρουν) και ανάλυση χρωμάτων. Με το «Δες κομμάτια» βλέπετε το καθένα ξεχωριστά (πώληση/επεξεργασία) και μπορείτε να καταργήσετε την ομαδοποίηση. Κάθε κομμάτι κρατά τον δικό του κωδικό/QR και την ακριβή του τιμή — τίποτα δεν συγχωνεύεται στα δεδομένα, μόνο η εμφάνιση. (Ιδιοκτήτης/διαχειριστής.)'
+      ]},
       { version: 'v10.27', date: 'Ιούλιος 2026', items: [
         '🎨 Νέο πεδίο «Χρώμα» σε κάθε είδος: μπορείτε πλέον να ορίσετε το χρώμα ενός κοσμήματος (σμάλτο, πέτρα κ.λπ.) από μια έτοιμη λίστα — π.χ. Μπλε, Γαλάζιο, Μπορντό, Πράσινο — αντί να το γράφετε στην περιγραφή. Το χρώμα εμφανίζεται ως σήμα στην καρτέλα του είδους και μπορείτε να φιλτράρετε το απόθεμα ανά χρώμα. Αφήστε το κενό για απλά κομμάτια (εμφανίζονται με το μέταλλό τους, Χρυσό/Ασήμι). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους. (Πρώτο βήμα για το ομαδοποιημένο απόθεμα «όμοιων ειδών» που έρχεται.)'
       ]},
@@ -14970,9 +15048,6 @@ const ABOUT = {
       { version: 'v10.19', date: 'Ιούλιος 2026', items: [
         '💎 Σημαντική διόρθωση τιμών πετρών: η εφαρμογή ΔΕΝ προσθέτει πια μόνη της τιμή σε πέτρα που αφήσατε χωρίς τιμή. Παλιότερα, ένα είδος με πέτρα (π.χ. μαργαριτάρι) που το είχατε αφήσει χωρίς τιμή, «δανειζόταν» αυτόματα μια τιμή από την προσωρινή μνήμη πετρών — αλλάζοντας κρυφά την τελική τιμή του κοσμήματος και φουσκώνοντας την «υπεραξία». Πλέον, κενή τιμή πέτρας μετράει ως 0€. Οι τιμές που καταχωρήσατε εσείς ΔΕΝ επηρεάστηκαν ποτέ (η παλιά συμπεριφορά άγγιζε μόνο κενές τιμές). Τις πέτρες τις τιμολογείτε χειροκίνητα ή με το κουμπί ✨ στην Επεξεργασία.',
         '🔍 Νέο εργαλείο «Έλεγχος Τιμών Πετρών» (Ρυθμίσεις → προσωρινό): εντοπίζει τα είδη που επηρεάστηκαν από το παραπάνω σφάλμα, ώστε να τα ελέγξετε ένα-ένα. Με ένα πάτημα μηδενίζει την τιμή της πέτρας και διορθώνει την υπεραξία — πάντα με δική σας επιβεβαίωση. Θα αφαιρεθεί όταν ολοκληρωθεί το «σκούπισμα».'
-      ]},
-      { version: 'v10.18', date: 'Ιούλιος 2026', items: [
-        '📅 Η γραμμή «Αρχική τιμή» δείχνει τώρα και την ημερομηνία προσθήκης του είδους, π.χ. «Αρχική τιμή (προσθήκη 07/07/2026): €744.17 (+5.6%)». Έτσι, βλέποντας μια αύξηση, ξέρετε από ποια ημερομηνία να ελέγξετε πόσο έχει ανέβει ο χρυσός. (Ορατό στον ιδιοκτήτη/διαχειριστή.)'
       ]},
           ]
   },
@@ -15056,6 +15131,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.28', date: 'Jul 2026', items: [
+        '🔗 Group similar items (new): several near-identical pieces (e.g. the same crosses in different colors or weights) can now show as ONE card with a stock count, instead of many separate cards. In Stock, tap "Select", tick the similar items and press 🔗 to group them. The card shows "🔗 N in stock", one price (or a range if they differ) and a color breakdown. "View pieces" opens each one on its own (sell/edit) and lets you Ungroup. Every piece keeps its own code/QR and exact price — nothing is merged in the data, only the display. (Owner/manager.)'
+      ]},
       { version: 'v10.27', date: 'Jul 2026', items: [
         '🎨 New "Color" field on every item: you can now set a piece\'s color (enamel, stone, etc.) from a ready-made list — e.g. Blue, Light Blue, Bordeaux, Green — instead of typing it into the description. The color shows as a badge on the item card and you can filter your stock by color. Leave it blank for plain pieces (they show by their metal, Gold/Silver). Available when creating a label, scanning, and editing an item. (First step toward the "similar items" grouped stock that\'s coming.)'
       ]},
@@ -15085,9 +15163,6 @@ const ABOUT = {
       { version: 'v10.19', date: 'Jul 2026', items: [
         '💎 Important stone-pricing fix: the app no longer adds a price to a stone you left unpriced. Before, an item with a stone (e.g. a pearl) that you left with no price would silently "borrow" a price from the stone-price cache — quietly changing the piece\'s final price and inflating its "gain %". Now a blank stone price counts as €0. Prices you entered yourself were never affected (the old behavior only ever touched blank ones). You price stones manually or with the ✨ Estimate button in Edit.',
         '🔍 New "Stone Price Audit" tool (Settings → temporary): finds the items affected by the bug above so you can review them one by one. One tap sets the stone price to €0 and fixes the gain — always with your confirmation. It will be removed once the cleanup is done.'
-      ]},
-      { version: 'v10.18', date: 'Jul 2026', items: [
-        '📅 The "Initial price" line now also shows the date the item was added, e.g. "Initial price (added 07/07/2026): €744.17 (+5.6%)". So when you see a gain, you know which date to check the gold price against. (Owner/manager only.)'
       ]},
           ]
   }
@@ -17972,7 +18047,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.27';
+const APP_VERSION = '10.28';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18626,7 +18701,10 @@ function invShareSingle(id) {
 function invSelectAll() {
   // Select every item in the current filtered view — not just the cards currently
   // rendered on screen (the list is windowed, so most may not be in the DOM yet).
-  (_invSortedRows || []).forEach(([id]) => { if (id) _invSelected.add(id); });
+  (_invSortedRows || []).forEach(row => {
+    if (row[2]) row[2].forEach(([mid]) => { if (mid) _invSelected.add(mid); }); // grouped: every member
+    else if (row[0]) _invSelected.add(row[0]);
+  });
   document.querySelectorAll('.inv-select-cb').forEach(cb => {
     const id = cb.getAttribute('data-id');
     if (id && _invSelected.has(id)) {
@@ -18651,6 +18729,102 @@ function invShareSelected() {
   const items = [..._invSelected].map(id => (_inventoryCache || {})[id]).filter(Boolean);
   if (!items.length) return;
   showInvShareOptions(items);
+}
+
+// ── Similar-items grouping (v10.28) ──────────────────────────────────────────
+// "Group these": stamp a shared groupId on the selected items so they collapse into
+// one Stock card. Reuses an existing groupId already in the selection (so a single
+// item can be folded into an existing group), else mints a new one. Owner/manager only.
+function invGroupSelected() {
+  if (creds.role === 'employee') return;
+  const ids = [..._invSelected].filter(id => {
+    const it = (_inventoryCache || {})[id];
+    return it && !it.isBulk && it.status !== 'sold';
+  });
+  if (ids.length < 2) { showToast(lang==='el' ? '⚠️ Επιλέξτε τουλάχιστον 2 όμοια είδη' : '⚠️ Select at least 2 similar items'); return; }
+  let gid = null;
+  for (const id of ids) { const it = _inventoryCache[id]; if (it.groupId) { gid = it.groupId; break; } }
+  if (!gid) gid = 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  showConfirm(
+    lang==='el' ? `Ομαδοποίηση ${ids.length} ειδών σε μία κάρτα «όμοιων ειδών»;` : `Group these ${ids.length} items into one "similar items" card?`,
+    async () => {
+      for (const id of ids) {
+        const it = _inventoryCache[id];
+        if (it && it.groupId !== gid) { it.groupId = gid; _inventoryCache[id] = it; await saveInventoryItem(id, it); }
+      }
+      showToast(lang==='el' ? `✅ Ομαδοποιήθηκαν ${ids.length} είδη` : `✅ Grouped ${ids.length} items`);
+      if (_invSelectMode) toggleInvSelectMode();
+      renderInvList();
+    }
+  );
+}
+
+// Group detail sheet — lists every in-stock piece of a group; each opens its own
+// Edit / Mark-sold, plus an Ungroup action. Read from the live cache so it's current.
+function openInvGroup(gid) {
+  closeInvGroup();
+  const members = Object.entries(_inventoryCache || {})
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
+  if (!members.length) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
+  const isEmp = creds.role === 'employee';
+  const cur = state.currency || '€';
+  const rep = members[0][1];
+  const typeStr = rep.jewelryType ? invTypeLabel(rep.jewelryType) : '';
+  const title = [typeStr, _itemDesc(rep)].filter(Boolean).join(' · ') || (rep.qrCode || '—');
+  const rowsHtml = members.map(([id, it]) => {
+    const p = calcInvItemPrice(it);
+    const price = p ? cur + p.retail.toFixed(2) : '—';
+    const w = it.metal === 'other' ? '' : (parseFloat(it.weight).toFixed(2) + 'g');
+    const colorLbl = it.color ? itemColorLabel(it.color) : '';
+    const dot = it.color ? `<span style="width:9px;height:9px;border-radius:50%;${itemColorSwatchCss(it.color)||'background:#888'};display:inline-block;margin-right:5px;vertical-align:-1px;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>` : '';
+    const sub = [w, colorLbl ? (dot + colorLbl) : '', isEmp ? '' : price].filter(Boolean).join(' · ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 2px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);word-break:break-all">${it.qrCode || it.code || '—'}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${sub}</div>
+      </div>
+      <button class="inv-action-btn inv-action-sell" style="flex:0 0 auto;padding:6px 12px" onclick="closeInvGroup();invMarkSold('${id}')">${t('invMarkSold')}</button>
+      ${isEmp ? '' : `<button class="inv-action-btn" style="flex:0 0 auto;padding:6px 12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invEdit('${id}')">${t('invEdit')}</button>`}
+    </div>`;
+  }).join('');
+  const overlay = document.createElement('div');
+  overlay.id = 'invGroupOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99996;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;padding:0';
+  overlay.onclick = (e) => { if (e.target === overlay) closeInvGroup(); };
+  overlay.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-top-left-radius:18px;border-top-right-radius:18px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;padding:18px 18px 24px;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">🔗 ${title}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);letter-spacing:0.08em;margin-top:2px">${rep.seqId ? itemRefCode(rep) : ''} · ${members.length} ${lang==='el'?'σε απόθεμα':'in stock'}</div>
+        </div>
+        <button class="invGroupClose" onclick="closeInvGroup()" style="flex:0 0 auto;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;width:34px;height:34px;color:var(--text-muted);font-size:16px;cursor:pointer">✕</button>
+      </div>
+      <div style="margin:10px 0 4px">${rowsHtml}</div>
+      ${isEmp ? '' : `<button onclick="invUngroup('${gid}')" style="margin-top:14px;width:100%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.35);color:var(--danger,#e05a5a);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">${lang==='el' ? '⛓️‍💥 Κατάργηση ομαδοποίησης' : '⛓️‍💥 Ungroup'}</button>`}
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeInvGroup() {
+  const ov = document.getElementById('invGroupOverlay');
+  if (ov) ov.remove();
+}
+
+// Ungroup: strip the groupId from every member so they render as individual cards again.
+function invUngroup(gid) {
+  if (creds.role === 'employee') return;
+  const members = Object.entries(_inventoryCache || {}).filter(([,it]) => it && it.groupId === gid);
+  if (!members.length) return;
+  showConfirm(
+    lang==='el' ? `Κατάργηση ομαδοποίησης ${members.length} ειδών; (τα είδη παραμένουν, απλώς ξεχωρίζουν ξανά)` : `Ungroup these ${members.length} items? (the items stay, they just show separately again)`,
+    async () => {
+      for (const [id, it] of members) { delete it.groupId; _inventoryCache[id] = it; await saveInventoryItem(id, it); }
+      closeInvGroup();
+      showToast(lang==='el' ? '✅ Καταργήθηκε η ομαδοποίηση' : '✅ Ungrouped');
+      renderInvList();
+    }
+  );
 }
 
 function showInvShareOptions(items) {
