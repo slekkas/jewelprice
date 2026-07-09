@@ -9288,6 +9288,21 @@ function lookupCode(raw) {
   const map = buildCodeMap();
   const match = map.get(code);
   if (match) {
+    // Clear any stones / stone-cost left over from a PREVIOUS lookup BEFORE populating
+    // this item. Otherwise a stone-less item inherits the previous scan's stones (the
+    // stone auto-fill below only CLEARS when the new item HAS stones), and those stale
+    // stones ride into the item's QR at sale time (e.g. "…-tZIR"), breaking the
+    // sale→inventory match so the item is never marked sold. Stone items re-open the
+    // section and re-add their own rows just below / in the Other-type path.
+    {
+      const _srl = document.getElementById('stoneRowsList');
+      if (_srl) _srl.innerHTML = '';
+      const _sci = document.getElementById('stoneCostInput');
+      if (_sci) _sci.value = '';
+      const _ssb = document.getElementById('stoneSectionBody');
+      if (_ssb && _ssb.style.display !== 'none') toggleStoneSection();
+      if (typeof updateStoneSectionLabel === 'function') updateStoneSectionLabel();
+    }
     // Auto-fill vendor
     document.getElementById('vendorSelect').value = match.vendorIdx;
     updateWorkTypeOptions();
@@ -15190,6 +15205,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.34', date: 'Ιούλιος 2026', items: [
+        '💎 Σημαντική διόρθωση: όταν σαρώνετε ένα νέο είδος, οι πέτρες του προηγούμενου καθαρίζονται πρώτα. Πριν, αν σαρώνατε ένα είδος ΜΕ πέτρα (π.χ. ζιργκόν) και μετά ένα ΧΩΡΙΣ πέτρα, η πέτρα «κολλούσε» και μπερδευόταν στον κωδικό QR του δεύτερου είδους (π.χ. «…-tZIR»). Έτσι, στην πώληση, ο κωδικός δεν ταίριαζε με το είδος στο απόθεμα και το είδος ΔΕΝ σημειωνόταν ως πουλημένο. Τώρα κάθε νέα σάρωση ξεκινά καθαρή — οι πέτρες (και το κόστος πέτρας) μηδενίζονται και μπαίνουν μόνο αυτές του νέου είδους.'
+      ]},
       { version: 'v10.33', date: 'Ιούλιος 2026', items: [
         '🛡️ Η προειδοποίηση διπλότυπου QR πιάνει τώρα ΚΑΙ τα πωλημένα είδη: μέχρι τώρα, αν ο κωδικός QR ενός νέου είδους ταίριαζε με είδος που είχε ΠΩΛΗΘΕΙ, δεν εμφανιζόταν προειδοποίηση (ο έλεγχος κοιτούσε μόνο ό,τι ήταν σε απόθεμα). Επειδή η ετικέτα ενός πωλημένου κομματιού μπορεί να κυκλοφορεί ακόμα και θέλετε κάθε QR μοναδικό, η εφαρμογή προειδοποιεί πλέον για ΟΠΟΙΑΔΗΠΟΤΕ σύμπτωση κωδικού (με ένδειξη «[πωλημένο]» όπου χρειάζεται), ώστε να αλλάξετε ελαφρώς το βάρος.'
       ]},
@@ -15218,9 +15236,6 @@ const ABOUT = {
       { version: 'v10.25', date: 'Ιούλιος 2026', items: [
         '🛒 Διόρθωση: το «✕» δίπλα σε κάθε είδος του καλαθιού αφαιρεί τώρα κανονικά το είδος (πριν δεν έκανε τίποτα).',
         '🔢 Διόρθωση στη στρογγυλοποίηση με πολλά είδη: αφού πρόσθετες στο καλάθι ένα είδος με στρογγυλοποιημένη τιμή, στο επόμενο είδος το κουμπί εμφάνιζε «✕» αντί για «+», οπότε δεν μπορούσες να εφαρμόσεις τη νέα στρογγυλοποίηση. Τώρα το κουμπί επανέρχεται σωστά σε «+» για κάθε νέο είδος.'
-      ]},
-      { version: 'v10.24', date: 'Ιούλιος 2026', items: [
-        '⚧ Τα Unisex εμφανίζονται σε ανδρικά ΚΑΙ γυναικεία: όταν φιλτράρετε π.χ. «Ανδρικοί Σταυροί», εμφανίζονται τώρα και οι Unisex σταυροί — το ίδιο και στα γυναικεία. Δεν χρειάζεται πλέον να επιλέγετε και «Unisex» ξεχωριστά, ώστε να μη σας ξεφεύγει κανένα κομμάτι. Στην ιδιωτική ιστοσελίδα (showroom) το φίλτρο «Unisex» αφαιρέθηκε τελείως — τα κοινά κομμάτια εμφανίζονται αυτόματα και στις δύο κατηγορίες. Στην εφαρμογή το «Unisex» παραμένει ως επιλογή φίλτρου.'
       ]},
           ]
   },
@@ -15304,6 +15319,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.34', date: 'Jul 2026', items: [
+        '💎 Important fix: scanning a new item now clears the previous item\'s stones first. Before, if you scanned an item WITH a stone (e.g. zircon) and then one WITHOUT, the stone "stuck" and got mixed into the second item\'s QR code (e.g. "…-tZIR"). At sale time that code didn\'t match the item in stock, so the item was NOT marked sold. Now every new scan starts clean — the stones (and stone cost) reset and only the new item\'s stones are added.'
+      ]},
       { version: 'v10.33', date: 'Jul 2026', items: [
         '🛡️ Duplicate-QR warning now catches SOLD items too: until now, if a new item\'s QR code matched an item that had been SOLD, no warning appeared (the check only looked at in-stock items). Since a sold piece\'s tag can still be around and you keep every QR unique, the app now warns for ANY code collision (marking it "[sold]" where relevant) so you can adjust the weight slightly.'
       ]},
@@ -15332,9 +15350,6 @@ const ABOUT = {
       { version: 'v10.25', date: 'Jul 2026', items: [
         '🛒 Fix: the "✕" next to each cart item now actually removes that item (before it did nothing).',
         '🔢 Rounding fix with multiple items: after you added a rounded-price item to the cart, the next item\'s button showed "✕" instead of "+", so you couldn\'t apply a new rounding. The button now correctly resets to "+" for each new item.'
-      ]},
-      { version: 'v10.24', date: 'Jul 2026', items: [
-        '⚧ Unisex pieces now show under both Men and Women: when you filter for e.g. "Men\'s Crosses", unisex crosses now appear too — and likewise for Women. You no longer have to also tick "Unisex" separately, so nothing slips through. On the private showroom website the "Unisex" filter was removed entirely — shared pieces surface automatically under both categories. In the app, "Unisex" stays as a filter option.'
       ]},
           ]
   }
@@ -18219,7 +18234,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.33';
+const APP_VERSION = '10.34';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
