@@ -781,6 +781,35 @@
     margin-bottom: 24px;
     background: var(--surface-3);
   }
+  /* Zoom container: clips the scaled image so it can be inspected up close.
+     Desktop = hover to zoom + move to pan; touch = tap to zoom, drag to pan. */
+  .lb-zoom {
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--surface-3);
+    margin-bottom: 24px;
+    line-height: 0;
+    cursor: zoom-in;
+    touch-action: pan-y;
+  }
+  .lb-zoom.zoomed { cursor: zoom-out; touch-action: none; }
+  .lb-zoom .lb-img {
+    margin-bottom: 0;
+    transition: transform 0.18s ease;
+    transform-origin: center center;
+    will-change: transform;
+  }
+  .lb-zoom.zoomed .lb-img { transition: transform 0.06s linear; }
+  .lb-zoom-hint {
+    position: absolute; right: 10px; bottom: 10px;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(0,0,0,0.42); color: #fff;
+    display: none; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1; pointer-events: none;
+  }
+  @media (hover: none) { .lb-zoom-hint { display: flex; } }
+  .lb-zoom.zoomed .lb-zoom-hint { display: none; }
   /* Desktop: photo and details sit side by side so the piece fills the
      available width and the whole detail view fits without scrolling. */
   @media (min-width: 860px) {
@@ -794,6 +823,7 @@
     }
     .lb-img-col { position: sticky; top: 104px; }
     .lb-img { max-height: 74vh; margin-bottom: 0; }
+    .lb-zoom { margin-bottom: 0; }
     .lb-detail-col { padding-top: 4px; }
   }
   .lb-detail-row {
@@ -2321,8 +2351,11 @@ function openLightbox(key) {
 
   document.getElementById('lightboxBody').innerHTML = `
     <div class="lb-img-col">
-      <img class="lb-img" src="${item.photoUrlHi || item.photoUrl}" alt="${name}"
-           onerror="this.style.background='#F0EAD9';this.src=''">
+      <div class="lb-zoom" id="lbZoom">
+        <img class="lb-img" src="${item.photoUrlHi || item.photoUrl}" alt="${name}"
+             onerror="this.style.background='#F0EAD9';this.src=''">
+        <div class="lb-zoom-hint">🔍</div>
+      </div>
     </div>
     <div class="lb-detail-col">
       ${rows}
@@ -2333,6 +2366,55 @@ function openLightbox(key) {
 
   document.getElementById('lightbox').classList.add('open');
   document.body.style.overflow = 'hidden';
+  _lbInitZoom();
+}
+
+// Image zoom in the lightbox. Desktop (fine pointer + hover): hover to zoom and move
+// the cursor to pan around. Touch: tap to zoom in (centred on the tap), drag to pan,
+// tap again to zoom out — so the tiny children's bracelets can be inspected up close.
+function _lbInitZoom() {
+  const wrap = document.getElementById('lbZoom');
+  if (!wrap) return;
+  const img = wrap.querySelector('.lb-img');
+  if (!img) return;
+  const ZOOM = 2.6;
+  const setOrigin = (cx, cy) => {
+    const r = wrap.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const x = Math.max(0, Math.min(100, ((cx - r.left) / r.width) * 100));
+    const y = Math.max(0, Math.min(100, ((cy - r.top) / r.height) * 100));
+    img.style.transformOrigin = x + '% ' + y + '%';
+  };
+  const zoomIn = () => { img.style.transform = 'scale(' + ZOOM + ')'; wrap.classList.add('zoomed'); };
+  const zoomOut = () => { img.style.transform = ''; wrap.classList.remove('zoomed'); };
+
+  const canHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (canHover) {
+    wrap.addEventListener('mouseenter', e => { setOrigin(e.clientX, e.clientY); zoomIn(); });
+    wrap.addEventListener('mousemove', e => { if (wrap.classList.contains('zoomed')) setOrigin(e.clientX, e.clientY); });
+    wrap.addEventListener('mouseleave', zoomOut);
+  } else {
+    let sx = 0, sy = 0, moved = false, zoomed = false;
+    wrap.addEventListener('touchstart', e => {
+      const t = e.touches[0]; if (!t) return;
+      sx = t.clientX; sy = t.clientY; moved = false;
+      if (zoomed) setOrigin(t.clientX, t.clientY);
+    }, { passive: true });
+    wrap.addEventListener('touchmove', e => {
+      const t = e.touches[0]; if (!t) return;
+      if (Math.abs(t.clientX - sx) > 6 || Math.abs(t.clientY - sy) > 6) moved = true;
+      if (zoomed) { setOrigin(t.clientX, t.clientY); e.preventDefault(); }
+    }, { passive: false });
+    wrap.addEventListener('touchend', e => {
+      if (moved) return; // a drag, not a tap
+      if (zoomed) { zoomOut(); zoomed = false; }
+      else {
+        const t = e.changedTouches && e.changedTouches[0];
+        if (t) setOrigin(t.clientX, t.clientY);
+        zoomIn(); zoomed = true;
+      }
+    });
+  }
 }
 
 function row(key, val) {

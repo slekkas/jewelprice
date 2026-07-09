@@ -117,7 +117,7 @@ The app has grown well past the v2.2 list. It is organized into navigable tabs/p
 ## Public website & data security
 Alongside the private pricing app (`jewelprice.htm`) the repo also serves a small **public website** on the same GitHub Pages site:
 - `index.html` — public landing page (hero, hours, contact, links to the showroom).
-- `showroom.htm` — password-gated "Private Showroom": customers browse in-stock pieces (photo, description, type, metal, stones), select favourites, and send an inquiry via EmailJS. No prices shown.
+- `showroom.htm` — password-gated "Private Showroom": customers browse in-stock pieces (photo, description, type, metal, stones), select favourites, and send an inquiry via EmailJS. No prices shown. The item lightbox has **image zoom** (`_lbInitZoom`, called from `openLightbox`): desktop (fine pointer + hover) hovers to zoom and moves the cursor to pan; touch taps to zoom in centred on the tap, drags to pan, taps again to reset — for inspecting tiny pieces like children's bracelets. Purely `transform: scale()` + `transform-origin` on `.lb-img` inside an `overflow:hidden` `.lb-zoom` wrapper; showroom-only, no `APP_VERSION` bump.
 - `item.htm` — single-item "view item" page opened from a QR/`?qr=` link (used in inquiry emails and physical tags).
 - `quote.htm` — standalone quote view.
 
