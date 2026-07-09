@@ -2423,17 +2423,26 @@
     </button>
     <!-- Share floating bar (shown in select mode) -->
     <div id="invShareBar" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);z-index:9990;background:rgba(18,15,10,0.96);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:11px 14px;display:none;flex-direction:column;gap:8px;box-shadow:0 6px 32px rgba(0,0,0,0.7);max-width:360px;width:calc(100% - 32px);backdrop-filter:blur(12px)">
-      <!-- Row 1: count + action buttons -->
+      <!-- Row 1: count + utility (select all / exit) -->
       <div style="display:flex;align-items:center;gap:8px">
         <span id="invShareBarCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light);flex:1">0 επιλεγμένα</span>
-        <button onclick="invSelectAll()" style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:7px 12px;color:var(--gold-light);font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer" title="Select All"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-2px"><polyline points="4,12 9,17 20,6"/></svg></button>
-        <button onclick="toggleInvSelectMode()" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:7px 12px;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer" title="Exit">✕</button>
-        <button onclick="invShareSelected()" style="background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:7px 14px;color:#0E0C08;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:5px">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <button onclick="invSelectAll()" title="Select All" style="display:flex;align-items:center;gap:5px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:9px;padding:7px 11px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4,12 9,17 20,6"/></svg><span data-i18n="invSelAll">Όλα</span></button>
+        <button onclick="toggleInvSelectMode()" title="Exit" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">✕</button>
+      </div>
+      <!-- Row 2: primary actions — big, equal-width, easy to tap -->
+      <div style="display:flex;gap:8px">
+        <button onclick="invShareSelected()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:11px;padding:11px 6px;color:#0E0C08;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.02em;cursor:pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           <span data-i18n="invShareBtn">Κοινοποίηση</span>
         </button>
-        <button id="invGroupBtn" onclick="invGroupSelected()" title="Group similar items" style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:7px 12px;color:var(--gold-light);font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">🔗</button>
-        <button onclick="invMarkSelectedSold()" style="background:rgba(61,170,106,0.15);border:1px solid rgba(61,170,106,0.4);border-radius:10px;padding:7px 14px;color:#3daa6a;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">✅</button>
+        <button id="invGroupBtn" onclick="invGroupSelected()" title="Group similar items" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);border-radius:11px;padding:11px 6px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.02em;cursor:pointer">
+          <span style="font-size:18px;line-height:1">🔗</span>
+          <span data-i18n="invSelGroup">Ομάδα</span>
+        </button>
+        <button onclick="invMarkSelectedSold()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(61,170,106,0.16);border:1px solid rgba(61,170,106,0.4);border-radius:11px;padding:11px 6px;color:#3daa6a;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.02em;cursor:pointer">
+          <span style="font-size:18px;line-height:1">💰</span>
+          <span data-i18n="invSelSold">Πώληση</span>
+        </button>
       </div>
       <!-- Row 2: totals — owner/manager only, shown when ≥1 selected -->
       <div id="invShareBarTotals" style="display:none;border-top:1px solid rgba(201,168,76,0.15);padding-top:8px">
@@ -2999,6 +3008,7 @@ const T = {
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
     selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
     invSelectBtn:'Επιλογή', invSelectDone:'Τέλος', invShareBtn:'Κοινοποίηση',
+    invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση',
     invShareSelected:'Κοινοποίηση Επιλεγμένων', invShareIncludePrice:'Εμφάνιση τιμής στην κοινοποίηση;',
     invShareYes:'Ναι, δείξε τιμή', invShareNo:'Χωρίς τιμή',
     invShareNone:'Δεν έχει επιλεγεί κανένα αντικείμενο', invShareGenerating:'Δημιουργία PDF...',
@@ -3307,6 +3317,7 @@ const T = {
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
     selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
     invSelectBtn:'Select', invSelectDone:'Done', invShareBtn:'Share',
+    invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell',
     invShareSelected:'Share Selected', invShareIncludePrice:'Include price in share?',
     invShareYes:'Yes, show price', invShareNo:'No price',
     invShareNone:'No items selected', invShareGenerating:'Generating PDF...',
@@ -3848,7 +3859,7 @@ function applyRoleUI() {
   const _invScanBtn = document.querySelector('#panel-inventory .inv-scan-btn:first-of-type');
   if (_invBulkBtn) _invBulkBtn.style.display = isEmployee ? 'none' : '';
   const _invGroupBtn = document.getElementById('invGroupBtn');
-  if (_invGroupBtn) _invGroupBtn.style.display = isEmployee ? 'none' : '';
+  if (_invGroupBtn) _invGroupBtn.style.display = isEmployee ? 'none' : 'flex';
   const vendorPanel = document.getElementById('panel-vendors');
   if (vendorPanel.classList.contains('active')) renderVendors();
   renderIdentityCard();
@@ -15206,6 +15217,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.38', date: 'Ιούλιος 2026', items: [
+        '🎛️ Καθαρότερη μπάρα επιλογής: σε λειτουργία «Επιλογή», η μπάρα ενεργειών αναδιατάχθηκε — πάνω ο αριθμός επιλεγμένων με «Όλα» και «✕», και από κάτω τρία μεγάλα κουμπιά που πατιούνται εύκολα: Κοινοποίηση, Ομάδα, Πώληση.',
+        '💰 Διόρθωση «Κόστος» στα σύνολα επιλογής: το πεδίο εμφάνιζε «—» για είδη χωρίς αποθηκευμένο κόστος αγοράς (π.χ. είδη με χρέωση ανά γραμμάριο). Τώρα δείχνει το πραγματικό κόστος παραγωγής (μέταλλο + εργασία + πέτρες) όταν δεν υπάρχει καταχωρημένο κόστος αγοράς.'
+      ]},
       { version: 'v10.37', date: 'Ιούλιος 2026', items: [
         '📄 Κατάλογος/Φύλλο Παραγγελίας: τα όμοια κομμάτια δεν εμφανίζονται πια πολλές φορές. Πλέον όσα μοιράζονται την ίδια ομάδα ΚΑΙ το ίδιο χρώμα συγκεντρώνονται σε ΜΙΑ καταχώριση με ένδειξη «N σε απόθεμα». Π.χ. ομάδα με 3 ίδια → 1 καταχώριση («3 σε απόθεμα»)· ομάδα με 1 μπλε, 1 κόκκινο, 3 πράσινα → 3 καταχωρίσεις (μπλε, κόκκινο, πράσινο «3 σε απόθεμα»). Εμφανίζεται και το χρώμα σε κάθε καταχώριση.'
       ]},
@@ -15233,9 +15248,6 @@ const ABOUT = {
       ]},
       { version: 'v10.29', date: 'Ιούλιος 2026', items: [
         '➕ Γρήγορη προσθήκη όμοιων ειδών (νέο): αντί να καταχωρείτε ένα-ένα π.χ. 12 σχεδόν ίδια κολιέ, καταχωρείτε το πρώτο κανονικά και μετά τα υπόλοιπα με «ζύγισμα → πάτημα». Ανοίξτε ένα είδος (Επεξεργασία) και πατήστε «🔗 Προσθήκη όμοιων ειδών» — ή, σε μια υπάρχουσα ομάδα, «＋ Προσθήκη κι άλλων». Βάζετε μόνο βάρος (και χρώμα αν διαφέρει), πατάτε «Εκτύπωση & Προσθήκη» και τυπώνεται η ετικέτα· επαναλαμβάνετε όσες φορές θέλετε. Όλα κρατούν τον ίδιο κωδικό αναφοράς, με μοναδικό QR ανά βάρος, και μπαίνουν στην ίδια κάρτα. (Ιδιοκτήτης/διαχειριστής.)'
-      ]},
-      { version: 'v10.28', date: 'Ιούλιος 2026', items: [
-        '🔗 Ομαδοποίηση όμοιων ειδών (νέο): πολλά σχεδόν ίδια κομμάτια (π.χ. οι ίδιοι σταυροί σε διαφορετικά χρώματα ή βάρη) μπορούν πλέον να εμφανίζονται σε ΜΙΑ κάρτα με μετρητή αποθέματος, αντί για πολλές ξεχωριστές καρτέλες. Στο «Απόθεμα» πατήστε «Επιλογή», τσεκάρετε τα όμοια είδη και πατήστε το 🔗 για να τα ενώσετε. Η κάρτα δείχνει «🔗 N σε απόθεμα», μία τιμή (ή εύρος αν διαφέρουν) και ανάλυση χρωμάτων. Με το «Δες κομμάτια» βλέπετε το καθένα ξεχωριστά (πώληση/επεξεργασία) και μπορείτε να καταργήσετε την ομαδοποίηση. Κάθε κομμάτι κρατά τον δικό του κωδικό/QR και την ακριβή του τιμή — τίποτα δεν συγχωνεύεται στα δεδομένα, μόνο η εμφάνιση. (Ιδιοκτήτης/διαχειριστής.)'
       ]},
           ]
   },
@@ -15319,6 +15331,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.38', date: 'Jul 2026', items: [
+        '🎛️ Cleaner selection bar: in "Select" mode the action bar was rearranged — the selected count with "All" and "✕" on top, and three big, easy-to-tap buttons below: Share, Group, Sell.',
+        '💰 "Cost" total fix: the selection totals showed "—" for items with no stored purchase cost (e.g. per-gram items). It now shows the real production cost (metal + labour + stones) when no purchase cost is on file.'
+      ]},
       { version: 'v10.37', date: 'Jul 2026', items: [
         '📄 Catalog / Order Sheet no longer repeats identical pieces: pieces that share the same group AND the same colour are now collapsed into ONE entry marked "N in stock". E.g. a group of 3 identical → 1 entry ("3 in stock"); a group of 1 blue, 1 red, 3 green → 3 entries (blue, red, green "3 in stock"). Each entry also shows its colour.'
       ]},
@@ -15346,9 +15362,6 @@ const ABOUT = {
       ]},
       { version: 'v10.29', date: 'Jul 2026', items: [
         '➕ Fast "Add similar items" (new): instead of entering e.g. 12 near-identical necklaces one by one, enter the first one normally, then add the rest by "weigh → tap". Open an item (Edit) and press "🔗 Add similar items" — or, on an existing group, "＋ Add more". You only enter a weight (and a color if it differs), press "Print & Add" and the tag prints; repeat as many times as you like. They all keep the same reference code, with a unique QR per weight, and land on the same card. (Owner/manager.)'
-      ]},
-      { version: 'v10.28', date: 'Jul 2026', items: [
-        '🔗 Group similar items (new): several near-identical pieces (e.g. the same crosses in different colors or weights) can now show as ONE card with a stock count, instead of many separate cards. In Stock, tap "Select", tick the similar items and press 🔗 to group them. The card shows "🔗 N in stock", one price (or a range if they differ) and a color breakdown. "View pieces" opens each one on its own (sell/edit) and lets you Ungroup. Every piece keeps its own code/QR and exact price — nothing is merged in the data, only the display. (Owner/manager.)'
       ]},
           ]
   }
@@ -18233,7 +18246,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.37';
+const APP_VERSION = '10.38';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18877,9 +18890,12 @@ function updateInvShareBar() {
       [..._invSelected].forEach(id => {
         const item = (_inventoryCache || {})[id];
         if (!item) return;
-        totalCost += parseFloat(item.purchaseCost) || 0;
         const p = calcInvItemPrice(item);
         if (p) { totalRetail += p.retail || 0; totalMetal += p.metalValue || 0; }
+        // Cost: the stored purchase cost when set (per-item vendors), else the computed
+        // production cost (metal + labour + stone) so per-gram items show a real cost
+        // instead of a blank "—".
+        totalCost += parseFloat(item.purchaseCost) || (p && p.baseCost) || 0;
       });
       document.getElementById('invSelTotalCost').textContent = totalCost > 0 ? cur + Math.round(totalCost).toLocaleString() : '—';
       document.getElementById('invSelTotalRetail').textContent = totalRetail > 0 ? cur + Math.round(totalRetail).toLocaleString() : '—';
