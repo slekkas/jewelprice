@@ -11969,7 +11969,7 @@ function renderInvList() {
       <div class="inv-card inv-group-card" data-inv-id="${repId}" data-group-id="${gid}" style="border-color:rgba(201,168,76,0.4)">
         <div class="inv-card-top">
           <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0">
-            <div class="inv-select-cb" data-id="${repId}" onclick="invSelectToggleItem('${repId}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
+            <div class="inv-select-cb" data-id="${repId}" onclick="invSelectToggleGroup('${gid}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${codeStr}</div>
             <button onclick="invShareGroup('${gid}')" class="inv-share-btn" title="Share all ${count}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
@@ -15206,6 +15206,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.36', date: 'Ιούλιος 2026', items: [
+        '✅ Επιλογή ομάδας = όλα τα κομμάτια της: σε λειτουργία «Επιλογή», όταν τσεκάρετε μια ομαδοποιημένη κάρτα επιλέγονται πλέον ΟΛΑ τα διαθέσιμα κομμάτια της (όχι μόνο ένα). Έτσι, αν διαλέξετε ένα μονό είδος κι μια ομάδα και στείλετε Κατάλογο/Φύλλο Παραγγελίας, μπαίνουν όλα τα κομμάτια — και τα σύνολα (κόστος/λιανική) υπολογίζονται σωστά.'
+      ]},
       { version: 'v10.35', date: 'Ιούλιος 2026', items: [
         '🔗 Κοινοποίηση όλης της ομάδας με ένα πάτημα: στην ομαδοποιημένη κάρτα προστέθηκε εικονίδιο κοινοποίησης (πάνω δεξιά, δίπλα στον κωδικό) που στέλνει ΟΛΑ τα κομμάτια μαζί — Φύλλο Παραγγελίας, Κατάλογος (με ή χωρίς τιμές) και αποστολή σε συνεργάτη. Η εικόνα για social media δεν εμφανίζεται εδώ, αφού αφορά ένα κομμάτι τη φορά.'
       ]},
@@ -15233,9 +15236,6 @@ const ABOUT = {
       ]},
       { version: 'v10.27', date: 'Ιούλιος 2026', items: [
         '🎨 Νέο πεδίο «Χρώμα» σε κάθε είδος: μπορείτε πλέον να ορίσετε το χρώμα ενός κοσμήματος (σμάλτο, πέτρα κ.λπ.) από μια έτοιμη λίστα — π.χ. Μπλε, Γαλάζιο, Μπορντό, Πράσινο — αντί να το γράφετε στην περιγραφή. Το χρώμα εμφανίζεται ως σήμα στην καρτέλα του είδους και μπορείτε να φιλτράρετε το απόθεμα ανά χρώμα. Αφήστε το κενό για απλά κομμάτια (εμφανίζονται με το μέταλλό τους, Χρυσό/Ασήμι). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους. (Πρώτο βήμα για το ομαδοποιημένο απόθεμα «όμοιων ειδών» που έρχεται.)'
-      ]},
-      { version: 'v10.26', date: 'Ιούλιος 2026', items: [
-        '⚧ Ένα είδος μπορεί τώρα να εμφανίζεται σε παραπάνω από μία κατηγορίες: π.χ. ένα παιδικό μενταγιόν που το αγοράζουν και γυναίκες. Επιλέγετε την κύρια κατηγορία όπως πάντα (π.χ. Παιδικό) και από κάτω, στο «Εμφανίζεται επίσης σε», τικάρετε και «Γυναικείο». Έτσι θα εμφανίζεται και στα δύο φίλτρα — και στην εφαρμογή και στην ιστοσελίδα (showroom). Διαθέσιμο στη δημιουργία ετικέτας, στη σάρωση και στην επεξεργασία είδους.'
       ]},
           ]
   },
@@ -15319,6 +15319,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.36', date: 'Jul 2026', items: [
+        '✅ Selecting a group selects all its pieces: in "Select" mode, ticking a grouped card now selects ALL of its in-stock pieces (not just one). So if you pick a single item and a group and send a Catalog / Order Sheet, every piece is included — and the totals (cost/retail) add up correctly.'
+      ]},
       { version: 'v10.35', date: 'Jul 2026', items: [
         '🔗 Share a whole group in one tap: the grouped card gets a share icon (top-right, next to the code) that sends ALL the pieces at once — Order Sheet, Catalog (with or without prices) and Send to a coworker. The social-media image isn\'t offered here since that\'s one item at a time.'
       ]},
@@ -15346,9 +15349,6 @@ const ABOUT = {
       ]},
       { version: 'v10.27', date: 'Jul 2026', items: [
         '🎨 New "Color" field on every item: you can now set a piece\'s color (enamel, stone, etc.) from a ready-made list — e.g. Blue, Light Blue, Bordeaux, Green — instead of typing it into the description. The color shows as a badge on the item card and you can filter your stock by color. Leave it blank for plain pieces (they show by their metal, Gold/Silver). Available when creating a label, scanning, and editing an item. (First step toward the "similar items" grouped stock that\'s coming.)'
-      ]},
-      { version: 'v10.26', date: 'Jul 2026', items: [
-        '⚧ An item can now appear in more than one category: e.g. a children\'s pendant that grown women also buy. You pick the main category as usual (e.g. Children), then just below, under "Also appears under", tick "Women" too. It then shows up under both filters — in the app and on the showroom website. Available when creating a label, scanning, and editing an item.'
       ]},
           ]
   }
@@ -18233,7 +18233,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.35';
+const APP_VERSION = '10.36';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -18842,6 +18842,22 @@ function invSelectToggleItem(id, checked) {
       el.innerHTML = '';
     });
   }
+  updateInvShareBar();
+}
+
+// Select-mode toggle for a GROUPED card: selecting it adds/removes EVERY in-stock
+// member of the group (not just the representative), so bulk actions (share catalog,
+// send to team, totals) cover the whole group. The card shows one checkbox (on the
+// representative); its checked state mirrors the group.
+function invSelectToggleGroup(gid, checked) {
+  const memberIds = Object.entries(_inventoryCache || {})
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk)
+    .map(([id]) => id);
+  memberIds.forEach(id => { if (checked) _invSelected.add(id); else _invSelected.delete(id); });
+  document.querySelectorAll('.inv-group-card[data-group-id="'+gid+'"] .inv-select-cb').forEach(el => {
+    el.classList.toggle('checked', checked);
+    el.innerHTML = checked ? '<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="#D4AF37" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
+  });
   updateInvShareBar();
 }
 
