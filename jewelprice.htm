@@ -14683,9 +14683,44 @@ function invRestock(id) {
 // auto-group into one Stock card. Each coin prices as live pure-metal melt + markup
 // (gold €30 / silver €0 by default); none are ever published to the showroom. All
 // coins of a type share one GC#### ref code; the sale marks the sold piece by record id.
+// Tuned Numista search terms per coin: issuing country + face-value denomination +
+// distinctive name. A plain name like "American Eagle 1/10 oz" matches dozens of world
+// bullion coins and ranks them badly; adding the country + denomination lands the exact
+// coin at/near the top of the results.
+const COIN_NUMISTA = {
+  sovereign:'United Kingdom Sovereign', half_sovereign:'United Kingdom Half Sovereign', quarter_sovereign:'United Kingdom Quarter Sovereign',
+  franc20:'France 20 Francs gold', franc20_swiss:'Switzerland 20 Francs gold', franc10:'France 10 Francs gold',
+  ducat1:'Austria 1 Ducat', ducat4:'Austria 4 Ducat', corona100:'Austria 100 Corona', corona20:'Austria 20 Corona', corona10:'Austria 10 Corona',
+  eagle_1oz:'United States 50 Dollars American Gold Eagle', eagle_half:'United States 25 Dollars American Gold Eagle',
+  eagle_quarter:'United States 10 Dollars American Gold Eagle', eagle_tenth:'United States 5 Dollars American Gold Eagle',
+  double_eagle:'United States 20 Dollars Double Eagle',
+  krug_1oz:'South Africa Krugerrand 1 oz', krug_half:'South Africa Krugerrand 1/2 oz', krug_quarter:'South Africa Krugerrand 1/4 oz', krug_tenth:'South Africa Krugerrand 1/10 oz',
+  maple_1oz:'Canada 50 Dollars Gold Maple Leaf', peso50:'Mexico 50 Pesos Centenario',
+  drachmai20:'Greece 20 Drachmai gold', mark20:'Germany 20 Mark gold', lire20:'Italy 20 Lire gold', kurush100:'Turkey 100 Kurush gold',
+  ca_dollar_800:'Canada 1 Dollar silver', ca_50c_800:'Canada 50 Cents silver', ca_25c_800:'Canada 25 Cents silver', ca_10c_800:'Canada 10 Cents silver',
+  us_dollar_900:'United States Morgan Dollar', us_half_900:'United States Half Dollar silver', us_quarter_900:'United States Quarter Dollar silver', us_dime_900:'United States Dime silver',
+  gr_20dr_ag:'Greece 20 Drachmai silver', gr_30dr_ag:'Greece 30 Drachmai silver',
+  ag_maple_1oz:'Canada 5 Dollars Silver Maple Leaf', ag_eagle_1oz:'United States 1 Dollar American Silver Eagle',
+};
+
+// Direct Numista catalogue piece IDs for single-design bullion coins, whose generic
+// names ("Eagle", "Dollar") make text search useless (it buries them under look-alikes
+// from other countries). A direct link lands on the exact coin. Historical coins with
+// many ruler/year variants intentionally use the tuned search above instead, so the
+// customer can match their own year/portrait.
+const COIN_NID = {
+  eagle_1oz: 23134, eagle_half: 21899, eagle_quarter: 25416, eagle_tenth: 10493,
+  double_eagle: 23126, krug_1oz: 6002, krug_half: 11459, krug_tenth: 17854,
+  maple_1oz: 7501, ag_maple_1oz: 31564, ag_eagle_1oz: 1493,
+  peso50: 28709, ca_dollar_800: 457,
+};
+
 function coinNumistaUrl(entry) {
   const host = lang === 'el' ? 'el' : 'en';
-  const name = (entry.numista || entry.en || entry.name || '').replace(/\([^)]*\)/g, ' ').replace(/[½¼⅒]/g, ' ').replace(/\s+/g, ' ').trim();
+  const nid = COIN_NID[entry.key];
+  if (nid) return `https://${host}.numista.com/catalogue/pieces${nid}.html`;   // exact coin page
+  const term = COIN_NUMISTA[entry.key] || entry.numista || entry.en || entry.name || '';
+  const name = term.replace(/\([^)]*\)/g, ' ').replace(/[½¼⅒]/g, ' ').replace(/\s+/g, ' ').trim();
   return `https://${host}.numista.com/catalogue/index.php?ct=coin&r=${encodeURIComponent(name)}`;
 }
 
@@ -15829,6 +15864,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.40', date: 'Ιούλιος 2026', items: [
+        '🔗 Πιο ακριβής σύνδεσμος Numista: για τα νομίσματα επένδυσης (χρυσές/ασημένιες λίρες τύπου Eagle, Krugerrand, Maple Leaf, Μεξικού κ.λπ.) το 🔗 ανοίγει πλέον ΑΠΕΥΘΕΙΑΣ την ακριβή σελίδα του νομίσματος στο Numista — χωρίς κύλισμα, για να δείξετε αμέσως στον πελάτη το νόμισμα που αγοράζει. Για τα ιστορικά νομίσματα (με πολλές χρονολογίες/εκδόσεις) η αναζήτηση περιλαμβάνει τη χώρα και την ονομαστική αξία, ώστε να βρείτε εύκολα τη δική σας χρονολογία.'
+      ]},
       { version: 'v10.39', date: 'Ιούλιος 2026', items: [
         '🪙 Νομίσματα στο απόθεμα (νέο) — χρυσά ΚΑΙ ασημένια: κουμπί «🪙 Προσθήκη νομίσματος» στην καρτέλα Απόθεμα (αντικατέστησε τη «Σάρωση QR» εκεί — η σάρωση δουλεύει ακόμη από τον Υπολογισμό). Διαλέγετε Χρυσό ή Ασήμι και μετά νόμισμα από έτοιμο κατάλογο: λίρες Αγγλίας, Ναπολέον, Αυστρίας, Αμερικής, Krugerrand, Maple Leaf, Μεξικού, ελληνικά, καναδικά/αμερικανικά ασημένια δολάρια κ.ά. — ή «Άλλο» για ό,τι λείπει. Ίδια νομίσματα ομαδοποιούνται σε μία κάρτα «N σε απόθεμα».',
         '⚖️ Αναγνώριση από βάρος: μπαίνει άγνωστο νόμισμα στη ζυγαριά, βάζετε το βάρος και η εφαρμογή δείχνει τα πιθανά νομίσματα με αυτό το βάρος (±ανοχή). Κάθε πιθανό έχει σύνδεσμο 🔗 προς τη βάση νομισμάτων Numista για να το επιβεβαιώσετε από φωτογραφία πριν το αγοράσετε.',
@@ -15863,9 +15901,6 @@ const ABOUT = {
       ]},
       { version: 'v10.31', date: 'Ιούλιος 2026', items: [
         '🔧 Πλήρεις ενέργειες για κάθε κομμάτι μιας ομάδας: ανοίγοντας «Δες κομμάτια» σε μια ομαδοποιημένη κάρτα, κάθε κομμάτι έχει τώρα ΟΛΕΣ τις ενέργειες όπως μια κανονική κάρτα — ➕ Calc, Κοινοποίηση, 🏷️ Εκτύπωση ετικέτας, 💰 Πώληση, ✏️ Επεξεργασία και 🗑 Διαγραφή. Έτσι δεν χάνετε καμία λειτουργία όταν τα είδη είναι ομαδοποιημένα (π.χ. να τυπώσετε ξανά μία ετικέτα ή να στείλετε ένα κομμάτι στον Υπολογισμό).'
-      ]},
-      { version: 'v10.30', date: 'Ιούλιος 2026', items: [
-        '💰 Πώληση πολλών όμοιων μαζί (νέο): αν ένας πελάτης θέλει π.χ. 3 ίδια κομμάτια, ανοίξτε την ομαδοποιημένη κάρτα («Δες κομμάτια»), επιλέξτε ποσότητα στο «Πώληση πολλών» και πατήστε «Πώληση». Καταχωρούνται ως μία συναλλαγή (εμφανίζεται ως «🛍 N είδη» στις Πωλήσεις) και το απόθεμα μειώνεται αντίστοιχα. Για συγκεκριμένα κομμάτια (π.χ. ένα ροζ κι ένα μπλε) μπορείτε πάντα να πουλήσετε το καθένα ξεχωριστά από τη λίστα.'
       ]},
           ]
   },
@@ -15949,6 +15984,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.40', date: 'Jul 2026', items: [
+        '🔗 More precise Numista link: for bullion coins (American Eagle, Krugerrand, Maple Leaf, Mexican, etc.) the 🔗 now opens the coin\'s EXACT Numista page directly — no scrolling, so you can instantly show a customer the coin they\'re buying. For historical coins (with many years/varieties) it searches by country + face value so you can find your own year.'
+      ]},
       { version: 'v10.39', date: 'Jul 2026', items: [
         '🪙 Coins in inventory (new) — gold AND silver: a "🪙 Add Coin" button on the Stock tab (it replaced "Scan QR" there — scanning still works from Calc). Pick Gold or Silver, then a coin from a built-in catalog: British sovereigns, Napoleons, Austrian, American, Krugerrand, Maple Leaf, Mexican, Greek, Canadian/US silver dollars and more — or "Custom" for anything not listed. Identical coins group into one "N in stock" card.',
         '⚖️ Identify by weight: put an unknown coin on the scale, type the grams, and the app lists the possible coins at that weight (± tolerance). Each one has a 🔗 link to the Numista coin database so you can confirm it by photo before you buy.',
@@ -15983,9 +16021,6 @@ const ABOUT = {
       ]},
       { version: 'v10.31', date: 'Jul 2026', items: [
         '🔧 Full actions for every piece of a group: opening "View pieces" on a grouped card, each piece now has ALL the actions of a normal card — ➕ Calc, Share, 🏷️ Print Tag, 💰 Sell, ✏️ Edit and 🗑 Delete. So you lose no functionality when items are grouped (e.g. reprint a single tag or send one piece to Calc).'
-      ]},
-      { version: 'v10.30', date: 'Jul 2026', items: [
-        '💰 Sell several identical at once (new): if a customer wants e.g. 3 of the same piece, open the grouped card ("View pieces"), pick a quantity under "Sell several" and press "Sell". They\'re recorded as one transaction (shown as "🛍 N items" in Sales) and stock drops accordingly. For specific pieces (e.g. one pink and one blue) you can still sell each one on its own from the list.'
       ]},
           ]
   }
@@ -18870,7 +18905,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.39';
+const APP_VERSION = '10.40';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
