@@ -10463,14 +10463,22 @@ function coinMarkup(metal) {
 
 // A coin's cost basis for the "Initial price" line: the purchase price if the owner
 // recorded one, else the pure-metal value at the moment it was added (`initialMelt`).
-// Falls back to the older `initialRetail` for coins added before initialMelt existed.
+// Falls back to the older `initialRetail` for coins added before initialMelt existed —
+// but that stored value is melt PLUS the flat markup, whereas the gain is measured
+// against the LIVE melt (no markup). Comparing the two directly made every pre-v10.41
+// coin show a spurious loss of roughly the markup (e.g. −7% right after being added),
+// so strip the markup back off to recover the add-time melt basis.
 function coinBaseline(item) {
   const pc = parseFloat(item.purchaseCost);
   if (pc > 0) return pc;
   const im = parseFloat(item.initialMelt);
   if (im > 0) return im;
   const ir = parseFloat(item.initialRetail);
-  return ir > 0 ? ir : null;
+  if (ir > 0) {
+    const meltBasis = ir - coinMarkup(item.metal);
+    return meltBasis > 0 ? meltBasis : ir;
+  }
+  return null;
 }
 
 // Gain % of a coin vs its cost basis. Current value = the LIVE melt value (same basis
@@ -16454,6 +16462,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.49', date: 'Ιούλιος 2026', items: [
+        '🐛 Διόρθωση λανθασμένου ποσοστού στα νομίσματα: τα νομίσματα που προσθέσατε πριν εμφανιστεί η γραμμή «Αρχική τιμή» (στην πρώτη μέρα των νομισμάτων) έδειχναν ψεύτικη πτώση ~3–7% αμέσως μετά την προσθήκη — γιατί η αρχική τους τιμή είχε αποθηκευτεί μαζί με το κέρδος πώλησης (π.χ. +€30), ενώ συγκρινόταν με τη σκέτη αξία μετάλλου. Τώρα αφαιρείται σωστά το κέρδος, οπότε το ποσοστό δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού/ασημιού από τη στιγμή που τα προσθέσατε.'
+      ]},
       { version: 'v10.48', date: 'Ιούλιος 2026', items: [
         '🧱 Ακατέργαστο μέταλλο / scrap στο απόθεμα (νέο): κουμπί «🧱 Προσθήκη μετάλλου» στην καρτέλα Απόθεμα — για το χρυσάφι/ασήμι που κρατάτε στο χρηματοκιβώτιο για λιώσιμο (καθαρός χρυσός/ασήμι σε μπίλιες, 14/18/22Κ παλιά κοσμήματα πελατών, scrap ασήμι). Διαλέγετε Χρυσό/Ασήμι + καθαρότητα + βάρος. Η αξία υπολογίζεται ζωντανά από την τιμή του μετάλλου.',
         '➕ Προσθέτετε στην ίδια καθαρότητα και το βάρος αθροίζεται: σήμερα 30g 14Κ, αύριο άλλα 30g → η κάρτα δείχνει 60g. Κάθε καθαρότητα (24Κ, 18Κ, 14Κ, καθαρό ασήμι κ.λπ.) έχει τη δική της κάρτα.',
@@ -16486,15 +16497,6 @@ const ABOUT = {
       ]},
       { version: 'v10.40', date: 'Ιούλιος 2026', items: [
         '🔗 Πιο ακριβής σύνδεσμος Numista: για τα νομίσματα επένδυσης (χρυσές/ασημένιες λίρες τύπου Eagle, Krugerrand, Maple Leaf, Μεξικού κ.λπ.) το 🔗 ανοίγει πλέον ΑΠΕΥΘΕΙΑΣ την ακριβή σελίδα του νομίσματος στο Numista — χωρίς κύλισμα, για να δείξετε αμέσως στον πελάτη το νόμισμα που αγοράζει. Για τα ιστορικά νομίσματα (με πολλές χρονολογίες/εκδόσεις) η αναζήτηση περιλαμβάνει τη χώρα και την ονομαστική αξία, ώστε να βρείτε εύκολα τη δική σας χρονολογία.'
-      ]},
-      { version: 'v10.39', date: 'Ιούλιος 2026', items: [
-        '🪙 Νομίσματα στο απόθεμα (νέο) — χρυσά ΚΑΙ ασημένια: κουμπί «🪙 Προσθήκη νομίσματος» στην καρτέλα Απόθεμα (αντικατέστησε τη «Σάρωση QR» εκεί — η σάρωση δουλεύει ακόμη από τον Υπολογισμό). Διαλέγετε Χρυσό ή Ασήμι και μετά νόμισμα από έτοιμο κατάλογο: λίρες Αγγλίας, Ναπολέον, Αυστρίας, Αμερικής, Krugerrand, Maple Leaf, Μεξικού, ελληνικά, καναδικά/αμερικανικά ασημένια δολάρια κ.ά. — ή «Άλλο» για ό,τι λείπει. Ίδια νομίσματα ομαδοποιούνται σε μία κάρτα «N σε απόθεμα».',
-        '⚖️ Αναγνώριση από βάρος: μπαίνει άγνωστο νόμισμα στη ζυγαριά, βάζετε το βάρος και η εφαρμογή δείχνει τα πιθανά νομίσματα με αυτό το βάρος (±ανοχή). Κάθε πιθανό έχει σύνδεσμο 🔗 προς τη βάση νομισμάτων Numista για να το επιβεβαιώσετε από φωτογραφία πριν το αγοράσετε.',
-        '📈 Ζωντανή αξία: κάθε νόμισμα δείχνει την τρέχουσα αξία μετάλλου εκείνη τη στιγμή. Στα χρυσά προτείνεται τιμή πώλησης (αξία + κέρδος, προεπιλογή €30). Στα ασημένια το κέρδος είναι €0 — δείχνει μόνο την αξία αργύρου (ιδανικό για νομίσματα που κρατάτε/λιώνετε). Και τα δύο κέρδη ρυθμίζονται στις Ρυθμίσεις.',
-        '💶 Τιμή αγοράς (προαιρετικό): όταν αγοράζετε ένα νόμισμα, καταχωρείτε πόσο πληρώσατε — το κέρδος στην πώληση υπολογίζεται σωστά (τιμή πώλησης − τιμή αγοράς) και η κάρτα δείχνει «Αγοράστηκε: €Χ» ώστε να μην πουλήσετε κάτω από το κόστος.',
-        '🧮 Τα νομίσματα μετρούν στα σύνολα του αποθέματος (Αξία Λιανική + Καθαρός χρυσός/άργυρος) με το ακριβές περιεχόμενο μετάλλου. Στην πώληση χρυσού νομίσματος τα ΜΕΤΡΗΤΑ είναι προεπιλεγμένα. Τα νομίσματα ΔΕΝ εμφανίζονται ποτέ στη δημόσια βιτρίνα.',
-        '📊 Η ομαδοποιημένη κάρτα δείχνει και το ΣΥΝΟΛΟ (N× αξία · N× τιμή πώλησης) και ποσοστό υπεραξίας — με βάση την τιμή αγοράς αν υπάρχει, αλλιώς την αξία κατά την προσθήκη (όπως στα κανονικά είδη). Ο τύπος «Νόμισμα» εμφανίζεται και στο φίλτρο ανά τύπο.',
-        '➕ «Τα νομίσματά μου»: αν κάποιος φέρει νόμισμα εκτός λίστας, ζυγίζετε → «Νέο νόμισμα» (το βάρος μπαίνει αυτόματα), βάζετε ονομασία + καθαρότητα (από τον έλεγχο μετάλλου ή τον σύνδεσμο Numista) και με ένα τικ αποθηκεύεται. Από κει και πέρα αναγνωρίζεται από το βάρος, παίρνει ζωντανές τιμές και ομαδοποιείται όπως τα υπόλοιπα. Διαχείριση στις Ρυθμίσεις → «Τα νομίσματά μου».'
       ]},
           ]
   },
@@ -16578,6 +16580,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.49', date: 'Jul 2026', items: [
+        '🐛 Fixed a wrong percentage on coins: coins you added before the "Initial price" line existed (on the first day coins were introduced) showed a fake ~3–7% drop right after being added — because their initial price had been stored WITH the selling markup (e.g. +€30), yet it was being compared against the plain metal value. The markup is now correctly stripped out, so the percentage reflects only the real gold/silver price movement since you added them.'
+      ]},
       { version: 'v10.48', date: 'Jul 2026', items: [
         '🧱 Raw metal / scrap stock (new): a "🧱 Add Metal" button on the Stock tab — for the gold/silver you keep in the vault to melt down (pure gold/silver balls, 14/18/22K old jewellery from customers, scrap silver). Pick Gold/Silver + purity + weight; the value is computed live from the metal price.',
         '➕ Add the same purity and the weight adds up: today 30g 14K, tomorrow another 30g → the card shows 60g. Each purity (24K, 18K, 14K, pure silver, etc.) has its own card.',
@@ -16610,15 +16615,6 @@ const ABOUT = {
       ]},
       { version: 'v10.40', date: 'Jul 2026', items: [
         '🔗 More precise Numista link: for bullion coins (American Eagle, Krugerrand, Maple Leaf, Mexican, etc.) the 🔗 now opens the coin\'s EXACT Numista page directly — no scrolling, so you can instantly show a customer the coin they\'re buying. For historical coins (with many years/varieties) it searches by country + face value so you can find your own year.'
-      ]},
-      { version: 'v10.39', date: 'Jul 2026', items: [
-        '🪙 Coins in inventory (new) — gold AND silver: a "🪙 Add Coin" button on the Stock tab (it replaced "Scan QR" there — scanning still works from Calc). Pick Gold or Silver, then a coin from a built-in catalog: British sovereigns, Napoleons, Austrian, American, Krugerrand, Maple Leaf, Mexican, Greek, Canadian/US silver dollars and more — or "Custom" for anything not listed. Identical coins group into one "N in stock" card.',
-        '⚖️ Identify by weight: put an unknown coin on the scale, type the grams, and the app lists the possible coins at that weight (± tolerance). Each one has a 🔗 link to the Numista coin database so you can confirm it by photo before you buy.',
-        '📈 Live value: each coin shows its current metal value right now. Gold coins also suggest a selling price (value + profit, default €30). Silver coins use €0 profit — they just show the silver value (ideal for coins you hold/melt). Both profits are editable in Settings.',
-        '💶 Purchase price (optional): when you buy a coin, record what you paid — profit at the sale is then your price − what you paid, and the card shows "Bought: €X" so you never sell below cost.',
-        '🧮 Coins count toward the inventory totals (Total Retail + Pure gold/silver) using each coin\'s exact metal content. Selling a gold coin defaults to CASH. Coins are NEVER shown on the public showroom.',
-        '📊 The grouped card shows the TOTAL (N× value · N× selling price) plus a price-increase % — based on your purchase price if recorded, else the value when added (like regular items). The "Coin" type also appears in the type filter.',
-        '➕ "My coins": if someone brings a coin that isn\'t listed, weigh it → "Add new coin" (the weight is pre-filled), enter a name + fineness (from your metal tester or the Numista link) and tick save. From then on it\'s recognised by weight, live-valued and grouped like the rest. Manage them in Settings → "My coins".'
       ]},
           ]
   }
@@ -19503,7 +19499,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.48';
+const APP_VERSION = '10.49';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
