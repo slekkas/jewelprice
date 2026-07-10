@@ -15902,6 +15902,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.43', date: 'Ιούλιος 2026', items: [
+        '🗑 Διαγραφή όλης της ομάδας με ένα πάτημα: στο «Δες κομμάτια» μιας ομάδας, το κουμπί «Κατάργηση ομαδοποίησης» έγινε «Διαγραφή όλων (N)» — σβήνει όλα τα κομμάτια της ομάδας μαζί, με μία μόνο επιβεβαίωση (χρήσιμο π.χ. αν προσθέσατε μια παρτίδα νομισμάτων κατά λάθος).'
+      ]},
       { version: 'v10.42', date: 'Ιούλιος 2026', items: [
         '🙈 Τα νομίσματα κρύβονται από τη λίστα αποθέματος: για να μη «γεμίζει» η λίστα με νομίσματα, εμφανίζονται πλέον μόνο όταν επιλέξετε τον τύπο «Νόμισμα» στο φίλτρο (ή όταν κάνετε αναζήτηση, για να βρείτε ένα με το όνομα/κωδικό). Η αξία τους ΠΑΡΑΜΕΝΕΙ στα σύνολα (Αξία Λιανική & Αξία Μετάλλου δεν αλλάζουν).'
       ]},
@@ -15936,9 +15939,6 @@ const ABOUT = {
       ]},
       { version: 'v10.34', date: 'Ιούλιος 2026', items: [
         '💎 Σημαντική διόρθωση: όταν σαρώνετε ένα νέο είδος, οι πέτρες του προηγούμενου καθαρίζονται πρώτα. Πριν, αν σαρώνατε ένα είδος ΜΕ πέτρα (π.χ. ζιργκόν) και μετά ένα ΧΩΡΙΣ πέτρα, η πέτρα «κολλούσε» και μπερδευόταν στον κωδικό QR του δεύτερου είδους (π.χ. «…-tZIR»). Έτσι, στην πώληση, ο κωδικός δεν ταίριαζε με το είδος στο απόθεμα και το είδος ΔΕΝ σημειωνόταν ως πουλημένο. Τώρα κάθε νέα σάρωση ξεκινά καθαρή — οι πέτρες (και το κόστος πέτρας) μηδενίζονται και μπαίνουν μόνο αυτές του νέου είδους.'
-      ]},
-      { version: 'v10.33', date: 'Ιούλιος 2026', items: [
-        '🛡️ Η προειδοποίηση διπλότυπου QR πιάνει τώρα ΚΑΙ τα πωλημένα είδη: μέχρι τώρα, αν ο κωδικός QR ενός νέου είδους ταίριαζε με είδος που είχε ΠΩΛΗΘΕΙ, δεν εμφανιζόταν προειδοποίηση (ο έλεγχος κοιτούσε μόνο ό,τι ήταν σε απόθεμα). Επειδή η ετικέτα ενός πωλημένου κομματιού μπορεί να κυκλοφορεί ακόμα και θέλετε κάθε QR μοναδικό, η εφαρμογή προειδοποιεί πλέον για ΟΠΟΙΑΔΗΠΟΤΕ σύμπτωση κωδικού (με ένδειξη «[πωλημένο]» όπου χρειάζεται), ώστε να αλλάξετε ελαφρώς το βάρος.'
       ]},
           ]
   },
@@ -16022,6 +16022,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.43', date: 'Jul 2026', items: [
+        '🗑 Delete a whole group in one tap: in a group\'s "View pieces", the "Ungroup" button became "Delete all (N)" — it removes every piece of the group at once with a single confirmation (handy e.g. if you added a batch of coins by mistake).'
+      ]},
       { version: 'v10.42', date: 'Jul 2026', items: [
         '🙈 Coins hidden from the Stock list: to keep the list uncluttered, coins now show only when you pick the "Coin" type in the filter (or during a search, so you can still find one by name/code). Their value STAYS in the totals — Total Retail and Metal Value don\'t change.'
       ]},
@@ -16056,9 +16059,6 @@ const ABOUT = {
       ]},
       { version: 'v10.34', date: 'Jul 2026', items: [
         '💎 Important fix: scanning a new item now clears the previous item\'s stones first. Before, if you scanned an item WITH a stone (e.g. zircon) and then one WITHOUT, the stone "stuck" and got mixed into the second item\'s QR code (e.g. "…-tZIR"). At sale time that code didn\'t match the item in stock, so the item was NOT marked sold. Now every new scan starts clean — the stones (and stone cost) reset and only the new item\'s stones are added.'
-      ]},
-      { version: 'v10.33', date: 'Jul 2026', items: [
-        '🛡️ Duplicate-QR warning now catches SOLD items too: until now, if a new item\'s QR code matched an item that had been SOLD, no warning appeared (the check only looked at in-stock items). Since a sold piece\'s tag can still be around and you keep every QR unique, the app now warns for ANY code collision (marking it "[sold]" where relevant) so you can adjust the weight slightly.'
       ]},
           ]
   }
@@ -18943,7 +18943,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.42';
+const APP_VERSION = '10.43';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -19780,7 +19780,7 @@ function openInvGroup(gid) {
       </div>` : ''}
       <div style="margin:10px 0 4px">${rowsHtml}</div>
       ${isEmp ? '' : `<button onclick="closeInvGroup();${rep.isCoin ? `openAddCoinModal('${rep.coinKey||''}')` : `invAddSimilar('${members[0][0]}')`}" style="margin-top:14px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">＋ ${lang==='el' ? 'Προσθήκη κι άλλων' : 'Add more'}</button>`}
-      ${isEmp ? '' : `<button onclick="invUngroup('${gid}')" style="margin-top:8px;width:100%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.35);color:var(--danger,#e05a5a);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">${lang==='el' ? '⛓️‍💥 Κατάργηση ομαδοποίησης' : '⛓️‍💥 Ungroup'}</button>`}
+      ${isEmp ? '' : `<button onclick="invDeleteGroup('${gid}')" style="margin-top:8px;width:100%;background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.4);color:#e05a5a;border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">🗑 ${lang==='el' ? 'Διαγραφή όλων ('+members.length+')' : 'Delete all ('+members.length+')'}</button>`}
     </div>`;
   document.body.appendChild(overlay);
 }
@@ -19814,6 +19814,27 @@ function invUngroup(gid) {
       showToast(lang==='el' ? '✅ Καταργήθηκε η ομαδοποίηση' : '✅ Ungrouped');
       renderInvList();
     }
+  );
+}
+
+// Delete every in-stock piece of a group in one go (one confirmation), for cleaning up
+// a whole batch (e.g. coins added by mistake) without deleting 30 items one by one.
+function invDeleteGroup(gid) {
+  if (creds.role === 'employee') return;
+  const members = Object.entries(_inventoryCache || {})
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
+  if (!members.length) { closeInvGroup(); return; }
+  const n = members.length;
+  showConfirm(
+    lang==='el' ? `Διαγραφή και των ${n} κομματιών αυτής της ομάδας; Δεν αναιρείται.` : `Delete all ${n} pieces in this group? This cannot be undone.`,
+    async () => {
+      for (const [id] of members) { await deleteInventoryItem(id); delete _inventoryCache[id]; }
+      closeInvGroup();
+      showToast((lang==='el'?'🗑 Διαγράφηκαν ':'🗑 Deleted ') + n + (lang==='el'?' κομμάτια':' pieces'));
+      renderInvList();
+    },
+    null,
+    { danger: true, okLabel: lang==='el' ? ('🗑 Διαγραφή '+n) : ('🗑 Delete '+n) }
   );
 }
 
