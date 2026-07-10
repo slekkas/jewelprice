@@ -11306,13 +11306,23 @@ function openInvFilterSheet() {
         </div>
       </div>`;
     }).join('');
+    // "Select all" row at the top — toggles every option in this group at once.
+    const _allSel = vals.length > 0 && vals.every(v => selectedArr.includes(v));
+    const selAllRow = `<div class="inv-fs-picker-item inv-fs-picker-selall${_allSel?' sel':''}" data-group="${groupKey}" data-selall="1" style="font-weight:600;background:rgba(201,168,76,0.06);border-bottom:1px solid rgba(201,168,76,0.14)">
+        <span>${lang==='el'?'Επιλογή όλων':'Select all'}</span>
+        <div class="inv-fs-picker-circle">
+          <svg class="inv-fs-picker-checkmark" viewBox="0 0 10 10" fill="none">
+            <polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#0E0C08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>`;
     return `<div class="inv-fs-group">
       <div class="inv-fs-label">${t(labelKey)}</div>
       <button class="inv-fs-picker-trigger${hasSelCls}" data-picker="${groupKey}" onclick="toggleInvPicker('${groupKey}')">
         <span class="inv-fs-picker-label" id="invPickerLabel_${groupKey}">${triggerLabel}</span>
         <span class="chev">▼</span>
       </button>
-      <div class="inv-fs-picker-list" id="invPickerList_${groupKey}">${items}</div>
+      <div class="inv-fs-picker-list" id="invPickerList_${groupKey}">${selAllRow}${items}</div>
     </div>`;
   }
 
@@ -11502,8 +11512,23 @@ function openInvFilterSheet() {
     item.addEventListener('click', function(e) {
       let grp = this.dataset.group;
       const val = this.dataset.val;
-      // Special case: "Pearls (all)" header row — left side toggles collapse, right side (circle) toggles select-all
-      if (grp === 'stones-pearls-all') {
+      // "Select all" row — toggle every option in this group on/off at once.
+      if (this.dataset.selall) {
+        const arr = _invFilters[grp];
+        const itemRows = content.querySelectorAll(`.inv-fs-picker-item[data-group="${grp}"]:not([data-selall])`);
+        const allVals = Array.from(itemRows).map(r => r.dataset.val);
+        const everySel = allVals.length > 0 && allVals.every(v => arr.includes(v));
+        if (everySel) {
+          allVals.forEach(v => { const i = arr.indexOf(v); if (i !== -1) arr.splice(i, 1); });
+          itemRows.forEach(r => r.classList.remove('sel'));
+          this.classList.remove('sel');
+        } else {
+          allVals.forEach(v => { if (!arr.includes(v)) arr.push(v); });
+          itemRows.forEach(r => r.classList.add('sel'));
+          this.classList.add('sel');
+        }
+        // Fall through to the trigger-label update below.
+      } else if (grp === 'stones-pearls-all') {
         const pearlsPresent = PEARL_TYPES.filter(p =>
           content.querySelector(`.inv-fs-pearl-sub[data-val="${p}"]`));
         // Determine if click was on the circle (select-all) or the row body (collapse)
@@ -11675,8 +11700,16 @@ function renderInvSummary(filteredItems) {
   const source = filteredItems
     ? filteredItems.map(([,item]) => item)
     : Object.values(_inventoryCache || {});
-  // PIECES = total items matching current filter (includes sold if filter includes them)
-  const totalFiltered = source.length;
+  // Coins are excluded from the PIECE COUNTS by default — the count is "jewels in the
+  // shop". They're still ALWAYS included in the value totals (retail/metal/pure). Coins
+  // are counted as pieces only when the "Coin" type filter is chosen or a search is
+  // active (i.e. when they're actually being shown).
+  const _coinFilterOn = (_invFilters.types || []).includes('coin');
+  const _searchActive = !!(document.getElementById('invSearchInput')?.value || '').trim();
+  const _countCoins = _coinFilterOn || _searchActive;
+  // PIECES = items matching the current filter (incl. sold if the filter includes them),
+  // minus coins unless we're counting them.
+  const totalFiltered = _countCoins ? source.length : source.filter(i => !i.isCoin).length;
   // Retail/Metal value always calculated from in-stock only
   const inStock = source.filter(i => i.status !== 'sold');
   let totalRetail = 0, totalMetal = 0, totalPureGoldGrams = 0, totalPureSilverGrams = 0;
@@ -11686,9 +11719,10 @@ function renderInvSummary(filteredItems) {
   inStock.forEach(item => {
     const p = calcInvItemPrice(item);
     if (p) { totalRetail += p.retail; totalMetal += p.metalValue; }
+    const _skipPiece = item.isCoin && !_countCoins;   // coin not counted as a piece (value still counts)
     // Per-metal breakdown
     if (item.metal === 'gold') {
-      piecesGold++;
+      if (!_skipPiece) piecesGold++;
       if (p) { retailGold += p.retail; metalGold += p.metalValue; }
       if (item.isCoin) {
         // Coins carry their exact pure-gold content — use it directly (a coin's
@@ -11699,7 +11733,7 @@ function renderInvSummary(filteredItems) {
         totalPureGoldGrams += parseFloat(item.weight) * pur;
       }
     } else if (item.metal === 'silver') {
-      piecesSilver++;
+      if (!_skipPiece) piecesSilver++;
       if (p) { retailSilver += p.retail; metalSilver += p.metalValue; }
       if (item.isCoin) {
         // Silver coins carry their exact pure-silver content — use it directly.
@@ -15909,6 +15943,11 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.45', date: 'Ιούλιος 2026', items: [
+        '🔢 Τα «Τεμάχια» μετρούν μόνο κοσμήματα: τα νομίσματα ΔΕΝ προσμετρώνται πλέον στο σύνολο τεμαχίων (το νούμερο αφορά τα κοσμήματα του καταστήματος). Η αξία τους παραμένει κανονικά στην «Αξία Λιανική» και «Αξία Μετάλλου». Αν θέλετε το γενικό σύνολο, επιλέξτε όλους τους τύπους (μαζί με «Νόμισμα») στο φίλτρο.',
+        '✅ «Επιλογή όλων» στα φίλτρα: στα αναπτυσσόμενα «Τύπος» και «Προμηθευτής» προστέθηκε επιλογή «Επιλογή όλων» για γρήγορη επιλογή/αποεπιλογή όλων με ένα πάτημα.',
+        '📂 Καθαρότερη προβολή ομάδας: στο «Δες κομμάτια», τα κουμπιά «Προσθήκη κι άλλων» / «Πώληση» / «Διαγραφή όλων» είναι πλέον στην κορυφή (δεν χρειάζεται να κατεβείτε π.χ. 107 κομμάτια για να προσθέσετε νέα), και η λίστα των μεμονωμένων κομματιών «μαζεύεται» σε πτυσσόμενο μενού.'
+      ]},
       { version: 'v10.44', date: 'Ιούλιος 2026', items: [
         '🐛 Διόρθωση «Προσθήκη κι άλλων» σε νομίσματα: όταν πατούσατε «＋ Προσθήκη κι άλλων» από την ομάδα ενός νομίσματος, το παράθυρο άνοιγε στο προεπιλεγμένο νόμισμα (π.χ. το Δολάριο) αντί για το ΙΔΙΟ νόμισμα της ομάδας — γι\' αυτό μπορούσαν να προστεθούν λάθος νομίσματα. Τώρα προεπιλέγεται σωστά το ίδιο νόμισμα.'
       ]},
@@ -15943,9 +15982,6 @@ const ABOUT = {
       ]},
       { version: 'v10.36', date: 'Ιούλιος 2026', items: [
         '✅ Επιλογή ομάδας = όλα τα κομμάτια της: σε λειτουργία «Επιλογή», όταν τσεκάρετε μια ομαδοποιημένη κάρτα επιλέγονται πλέον ΟΛΑ τα διαθέσιμα κομμάτια της (όχι μόνο ένα). Έτσι, αν διαλέξετε ένα μονό είδος κι μια ομάδα και στείλετε Κατάλογο/Φύλλο Παραγγελίας, μπαίνουν όλα τα κομμάτια — και τα σύνολα (κόστος/λιανική) υπολογίζονται σωστά.'
-      ]},
-      { version: 'v10.35', date: 'Ιούλιος 2026', items: [
-        '🔗 Κοινοποίηση όλης της ομάδας με ένα πάτημα: στην ομαδοποιημένη κάρτα προστέθηκε εικονίδιο κοινοποίησης (πάνω δεξιά, δίπλα στον κωδικό) που στέλνει ΟΛΑ τα κομμάτια μαζί — Φύλλο Παραγγελίας, Κατάλογος (με ή χωρίς τιμές) και αποστολή σε συνεργάτη. Η εικόνα για social media δεν εμφανίζεται εδώ, αφού αφορά ένα κομμάτι τη φορά.'
       ]},
           ]
   },
@@ -16029,6 +16065,11 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.45', date: 'Jul 2026', items: [
+        '🔢 "Pieces" now counts jewellery only: coins are no longer included in the total pieces count (that number is your shop\'s jewellery). Their value still counts normally in Total Retail and Metal Value. To see the grand total, pick all the types (including "Coin") in the filter.',
+        '✅ "Select all" in the filters: the Type and Vendor dropdowns got a "Select all" option to tick/untick everything in one tap.',
+        '📂 Cleaner group view: in "View pieces", the "Add more" / "Sell" / "Delete all" buttons are now at the top (no scrolling past e.g. 107 pieces to add new ones), and the individual-pieces list is collapsed into an expandable dropdown.'
+      ]},
       { version: 'v10.44', date: 'Jul 2026', items: [
         '🐛 Fixed coin "Add more": tapping "＋ Add more" from a coin group opened the window on the default coin (e.g. the Dollar) instead of the SAME coin as the group — which is how a wrong batch could get added. It now correctly pre-selects the same coin.'
       ]},
@@ -16063,9 +16104,6 @@ const ABOUT = {
       ]},
       { version: 'v10.36', date: 'Jul 2026', items: [
         '✅ Selecting a group selects all its pieces: in "Select" mode, ticking a grouped card now selects ALL of its in-stock pieces (not just one). So if you pick a single item and a group and send a Catalog / Order Sheet, every piece is included — and the totals (cost/retail) add up correctly.'
-      ]},
-      { version: 'v10.35', date: 'Jul 2026', items: [
-        '🔗 Share a whole group in one tap: the grouped card gets a share icon (top-right, next to the code) that sends ALL the pieces at once — Order Sheet, Catalog (with or without prices) and Send to a coworker. The social-media image isn\'t offered here since that\'s one item at a time.'
       ]},
           ]
   }
@@ -18950,7 +18988,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.44';
+const APP_VERSION = '10.45';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -19691,6 +19729,9 @@ function openInvGroup(gid) {
   const isEmp = creds.role === 'employee';
   const cur = state.currency || '€';
   const rep = members[0][1];
+  // Long piece lists (e.g. 107 identical coins) are collapsed by default so the Add /
+  // Sell / Delete actions stay reachable without scrolling.
+  const _piecesCollapsed = members.length > 8;
   const typeStr = rep.jewelryType ? invTypeLabel(rep.jewelryType) : '';
   const title = [typeStr, (rep.isCoin ? coinItemLabel(rep) : _itemDesc(rep))].filter(Boolean).join(' · ') || (rep.qrCode || '—');
   const rowsHtml = members.map(([id, it]) => {
@@ -19785,9 +19826,15 @@ function openInvGroup(gid) {
         <button onclick="_invGroupQtyStep(1)" style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:18px;line-height:1;cursor:pointer">＋</button>
         <button onclick="invSellFromGroup('${gid}')" style="flex:0 0 auto;padding:8px 14px;background:rgba(61,170,106,0.9);border:none;border-radius:8px;color:#fff;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
       </div>` : ''}
-      <div style="margin:10px 0 4px">${rowsHtml}</div>
-      ${isEmp ? '' : `<button onclick="closeInvGroup();${rep.isCoin ? `openAddCoinModal('${rep.coinKey||''}')` : `invAddSimilar('${members[0][0]}')`}" style="margin-top:14px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">＋ ${lang==='el' ? 'Προσθήκη κι άλλων' : 'Add more'}</button>`}
-      ${isEmp ? '' : `<button onclick="invDeleteGroup('${gid}')" style="margin-top:8px;width:100%;background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.4);color:#e05a5a;border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">🗑 ${lang==='el' ? 'Διαγραφή όλων ('+members.length+')' : 'Delete all ('+members.length+')'}</button>`}
+      ${isEmp ? '' : `<button onclick="closeInvGroup();${rep.isCoin ? `openAddCoinModal('${rep.coinKey||''}')` : `invAddSimilar('${members[0][0]}')`}" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">＋ ${lang==='el' ? 'Προσθήκη κι άλλων' : 'Add more'}</button>`}
+      <div style="margin-top:12px">
+        <button onclick="_invGroupTogglePieces()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:11px 13px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">
+          <span>${lang==='el'?'Μεμονωμένα κομμάτια':'Individual pieces'} (${members.length})</span>
+          <span id="invGroupPiecesChev">${_piecesCollapsed ? '▶' : '▼'}</span>
+        </button>
+        <div id="invGroupPiecesList" style="display:${_piecesCollapsed ? 'none' : 'block'};margin-top:4px">${rowsHtml}</div>
+      </div>
+      ${isEmp ? '' : `<button onclick="invDeleteGroup('${gid}')" style="margin-top:10px;width:100%;background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.4);color:#e05a5a;border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">🗑 ${lang==='el' ? 'Διαγραφή όλων ('+members.length+')' : 'Delete all ('+members.length+')'}</button>`}
     </div>`;
   document.body.appendChild(overlay);
 }
@@ -19795,6 +19842,16 @@ function openInvGroup(gid) {
 function closeInvGroup() {
   const ov = document.getElementById('invGroupOverlay');
   if (ov) ov.remove();
+}
+
+// Expand/collapse the per-piece list in the group detail sheet.
+function _invGroupTogglePieces() {
+  const list = document.getElementById('invGroupPiecesList');
+  const chev = document.getElementById('invGroupPiecesChev');
+  if (!list) return;
+  const hidden = list.style.display === 'none';
+  list.style.display = hidden ? 'block' : 'none';
+  if (chev) chev.textContent = hidden ? '▼' : '▶';
 }
 
 // Share ALL in-stock pieces of a group at once (order sheet / catalog / send to team).
