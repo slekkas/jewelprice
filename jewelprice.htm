@@ -14852,6 +14852,13 @@ function openAddCoinModal(prefillKey) {
     </div>`;
   document.body.appendChild(overlay);
   _addCoinSetMetal(initMetal);
+  // _addCoinSetMetal rebuilds the dropdown (dropping the pre-selected <option>), so
+  // re-apply the prefill coin here — otherwise "Add more" from a group would open on
+  // the first coin of that metal (e.g. the Dollar) instead of the SAME coin.
+  if (prefillKey) {
+    const sel = document.getElementById('addCoinSelect');
+    if (sel && Array.from(sel.options).some(o => o.value === prefillKey)) sel.value = prefillKey;
+  }
   _addCoinOnChange();
 }
 
@@ -15902,6 +15909,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.44', date: 'Ιούλιος 2026', items: [
+        '🐛 Διόρθωση «Προσθήκη κι άλλων» σε νομίσματα: όταν πατούσατε «＋ Προσθήκη κι άλλων» από την ομάδα ενός νομίσματος, το παράθυρο άνοιγε στο προεπιλεγμένο νόμισμα (π.χ. το Δολάριο) αντί για το ΙΔΙΟ νόμισμα της ομάδας — γι\' αυτό μπορούσαν να προστεθούν λάθος νομίσματα. Τώρα προεπιλέγεται σωστά το ίδιο νόμισμα.'
+      ]},
       { version: 'v10.43', date: 'Ιούλιος 2026', items: [
         '🗑 Διαγραφή όλης της ομάδας με ένα πάτημα: στο «Δες κομμάτια» μιας ομάδας, το κουμπί «Κατάργηση ομαδοποίησης» έγινε «Διαγραφή όλων (N)» — σβήνει όλα τα κομμάτια της ομάδας μαζί, με μία μόνο επιβεβαίωση (χρήσιμο π.χ. αν προσθέσατε μια παρτίδα νομισμάτων κατά λάθος).'
       ]},
@@ -15936,9 +15946,6 @@ const ABOUT = {
       ]},
       { version: 'v10.35', date: 'Ιούλιος 2026', items: [
         '🔗 Κοινοποίηση όλης της ομάδας με ένα πάτημα: στην ομαδοποιημένη κάρτα προστέθηκε εικονίδιο κοινοποίησης (πάνω δεξιά, δίπλα στον κωδικό) που στέλνει ΟΛΑ τα κομμάτια μαζί — Φύλλο Παραγγελίας, Κατάλογος (με ή χωρίς τιμές) και αποστολή σε συνεργάτη. Η εικόνα για social media δεν εμφανίζεται εδώ, αφού αφορά ένα κομμάτι τη φορά.'
-      ]},
-      { version: 'v10.34', date: 'Ιούλιος 2026', items: [
-        '💎 Σημαντική διόρθωση: όταν σαρώνετε ένα νέο είδος, οι πέτρες του προηγούμενου καθαρίζονται πρώτα. Πριν, αν σαρώνατε ένα είδος ΜΕ πέτρα (π.χ. ζιργκόν) και μετά ένα ΧΩΡΙΣ πέτρα, η πέτρα «κολλούσε» και μπερδευόταν στον κωδικό QR του δεύτερου είδους (π.χ. «…-tZIR»). Έτσι, στην πώληση, ο κωδικός δεν ταίριαζε με το είδος στο απόθεμα και το είδος ΔΕΝ σημειωνόταν ως πουλημένο. Τώρα κάθε νέα σάρωση ξεκινά καθαρή — οι πέτρες (και το κόστος πέτρας) μηδενίζονται και μπαίνουν μόνο αυτές του νέου είδους.'
       ]},
           ]
   },
@@ -16022,6 +16029,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.44', date: 'Jul 2026', items: [
+        '🐛 Fixed coin "Add more": tapping "＋ Add more" from a coin group opened the window on the default coin (e.g. the Dollar) instead of the SAME coin as the group — which is how a wrong batch could get added. It now correctly pre-selects the same coin.'
+      ]},
       { version: 'v10.43', date: 'Jul 2026', items: [
         '🗑 Delete a whole group in one tap: in a group\'s "View pieces", the "Ungroup" button became "Delete all (N)" — it removes every piece of the group at once with a single confirmation (handy e.g. if you added a batch of coins by mistake).'
       ]},
@@ -16056,9 +16066,6 @@ const ABOUT = {
       ]},
       { version: 'v10.35', date: 'Jul 2026', items: [
         '🔗 Share a whole group in one tap: the grouped card gets a share icon (top-right, next to the code) that sends ALL the pieces at once — Order Sheet, Catalog (with or without prices) and Send to a coworker. The social-media image isn\'t offered here since that\'s one item at a time.'
-      ]},
-      { version: 'v10.34', date: 'Jul 2026', items: [
-        '💎 Important fix: scanning a new item now clears the previous item\'s stones first. Before, if you scanned an item WITH a stone (e.g. zircon) and then one WITHOUT, the stone "stuck" and got mixed into the second item\'s QR code (e.g. "…-tZIR"). At sale time that code didn\'t match the item in stock, so the item was NOT marked sold. Now every new scan starts clean — the stones (and stone cost) reset and only the new item\'s stones are added.'
       ]},
           ]
   }
@@ -18943,7 +18950,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.43';
+const APP_VERSION = '10.44';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
