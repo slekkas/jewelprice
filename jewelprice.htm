@@ -11224,7 +11224,7 @@ function updateInvFilterBadge() {
     const parts = [];
     if (_invFilters.metals.length) parts.push(_invFilters.metals.map(m => m === 'gold' ? t('gold') : m === 'silver' ? t('silver') : t('invFilterOther')).join(', '));
     if (_invFilters.karats.length) parts.push(_invFilters.karats.join(', ') + 'K');
-    if (_invFilters.types.length) parts.push(_invFilters.types.map(k => invTypeLabel(k)).join(', '));
+    if (_invFilters.types.length) parts.push(_invFilters.types.map(k => k === '__notype__' ? (lang==='el'?'Χωρίς τύπο':'No type') : invTypeLabel(k)).join(', '));
     if (_invFilters.vendors.length) parts.push(_invFilters.vendors.join(', '));
     if (_invFilters.stones.length) parts.push('💎 ' + _invFilters.stones.map(s => stoneLabel(s)).join(', '));
     if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : t('invFilterInStock')).join(', '));
@@ -11246,6 +11246,9 @@ function openInvFilterSheet() {
   const _typeOrder = INV_JEWELRY_TYPES.map(t => t.key);
   const types   = [...new Set(items.map(i => i.jewelryType).filter(Boolean))]
     .sort((a, b) => _typeOrder.indexOf(a) - _typeOrder.indexOf(b));
+  // If any pieces have no type set, offer a "No type" bucket so they can be found/fixed
+  // (a type filter otherwise can't match them, since they belong to no type).
+  if (items.some(i => !i.jewelryType)) types.push('__notype__');
   const vendors = [...new Set(items.map(i => i.vendorName).filter(Boolean))].sort();
   // Extract unique stone types from stonesDesc fields
   const stoneTypeSet = new Set();
@@ -11404,7 +11407,7 @@ function openInvFilterSheet() {
   content.innerHTML =
     pillGroup('invFilterMetal',  metals,   _invFilters.metals,  'metals',  v => v === 'gold' ? t('gold') : v === 'silver' ? t('silver') : t('invFilterOther')) +
     pillGroup('invFilterKarat',  karats,   _invFilters.karats,  'karats',  v => { if(v==='—') return lang==='el'?'Άλλο':'Other'; const n=parseInt(v); return (v.endsWith('s')||n>=800) ? v.replace('s','') : v+'K'; }) +
-    dropGroup('invFilterType',   types, _invFilters.types, 'types', v => invTypeLabel(v)) +
+    dropGroup('invFilterType',   types, _invFilters.types, 'types', v => v === '__notype__' ? (lang==='el'?'Χωρίς τύπο':'No type') : invTypeLabel(v)) +
     dropGroup('invFilterVendor', vendors,  _invFilters.vendors, 'vendors', v => v) +
     (function() {
       if (!stoneTypes.length) return '';
@@ -11862,7 +11865,7 @@ function renderInvList() {
     const f = _invFilters;
     if (f.metals.length && !f.metals.includes(item.metal)) return false;
     if (f.karats.length && !f.karats.includes(item.karat)) return false;
-    if (f.types.length && !f.types.includes(item.jewelryType)) return false;
+    if (f.types.length && !f.types.includes(item.jewelryType || '__notype__')) return false;
     if (f.vendors.length && !f.vendors.includes(item.vendorName)) return false;
     if (f.stones.length) {
       if (!item.stonesDesc) return false;
@@ -15943,6 +15946,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.46', date: 'Ιούλιος 2026', items: [
+        '🔎 Φίλτρο «Χωρίς τύπο»: αν κάποια είδη δεν έχουν καθορισμένο τύπο, εμφανίζεται στο φίλτρο «Τύπος» μια επιλογή «Χωρίς τύπο» για να τα βρείτε και να τους ορίσετε τύπο. (Γι\' αυτό το σύνολο «Επιλογή όλων» μπορεί να μη συμφωνεί με τη γενική λίστα — τα άτυπα είδη δεν ανήκαν σε κανέναν τύπο.)'
+      ]},
       { version: 'v10.45', date: 'Ιούλιος 2026', items: [
         '🔢 Τα «Τεμάχια» μετρούν μόνο κοσμήματα: τα νομίσματα ΔΕΝ προσμετρώνται πλέον στο σύνολο τεμαχίων (το νούμερο αφορά τα κοσμήματα του καταστήματος). Η αξία τους παραμένει κανονικά στην «Αξία Λιανική» και «Αξία Μετάλλου». Αν θέλετε το γενικό σύνολο, επιλέξτε όλους τους τύπους (μαζί με «Νόμισμα») στο φίλτρο.',
         '✅ «Επιλογή όλων» στα φίλτρα: στα αναπτυσσόμενα «Τύπος» και «Προμηθευτής» προστέθηκε επιλογή «Επιλογή όλων» για γρήγορη επιλογή/αποεπιλογή όλων με ένα πάτημα.',
@@ -15979,9 +15985,6 @@ const ABOUT = {
       ]},
       { version: 'v10.37', date: 'Ιούλιος 2026', items: [
         '📄 Κατάλογος/Φύλλο Παραγγελίας: τα όμοια κομμάτια δεν εμφανίζονται πια πολλές φορές. Πλέον όσα μοιράζονται την ίδια ομάδα ΚΑΙ το ίδιο χρώμα συγκεντρώνονται σε ΜΙΑ καταχώριση με ένδειξη «N σε απόθεμα». Π.χ. ομάδα με 3 ίδια → 1 καταχώριση («3 σε απόθεμα»)· ομάδα με 1 μπλε, 1 κόκκινο, 3 πράσινα → 3 καταχωρίσεις (μπλε, κόκκινο, πράσινο «3 σε απόθεμα»). Εμφανίζεται και το χρώμα σε κάθε καταχώριση.'
-      ]},
-      { version: 'v10.36', date: 'Ιούλιος 2026', items: [
-        '✅ Επιλογή ομάδας = όλα τα κομμάτια της: σε λειτουργία «Επιλογή», όταν τσεκάρετε μια ομαδοποιημένη κάρτα επιλέγονται πλέον ΟΛΑ τα διαθέσιμα κομμάτια της (όχι μόνο ένα). Έτσι, αν διαλέξετε ένα μονό είδος κι μια ομάδα και στείλετε Κατάλογο/Φύλλο Παραγγελίας, μπαίνουν όλα τα κομμάτια — και τα σύνολα (κόστος/λιανική) υπολογίζονται σωστά.'
       ]},
           ]
   },
@@ -16065,6 +16068,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.46', date: 'Jul 2026', items: [
+        '🔎 "No type" filter: if some pieces have no type set, the Type filter now shows a "No type" option so you can find them and assign a type. (That\'s also why "Select all" could differ from the full list — untyped pieces belonged to no type.)'
+      ]},
       { version: 'v10.45', date: 'Jul 2026', items: [
         '🔢 "Pieces" now counts jewellery only: coins are no longer included in the total pieces count (that number is your shop\'s jewellery). Their value still counts normally in Total Retail and Metal Value. To see the grand total, pick all the types (including "Coin") in the filter.',
         '✅ "Select all" in the filters: the Type and Vendor dropdowns got a "Select all" option to tick/untick everything in one tap.',
@@ -16101,9 +16107,6 @@ const ABOUT = {
       ]},
       { version: 'v10.37', date: 'Jul 2026', items: [
         '📄 Catalog / Order Sheet no longer repeats identical pieces: pieces that share the same group AND the same colour are now collapsed into ONE entry marked "N in stock". E.g. a group of 3 identical → 1 entry ("3 in stock"); a group of 1 blue, 1 red, 3 green → 3 entries (blue, red, green "3 in stock"). Each entry also shows its colour.'
-      ]},
-      { version: 'v10.36', date: 'Jul 2026', items: [
-        '✅ Selecting a group selects all its pieces: in "Select" mode, ticking a grouped card now selects ALL of its in-stock pieces (not just one). So if you pick a single item and a group and send a Catalog / Order Sheet, every piece is included — and the totals (cost/retail) add up correctly.'
       ]},
           ]
   }
@@ -18988,7 +18991,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.45';
+const APP_VERSION = '10.46';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
