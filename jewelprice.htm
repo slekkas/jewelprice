@@ -1492,6 +1492,7 @@
       <div class="field"><label data-i18n="margin">Περιθώριο Κέρδους (%)</label><input type="number" id="marginPct" placeholder="35" step="0.1" inputmode="decimal"></div>
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
+      <div class="field"><label data-i18n="refiningLossLbl">Απώλεια καθαρισμού μετάλλου (%)</label><input type="number" id="refiningLossInput" placeholder="3" step="0.1" inputmode="decimal"><div class="hint" data-i18n="refiningLossHint">Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.</div></div>
       <div class="field"><label data-i18n="myCoinsLbl">Τα νομίσματά μου</label><div class="hint" data-i18n="myCoinsHint">Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.</div><div id="customCoinsList" style="margin-top:8px"></div></div>
       <div class="field">
         <label data-i18n="weightTiers">Βάρος → Περιθώριο (έως 5 επίπεδα)</label>
@@ -2353,6 +2354,7 @@
     <div class="inv-header">
       <div class="inv-title" data-i18n="invTitle">📦 Απόθεμα</div>
       <button class="inv-scan-btn" id="invAddCoinBtn" onclick="openAddCoinModal()" data-i18n="invAddCoinBtn">🪙 Προσθήκη νομίσματος</button>
+      <button class="inv-scan-btn" id="invAddMetalBtn" onclick="openMetalModal('add')" data-i18n="invAddMetalBtn" style="margin-left:6px">🧱 Προσθήκη μετάλλου</button>
       <button class="inv-scan-btn" id="invAddBulkBtn" onclick="openAddBulkSheet()" data-i18n="invAddBulk" style="margin-left:6px">⛓️ Χύδην Αλυσίδες</button>
 
     </div>
@@ -2792,6 +2794,30 @@ const T = {
     coinMarkupHint:'Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (η τελική τιμή ρυθμίζεται στην πώληση).',
     coinMarkupSilverLbl:'Κέρδος ασημένιου νομίσματος (€)',
     coinMarkupSilverHint:'0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.',
+    refiningLossLbl:'Απώλεια καθαρισμού μετάλλου (%)',
+    refiningLossHint:'Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.',
+    invAddMetalBtn:'🧱 Προσθήκη μετάλλου',
+    metalAddedValueLbl:'Αξία κατά την προσθήκη',
+    metalModalAddTitle:'🧱 Προσθήκη μετάλλου',
+    metalModalEditTitle:'✏️ Επεξεργασία μετάλλου',
+    metalModalSubtitle:'Ακατέργαστο μέταλλο / scrap για λιώσιμο — η αξία υπολογίζεται ζωντανά από την τιμή του μετάλλου',
+    metalWeightLbl:'Βάρος (g)',
+    metalKaratLbl:'Καθαρότητα',
+    metalCustomFineLbl:'Καθαρότητα (‰)',
+    metalPricePaidLbl:'Τιμή αγοράς (€, προαιρετικό)',
+    metalPricePaidPh:'ό,τι πλήρωσα',
+    metalPricePaidHint:'Αν αγοράσατε scrap κάτω από την αξία του, το κέρδος (μείον απώλεια καθαρισμού) προστίθεται στις σημερινές πωλήσεις.',
+    metalAddBtn:'Προσθήκη στο απόθεμα',
+    metalSaveBtn:'Αποθήκευση',
+    metalPure:'Καθαρό',
+    metalRecoverable:'Ανακτήσιμο (−{loss}%)',
+    metalGain:'Κέρδος αγοράς',
+    metalGainToSales:'→ προστίθεται στις σημερινές πωλήσεις',
+    metalNewTotal:'Νέο σύνολο',
+    metalAddMore:'＋ Προσθήκη',
+    metalScrapGainNote:'♻️ Κέρδος scrap',
+    metalAddedToast:'✅ Προστέθηκε μέταλλο',
+    metalGainToast:'♻️ Κέρδος {amt} στις σημερινές πωλήσεις',
     myCoinsLbl:'Τα νομίσματά μου',
     myCoinsHint:'Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.',
     weightTiersNote:'Το τελευταίο συμπληρωμένο επίπεδο καλύπτει όλα τα μεγαλύτερα βάρη.',
@@ -3099,6 +3125,30 @@ const T = {
     coinMarkupHint:'Suggested profit above gold value for each coin (final price is set at the sale).',
     coinMarkupSilverLbl:'Silver coin profit (€)',
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
+    refiningLossLbl:'Metal refining loss (%)',
+    refiningLossHint:'How much is lost when you melt/refine scrap into pure gold/silver. Used for the gain when you buy metal below its value.',
+    invAddMetalBtn:'🧱 Add Metal',
+    metalAddedValueLbl:'Value when added',
+    metalModalAddTitle:'🧱 Add metal',
+    metalModalEditTitle:'✏️ Edit metal',
+    metalModalSubtitle:'Raw metal / scrap to be melted — value is computed live from the metal price',
+    metalWeightLbl:'Weight (g)',
+    metalKaratLbl:'Purity',
+    metalCustomFineLbl:'Fineness (‰)',
+    metalPricePaidLbl:'Price paid (€, optional)',
+    metalPricePaidPh:'what I paid',
+    metalPricePaidHint:'If you bought scrap below its value, the gain (minus refining loss) is added to today\'s sales.',
+    metalAddBtn:'Add to stock',
+    metalSaveBtn:'Save',
+    metalPure:'Pure',
+    metalRecoverable:'Recoverable (−{loss}%)',
+    metalGain:'Buy gain',
+    metalGainToSales:'→ added to today\'s sales',
+    metalNewTotal:'New total',
+    metalAddMore:'＋ Add',
+    metalScrapGainNote:'♻️ Scrap gain',
+    metalAddedToast:'✅ Metal added',
+    metalGainToast:'♻️ {amt} gain added to today\'s sales',
     myCoinsLbl:'My coins',
     myCoinsHint:'Coins you added yourself (recognised by weight). Delete any you don\'t need.',
     weightTiersNote:'The last filled tier covers all heavier weights.',
@@ -3249,6 +3299,30 @@ const T = {
     coinMarkupHint:'Suggested profit above gold value for each coin (final price is set at the sale).',
     coinMarkupSilverLbl:'Silver coin profit (€)',
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
+    refiningLossLbl:'Metal refining loss (%)',
+    refiningLossHint:'How much is lost when you melt/refine scrap into pure gold/silver. Used for the gain when you buy metal below its value.',
+    invAddMetalBtn:'🧱 Add Metal',
+    metalAddedValueLbl:'Value when added',
+    metalModalAddTitle:'🧱 Add metal',
+    metalModalEditTitle:'✏️ Edit metal',
+    metalModalSubtitle:'Raw metal / scrap to be melted — value is computed live from the metal price',
+    metalWeightLbl:'Weight (g)',
+    metalKaratLbl:'Purity',
+    metalCustomFineLbl:'Fineness (‰)',
+    metalPricePaidLbl:'Price paid (€, optional)',
+    metalPricePaidPh:'what I paid',
+    metalPricePaidHint:'If you bought scrap below its value, the gain (minus refining loss) is added to today\'s sales.',
+    metalAddBtn:'Add to stock',
+    metalSaveBtn:'Save',
+    metalPure:'Pure',
+    metalRecoverable:'Recoverable (−{loss}%)',
+    metalGain:'Buy gain',
+    metalGainToSales:'→ added to today\'s sales',
+    metalNewTotal:'New total',
+    metalAddMore:'＋ Add',
+    metalScrapGainNote:'♻️ Scrap gain',
+    metalAddedToast:'✅ Metal added',
+    metalGainToast:'♻️ {amt} gain added to today\'s sales',
     myCoinsLbl:'My coins',
     myCoinsHint:'Coins you added yourself (recognised by weight). Delete any you don\'t need.',
     weightTiersNote:'The last filled tier covers all heavier weights.',
@@ -3544,7 +3618,7 @@ function defaultState() {
       { name: 'Custom / Bespoke', rate: 14.0 }
     ]}],
     vat: 24, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
-    coinMarkup: 30, coinMarkupSilver: 0, customCoins: []
+    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3
   };
 }
 
@@ -3582,7 +3656,7 @@ function cloudConfig() {
            currency: state.currency, manualGold: state.manualGold, manualSilver: state.manualSilver,
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
-           customCoins: state.customCoins || [] };
+           customCoins: state.customCoins || [], refiningLoss: state.refiningLoss };
 }
 
 async function pushToCloud() {
@@ -3618,6 +3692,7 @@ function applyCloudConfig(cfg) {
   if (cfg.coinMarkup !== undefined) state.coinMarkup = cfg.coinMarkup;
   if (cfg.coinMarkupSilver !== undefined) state.coinMarkupSilver = cfg.coinMarkupSilver;
   if (cfg.customCoins !== undefined) state.customCoins = cfg.customCoins;
+  if (cfg.refiningLoss !== undefined) state.refiningLoss = cfg.refiningLoss;
   // Sync owner PIN so employees are prompted when switching to Owner
   if (cfg.ownerPin) localStorage.setItem('jpro_owner_pin', cfg.ownerPin);
   if (cfg.telegramToken) {
@@ -3889,6 +3964,8 @@ function applyRoleUI() {
   if (_invGroupBtn) _invGroupBtn.style.display = isEmployee ? 'none' : 'flex';
   const _invAddCoinBtn = document.getElementById('invAddCoinBtn');
   if (_invAddCoinBtn) _invAddCoinBtn.style.display = isEmployee ? 'none' : '';
+  const _invAddMetalBtn = document.getElementById('invAddMetalBtn');
+  if (_invAddMetalBtn) _invAddMetalBtn.style.display = isEmployee ? 'none' : '';
   const vendorPanel = document.getElementById('panel-vendors');
   if (vendorPanel.classList.contains('active')) renderVendors();
   renderIdentityCard();
@@ -9748,6 +9825,7 @@ function loadSettingsForm() {
   document.getElementById('marginPct').value = state.margin || '';
   { const _cm = document.getElementById('coinMarkupInput'); if (_cm) _cm.value = (state.coinMarkup != null && state.coinMarkup !== '') ? state.coinMarkup : ''; }
   { const _cms = document.getElementById('coinMarkupSilverInput'); if (_cms) _cms.value = (state.coinMarkupSilver != null && state.coinMarkupSilver !== '') ? state.coinMarkupSilver : ''; }
+  { const _rl = document.getElementById('refiningLossInput'); if (_rl) _rl.value = (state.refiningLoss != null && state.refiningLoss !== '') ? state.refiningLoss : ''; }
   renderCustomCoinsManager();
   // Populate weight tier rows
   const tierInputRows = document.querySelectorAll('.tier-row');
@@ -9768,6 +9846,7 @@ function saveSettings() {
   state.margin = parseFloat(document.getElementById('marginPct').value) || 0;
   { const _cmv = document.getElementById('coinMarkupInput'); const _cmn = _cmv ? parseFloat(_cmv.value) : NaN; state.coinMarkup = isNaN(_cmn) ? 30 : _cmn; }
   { const _cmsv = document.getElementById('coinMarkupSilverInput'); const _cmsn = _cmsv ? parseFloat(_cmsv.value) : NaN; state.coinMarkupSilver = isNaN(_cmsn) ? 0 : _cmsn; }
+  { const _rlv = document.getElementById('refiningLossInput'); const _rln = _rlv ? parseFloat(_rlv.value) : NaN; state.refiningLoss = isNaN(_rln) ? 3 : Math.max(0, Math.min(100, _rln)); }
   // Collect weight tiers
   const tierRows = document.querySelectorAll('.tier-row');
   state.weightTiers = [];
@@ -10271,6 +10350,7 @@ const INV_JEWELRY_TYPES = [
   { key: 'watch',     el: 'Ρολόι',        en: 'Watch' },
   { key: 'cufflinks', el: 'Μανικετόκουμπα', en: 'Cufflinks' },
   { key: 'coin',      el: 'Νόμισμα',       en: 'Coin' },
+  { key: 'metal',     el: 'Μέταλλο',       en: 'Metal' },
   { key: 'other',     el: 'Άλλο',         en: 'Other' },
 ];
 
@@ -10414,6 +10494,85 @@ function coinInitialLineHtml(item) {
   const lbl = addedStr
     ? (lang === 'el' ? `${t('initialPriceLbl')} (προσθήκη ${addedStr})` : `${t('initialPriceLbl')} (added ${addedStr})`)
     : t('initialPriceLbl');
+  let gainStr = '';
+  if (g != null) {
+    const a = Math.abs(g), s = a < 0.05 ? '±' : (g >= 0 ? '+' : '-');
+    const c = g > 0.01 ? '#4caf84' : g < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+    gainStr = ` <span style="color:${c}">(${s}${a < 0.05 ? '0.0' : a.toFixed(1)}%)</span>`;
+  }
+  return `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${lbl}: ${cur}${base.toFixed(2)}${gainStr}</div>`;
+}
+
+// ─── RAW METAL / SCRAP STOCK (gold & silver) ───────────────────────────────────
+// Vault metal the owner holds to melt down later (pure gold/silver balls, plus karat
+// gold & scrap silver taken in from customers). Modelled as inventory records flagged
+// `isMetal: true` — one accumulating record per (metal + karat): adding more of the
+// same karat tops up the existing pile's weight. Valued purely at live melt (pure
+// grams × spot — no labour / markup / VAT: it's raw metal, not a finished piece). Like
+// coins: never published to the showroom, hidden from the Stock list unless the "Metal"
+// type filter is on, and NOT counted as pieces — but their value DOES count toward Total
+// Retail, Metal Value and the pure gold/silver grams. No reference code / QR.
+// Standard karat→fineness presets for the Add-Metal picker (fineness = purity 0..1).
+const METAL_STOCK_KARATS = {
+  gold: [
+    { k:'24', f:0.999 }, { k:'22', f:0.916 }, { k:'21', f:0.875 },
+    { k:'18', f:0.750 }, { k:'14', f:0.585 }, { k:'9', f:0.375 }
+  ],
+  silver: [
+    { k:'999', f:0.999 }, { k:'925', f:0.925 }, { k:'900', f:0.900 },
+    { k:'835', f:0.835 }, { k:'800', f:0.800 }
+  ]
+};
+
+// Display label for a metal-stock lot, e.g. "14K Gold" / «Χρυσός 14Κ» (silver in ‰).
+function metalStockLabel(item) {
+  const isAg = item.metal === 'silver';
+  const kLbl = isAg ? (item.karat + '‰') : (item.karat + 'K');
+  const word = isAg ? (lang==='el'?'Ασήμι':'Silver') : (lang==='el'?'Χρυσός':'Gold');
+  return lang==='el' ? `${word} ${kLbl}` : `${kLbl} ${word}`;
+}
+
+// Live melt value of a metal-stock lot (pure grams × current spot per gram), or null
+// when that spot price isn't available yet.
+function metalStockMelt(item) {
+  const pure = parseFloat(item.metalPure);
+  if (!pure) return null;
+  const spot = item.metal === 'silver' ? getSilverPrice() : getGoldPrice();
+  if (!spot) return null;
+  return (spot / TROY_OZ_TO_GRAM) * pure;
+}
+
+// A metal-stock lot's cost basis for the "value when added" line: the metal value
+// captured (and accumulated across every top-up) at add time. Owner melts, never sells
+// it, so there is no purchase-cost profit — the meaningful number is metal-price movement.
+function metalStockBaseline(item) {
+  const im = parseFloat(item.initialMelt);
+  if (im > 0) return im;
+  const ir = parseFloat(item.initialRetail);
+  return ir > 0 ? ir : null;
+}
+
+// Gain % of a metal-stock lot vs its accumulated add-time value (same basis as the big
+// number on the card), so the % directly reflects how much the metal moved since added.
+function metalStockGainPct(item) {
+  if (!item || !item.isMetal) return null;
+  const meltNow = metalStockMelt(item);
+  const base = metalStockBaseline(item);
+  if (meltNow == null || !(base > 0)) return null;
+  return (meltNow - base) / base * 100;
+}
+
+// Owner-only "Value when added (added DATE): €X (+Y%)" line for a metal-stock lot —
+// mirrors the appreciation line on regular items / coins.
+function metalStockInitialLineHtml(item) {
+  const cur = state.currency || '€';
+  const base = metalStockBaseline(item);
+  if (!(base > 0)) return '';
+  const g = metalStockGainPct(item);
+  const addedStr = item.dateAdded ? fmtDate(new Date(item.dateAdded)) : '';
+  const lbl = addedStr
+    ? (lang === 'el' ? `${t('metalAddedValueLbl')} (${addedStr})` : `${t('metalAddedValueLbl')} (${addedStr})`)
+    : t('metalAddedValueLbl');
   let gainStr = '';
   if (g != null) {
     const a = Math.abs(g), s = a < 0.05 ? '±' : (g >= 0 ? '+' : '-');
@@ -10878,8 +11037,9 @@ const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryTyp
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
 function publicProjection(item) {
-  // Gold coins are inventory-only — they must NEVER reach the public showroom.
-  if (!item || item.status !== 'in_stock' || item.isBulk || item.isCoin || item.jewelryType === 'coin') return null;
+  // Gold coins & raw metal stock are inventory-only — they must NEVER reach the public showroom.
+  if (!item || item.status !== 'in_stock' || item.isBulk || item.isCoin || item.jewelryType === 'coin'
+      || item.isMetal || item.jewelryType === 'metal') return null;
   const out = {};
   PUBLIC_SAFE_FIELDS.forEach(f => { if (item[f] !== undefined && item[f] !== null) out[f] = item[f]; });
   return out;
@@ -11028,6 +11188,15 @@ function calcInvItemPrice(item) {
     return { retail, metalValue: 0, cur, isFixed: true };
   }
 
+  // Raw metal / scrap stock: value = live pure-metal melt only (no labour/markup/VAT).
+  // It's held to be melted, not sold as a piece, so retail == metal value == melt.
+  if (item.isMetal) {
+    const melt = metalStockMelt(item);
+    if (melt == null) return null;
+    const retail = Math.round(melt * 100) / 100;
+    return { retail, metalValue: melt, melt, baseCost: melt, isMetal: true, cur };
+  }
+
   // Gold coins: value = live pure-gold melt + flat markup (no labor/margin/VAT). The
   // melt floats with spot; the markup is just the suggested selling price to pre-fill.
   if (item.isCoin) {
@@ -11130,7 +11299,7 @@ let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], 
 // shown on the inventory card's "Initial price (+x%)" line). Returns null when it
 // can't be computed: no baseline, an Other-type item, or a sold item.
 function invGainPct(item) {
-  if (!item || item.metal === 'other' || item.isCoin || item.status === 'sold') return null;
+  if (!item || item.metal === 'other' || item.isCoin || item.isMetal || item.status === 'sold') return null;
   const _init = parseFloat(item.initialRetail);
   if (!(_init > 0)) return null;
   const p = calcInvItemPrice(item);
@@ -11709,11 +11878,13 @@ function renderInvSummary(filteredItems) {
   // are counted as pieces only when the "Coin" type filter is chosen or a search is
   // active (i.e. when they're actually being shown).
   const _coinFilterOn = (_invFilters.types || []).includes('coin');
+  const _metalFilterOn = (_invFilters.types || []).includes('metal');
   const _searchActive = !!(document.getElementById('invSearchInput')?.value || '').trim();
   const _countCoins = _coinFilterOn || _searchActive;
+  const _countMetal = _metalFilterOn || _searchActive;   // raw metal stock, same rule as coins
   // PIECES = items matching the current filter (incl. sold if the filter includes them),
-  // minus coins unless we're counting them.
-  const totalFiltered = _countCoins ? source.length : source.filter(i => !i.isCoin).length;
+  // minus coins & raw-metal lots unless we're counting them (their VALUE still always counts).
+  const totalFiltered = source.filter(i => (i.isCoin ? _countCoins : (i.isMetal ? _countMetal : true))).length;
   // Retail/Metal value always calculated from in-stock only
   const inStock = source.filter(i => i.status !== 'sold');
   let totalRetail = 0, totalMetal = 0, totalPureGoldGrams = 0, totalPureSilverGrams = 0;
@@ -11723,7 +11894,9 @@ function renderInvSummary(filteredItems) {
   inStock.forEach(item => {
     const p = calcInvItemPrice(item);
     if (p) { totalRetail += p.retail; totalMetal += p.metalValue; }
-    const _skipPiece = item.isCoin && !_countCoins;   // coin not counted as a piece (value still counts)
+    // Coins & raw-metal lots aren't counted as pieces unless they're being shown (their
+    // VALUE and pure-metal grams still always count in the totals).
+    const _skipPiece = (item.isCoin && !_countCoins) || (item.isMetal && !_countMetal);
     // Per-metal breakdown
     if (item.metal === 'gold') {
       if (!_skipPiece) piecesGold++;
@@ -11732,6 +11905,9 @@ function renderInvSummary(filteredItems) {
         // Coins carry their exact pure-gold content — use it directly (a coin's
         // fineness isn't a standard karat, so weight×karatPurity would be wrong).
         totalPureGoldGrams += parseFloat(item.coinPure) || 0;
+      } else if (item.isMetal) {
+        // Raw metal lots carry exact pure grams (handles custom / non-standard finenesses).
+        totalPureGoldGrams += parseFloat(item.metalPure) || 0;
       } else if (item.weight && item.karat) {
         const pur = karatPurity[parseInt(item.karat)] || 0;
         totalPureGoldGrams += parseFloat(item.weight) * pur;
@@ -11742,6 +11918,8 @@ function renderInvSummary(filteredItems) {
       if (item.isCoin) {
         // Silver coins carry their exact pure-silver content — use it directly.
         totalPureSilverGrams += parseFloat(item.coinPure) || 0;
+      } else if (item.isMetal) {
+        totalPureSilverGrams += parseFloat(item.metalPure) || 0;
       } else if (item.weight && item.karat) {
         const pur = silverPurityMap[parseInt(item.karat)] || 0;
         totalPureSilverGrams += parseFloat(item.weight) * pur;
@@ -11949,12 +12127,15 @@ function renderInvList() {
   // change when coins are hidden from the list below).
   renderInvSummary(filtered);
 
-  // Coins are hidden from the Stock list by default — they only appear when the "Coin"
-  // type filter is chosen (or during a search, so you can still find one by name/code).
-  // Their value stays in the totals above; this only affects the visible cards.
+  // Coins and raw-metal lots are hidden from the Stock list by default — they only appear
+  // when their type ("Coin" / "Metal") filter is chosen (or during a search). Their value
+  // stays in the totals above; this only affects the visible cards.
   {
-    const _coinFilterOn = (_invFilters.types || []).includes('coin');
-    if (!_coinFilterOn && !searchQuery) filtered = filtered.filter(([, it]) => !it.isCoin);
+    const _types = _invFilters.types || [];
+    if (!searchQuery) {
+      if (!_types.includes('coin'))  filtered = filtered.filter(([, it]) => !it.isCoin);
+      if (!_types.includes('metal')) filtered = filtered.filter(([, it]) => !it.isMetal);
+    }
   }
 
   // Sort by user preference (default: in-stock first, then newest)
@@ -12005,6 +12186,51 @@ function renderInvList() {
     const isSold = item.status === 'sold';
     const p = _px(item);
     const priceStr = p ? cur + p.retail.toFixed(2) : '—';
+
+    // ── Raw metal / scrap stock: dedicated compact card (no photo/vendor/QR/calc). Shows
+    // the live melt value big, the pure/gross/fineness, an owner "Bought:" line when a
+    // purchase price was recorded, and the owner "Value when added (date): €X (+Y%)" line.
+    if (item.isMetal) {
+      const _melt = (p && p.melt != null) ? p.melt : null;
+      const _isAg = item.metal === 'silver';
+      const _pure = parseFloat(item.metalPure) || 0;
+      const _gross = parseFloat(item.metalGross) || parseFloat(item.weight) || 0;
+      const _fine = _gross > 0 ? Math.round(_pure / _gross * 1000) : (item.metalFineness ? Math.round(parseFloat(item.metalFineness) * 1000) : 0);
+      const _pureWord = _isAg ? (lang==='el'?'Καθαρός άργυρος':'Pure silver') : (lang==='el'?'Καθαρός χρυσός':'Pure gold');
+      const _liveLbl = _isAg ? (lang==='el'?'Ζωντανή αξία αργύρου':'Live silver value') : (lang==='el'?'Ζωντανή αξία χρυσού':'Live gold value');
+      const _metaLine = `${_pureWord}: ${_pure.toFixed(2)}g · ${_gross.toFixed(2)}g ${lang==='el'?'μικτό':'gross'}${_fine?` · ${_fine}‰`:''}`;
+      const _pc = parseFloat(item.purchaseCost);
+      const _boughtLine = (!_isEmpInv && _pc > 0)
+        ? `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:2px">${lang==='el'?'Αγοράστηκε':'Bought'}: ${cur}${_pc.toFixed(2)}</div>` : '';
+      const _priceHtml = _melt == null
+        ? `<div class="inv-card-price">—</div>`
+        : `<div class="inv-card-price" style="margin-bottom:1px">${cur}${_melt.toFixed(2)}</div>` +
+          `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:${_boughtLine?'2px':'6px'}">${_liveLbl}</div>` +
+          _boughtLine;
+      const _initLine = _isEmpInv ? '' : metalStockInitialLineHtml(item);
+      const _dateLine = item.dateAdded ? fmtDate(new Date(item.dateAdded)) : '';
+      const _badge = `<span class="inv-card-badge inv-badge-stock">${t('invStatusStock')}</span>`;
+      const _actions = _isEmpInv ? '' : `
+        <div class="inv-card-actions">
+          <button class="inv-action-btn inv-action-sell" style="flex:1;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="openMetalModal('add',{metal:'${item.metal}',karat:'${item.karat}'})">${t('metalAddMore')}</button>
+          <button class="inv-action-btn" style="flex:0.7;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="openMetalModal('edit',{editId:'${id}'})">${t('invEdit')}</button>
+          <button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>
+        </div>`;
+      return `
+        <div class="inv-card" data-inv-id="${id}">
+          <div class="inv-card-top">
+            <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0">
+              <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">🧱 ${metalStockLabel(item)}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${_badge}</div>
+          </div>
+          <div class="inv-card-meta">${_metaLine}${_dateLine ? '<br>' + _dateLine : ''}</div>
+          ${_priceHtml}
+          ${_initLine}
+          ${_actions}
+        </div>`;
+    }
+
     // Self-heal: store initialRetail if missing (existing items added before v9.24).
     // Coins are excluded — their value floats with spot, so a baseline is meaningless.
     if (p && item.metal !== 'other' && !item.isCoin && !item.initialRetail && !isSold) {
@@ -12323,7 +12549,7 @@ function renderInvList() {
   const _grpIndex = new Map();
   const groupedRows = [];
   for (const [id, item] of filtered) {
-    const gid = item.groupId;
+    const gid = item.isMetal ? null : item.groupId;  // raw-metal lots never group (own card)
     if (gid && _grpIndex.has(gid)) { groupedRows[_grpIndex.get(gid)][2].push([id, item]); continue; }
     if (gid) { _grpIndex.set(gid, groupedRows.length); groupedRows.push([id, item, [[id, item]]]); }
     else groupedRows.push([id, item]);
@@ -15153,6 +15379,287 @@ function _addCoinDone() {
   window._addCoinAdded = 0;
 }
 
+// ── Raw metal / scrap stock (v10.48) ─────────────────────────────────────────
+// Add-Metal modal: pick metal + karat/fineness + weight (+ optional price paid).
+// Adding the same metal+karat tops up the existing pile's weight/pure grams. When a
+// price is entered and it's below the metal's recoverable value (melt × (1−loss%)),
+// the buy-cheap gain is booked as a profit entry in today's Sales. Edit mode corrects
+// the pile's absolute weight/karat (rescaling the accumulated baselines). Owner/manager.
+function _refiningLossPct() { const v = parseFloat(state.refiningLoss); return isNaN(v) ? 3 : Math.max(0, Math.min(100, v)); }
+
+// Find the in-stock metal-stock lot of this metal+karat (the pile new adds merge into).
+function _findMetalLot(metal, karat) {
+  for (const [id, it] of Object.entries(_inventoryCache || {})) {
+    if (it && it.isMetal && it.status !== 'sold' && it.metal === metal && String(it.karat) === String(karat)) return { id, item: it };
+  }
+  return null;
+}
+
+// Resolve the current form inputs into { metal, karat, fineness, weight, pure } or null.
+function _metalCurrentSpec() {
+  const metal = window._metalMetal || 'gold';
+  const karatSel = document.getElementById('metalKaratSelect')?.value || '';
+  let karat, fineness;
+  if (karatSel === 'custom') {
+    const f = parseFloat(document.getElementById('metalCustFine')?.value);
+    if (isNaN(f) || f <= 0) return null;
+    fineness = Math.min(1, f / 1000);
+    karat = metal === 'silver' ? String(Math.round(fineness * 1000)) : String(Math.max(1, Math.round(fineness * 24)));
+  } else {
+    const preset = (METAL_STOCK_KARATS[metal] || []).find(x => x.k === karatSel);
+    if (!preset) return null;
+    karat = preset.k; fineness = preset.f;
+  }
+  const weight = parseFloat(document.getElementById('metalWeightInput')?.value);
+  if (isNaN(weight) || weight <= 0) return null;
+  return { metal, karat, fineness, weight, pure: weight * fineness };
+}
+
+function openMetalModal(mode, prefill) {
+  if (creds.role === 'employee') return;
+  prefill = prefill || {};
+  document.getElementById('metalOverlay')?.remove();
+  const isEl = lang === 'el';
+  window._metalMode = mode === 'edit' ? 'edit' : 'add';
+  window._metalEditId = null;
+
+  let initMetal = prefill.metal || 'gold';
+  let initKarat = prefill.karat ? String(prefill.karat) : '';
+  let initWeight = '';
+  if (window._metalMode === 'edit' && prefill.editId) {
+    const it = _inventoryCache[prefill.editId];
+    if (!it) return;
+    window._metalEditId = prefill.editId;
+    initMetal = it.metal; initKarat = String(it.karat);
+    initWeight = (parseFloat(it.metalGross) || parseFloat(it.weight) || 0) || '';
+  }
+  window._metalMetal = initMetal;
+
+  const title = window._metalMode === 'edit' ? t('metalModalEditTitle') : t('metalModalAddTitle');
+  const btnLbl = window._metalMode === 'edit' ? t('metalSaveBtn') : t('metalAddBtn');
+  const _inS = 'width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:15px';
+  const mBtn = (m, label) => `<button id="metalMetal_${m}" onclick="_metalSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
+  const overlay = document.createElement('div');
+  overlay.id = 'metalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:22px;width:100%;max-width:410px;max-height:92vh;overflow-y:auto">
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">${title}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${t('metalModalSubtitle')}</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">${mBtn('gold', isEl?'🥇 Χρυσός':'🥇 Gold')}${mBtn('silver', isEl?'🥈 Ασήμι':'🥈 Silver')}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('metalKaratLbl')}</div>
+      <select id="metalKaratSelect" onchange="_metalOnKaratChange()" style="width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px;appearance:none"></select>
+      <div id="metalCustWrap" style="display:none;margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${t('metalCustomFineLbl')}</div>
+        <input id="metalCustFine" type="number" step="1" min="0" max="1000" inputmode="decimal" oninput="_metalUpdatePreview()" style="${_inS}">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:${window._metalMode === 'add' ? '4px' : '14px'}">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('metalWeightLbl')}</div>
+          <input id="metalWeightInput" type="number" step="0.01" min="0" inputmode="decimal" value="${initWeight}" oninput="_metalUpdatePreview()" style="${_inS}">
+        </div>
+        ${window._metalMode === 'add' ? `<div style="flex:1">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('metalPricePaidLbl')}</div>
+          <input id="metalPriceInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${t('metalPricePaidPh')}" oninput="_metalUpdatePreview()" style="${_inS}">
+        </div>` : ''}
+      </div>
+      ${window._metalMode === 'add' ? `<div style="font-size:11px;color:var(--text-dim);margin:0 0 12px">${t('metalPricePaidHint')}</div>` : ''}
+      <div id="metalPreview" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:10px;padding:12px 14px;margin-bottom:10px"></div>
+      <button id="metalAddBtn" onclick="_metalConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${btnLbl}</button>
+      <button onclick="document.getElementById('metalOverlay')?.remove()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Άκυρο':'Cancel'}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  _metalSetMetal(initMetal);
+  if (initKarat) {
+    const sel = document.getElementById('metalKaratSelect');
+    if (sel) {
+      if (Array.from(sel.options).some(o => o.value === initKarat)) sel.value = initKarat;
+      else sel.value = 'custom';
+    }
+  }
+  _metalOnKaratChange();
+  // Edit with a non-preset (custom) fineness: prefill the custom ‰ input.
+  if (window._metalMode === 'edit' && window._metalEditId) {
+    const it = _inventoryCache[window._metalEditId];
+    const sel = document.getElementById('metalKaratSelect');
+    if (it && sel && sel.value === 'custom') {
+      const cf = document.getElementById('metalCustFine');
+      const g = parseFloat(it.metalGross) || parseFloat(it.weight) || 0;
+      const fine = g > 0 ? (parseFloat(it.metalPure) || 0) / g : (parseFloat(it.metalFineness) || 0);
+      if (cf) cf.value = Math.round(fine * 1000);
+    }
+  }
+  _metalUpdatePreview();
+}
+
+function _metalSetMetal(metal) {
+  window._metalMetal = metal;
+  ['gold', 'silver'].forEach(x => {
+    const b = document.getElementById('metalMetal_' + x); if (!b) return;
+    const on = x === metal;
+    const accent = x === 'silver' ? '176,184,200' : '201,168,76';
+    b.style.background = on ? `rgba(${accent},0.22)` : 'transparent';
+    b.style.color = on ? 'var(--text)' : 'var(--text-muted)';
+    b.style.borderColor = on ? `rgba(${accent},0.7)` : 'rgba(255,255,255,0.15)';
+    b.style.fontWeight = on ? '700' : '500';
+  });
+  const sel = document.getElementById('metalKaratSelect');
+  const isEl = lang === 'el';
+  if (sel) sel.innerHTML = (METAL_STOCK_KARATS[metal] || []).map(o =>
+    `<option value="${o.k}">${metal === 'silver' ? o.k + '‰' : o.k + 'K · ' + Math.round(o.f * 1000) + '‰'}</option>`
+  ).join('') + `<option value="custom">${isEl ? '✏️ Άλλο…' : '✏️ Custom…'}</option>`;
+  const cf = document.getElementById('metalCustFine'); if (cf) cf.placeholder = metal === 'silver' ? '925' : '750';
+  _metalOnKaratChange();
+}
+
+function _metalOnKaratChange() {
+  const sel = document.getElementById('metalKaratSelect');
+  const wrap = document.getElementById('metalCustWrap');
+  if (wrap) wrap.style.display = (sel && sel.value === 'custom') ? 'block' : 'none';
+  _metalUpdatePreview();
+}
+
+function _metalUpdatePreview() {
+  const box = document.getElementById('metalPreview'); if (!box) return;
+  const cur = state.currency || '€';
+  const isEl = lang === 'el';
+  const spec = _metalCurrentSpec();
+  if (!spec) { box.innerHTML = `<div style="font-size:12px;color:var(--text-dim)">${isEl ? 'Συμπληρώστε βάρος & καθαρότητα' : 'Enter weight & purity'}</div>`; return; }
+  const spot = spec.metal === 'silver' ? getSilverPrice() : getGoldPrice();
+  const melt = spot ? (spot / TROY_OZ_TO_GRAM) * spec.pure : null;
+  const pureWord = spec.metal === 'silver' ? (isEl ? 'Καθαρός άργυρος' : 'Pure silver') : (isEl ? 'Καθαρός χρυσός' : 'Pure gold');
+  let html = `<div style="font-size:12px;color:var(--text-muted);font-family:'DM Mono',monospace">${pureWord}: <strong style="color:var(--text)">${spec.pure.toFixed(2)}g</strong> · ${Math.round(spec.fineness * 1000)}‰</div>`;
+  html += `<div style="font-size:16px;color:var(--gold-light);font-weight:700;margin-top:3px">${melt != null ? cur + melt.toFixed(2) : '—'} <span style="font-size:11px;color:var(--text-dim);font-weight:400">${isEl ? 'ζωντανή αξία' : 'live value'}</span></div>`;
+  // New pile total (add mode, when a lot already exists)
+  if (window._metalMode === 'add') {
+    const ex = _findMetalLot(spec.metal, spec.karat);
+    if (ex) {
+      const newW = (parseFloat(ex.item.metalGross) || parseFloat(ex.item.weight) || 0) + spec.weight;
+      html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:3px">${t('metalNewTotal')}: ${newW.toFixed(2)}g</div>`;
+    }
+  }
+  // Buy-cheap gain preview
+  if (window._metalMode === 'add' && melt != null) {
+    const paid = parseFloat(document.getElementById('metalPriceInput')?.value);
+    if (!isNaN(paid) && paid > 0) {
+      const loss = _refiningLossPct();
+      const recover = melt * (1 - loss / 100);
+      const gain = recover - paid;
+      html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08)">${t('metalRecoverable').replace('{loss}', loss)}: ${cur}${recover.toFixed(2)}</div>`;
+      if (gain > 0) html += `<div style="font-size:12px;color:#4caf84;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t('metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
+      else html += `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px">${isEl ? 'Χωρίς κέρδος (τιμή ≥ αξία)' : 'No gain (price ≥ value)'}</div>`;
+    }
+  }
+  box.innerHTML = html;
+}
+
+// Book the buy-cheap gain as a gain-only profit entry in today's Sales (revenue and
+// profit both rise by exactly the gain; flagged scrapGain so it's not a real item sale).
+async function _recordScrapGain(gain, note) {
+  const sales = await getSales();
+  const g = parseFloat(gain.toFixed(2));
+  const rec = {
+    id: Date.now(),
+    amount: g, note: note || '', date: todayStr(), ts: Date.now(),
+    vendor: '', customer: '', email: '',
+    employee: creds.userName || '', employeeName: creds.displayName || '',
+    bonusAmt: 0, bonusPct: 0, invQr: '',
+    cost: null, profit: g, cashSale: true,
+    salePhotoUrl: '', salePhotoName: '', seqRef: '', scrapGain: true
+  };
+  sales.push(rec);
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  try { await pushSalesToCloud(sales); } catch(e) {}
+  return rec;
+}
+
+async function _metalConfirm() {
+  if (creds.role === 'employee') return;
+  const isEl = lang === 'el';
+  const spec = _metalCurrentSpec();
+  if (!spec || !(spec.pure > 0)) { showToast(isEl ? '⚠️ Συμπληρώστε τα στοιχεία' : '⚠️ Fill in the details'); return; }
+  const btn = document.getElementById('metalAddBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const spot = spec.metal === 'silver' ? getSilverPrice() : getGoldPrice();
+  const meltNow = spot ? (spot / TROY_OZ_TO_GRAM) * spec.pure : 0;
+
+  if (window._metalMode === 'edit') {
+    const id = window._metalEditId; const item = id ? _inventoryCache[id] : null;
+    if (item) {
+      const oldPure = parseFloat(item.metalPure) || 0;
+      item.metal = spec.metal; item.karat = spec.karat; item.metalFineness = spec.fineness;
+      item.metalGross = spec.weight; item.weight = spec.weight; item.metalPure = spec.pure;
+      // Rescale the accumulated baselines to the new pure grams (a correction, not a buy),
+      // so the gain % stays stable when weight is adjusted up/down.
+      if (oldPure > 0) {
+        const r = spec.pure / oldPure;
+        if (parseFloat(item.initialMelt) > 0) item.initialMelt = parseFloat((parseFloat(item.initialMelt) * r).toFixed(2));
+        if (parseFloat(item.initialRetail) > 0) item.initialRetail = parseFloat((parseFloat(item.initialRetail) * r).toFixed(2));
+        if (parseFloat(item.purchaseCost) > 0) item.purchaseCost = parseFloat((parseFloat(item.purchaseCost) * r).toFixed(2));
+      } else {
+        item.initialMelt = parseFloat(meltNow.toFixed(2)); item.initialRetail = item.initialMelt;
+      }
+      _inventoryCache[id] = item;
+      await saveInventoryItem(id, item);
+    }
+    document.getElementById('metalOverlay')?.remove();
+    showToast(isEl ? '✅ Αποθηκεύτηκε' : '✅ Saved');
+    renderInvList();
+    return;
+  }
+
+  // ── ADD mode: merge into the existing lot of this metal+karat, else create a new one.
+  const paidRaw = parseFloat(document.getElementById('metalPriceInput')?.value);
+  const paid = (!isNaN(paidRaw) && paidRaw > 0) ? paidRaw : 0;
+  const ex = _findMetalLot(spec.metal, spec.karat);
+  if (ex) {
+    const item = ex.item, id = ex.id;
+    item.metalGross = (parseFloat(item.metalGross) || parseFloat(item.weight) || 0) + spec.weight;
+    item.weight = item.metalGross;
+    item.metalPure = (parseFloat(item.metalPure) || 0) + spec.pure;
+    item.metalFineness = item.metalGross > 0 ? item.metalPure / item.metalGross : spec.fineness;
+    item.initialMelt = parseFloat(((parseFloat(item.initialMelt) || 0) + meltNow).toFixed(2));
+    item.initialRetail = item.initialMelt;
+    if (paid > 0) item.purchaseCost = parseFloat(((parseFloat(item.purchaseCost) || 0) + paid).toFixed(2));
+    item.dateAddedLast = Date.now();
+    _inventoryCache[id] = item;
+    await saveInventoryItem(id, item);
+  } else {
+    const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const item = {
+      jewelryType: 'metal', isMetal: true, metal: spec.metal, karat: spec.karat,
+      metalFineness: spec.fineness, metalGross: spec.weight, weight: spec.weight, metalPure: spec.pure,
+      initialMelt: parseFloat(meltNow.toFixed(2)), initialRetail: parseFloat(meltNow.toFixed(2)),
+      status: 'in_stock', dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || ''
+    };
+    if (paid > 0) item.purchaseCost = paid;
+    _inventoryCache[newId] = item;
+    await saveInventoryItem(newId, item);
+  }
+
+  // Book the buy-cheap gain (recoverable value − price paid) to today's sales, if positive.
+  let gainBooked = 0;
+  if (paid > 0 && meltNow > 0) {
+    const loss = _refiningLossPct();
+    const gain = Math.round((meltNow * (1 - loss / 100) - paid) * 100) / 100;
+    if (gain > 0) {
+      gainBooked = gain;
+      const note = `${t('metalScrapGainNote')} — ${spec.weight.toFixed(0)}g ${metalStockLabel({ metal: spec.metal, karat: spec.karat })}`;
+      await _recordScrapGain(gain, note);
+    }
+  }
+
+  document.getElementById('metalOverlay')?.remove();
+  const cur = state.currency || '€';
+  showToast(gainBooked > 0
+    ? `${t('metalAddedToast')} · ${t('metalGainToast').replace('{amt}', cur + gainBooked.toFixed(2))}`
+    : t('metalAddedToast'));
+  renderInvList();
+  // Refresh the Sales tab if it happens to be the active panel
+  if (gainBooked > 0 && document.getElementById('panel-sales')?.classList.contains('active') && typeof renderSales === 'function') { try { renderSales(); } catch(e) {} }
+}
+
 // ── Add similar items into a group (weigh-tap loop) (v10.29) ─────────────────
 // Clone the source's shared attributes, take just a new weight (+colour) each time,
 // keep the SAME reference code, regenerate the weight-encoded QR, save into the same
@@ -15947,6 +16454,12 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.48', date: 'Ιούλιος 2026', items: [
+        '🧱 Ακατέργαστο μέταλλο / scrap στο απόθεμα (νέο): κουμπί «🧱 Προσθήκη μετάλλου» στην καρτέλα Απόθεμα — για το χρυσάφι/ασήμι που κρατάτε στο χρηματοκιβώτιο για λιώσιμο (καθαρός χρυσός/ασήμι σε μπίλιες, 14/18/22Κ παλιά κοσμήματα πελατών, scrap ασήμι). Διαλέγετε Χρυσό/Ασήμι + καθαρότητα + βάρος. Η αξία υπολογίζεται ζωντανά από την τιμή του μετάλλου.',
+        '➕ Προσθέτετε στην ίδια καθαρότητα και το βάρος αθροίζεται: σήμερα 30g 14Κ, αύριο άλλα 30g → η κάρτα δείχνει 60g. Κάθε καθαρότητα (24Κ, 18Κ, 14Κ, καθαρό ασήμι κ.λπ.) έχει τη δική της κάρτα.',
+        '💶 Αγορά scrap κάτω από την αξία = κέρδος: αν αγοράσετε π.χ. 30g 14Κ (αξία ~€2030) για €1500, το κέρδος — αφού αφαιρεθεί η απώλεια καθαρισμού (προεπιλογή 3%, ρυθμίζεται στις Ρυθμίσεις) — προστίθεται αυτόματα στις σημερινές σας πωλήσεις ως «♻️ Κέρδος scrap».',
+        '📊 Το μέταλλο μετράει στα σύνολα (Αξία Λιανική + Καθαρός χρυσός/ασήμι) αλλά ΔΕΝ μετράει στα «Τεμάχια» (είναι απόθεμα μετάλλου, όχι κόσμημα). Κρύβεται από τη λίστα εκτός αν επιλέξετε τον τύπο «Μέταλλο» στο φίλτρο. Δεν εμφανίζεται ΠΟΤΕ στη δημόσια βιτρίνα. Η κάρτα δείχνει την αξία τώρα και την αξία κατά την προσθήκη με ποσοστό μεταβολής.'
+      ]},
       { version: 'v10.47', date: 'Ιούλιος 2026', items: [
         '⚖️ Μεγαλύτερη προεπιλεγμένη ανοχή στην «Αναγνώριση από βάρος»: από ±0.2 σε ±0.5 γραμμάρια (με νέα επιλογή ±1.5) — ώστε τα φθαρμένα παλιά νομίσματα, που ζυγίζουν λιγότερο από το κανονικό, να εντοπίζονται πιο εύκολα.'
       ]},
@@ -15982,10 +16495,6 @@ const ABOUT = {
         '🧮 Τα νομίσματα μετρούν στα σύνολα του αποθέματος (Αξία Λιανική + Καθαρός χρυσός/άργυρος) με το ακριβές περιεχόμενο μετάλλου. Στην πώληση χρυσού νομίσματος τα ΜΕΤΡΗΤΑ είναι προεπιλεγμένα. Τα νομίσματα ΔΕΝ εμφανίζονται ποτέ στη δημόσια βιτρίνα.',
         '📊 Η ομαδοποιημένη κάρτα δείχνει και το ΣΥΝΟΛΟ (N× αξία · N× τιμή πώλησης) και ποσοστό υπεραξίας — με βάση την τιμή αγοράς αν υπάρχει, αλλιώς την αξία κατά την προσθήκη (όπως στα κανονικά είδη). Ο τύπος «Νόμισμα» εμφανίζεται και στο φίλτρο ανά τύπο.',
         '➕ «Τα νομίσματά μου»: αν κάποιος φέρει νόμισμα εκτός λίστας, ζυγίζετε → «Νέο νόμισμα» (το βάρος μπαίνει αυτόματα), βάζετε ονομασία + καθαρότητα (από τον έλεγχο μετάλλου ή τον σύνδεσμο Numista) και με ένα τικ αποθηκεύεται. Από κει και πέρα αναγνωρίζεται από το βάρος, παίρνει ζωντανές τιμές και ομαδοποιείται όπως τα υπόλοιπα. Διαχείριση στις Ρυθμίσεις → «Τα νομίσματά μου».'
-      ]},
-      { version: 'v10.38', date: 'Ιούλιος 2026', items: [
-        '🎛️ Καθαρότερη μπάρα επιλογής: σε λειτουργία «Επιλογή», η μπάρα ενεργειών αναδιατάχθηκε — πάνω ο αριθμός επιλεγμένων με «Όλα» και «✕», και από κάτω τρία μεγάλα κουμπιά που πατιούνται εύκολα: Κοινοποίηση, Ομάδα, Πώληση.',
-        '💰 Διόρθωση «Κόστος» στα σύνολα επιλογής: το πεδίο εμφάνιζε «—» για είδη χωρίς αποθηκευμένο κόστος αγοράς (π.χ. είδη με χρέωση ανά γραμμάριο). Τώρα δείχνει το πραγματικό κόστος παραγωγής (μέταλλο + εργασία + πέτρες) όταν δεν υπάρχει καταχωρημένο κόστος αγοράς.'
       ]},
           ]
   },
@@ -16069,6 +16578,12 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.48', date: 'Jul 2026', items: [
+        '🧱 Raw metal / scrap stock (new): a "🧱 Add Metal" button on the Stock tab — for the gold/silver you keep in the vault to melt down (pure gold/silver balls, 14/18/22K old jewellery from customers, scrap silver). Pick Gold/Silver + purity + weight; the value is computed live from the metal price.',
+        '➕ Add the same purity and the weight adds up: today 30g 14K, tomorrow another 30g → the card shows 60g. Each purity (24K, 18K, 14K, pure silver, etc.) has its own card.',
+        '💶 Buying scrap below its value = profit: if you buy e.g. 30g 14K (worth ~€2030) for €1500, the gain — after the refining loss (default 3%, editable in Settings) — is automatically added to today\'s sales as "♻️ Scrap gain".',
+        '📊 Metal counts toward your totals (Total Retail + Pure gold/silver) but is NOT counted in "Pieces" (it\'s metal stock, not a jewel). It\'s hidden from the list unless you pick the "Metal" type in the filter, and NEVER shown in the public showroom. The card shows the value now and the value when added with a change %.'
+      ]},
       { version: 'v10.47', date: 'Jul 2026', items: [
         '⚖️ Bigger default tolerance in "Identify by weight": from ±0.2 to ±0.5 g (plus a new ±1.5 option) — so worn old coins, which weigh less than standard, are matched more easily.'
       ]},
@@ -16104,10 +16619,6 @@ const ABOUT = {
         '🧮 Coins count toward the inventory totals (Total Retail + Pure gold/silver) using each coin\'s exact metal content. Selling a gold coin defaults to CASH. Coins are NEVER shown on the public showroom.',
         '📊 The grouped card shows the TOTAL (N× value · N× selling price) plus a price-increase % — based on your purchase price if recorded, else the value when added (like regular items). The "Coin" type also appears in the type filter.',
         '➕ "My coins": if someone brings a coin that isn\'t listed, weigh it → "Add new coin" (the weight is pre-filled), enter a name + fineness (from your metal tester or the Numista link) and tick save. From then on it\'s recognised by weight, live-valued and grouped like the rest. Manage them in Settings → "My coins".'
-      ]},
-      { version: 'v10.38', date: 'Jul 2026', items: [
-        '🎛️ Cleaner selection bar: in "Select" mode the action bar was rearranged — the selected count with "All" and "✕" on top, and three big, easy-to-tap buttons below: Share, Group, Sell.',
-        '💰 "Cost" total fix: the selection totals showed "—" for items with no stored purchase cost (e.g. per-gram items). It now shows the real production cost (metal + labour + stones) when no purchase cost is on file.'
       ]},
           ]
   }
@@ -18992,7 +19503,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.47';
+const APP_VERSION = '10.48';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
