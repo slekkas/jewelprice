@@ -14839,7 +14839,7 @@ function openAddCoinModal(prefillKey) {
           <div style="flex:0 0 92px">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${isEl?'Ανοχή':'Tolerance'}</div>
             <select id="addCoinIdTol" onchange="_addCoinIdentify()" style="width:100%;box-sizing:border-box;padding:9px 8px;background:var(--dark-2);border:1px solid rgba(212,175,55,0.25);border-radius:7px;color:var(--text);font-family:var(--font-mono);font-size:13px;appearance:none">
-              <option value="0.1">±0.1</option><option value="0.2" selected>±0.2</option><option value="0.5">±0.5</option><option value="1">±1.0</option>
+              <option value="0.1">±0.1</option><option value="0.2">±0.2</option><option value="0.5" selected>±0.5</option><option value="1">±1.0</option><option value="1.5">±1.5</option>
             </select>
           </div>
         </div>
@@ -14931,7 +14931,7 @@ function _addCoinIdentify() {
   const cur = state.currency || '€';
   const metal = window._addCoinMetal || 'gold';
   const w = parseFloat(document.getElementById('addCoinIdWeight')?.value);
-  const tol = parseFloat(document.getElementById('addCoinIdTol')?.value) || 0.2;
+  const tol = parseFloat(document.getElementById('addCoinIdTol')?.value) || 0.5;
   if (isNaN(w) || w <= 0) { box.innerHTML = ''; return; }
   const matches = coinCatalogByMetal(metal)
     .filter(e => Math.abs(e.gross - w) <= tol)
@@ -15947,6 +15947,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.47', date: 'Ιούλιος 2026', items: [
+        '⚖️ Μεγαλύτερη προεπιλεγμένη ανοχή στην «Αναγνώριση από βάρος»: από ±0.2 σε ±0.5 γραμμάρια (με νέα επιλογή ±1.5) — ώστε τα φθαρμένα παλιά νομίσματα, που ζυγίζουν λιγότερο από το κανονικό, να εντοπίζονται πιο εύκολα.'
+      ]},
       { version: 'v10.46', date: 'Ιούλιος 2026', items: [
         '🔎 Φίλτρο «Χωρίς τύπο»: αν κάποια είδη δεν έχουν καθορισμένο τύπο, εμφανίζεται στο φίλτρο «Τύπος» μια επιλογή «Χωρίς τύπο» για να τα βρείτε και να τους ορίσετε τύπο. (Γι\' αυτό το σύνολο «Επιλογή όλων» μπορεί να μη συμφωνεί με τη γενική λίστα — τα άτυπα είδη δεν ανήκαν σε κανέναν τύπο.)'
       ]},
@@ -15983,9 +15986,6 @@ const ABOUT = {
       { version: 'v10.38', date: 'Ιούλιος 2026', items: [
         '🎛️ Καθαρότερη μπάρα επιλογής: σε λειτουργία «Επιλογή», η μπάρα ενεργειών αναδιατάχθηκε — πάνω ο αριθμός επιλεγμένων με «Όλα» και «✕», και από κάτω τρία μεγάλα κουμπιά που πατιούνται εύκολα: Κοινοποίηση, Ομάδα, Πώληση.',
         '💰 Διόρθωση «Κόστος» στα σύνολα επιλογής: το πεδίο εμφάνιζε «—» για είδη χωρίς αποθηκευμένο κόστος αγοράς (π.χ. είδη με χρέωση ανά γραμμάριο). Τώρα δείχνει το πραγματικό κόστος παραγωγής (μέταλλο + εργασία + πέτρες) όταν δεν υπάρχει καταχωρημένο κόστος αγοράς.'
-      ]},
-      { version: 'v10.37', date: 'Ιούλιος 2026', items: [
-        '📄 Κατάλογος/Φύλλο Παραγγελίας: τα όμοια κομμάτια δεν εμφανίζονται πια πολλές φορές. Πλέον όσα μοιράζονται την ίδια ομάδα ΚΑΙ το ίδιο χρώμα συγκεντρώνονται σε ΜΙΑ καταχώριση με ένδειξη «N σε απόθεμα». Π.χ. ομάδα με 3 ίδια → 1 καταχώριση («3 σε απόθεμα»)· ομάδα με 1 μπλε, 1 κόκκινο, 3 πράσινα → 3 καταχωρίσεις (μπλε, κόκκινο, πράσινο «3 σε απόθεμα»). Εμφανίζεται και το χρώμα σε κάθε καταχώριση.'
       ]},
           ]
   },
@@ -16069,6 +16069,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.47', date: 'Jul 2026', items: [
+        '⚖️ Bigger default tolerance in "Identify by weight": from ±0.2 to ±0.5 g (plus a new ±1.5 option) — so worn old coins, which weigh less than standard, are matched more easily.'
+      ]},
       { version: 'v10.46', date: 'Jul 2026', items: [
         '🔎 "No type" filter: if some pieces have no type set, the Type filter now shows a "No type" option so you can find them and assign a type. (That\'s also why "Select all" could differ from the full list — untyped pieces belonged to no type.)'
       ]},
@@ -16105,9 +16108,6 @@ const ABOUT = {
       { version: 'v10.38', date: 'Jul 2026', items: [
         '🎛️ Cleaner selection bar: in "Select" mode the action bar was rearranged — the selected count with "All" and "✕" on top, and three big, easy-to-tap buttons below: Share, Group, Sell.',
         '💰 "Cost" total fix: the selection totals showed "—" for items with no stored purchase cost (e.g. per-gram items). It now shows the real production cost (metal + labour + stones) when no purchase cost is on file.'
-      ]},
-      { version: 'v10.37', date: 'Jul 2026', items: [
-        '📄 Catalog / Order Sheet no longer repeats identical pieces: pieces that share the same group AND the same colour are now collapsed into ONE entry marked "N in stock". E.g. a group of 3 identical → 1 entry ("3 in stock"); a group of 1 blue, 1 red, 3 green → 3 entries (blue, red, green "3 in stock"). Each entry also shows its colour.'
       ]},
           ]
   }
@@ -18992,7 +18992,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.46';
+const APP_VERSION = '10.47';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
