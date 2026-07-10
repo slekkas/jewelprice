@@ -10378,16 +10378,46 @@ function coinMarkup(metal) {
   const m = parseFloat(state.coinMarkup); return isNaN(m) ? 30 : m;
 }
 
-// Gain % of a coin vs its cost basis: the purchase price if recorded, else the value
-// captured when it was added (`initialRetail`), so it reflects metal-price movement —
-// like regular items. Current value = the suggested selling price (retail = melt+markup).
+// A coin's cost basis for the "Initial price" line: the purchase price if the owner
+// recorded one, else the pure-metal value at the moment it was added (`initialMelt`).
+// Falls back to the older `initialRetail` for coins added before initialMelt existed.
+function coinBaseline(item) {
+  const pc = parseFloat(item.purchaseCost);
+  if (pc > 0) return pc;
+  const im = parseFloat(item.initialMelt);
+  if (im > 0) return im;
+  const ir = parseFloat(item.initialRetail);
+  return ir > 0 ? ir : null;
+}
+
+// Gain % of a coin vs its cost basis. Current value = the LIVE melt value (same basis
+// as the big number on the card), so the % directly reflects that number's movement.
 function coinGainPct(item) {
   if (!item || !item.isCoin) return null;
-  const p = calcInvItemPrice(item);
-  if (!p) return null;
-  const baseline = (parseFloat(item.purchaseCost) > 0) ? parseFloat(item.purchaseCost) : parseFloat(item.initialRetail);
-  if (!(baseline > 0)) return null;
-  return (p.retail - baseline) / baseline * 100;
+  const meltNow = coinMeltValue(item);
+  const base = coinBaseline(item);
+  if (meltNow == null || !(base > 0)) return null;
+  return (meltNow - base) / base * 100;
+}
+
+// The owner-only "Initial price (added DATE): €X (+Y%)" line for a coin — mirrors the
+// appreciation line on regular items. X = purchase price if set, else metal value at add.
+function coinInitialLineHtml(item) {
+  const cur = state.currency || '€';
+  const base = coinBaseline(item);
+  if (!(base > 0)) return '';
+  const g = coinGainPct(item);
+  const addedStr = item.dateAdded ? fmtDate(new Date(item.dateAdded)) : '';
+  const lbl = addedStr
+    ? (lang === 'el' ? `${t('initialPriceLbl')} (προσθήκη ${addedStr})` : `${t('initialPriceLbl')} (added ${addedStr})`)
+    : t('initialPriceLbl');
+  let gainStr = '';
+  if (g != null) {
+    const a = Math.abs(g), s = a < 0.05 ? '±' : (g >= 0 ? '+' : '-');
+    const c = g > 0.01 ? '#4caf84' : g < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+    gainStr = ` <span style="color:${c}">(${s}${a < 0.05 ? '0.0' : a.toFixed(1)}%)</span>`;
+  }
+  return `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${lbl}: ${cur}${base.toFixed(2)}${gainStr}</div>`;
 }
 
 // ─── SEQUENTIAL ID SYSTEM ──────────────────────────────────────────────────────
@@ -12185,25 +12215,16 @@ function renderInvList() {
       const _liveLbl = lang==='el'?'ζωντανή αξία':'live value';
       const _sellLbl = lang==='el'?'πώληση από':'sell from';
       const _eachSf = _mk > 0 ? ` · ${_sellLbl} ${cur}${_rp.retail.toFixed(2)}` : '';
-      // Totals + aggregate gain across the in-stock members
-      let _tLive = 0, _tRet = 0, _tBase = 0, _haveBase = true;
+      // Group totals (N× live · N× sell-from) — the gain % lives on the initial-price line
+      let _tLive = 0, _tRet = 0;
       members.forEach(([, it]) => {
         const _le = coinMeltValue(it); if (_le != null) _tLive += _le;
         const _mp = _px(it); if (_mp) _tRet += _mp.retail;
-        const _bl = (parseFloat(it.purchaseCost) > 0) ? parseFloat(it.purchaseCost) : parseFloat(it.initialRetail);
-        if (_bl > 0) _tBase += _bl; else _haveBase = false;
       });
-      const _gp = (_haveBase && _tBase > 0) ? ((_tRet - _tBase) / _tBase * 100) : null;
-      let _gainHtml = '';
-      if (!_isEmpInv && _gp != null) {
-        const _ga = Math.abs(_gp), _gs = _ga < 0.05 ? '±' : (_gp >= 0 ? '+' : '-');
-        const _gc = _gp > 0.01 ? '#4caf84' : _gp < -0.01 ? '#e05a5a' : 'var(--text-dim)';
-        _gainHtml = ` <span style="color:${_gc}">(${_gs}${_ga < 0.05 ? '0.0' : _ga.toFixed(1)}%)</span>`;
-      }
       const _multi = count > 1;
-      let _eachLine = `${_liveLbl}${_eachSf}${_multi ? (lang==='el'?' / νόμισμα':' each') : _gainHtml}`;
-      let _totalLine = _multi
-        ? `<span style="font-size:12px;color:var(--gold-light);font-family:'DM Mono',monospace;display:block;margin-top:3px">${count}× → ${cur}${_tLive.toFixed(2)}${_mk > 0 ? ` · ${_sellLbl} ${cur}${_tRet.toFixed(2)}` : ''}${_gainHtml}</span>`
+      const _eachLine = `${_liveLbl}${_eachSf}${_multi ? (lang==='el'?' / νόμισμα':' each') : ''}`;
+      const _totalLine = _multi
+        ? `<span style="font-size:12px;color:var(--gold-light);font-family:'DM Mono',monospace;display:block;margin-top:3px">${count}× → ${cur}${_tLive.toFixed(2)}${_mk > 0 ? ` · ${_sellLbl} ${cur}${_tRet.toFixed(2)}` : ''}</span>`
         : '';
       priceStr = _cm != null
         ? `${cur}${_cm.toFixed(2)}<span style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;display:block;margin-top:1px">${_eachLine}</span>${_totalLine}`
@@ -12229,6 +12250,7 @@ function renderInvList() {
           <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0">
             <div class="inv-select-cb" data-id="${repId}" onclick="invSelectToggleGroup('${gid}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${codeStr}</div>
+            ${rep.isCoin ? `<a href="${coinNumistaUrl(rep)}" target="_blank" rel="noopener noreferrer" class="inv-share-btn" title="Numista" onclick="event.stopPropagation()" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(100,160,255,0.12);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;text-decoration:none;font-size:14px">🔗</a>` : ''}
             <button onclick="invShareGroup('${gid}')" class="inv-share-btn" title="Share all ${count}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -12239,6 +12261,7 @@ function renderInvList() {
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
         ${(metaLine || colorSummary) ? `<div class="inv-card-meta">${metaLine}${colorSummary ? (metaLine ? '<br>' : '') + colorSummary : ''}</div>` : ''}
         ${(rep.isCoin || !_isEmpInv) ? `<div class="inv-card-price">${priceStr}</div>` : ''}
+        ${(rep.isCoin && !_isEmpInv) ? coinInitialLineHtml(rep) : ''}
         <div class="inv-card-actions">
           <button class="inv-action-btn" style="flex:1;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="openInvGroup('${gid}')">${lang==='el' ? '🔗 Δες '+count+' κομμάτια' : '🔗 View '+count+' pieces'}</button>
         </div>
@@ -14715,11 +14738,14 @@ const COIN_NID = {
   peso50: 28709, ca_dollar_800: 457,
 };
 
+// Accepts either a catalogue entry (has `key`/`en`/`name`) or an inventory coin item
+// (has `coinKey`/`coinName`), so it works from both the identify list and the card.
 function coinNumistaUrl(entry) {
   const host = lang === 'el' ? 'el' : 'en';
-  const nid = COIN_NID[entry.key];
+  const key = entry.key || entry.coinKey;
+  const nid = COIN_NID[key];
   if (nid) return `https://${host}.numista.com/catalogue/pieces${nid}.html`;   // exact coin page
-  const term = COIN_NUMISTA[entry.key] || entry.numista || entry.en || entry.name || '';
+  const term = COIN_NUMISTA[key] || entry.numista || entry.en || entry.name || entry.coinName || '';
   const name = term.replace(/\([^)]*\)/g, ' ').replace(/[½¼⅒]/g, ' ').replace(/\s+/g, ' ').trim();
   return `https://${host}.numista.com/catalogue/index.php?ct=coin&r=${encodeURIComponent(name)}`;
 }
@@ -15011,8 +15037,9 @@ async function _addCoinConfirm() {
       addedBy: creds.displayName || creds.userName || ''
     };
     if (hasPurchase) item.purchaseCost = purchaseCost;
-    // Baseline for the gain % (used when no purchase price is recorded): the coin's
-    // value at the moment it's added, so later gain reflects metal-price movement.
+    // Baselines captured at add time: initialMelt (pure-metal value now) drives the
+    // "Initial price" line / gain when no purchase price is set; initialRetail kept too.
+    { const _m0 = coinMeltValue(item); if (_m0 != null) item.initialMelt = parseFloat(_m0.toFixed(2)); }
     { const _p0 = calcInvItemPrice(item); if (_p0) item.initialRetail = parseFloat(_p0.retail.toFixed(2)); }
     _inventoryCache[newId] = item;
     await saveInventoryItem(newId, item);
@@ -15864,6 +15891,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.41', date: 'Ιούλιος 2026', items: [
+        '🔗 Σύνδεσμος Numista πάνω στην κάρτα του νομίσματος: δίπλα στην κοινοποίηση, ένα κουμπί 🔗 ανοίγει το ακριβές νόμισμα στο Numista — δείχνετε στον πελάτη την τιμή και με ένα πάτημα το ίδιο το νόμισμα και την τρέχουσα αξία του.',
+        '📈 «Αρχική τιμή» στην κάρτα του νομίσματος (όπως στα κανονικά είδη): εμφανίζεται η αρχική τιμή με ημερομηνία και ποσοστό μεταβολής. Αν βάλατε τιμή αγοράς, χρησιμοποιείται αυτή· αλλιώς η αξία του μετάλλου τη στιγμή της προσθήκης.'
+      ]},
       { version: 'v10.40', date: 'Ιούλιος 2026', items: [
         '🔗 Πιο ακριβής σύνδεσμος Numista: για τα νομίσματα επένδυσης (χρυσές/ασημένιες λίρες τύπου Eagle, Krugerrand, Maple Leaf, Μεξικού κ.λπ.) το 🔗 ανοίγει πλέον ΑΠΕΥΘΕΙΑΣ την ακριβή σελίδα του νομίσματος στο Numista — χωρίς κύλισμα, για να δείξετε αμέσως στον πελάτη το νόμισμα που αγοράζει. Για τα ιστορικά νομίσματα (με πολλές χρονολογίες/εκδόσεις) η αναζήτηση περιλαμβάνει τη χώρα και την ονομαστική αξία, ώστε να βρείτε εύκολα τη δική σας χρονολογία.'
       ]},
@@ -15898,9 +15929,6 @@ const ABOUT = {
       { version: 'v10.32', date: 'Ιούλιος 2026', items: [
         '🔧 Βελτιώσεις στα ομαδοποιημένα είδη: (1) Η ομαδοποιημένη κάρτα δείχνει τώρα δεξιά τα σήματα (φύλο, χειροποίητο, χρώμα χρυσού) όπως η κανονική κάρτα. (2) Στο «Δες κομμάτια», κάθε κομμάτι δείχνει και τη γραμμή «Αρχική τιμή (ημ/νία): €Χ (+Υ%)» ανάμεσα στα γραμμάρια και τα κουμπιά, όπως η κανονική κάρτα.',
         '🛡️ Ενισχυμένη προειδοποίηση διπλότυπου QR: κατά την αποθήκευση νέου είδους, αν ο κωδικός QR υπάρχει ήδη σε άλλο είδος στο απόθεμα, η εφαρμογή σας προειδοποιεί πάντα (αλλάξτε ελαφρώς το βάρος) — πιάνει και περιπτώσεις που ο προηγούμενος έλεγχος μπορούσε να χάσει.'
-      ]},
-      { version: 'v10.31', date: 'Ιούλιος 2026', items: [
-        '🔧 Πλήρεις ενέργειες για κάθε κομμάτι μιας ομάδας: ανοίγοντας «Δες κομμάτια» σε μια ομαδοποιημένη κάρτα, κάθε κομμάτι έχει τώρα ΟΛΕΣ τις ενέργειες όπως μια κανονική κάρτα — ➕ Calc, Κοινοποίηση, 🏷️ Εκτύπωση ετικέτας, 💰 Πώληση, ✏️ Επεξεργασία και 🗑 Διαγραφή. Έτσι δεν χάνετε καμία λειτουργία όταν τα είδη είναι ομαδοποιημένα (π.χ. να τυπώσετε ξανά μία ετικέτα ή να στείλετε ένα κομμάτι στον Υπολογισμό).'
       ]},
           ]
   },
@@ -15984,6 +16012,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.41', date: 'Jul 2026', items: [
+        '🔗 Numista link on the coin card: next to Share, a 🔗 button opens the exact coin on Numista — show the customer the price and, in one tap, the actual coin and its current value.',
+        '📈 "Initial price" on the coin card (like regular items): shows the starting price with its date and the % change. If you set a purchase price it uses that; otherwise it uses the metal value at the time you added the coin.'
+      ]},
       { version: 'v10.40', date: 'Jul 2026', items: [
         '🔗 More precise Numista link: for bullion coins (American Eagle, Krugerrand, Maple Leaf, Mexican, etc.) the 🔗 now opens the coin\'s EXACT Numista page directly — no scrolling, so you can instantly show a customer the coin they\'re buying. For historical coins (with many years/varieties) it searches by country + face value so you can find your own year.'
       ]},
@@ -16018,9 +16050,6 @@ const ABOUT = {
       { version: 'v10.32', date: 'Jul 2026', items: [
         '🔧 Grouped-item improvements: (1) The grouped card now shows the badges on the right (gender, handmade, gold colour) just like a normal card. (2) In "View pieces", each piece now shows the "Initial price (date): €X (+Y%)" line between the grams and the buttons, like a normal card.',
         '🛡️ Stronger duplicate-QR warning: when saving a new item, if its QR code already exists on another in-stock item, the app now always warns you (adjust the weight slightly) — catching cases the earlier check could miss.'
-      ]},
-      { version: 'v10.31', date: 'Jul 2026', items: [
-        '🔧 Full actions for every piece of a group: opening "View pieces" on a grouped card, each piece now has ALL the actions of a normal card — ➕ Calc, Share, 🏷️ Print Tag, 💰 Sell, ✏️ Edit and 🗑 Delete. So you lose no functionality when items are grouped (e.g. reprint a single tag or send one piece to Calc).'
       ]},
           ]
   }
@@ -18905,7 +18934,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.40';
+const APP_VERSION = '10.41';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
