@@ -11905,8 +11905,17 @@ function renderInvList() {
     return true;
   });
 
-  // Update summary to reflect filtered results
+  // Update summary to reflect filtered results (coins INCLUDED — the totals must not
+  // change when coins are hidden from the list below).
   renderInvSummary(filtered);
+
+  // Coins are hidden from the Stock list by default — they only appear when the "Coin"
+  // type filter is chosen (or during a search, so you can still find one by name/code).
+  // Their value stays in the totals above; this only affects the visible cards.
+  {
+    const _coinFilterOn = (_invFilters.types || []).includes('coin');
+    if (!_coinFilterOn && !searchQuery) filtered = filtered.filter(([, it]) => !it.isCoin);
+  }
 
   // Sort by user preference (default: in-stock first, then newest)
   filtered.sort(([,a],[,b]) => {
@@ -15891,6 +15900,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.42', date: 'Ιούλιος 2026', items: [
+        '🙈 Τα νομίσματα κρύβονται από τη λίστα αποθέματος: για να μη «γεμίζει» η λίστα με νομίσματα, εμφανίζονται πλέον μόνο όταν επιλέξετε τον τύπο «Νόμισμα» στο φίλτρο (ή όταν κάνετε αναζήτηση, για να βρείτε ένα με το όνομα/κωδικό). Η αξία τους ΠΑΡΑΜΕΝΕΙ στα σύνολα (Αξία Λιανική & Αξία Μετάλλου δεν αλλάζουν).'
+      ]},
       { version: 'v10.41', date: 'Ιούλιος 2026', items: [
         '🔗 Σύνδεσμος Numista πάνω στην κάρτα του νομίσματος: δίπλα στην κοινοποίηση, ένα κουμπί 🔗 ανοίγει το ακριβές νόμισμα στο Numista — δείχνετε στον πελάτη την τιμή και με ένα πάτημα το ίδιο το νόμισμα και την τρέχουσα αξία του.',
         '📈 «Αρχική τιμή» στην κάρτα του νομίσματος (όπως στα κανονικά είδη): εμφανίζεται η αρχική τιμή με ημερομηνία και ποσοστό μεταβολής. Αν βάλατε τιμή αγοράς, χρησιμοποιείται αυτή· αλλιώς η αξία του μετάλλου τη στιγμή της προσθήκης.'
@@ -15925,10 +15937,6 @@ const ABOUT = {
       ]},
       { version: 'v10.33', date: 'Ιούλιος 2026', items: [
         '🛡️ Η προειδοποίηση διπλότυπου QR πιάνει τώρα ΚΑΙ τα πωλημένα είδη: μέχρι τώρα, αν ο κωδικός QR ενός νέου είδους ταίριαζε με είδος που είχε ΠΩΛΗΘΕΙ, δεν εμφανιζόταν προειδοποίηση (ο έλεγχος κοιτούσε μόνο ό,τι ήταν σε απόθεμα). Επειδή η ετικέτα ενός πωλημένου κομματιού μπορεί να κυκλοφορεί ακόμα και θέλετε κάθε QR μοναδικό, η εφαρμογή προειδοποιεί πλέον για ΟΠΟΙΑΔΗΠΟΤΕ σύμπτωση κωδικού (με ένδειξη «[πωλημένο]» όπου χρειάζεται), ώστε να αλλάξετε ελαφρώς το βάρος.'
-      ]},
-      { version: 'v10.32', date: 'Ιούλιος 2026', items: [
-        '🔧 Βελτιώσεις στα ομαδοποιημένα είδη: (1) Η ομαδοποιημένη κάρτα δείχνει τώρα δεξιά τα σήματα (φύλο, χειροποίητο, χρώμα χρυσού) όπως η κανονική κάρτα. (2) Στο «Δες κομμάτια», κάθε κομμάτι δείχνει και τη γραμμή «Αρχική τιμή (ημ/νία): €Χ (+Υ%)» ανάμεσα στα γραμμάρια και τα κουμπιά, όπως η κανονική κάρτα.',
-        '🛡️ Ενισχυμένη προειδοποίηση διπλότυπου QR: κατά την αποθήκευση νέου είδους, αν ο κωδικός QR υπάρχει ήδη σε άλλο είδος στο απόθεμα, η εφαρμογή σας προειδοποιεί πάντα (αλλάξτε ελαφρώς το βάρος) — πιάνει και περιπτώσεις που ο προηγούμενος έλεγχος μπορούσε να χάσει.'
       ]},
           ]
   },
@@ -16012,6 +16020,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.42', date: 'Jul 2026', items: [
+        '🙈 Coins hidden from the Stock list: to keep the list uncluttered, coins now show only when you pick the "Coin" type in the filter (or during a search, so you can still find one by name/code). Their value STAYS in the totals — Total Retail and Metal Value don\'t change.'
+      ]},
       { version: 'v10.41', date: 'Jul 2026', items: [
         '🔗 Numista link on the coin card: next to Share, a 🔗 button opens the exact coin on Numista — show the customer the price and, in one tap, the actual coin and its current value.',
         '📈 "Initial price" on the coin card (like regular items): shows the starting price with its date and the % change. If you set a purchase price it uses that; otherwise it uses the metal value at the time you added the coin.'
@@ -16046,10 +16057,6 @@ const ABOUT = {
       ]},
       { version: 'v10.33', date: 'Jul 2026', items: [
         '🛡️ Duplicate-QR warning now catches SOLD items too: until now, if a new item\'s QR code matched an item that had been SOLD, no warning appeared (the check only looked at in-stock items). Since a sold piece\'s tag can still be around and you keep every QR unique, the app now warns for ANY code collision (marking it "[sold]" where relevant) so you can adjust the weight slightly.'
-      ]},
-      { version: 'v10.32', date: 'Jul 2026', items: [
-        '🔧 Grouped-item improvements: (1) The grouped card now shows the badges on the right (gender, handmade, gold colour) just like a normal card. (2) In "View pieces", each piece now shows the "Initial price (date): €X (+Y%)" line between the grams and the buttons, like a normal card.',
-        '🛡️ Stronger duplicate-QR warning: when saving a new item, if its QR code already exists on another in-stock item, the app now always warns you (adjust the weight slightly) — catching cases the earlier check could miss.'
       ]},
           ]
   }
@@ -18934,7 +18941,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.41';
+const APP_VERSION = '10.42';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
