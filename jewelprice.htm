@@ -898,7 +898,7 @@
   @media (min-width:480px) { #panel-inventory.panel { left:50%; transform:translateX(-50%); width:480px; right:auto; } }
   .inv-inner { padding:16px 16px 32px; }
   .inv-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-  .inv-title { font-family:var(--font-heading); font-size:22px; color:var(--gold-light); font-weight:700; letter-spacing:0.02em; }
+  .inv-title { font-family:var(--font-heading); font-size:19px; color:var(--gold-light); font-weight:700; letter-spacing:0.02em; }
   .inv-scan-btn {
     padding:9px 16px; background:linear-gradient(135deg,rgba(212,175,55,0.18),rgba(212,175,55,0.06));
     border:1px solid rgba(212,175,55,0.5); color:var(--gold-light); border-radius:var(--radius-sm);
@@ -2353,7 +2353,7 @@
   <div class="inv-inner">
     <div class="inv-header">
       <div class="inv-title" data-i18n="invTitle">📦 Απόθεμα</div>
-      <button class="inv-scan-btn" id="invAddCoinBtn" onclick="openAddCoinModal()" data-i18n="invAddCoinBtn">🪙 Προσθήκη νομίσματος</button>
+      <button class="inv-scan-btn" id="invAddCoinBtn" onclick="openAddCoinModal()" data-i18n="invAddCoinBtn">🪙 Προσθήκη νομίσματος</button>
       <button class="inv-scan-btn" id="invAddMetalBtn" onclick="openMetalModal('add')" data-i18n="invAddMetalBtn" style="margin-left:6px">🧱 Προσθήκη μετάλλου</button>
       <button class="inv-scan-btn" id="invAddBulkBtn" onclick="openAddBulkSheet()" data-i18n="invAddBulk" style="margin-left:6px">⛓️ Χύδην Αλυσίδες</button>
 
@@ -3008,7 +3008,7 @@ const T = {
     invTitle:'📦 Απόθεμα',
     invScanBtn:'📷 Σάρωση QR',
     invAddBulk:'⛓️ Χύδην Αλυσίδες',
-    invAddCoinBtn:'🪙 Προσθήκη νομίσματος',
+    invAddCoinBtn:'🪙 Προσθήκη νομίσματος',
     invAddManual:'+ Χειροκίνητη Εισαγωγή',
     bulkAddTitle:'⛓️ Προσθήκη Χύδην Αλυσίδων',
     bulkSellTitle:'⚖️ Πώληση Αλυσίδας',
@@ -3378,7 +3378,7 @@ const T = {
     invTitle:'📦 Inventory',
     invScanBtn:'📷 Scan QR',
     invAddBulk:'⛓️ Bulk Chains',
-    invAddCoinBtn:'🪙 Add Coin',
+    invAddCoinBtn:'🪙 Add Coin',
     invAddManual:'+ Manual Entry',
     bulkAddTitle:'⛓️ Add Bulk Chain Batch',
     bulkSellTitle:'⚖️ Sell Chain',
@@ -12398,7 +12398,7 @@ function renderInvList() {
         ${isSold
           ? `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
           : `<button class="inv-action-btn inv-action-sell" onclick="invMarkSold('${id}')">${t('invMarkSold')}</button>
-             ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:0.9;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light)" onclick="openAddCoinModal('${item.coinKey||''}')">${lang==='el'?'🪙 Προσθήκη':'🪙 Add more'}</button>`}
+             ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:0.9;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light)" onclick="openAddCoinModal('${item.coinKey||''}')">${lang==='el'?'🪙 Προσθήκη':'🪙 Add more'}</button>`}
              ${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
         }
       </div>` : item.isBulk ? `
@@ -15057,7 +15057,7 @@ function openAddCoinModal(prefillKey) {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:22px;width:100%;max-width:410px;max-height:92vh;overflow-y:auto">
-      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">🪙 ${isEl?'Προσθήκη νομίσματος':'Add coin'}</div>
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">🪙 ${isEl?'Προσθήκη νομίσματος':'Add coin'}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${isEl?'Η αξία υπολογίζεται ζωντανά από την τιμή του μετάλλου':'Value is computed live from the metal price'}</div>
 
       <div style="display:flex;gap:8px;margin-bottom:14px">${mBtn('gold', isEl?'🥇 Χρυσός':'🥇 Gold')}${mBtn('silver', isEl?'🥈 Ασήμι':'🥈 Silver')}</div>
@@ -16462,6 +16462,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.50', date: 'Ιούλιος 2026', items: [
+        '✨ Μικρή αισθητική βελτίωση στην καρτέλα Απόθεμα: ο τίτλος «Απόθεμα» έγινε λίγο μικρότερος (δεν ακουμπάει πια στο κουμπί), και το χρυσό νόμισμα στο κουμπί «Προσθήκη νομίσματος» μπήκε αριστερά από τη λέξη — ώστε το κουμπί να είναι συμμετρικό με τα «Προσθήκη μετάλλου» και «Χύδην Αλυσίδες».'
+      ]},
       { version: 'v10.49', date: 'Ιούλιος 2026', items: [
         '🐛 Διόρθωση λανθασμένου ποσοστού στα νομίσματα: τα νομίσματα που προσθέσατε πριν εμφανιστεί η γραμμή «Αρχική τιμή» (στην πρώτη μέρα των νομισμάτων) έδειχναν ψεύτικη πτώση ~3–7% αμέσως μετά την προσθήκη — γιατί η αρχική τους τιμή είχε αποθηκευτεί μαζί με το κέρδος πώλησης (π.χ. +€30), ενώ συγκρινόταν με τη σκέτη αξία μετάλλου. Τώρα αφαιρείται σωστά το κέρδος, οπότε το ποσοστό δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού/ασημιού από τη στιγμή που τα προσθέσατε.'
       ]},
@@ -16494,9 +16497,6 @@ const ABOUT = {
       { version: 'v10.41', date: 'Ιούλιος 2026', items: [
         '🔗 Σύνδεσμος Numista πάνω στην κάρτα του νομίσματος: δίπλα στην κοινοποίηση, ένα κουμπί 🔗 ανοίγει το ακριβές νόμισμα στο Numista — δείχνετε στον πελάτη την τιμή και με ένα πάτημα το ίδιο το νόμισμα και την τρέχουσα αξία του.',
         '📈 «Αρχική τιμή» στην κάρτα του νομίσματος (όπως στα κανονικά είδη): εμφανίζεται η αρχική τιμή με ημερομηνία και ποσοστό μεταβολής. Αν βάλατε τιμή αγοράς, χρησιμοποιείται αυτή· αλλιώς η αξία του μετάλλου τη στιγμή της προσθήκης.'
-      ]},
-      { version: 'v10.40', date: 'Ιούλιος 2026', items: [
-        '🔗 Πιο ακριβής σύνδεσμος Numista: για τα νομίσματα επένδυσης (χρυσές/ασημένιες λίρες τύπου Eagle, Krugerrand, Maple Leaf, Μεξικού κ.λπ.) το 🔗 ανοίγει πλέον ΑΠΕΥΘΕΙΑΣ την ακριβή σελίδα του νομίσματος στο Numista — χωρίς κύλισμα, για να δείξετε αμέσως στον πελάτη το νόμισμα που αγοράζει. Για τα ιστορικά νομίσματα (με πολλές χρονολογίες/εκδόσεις) η αναζήτηση περιλαμβάνει τη χώρα και την ονομαστική αξία, ώστε να βρείτε εύκολα τη δική σας χρονολογία.'
       ]},
           ]
   },
@@ -16580,6 +16580,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.50', date: 'Jul 2026', items: [
+        '✨ Small cosmetic tidy-up on the Stock tab: the "Inventory" title is a touch smaller (it no longer bumps into the button), and the gold coin on the "Add Coin" button now sits to the left of the word — so the button lines up symmetrically with "Add Metal" and "Bulk Chains".'
+      ]},
       { version: 'v10.49', date: 'Jul 2026', items: [
         '🐛 Fixed a wrong percentage on coins: coins you added before the "Initial price" line existed (on the first day coins were introduced) showed a fake ~3–7% drop right after being added — because their initial price had been stored WITH the selling markup (e.g. +€30), yet it was being compared against the plain metal value. The markup is now correctly stripped out, so the percentage reflects only the real gold/silver price movement since you added them.'
       ]},
@@ -16612,9 +16615,6 @@ const ABOUT = {
       { version: 'v10.41', date: 'Jul 2026', items: [
         '🔗 Numista link on the coin card: next to Share, a 🔗 button opens the exact coin on Numista — show the customer the price and, in one tap, the actual coin and its current value.',
         '📈 "Initial price" on the coin card (like regular items): shows the starting price with its date and the % change. If you set a purchase price it uses that; otherwise it uses the metal value at the time you added the coin.'
-      ]},
-      { version: 'v10.40', date: 'Jul 2026', items: [
-        '🔗 More precise Numista link: for bullion coins (American Eagle, Krugerrand, Maple Leaf, Mexican, etc.) the 🔗 now opens the coin\'s EXACT Numista page directly — no scrolling, so you can instantly show a customer the coin they\'re buying. For historical coins (with many years/varieties) it searches by country + face value so you can find your own year.'
       ]},
           ]
   }
@@ -19499,7 +19499,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.49';
+const APP_VERSION = '10.50';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
