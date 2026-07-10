@@ -1492,6 +1492,7 @@
       <div class="field"><label data-i18n="margin">Περιθώριο Κέρδους (%)</label><input type="number" id="marginPct" placeholder="35" step="0.1" inputmode="decimal"></div>
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
+      <div class="field"><label data-i18n="myCoinsLbl">Τα νομίσματά μου</label><div class="hint" data-i18n="myCoinsHint">Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.</div><div id="customCoinsList" style="margin-top:8px"></div></div>
       <div class="field">
         <label data-i18n="weightTiers">Βάρος → Περιθώριο (έως 5 επίπεδα)</label>
         <div class="hint" style="margin-bottom:8px" data-i18n="weightTiersHint">Από βάρος (γρ.) → περιθώριο %. Αφήστε κενό για να παραλείψετε ένα επίπεδο.</div>
@@ -2791,6 +2792,8 @@ const T = {
     coinMarkupHint:'Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (η τελική τιμή ρυθμίζεται στην πώληση).',
     coinMarkupSilverLbl:'Κέρδος ασημένιου νομίσματος (€)',
     coinMarkupSilverHint:'0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.',
+    myCoinsLbl:'Τα νομίσματά μου',
+    myCoinsHint:'Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.',
     weightTiersNote:'Το τελευταίο συμπληρωμένο επίπεδο καλύπτει όλα τα μεγαλύτερα βάρη.',
     tierFrom:'Από (γρ.)', tierMargin:'Περιθώριο %',
     taxMargin:'Φόρος & Περιθώριο', vat:'ΦΠΑ (%)',
@@ -3096,6 +3099,8 @@ const T = {
     coinMarkupHint:'Suggested profit above gold value for each coin (final price is set at the sale).',
     coinMarkupSilverLbl:'Silver coin profit (€)',
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
+    myCoinsLbl:'My coins',
+    myCoinsHint:'Coins you added yourself (recognised by weight). Delete any you don\'t need.',
     weightTiersNote:'The last filled tier covers all heavier weights.',
     tierFrom:'From (g)', tierMargin:'Margin %',
     taxMargin:'Tax & Margin', vat:'VAT (%)',
@@ -3244,6 +3249,8 @@ const T = {
     coinMarkupHint:'Suggested profit above gold value for each coin (final price is set at the sale).',
     coinMarkupSilverLbl:'Silver coin profit (€)',
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
+    myCoinsLbl:'My coins',
+    myCoinsHint:'Coins you added yourself (recognised by weight). Delete any you don\'t need.',
     weightTiersNote:'The last filled tier covers all heavier weights.',
     tierFrom:'From (g)', tierMargin:'Margin %',
     heavyWeightThreshold:'Weight threshold (g)',
@@ -3537,7 +3544,7 @@ function defaultState() {
       { name: 'Custom / Bespoke', rate: 14.0 }
     ]}],
     vat: 24, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
-    coinMarkup: 30, coinMarkupSilver: 0
+    coinMarkup: 30, coinMarkupSilver: 0, customCoins: []
   };
 }
 
@@ -3574,7 +3581,8 @@ function cloudConfig() {
   return { vendors: state.vendors, vat: state.vat, margin: state.margin,
            currency: state.currency, manualGold: state.manualGold, manualSilver: state.manualSilver,
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
-           telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver };
+           telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
+           customCoins: state.customCoins || [] };
 }
 
 async function pushToCloud() {
@@ -3609,6 +3617,7 @@ function applyCloudConfig(cfg) {
   if (cfg.dateLocale) state.dateLocale = cfg.dateLocale;
   if (cfg.coinMarkup !== undefined) state.coinMarkup = cfg.coinMarkup;
   if (cfg.coinMarkupSilver !== undefined) state.coinMarkupSilver = cfg.coinMarkupSilver;
+  if (cfg.customCoins !== undefined) state.customCoins = cfg.customCoins;
   // Sync owner PIN so employees are prompted when switching to Owner
   if (cfg.ownerPin) localStorage.setItem('jpro_owner_pin', cfg.ownerPin);
   if (cfg.telegramToken) {
@@ -9739,6 +9748,7 @@ function loadSettingsForm() {
   document.getElementById('marginPct').value = state.margin || '';
   { const _cm = document.getElementById('coinMarkupInput'); if (_cm) _cm.value = (state.coinMarkup != null && state.coinMarkup !== '') ? state.coinMarkup : ''; }
   { const _cms = document.getElementById('coinMarkupSilverInput'); if (_cms) _cms.value = (state.coinMarkupSilver != null && state.coinMarkupSilver !== '') ? state.coinMarkupSilver : ''; }
+  renderCustomCoinsManager();
   // Populate weight tier rows
   const tierInputRows = document.querySelectorAll('.tier-row');
   const tiers = state.weightTiers || [];
@@ -10328,15 +10338,23 @@ const COIN_CATALOG = [
   { key:'ag_eagle_1oz',     metal:'silver', el:'Αμερικής Silver Eagle 1 oz',     en:'American Silver Eagle 1 oz',    gross:31.1035, fineness:0.999,  pure:31.0724 },
 ];
 
-function coinCatalogEntry(key) { return COIN_CATALOG.find(c => c.key === key) || null; }
-function coinCatalogByMetal(metal) { return COIN_CATALOG.filter(c => c.metal === metal); }
+// Owner-saved coins (the "My coins" personal catalogue) — persisted in state and
+// cloud-synced. Each has a single `name` (not bilingual) + `metal/gross/fineness/pure`
+// and a stable `user_…` key, so a coin the owner enters once is recognised by weight,
+// live-valued and grouped forever after. Merged with the built-in COIN_CATALOG.
+function customCoins() { return Array.isArray(state.customCoins) ? state.customCoins : []; }
+function allCoins() { return COIN_CATALOG.concat(customCoins()); }
+function coinCatalogEntry(key) { return allCoins().find(c => c.key === key) || null; }
+function coinCatalogByMetal(metal) { return allCoins().filter(c => c.metal === metal); }
+// Bilingual built-in entries have el/en; owner-saved entries have a single `name`.
+function coinEntryLabel(e) { return e.name || (lang === 'el' ? e.el : e.en); }
 
 // Display name for a coin item: custom coins store their own name; catalog coins
-// resolve bilingually from the catalog by key.
+// resolve from the catalog by key (bilingual built-in, or the saved custom name).
 function coinItemLabel(item) {
   if (item.coinName) return item.coinName;
   const e = coinCatalogEntry(item.coinKey);
-  if (e) return lang === 'el' ? e.el : e.en;
+  if (e) return coinEntryLabel(e);
   return item.metal === 'silver'
     ? (lang === 'el' ? 'Ασημένιο νόμισμα' : 'Silver coin')
     : (lang === 'el' ? 'Χρυσό νόμισμα' : 'Gold coin');
@@ -14667,8 +14685,15 @@ function invRestock(id) {
 // coins of a type share one GC#### ref code; the sale marks the sold piece by record id.
 function coinNumistaUrl(entry) {
   const host = lang === 'el' ? 'el' : 'en';
-  const name = (entry.numista || entry.en).replace(/\([^)]*\)/g, ' ').replace(/[½¼⅒]/g, ' ').replace(/\s+/g, ' ').trim();
+  const name = (entry.numista || entry.en || entry.name || '').replace(/\([^)]*\)/g, ' ').replace(/[½¼⅒]/g, ' ').replace(/\s+/g, ' ').trim();
   return `https://${host}.numista.com/catalogue/index.php?ct=coin&r=${encodeURIComponent(name)}`;
+}
+
+// Numista search seeded by a weighed value + metal, to help identify an unknown coin.
+function coinNumistaWeightUrl(weight, metal) {
+  const host = lang === 'el' ? 'el' : 'en';
+  const metalWord = metal === 'silver' ? 'silver' : 'gold';
+  return `https://${host}.numista.com/catalogue/index.php?ct=coin&r=${encodeURIComponent(metalWord + ' ' + weight + 'g')}`;
 }
 
 function openAddCoinModal(prefillKey) {
@@ -14680,7 +14705,7 @@ function openAddCoinModal(prefillKey) {
   window._addCoinMetal = initMetal;
   window._addCoinAdded = 0;
   const optsFor = (metal) => coinCatalogByMetal(metal).map(c =>
-    `<option value="${c.key}"${c.key === prefillKey ? ' selected' : ''}>${isEl ? c.el : c.en} — ${c.pure.toFixed(2)}g</option>`
+    `<option value="${c.key}"${c.key === prefillKey ? ' selected' : ''}>${coinEntryLabel(c)}${c.custom?' ★':''} — ${c.pure.toFixed(2)}g</option>`
   ).join('') + `<option value="custom">${isEl?'✏️ Άλλο (προσαρμογή)…':'✏️ Custom…'}</option>`;
   const mBtn = (m, label) => `<button id="addCoinMetal_${m}" onclick="_addCoinSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
   const overlay = document.createElement('div');
@@ -14730,6 +14755,11 @@ function openAddCoinModal(prefillKey) {
             <input id="addCoinCustFine" type="number" step="1" min="0" max="1000" inputmode="decimal" oninput="_addCoinUpdatePreview()" placeholder="${initMetal==='silver'?'800':'916'}" style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--dark-2);border:1px solid rgba(212,175,55,0.25);border-radius:7px;color:var(--text);font-family:var(--font-mono);font-size:14px">
           </div>
         </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:8px">🔎 ${isEl?'Δεν ξέρετε την καθαρότητα; Δοκιμάστε τον έλεγχο μετάλλου ή ψάξτε στο':'Do not know the fineness? Use your metal tester or search'} <a id="addCoinNumistaFind" href="#" target="_blank" rel="noopener noreferrer" style="color:#80b4ff;text-decoration:underline">Numista 🔗</a></div>
+        <label style="display:flex;align-items:center;gap:9px;margin-top:10px;cursor:pointer;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:9px 11px">
+          <input type="checkbox" id="addCoinSaveCat" checked style="width:17px;height:17px;accent-color:var(--gold);flex-shrink:0">
+          <span style="font-size:12px;color:var(--text)">💾 ${isEl?'Αποθήκευση στα «Νομίσματά μου» (να αναγνωρίζεται από βάρος την επόμενη φορά)':'Save to "My coins" (recognise it by weight next time)'}</span>
+        </label>
       </div>
 
       <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -14769,7 +14799,7 @@ function _addCoinSetMetal(metal) {
   const sel = document.getElementById('addCoinSelect');
   const isEl = lang === 'el';
   if (sel) sel.innerHTML = coinCatalogByMetal(metal).map(c =>
-    `<option value="${c.key}">${isEl ? c.el : c.en} — ${c.pure.toFixed(2)}g</option>`
+    `<option value="${c.key}">${coinEntryLabel(c)}${c.custom?' ★':''} — ${c.pure.toFixed(2)}g</option>`
   ).join('') + `<option value="custom">${isEl?'✏️ Άλλο (προσαρμογή)…':'✏️ Custom…'}</option>`;
   const fine = document.getElementById('addCoinCustFine'); if (fine) fine.placeholder = metal === 'silver' ? '800' : '916';
   _addCoinIdentify();
@@ -14789,23 +14819,44 @@ function _addCoinIdentify() {
   const matches = coinCatalogByMetal(metal)
     .filter(e => Math.abs(e.gross - w) <= tol)
     .sort((a, b) => Math.abs(a.gross - w) - Math.abs(b.gross - w));
-  if (!matches.length) {
-    box.innerHTML = `<div style="font-size:12px;color:#e0a05a;padding:6px 2px">${isEl?'Καμία αντιστοιχία — αυξήστε την ανοχή ή χρησιμοποιήστε «Άλλο».':'No match — widen the tolerance or use Custom.'}</div>`;
-    return;
-  }
+  // A prominent "add this as a new coin" path — pre-fills the weighed value into the
+  // Custom form + a Numista search seeded by weight+metal. Shown when nothing matches,
+  // and also appended below matches (the right coin may still not be in the list).
+  const newCoinBlock = `<div style="margin-top:${matches.length?'8px':'2px'};padding:9px 10px;background:rgba(201,168,76,0.07);border:1px dashed rgba(201,168,76,0.4);border-radius:8px">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:7px">${matches.length?(isEl?'Δεν είναι κανένα από αυτά;':'None of these?'):(isEl?'Καμία αντιστοιχία στον κατάλογο.':'No catalogue match.')}</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="_addCoinStartNew(${isNaN(w)?0:w})" style="flex:1;background:rgba(212,175,55,0.16);border:1px solid rgba(212,175,55,0.45);color:var(--gold-light);border-radius:7px;padding:9px;font-size:12px;font-weight:700;cursor:pointer">➕ ${isEl?'Νέο νόμισμα':'Add new coin'}</button>
+        <a href="${coinNumistaWeightUrl(w, metal)}" target="_blank" rel="noopener noreferrer" style="flex:0 0 auto;text-decoration:none;background:rgba(100,160,255,0.12);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:600">🔍 Numista</a>
+      </div>
+    </div>`;
+  if (!matches.length) { box.innerHTML = newCoinBlock; return; }
   const metalWord = metal === 'silver' ? (isEl?'άργυρος':'silver') : (isEl?'χρυσός':'gold');
   const rows = matches.map(e => {
     const live = coinMeltValue({ metal, coinPure: e.pure });
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--dark-2);border:1px solid rgba(212,175,55,0.18);border-radius:8px;margin-bottom:6px">
       <div onclick="_addCoinPick('${e.key}')" style="flex:1;min-width:0;cursor:pointer">
-        <div style="font-size:13px;color:var(--text);font-weight:600">${isEl?e.el:e.en}</div>
+        <div style="font-size:13px;color:var(--text);font-weight:600">${coinEntryLabel(e)}${e.custom?' ★':''}</div>
         <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${e.gross.toFixed(2)}g · ${e.pure.toFixed(2)}g ${metalWord} · ${Math.round(e.fineness*1000)}‰${live!=null?' · '+cur+live.toFixed(2):''}</div>
       </div>
       <a href="${coinNumistaUrl(e)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Numista" style="flex-shrink:0;text-decoration:none;background:rgba(100,160,255,0.12);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;border-radius:7px;padding:6px 8px;font-size:13px">🔗</a>
       <button onclick="_addCoinPick('${e.key}')" style="flex-shrink:0;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:7px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer">${isEl?'Επιλογή':'Pick'}</button>
     </div>`;
   }).join('');
-  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin:2px 0 7px">${matches.length} ${isEl?'πιθανά':'possible'}${matches.length>1?(isEl?' — επιβεβαιώστε με Numista 🔗':' — confirm with Numista 🔗'):''}</div>` + rows;
+  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin:2px 0 7px">${matches.length} ${isEl?'πιθανά':'possible'}${matches.length>1?(isEl?' — επιβεβαιώστε με Numista 🔗':' — confirm with Numista 🔗'):''}</div>` + rows + newCoinBlock;
+}
+
+// Start entering a brand-new coin: switch to the Custom form with the weighed gross
+// weight pre-filled, and focus the name so the owner only adds name + fineness.
+function _addCoinStartNew(weight) {
+  const sel = document.getElementById('addCoinSelect');
+  if (sel) sel.value = 'custom';
+  _addCoinOnChange();
+  const g = document.getElementById('addCoinCustGross');
+  if (g && weight > 0) g.value = weight;
+  const save = document.getElementById('addCoinSaveCat'); if (save) save.checked = true;
+  _addCoinUpdatePreview();
+  const nameEl = document.getElementById('addCoinCustName');
+  if (nameEl) { document.getElementById('addCoinCustomWrap')?.scrollIntoView({ block: 'nearest' }); setTimeout(() => { try { nameEl.focus(); } catch(e) {} }, 60); }
 }
 
 // Select a matched/identified coin into the dropdown.
@@ -14828,7 +14879,9 @@ function _addCoinCurrentSpec() {
     return { coinKey: 'custom', metal, coinName: name, gross, fineness: fine, pure: gross * fine };
   }
   const e = coinCatalogEntry(sel);
-  return e ? { coinKey: e.key, metal: e.metal, coinName: '', gross: e.gross, fineness: e.fineness, pure: e.pure } : null;
+  // Built-in entries resolve their label by key (coinName ''); owner-saved custom
+  // entries carry a single name — store it on the item so it's self-describing.
+  return e ? { coinKey: e.key, metal: e.metal, coinName: e.name || '', gross: e.gross, fineness: e.fineness, pure: e.pure } : null;
 }
 
 function _addCoinOnChange() {
@@ -14842,6 +14895,10 @@ function _addCoinUpdatePreview() {
   const box = document.getElementById('addCoinPreview'); if (!box) return;
   const isEl = lang === 'el';
   const cur = state.currency || '€';
+  // Keep the custom-form Numista link seeded by the current gross weight + metal
+  { const _nf = document.getElementById('addCoinNumistaFind');
+    if (_nf) { const _gw = parseFloat(document.getElementById('addCoinCustGross')?.value) || 0;
+      _nf.href = coinNumistaWeightUrl(_gw > 0 ? _gw : '', window._addCoinMetal || 'gold'); } }
   const spec = _addCoinCurrentSpec();
   const qty = Math.max(1, parseInt(document.getElementById('addCoinQty')?.value) || 1);
   if (!spec || !(spec.pure > 0)) {
@@ -14876,8 +14933,27 @@ async function _addCoinConfirm() {
   const hasPurchase = !isNaN(purchaseCost) && purchaseCost > 0;
   const btn = document.getElementById('addCoinAddBtn');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  // A brand-new Custom coin can be saved to the personal catalogue ("My coins") so it's
+  // recognised by weight and live-valued forever after. De-dupes against a near-identical
+  // saved coin (same metal, ~same gross & fineness). After this, coinKey/coinName point at
+  // the saved entry (a stable user_… key) so future adds group with it.
+  let coinKey = spec.coinKey, coinName = spec.coinName;
+  if (spec.coinKey === 'custom' && document.getElementById('addCoinSaveCat')?.checked) {
+    let entry = customCoins().find(c => c.metal === spec.metal &&
+      Math.abs(c.gross - spec.gross) < 0.05 && Math.abs(c.fineness - spec.fineness) < 0.005);
+    if (!entry) {
+      entry = { key: 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        metal: spec.metal, name: spec.coinName, gross: spec.gross, fineness: spec.fineness, pure: spec.pure, custom: true };
+      const list = customCoins(); list.push(entry); state.customCoins = list; saveState();
+      try { await pushToCloud(); } catch(e) {}
+    }
+    coinKey = entry.key; coinName = entry.name;
+  }
+  const isSavedOrCustom = coinKey === 'custom' || coinKey.indexOf('user_') === 0;
+
   // All coins of one type share a deterministic group + ref code (interchangeable bullion).
-  const gid = 'coin_' + (spec.coinKey === 'custom' ? (spec.metal + '_c_' + Math.round(spec.pure * 1000)) : spec.coinKey);
+  const gid = 'coin_' + (coinKey === 'custom' ? (spec.metal + '_c_' + Math.round(spec.pure * 1000)) : coinKey);
   let seqId = null;
   const existing = Object.values(_inventoryCache || {}).find(it => it.isCoin && it.groupId === gid && it.seqId);
   if (existing) seqId = existing.seqId;
@@ -14892,7 +14968,7 @@ async function _addCoinConfirm() {
     const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const item = {
       jewelryType: 'coin', isCoin: true, metal: spec.metal, karat,
-      coinKey: spec.coinKey, coinName: spec.coinKey === 'custom' ? spec.coinName : '',
+      coinKey, coinName: isSavedOrCustom ? coinName : '',
       coinGross: spec.gross, coinFineness: spec.fineness, coinPure: spec.pure,
       weight: spec.gross, groupId: gid,
       seqId, refType: 'coin', qrCode: refCode, code: refCode,
@@ -14913,6 +14989,41 @@ async function _addCoinConfirm() {
   const qEl = document.getElementById('addCoinQty'); if (qEl) qEl.value = '1';
   const pEl = document.getElementById('addCoinPurchase'); if (pEl) pEl.value = '';
   _addCoinUpdatePreview();
+}
+
+// Settings → "My coins" manager: list the owner's saved coins with a delete each.
+function renderCustomCoinsManager() {
+  const box = document.getElementById('customCoinsList'); if (!box) return;
+  const isEl = lang === 'el';
+  const list = customCoins();
+  if (!list.length) {
+    box.innerHTML = `<div style="font-size:12px;color:var(--text-dim)">${isEl?'Δεν έχετε αποθηκεύσει νομίσματα ακόμη.':'No saved coins yet.'}</div>`;
+    return;
+  }
+  box.innerHTML = list.map((c, i) => {
+    const mWord = c.metal === 'silver' ? (isEl?'άργυρος':'silver') : (isEl?'χρυσός':'gold');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--dark-3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--text)">${c.name || '—'}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${(+c.gross).toFixed(2)}g · ${(+c.pure).toFixed(2)}g ${mWord} · ${Math.round(c.fineness*1000)}‰</div>
+      </div>
+      <button onclick="deleteCustomCoin(${i})" style="flex-shrink:0;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.35);color:#e57373;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteCustomCoin(idx) {
+  const list = customCoins();
+  const c = list[idx]; if (!c) return;
+  showConfirm(
+    (lang==='el'?'Διαγραφή νομίσματος από τα «Νομίσματά μου»; ':'Remove this coin from "My coins"? ') + (c.name || ''),
+    async () => {
+      list.splice(idx, 1); state.customCoins = list; saveState();
+      try { await pushToCloud(); } catch(e) {}
+      renderCustomCoinsManager();
+      showToast(lang==='el'?'🗑 Διαγράφηκε':'🗑 Removed');
+    }, null, { danger: true }
+  );
 }
 
 function _addCoinDone() {
@@ -15724,7 +15835,8 @@ const ABOUT = {
         '📈 Ζωντανή αξία: κάθε νόμισμα δείχνει την τρέχουσα αξία μετάλλου εκείνη τη στιγμή. Στα χρυσά προτείνεται τιμή πώλησης (αξία + κέρδος, προεπιλογή €30). Στα ασημένια το κέρδος είναι €0 — δείχνει μόνο την αξία αργύρου (ιδανικό για νομίσματα που κρατάτε/λιώνετε). Και τα δύο κέρδη ρυθμίζονται στις Ρυθμίσεις.',
         '💶 Τιμή αγοράς (προαιρετικό): όταν αγοράζετε ένα νόμισμα, καταχωρείτε πόσο πληρώσατε — το κέρδος στην πώληση υπολογίζεται σωστά (τιμή πώλησης − τιμή αγοράς) και η κάρτα δείχνει «Αγοράστηκε: €Χ» ώστε να μην πουλήσετε κάτω από το κόστος.',
         '🧮 Τα νομίσματα μετρούν στα σύνολα του αποθέματος (Αξία Λιανική + Καθαρός χρυσός/άργυρος) με το ακριβές περιεχόμενο μετάλλου. Στην πώληση χρυσού νομίσματος τα ΜΕΤΡΗΤΑ είναι προεπιλεγμένα. Τα νομίσματα ΔΕΝ εμφανίζονται ποτέ στη δημόσια βιτρίνα.',
-        '📊 Η ομαδοποιημένη κάρτα δείχνει και το ΣΥΝΟΛΟ (N× αξία · N× τιμή πώλησης) και ποσοστό υπεραξίας — με βάση την τιμή αγοράς αν υπάρχει, αλλιώς την αξία κατά την προσθήκη (όπως στα κανονικά είδη). Ο τύπος «Νόμισμα» εμφανίζεται και στο φίλτρο ανά τύπο.'
+        '📊 Η ομαδοποιημένη κάρτα δείχνει και το ΣΥΝΟΛΟ (N× αξία · N× τιμή πώλησης) και ποσοστό υπεραξίας — με βάση την τιμή αγοράς αν υπάρχει, αλλιώς την αξία κατά την προσθήκη (όπως στα κανονικά είδη). Ο τύπος «Νόμισμα» εμφανίζεται και στο φίλτρο ανά τύπο.',
+        '➕ «Τα νομίσματά μου»: αν κάποιος φέρει νόμισμα εκτός λίστας, ζυγίζετε → «Νέο νόμισμα» (το βάρος μπαίνει αυτόματα), βάζετε ονομασία + καθαρότητα (από τον έλεγχο μετάλλου ή τον σύνδεσμο Numista) και με ένα τικ αποθηκεύεται. Από κει και πέρα αναγνωρίζεται από το βάρος, παίρνει ζωντανές τιμές και ομαδοποιείται όπως τα υπόλοιπα. Διαχείριση στις Ρυθμίσεις → «Τα νομίσματά μου».'
       ]},
       { version: 'v10.38', date: 'Ιούλιος 2026', items: [
         '🎛️ Καθαρότερη μπάρα επιλογής: σε λειτουργία «Επιλογή», η μπάρα ενεργειών αναδιατάχθηκε — πάνω ο αριθμός επιλεγμένων με «Όλα» και «✕», και από κάτω τρία μεγάλα κουμπιά που πατιούνται εύκολα: Κοινοποίηση, Ομάδα, Πώληση.',
@@ -15843,7 +15955,8 @@ const ABOUT = {
         '📈 Live value: each coin shows its current metal value right now. Gold coins also suggest a selling price (value + profit, default €30). Silver coins use €0 profit — they just show the silver value (ideal for coins you hold/melt). Both profits are editable in Settings.',
         '💶 Purchase price (optional): when you buy a coin, record what you paid — profit at the sale is then your price − what you paid, and the card shows "Bought: €X" so you never sell below cost.',
         '🧮 Coins count toward the inventory totals (Total Retail + Pure gold/silver) using each coin\'s exact metal content. Selling a gold coin defaults to CASH. Coins are NEVER shown on the public showroom.',
-        '📊 The grouped card shows the TOTAL (N× value · N× selling price) plus a price-increase % — based on your purchase price if recorded, else the value when added (like regular items). The "Coin" type also appears in the type filter.'
+        '📊 The grouped card shows the TOTAL (N× value · N× selling price) plus a price-increase % — based on your purchase price if recorded, else the value when added (like regular items). The "Coin" type also appears in the type filter.',
+        '➕ "My coins": if someone brings a coin that isn\'t listed, weigh it → "Add new coin" (the weight is pre-filled), enter a name + fineness (from your metal tester or the Numista link) and tick save. From then on it\'s recognised by weight, live-valued and grouped like the rest. Manage them in Settings → "My coins".'
       ]},
       { version: 'v10.38', date: 'Jul 2026', items: [
         '🎛️ Cleaner selection bar: in "Select" mode the action bar was rearranged — the selected count with "All" and "✕" on top, and three big, easy-to-tap buttons below: Share, Group, Sell.',
