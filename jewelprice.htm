@@ -5572,18 +5572,29 @@ async function deleteSaleRecord(id) {
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
   await pushSalesToCloud(filtered);
-  // Restore inventory item to In Stock if this sale was linked to one
-  if (target && target.invQr) {
+  // Restore inventory item to In Stock if this sale was linked to one. Prefer the EXACT
+  // record id (invId, stored on newer sales) so a group of identical same-QR pieces — or a
+  // coin batch — restores the piece that was actually sold, not a still-in-stock twin. Older
+  // sales carry only the QR: fall back to it, but restrict to a currently-SOLD match so the
+  // in-stock count still rises by one (matching any in-stock twin would be a silent no-op).
+  if (target && (target.invId || target.invQr)) {
     try {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
       }
-      const qrNorm = target.invQr.trim().toUpperCase();
-      const invEntry = Object.entries(_inventoryCache).find(([,it]) =>
-        it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm
-      );
-      if (invEntry) {
-        const [invId, invItem] = invEntry;
+      let invId = null, invItem = null;
+      if (target.invId && _inventoryCache[target.invId]) {
+        invId = target.invId; invItem = _inventoryCache[target.invId];
+      } else if (target.invQr) {
+        const qrNorm = target.invQr.trim().toUpperCase();
+        const invEntry =
+          Object.entries(_inventoryCache).find(([,it]) =>
+            it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm && it.status === 'sold') ||
+          Object.entries(_inventoryCache).find(([,it]) =>
+            it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm);
+        if (invEntry) { invId = invEntry[0]; invItem = invEntry[1]; }
+      }
+      if (invItem && !invItem.isBulk) {
         invItem.status = 'in_stock';
         delete invItem.dateSold;
         _inventoryCache[invId] = invItem;
@@ -6287,6 +6298,7 @@ async function confirmSale() {
     _firstBulkInfo = { invId: lastCalcResult.bulkInvId, soldWeight: parseFloat(lastCalcResult.bulkSoldWeight) || 0, cost: (lastCalcResult.baseCost != null ? parseFloat(lastCalcResult.baseCost) : null) };
   }
   const _firstFromInv = !!window._saleFromInvId; // captured before the mark-sold block clears it
+  const _firstInvId = window._saleFromInvId || null; // exact record id of the (first) sold piece
   const note = document.getElementById('saleNoteInput').value.trim();
   const date = document.getElementById('saleDateInput').value || todayStr();
   const saleCustomer = document.getElementById('saleCustomerName').value.trim();
@@ -6333,12 +6345,23 @@ async function confirmSale() {
   // Bulk chain: always use the sold-portion cost (never the whole-batch cost derived above)
   if (_firstBulkInfo) _saleCost = _firstBulkInfo.cost;
   const _firstSaleRec = await addSaleRecord(_effectiveAmt, note, date, saleVendor, bonusAmt, _currentUserBonus, invQr, saleCustomer, saleEmail, _saleCost, _isCashSale, _saleImgUrl, _saleImgName, _saleSeqRef);
-  if (_firstBulkInfo && _firstSaleRec) {
-    // Link the sale to the batch + sold weight so deleting it returns the grams to stock
-    _firstSaleRec.bulkInvId = _firstBulkInfo.invId;
-    _firstSaleRec.bulkSoldWeight = _firstBulkInfo.soldWeight;
-    const _bi = (_salesCache || []).findIndex(s => s.id === _firstSaleRec.id);
-    if (_bi !== -1) { _salesCache[_bi] = _firstSaleRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
+  if (_firstSaleRec) {
+    let _linkChanged = false;
+    if (_firstBulkInfo) {
+      // Link the sale to the batch + sold weight so deleting it returns the grams to stock
+      _firstSaleRec.bulkInvId = _firstBulkInfo.invId;
+      _firstSaleRec.bulkSoldWeight = _firstBulkInfo.soldWeight;
+      _linkChanged = true;
+    } else if (_firstInvId) {
+      // Link the sale to the EXACT inventory record sold, so deleting the sale restores THAT
+      // specific piece — not a still-in-stock same-QR twin in a similar-items group / coin batch.
+      _firstSaleRec.invId = _firstInvId;
+      _linkChanged = true;
+    }
+    if (_linkChanged) {
+      const _bi = (_salesCache || []).findIndex(s => s.id === _firstSaleRec.id);
+      if (_bi !== -1) { _salesCache[_bi] = _firstSaleRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
+    }
   }
   if (_saleGroupId && _firstSaleRec) _groupRecs.push(_firstSaleRec);
   if (saleCustomer) autoSaveClientFromQuote(saleCustomer, saleEmail);
@@ -6467,7 +6490,10 @@ async function confirmSale() {
           ? parseFloat(item.purchaseCost)
           : (_restCalc && _restCalc.baseCost ? _restCalc.baseCost : null);
         const _stdRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef);
-        if (_stdRec) _groupRecs.push(_stdRec);
+        // Link to the exact record so a later delete restores THIS piece (identical same-QR
+        // group members are otherwise indistinguishable by QR alone). Persisted by the
+        // shared-saleGroup push below (_stdRec lives in _salesCache).
+        if (_stdRec) { _stdRec.invId = id; _groupRecs.push(_stdRec); }
       } catch(e) { console.warn('Multi-sale item error:', e); }
     }
     // Stamp every record of this transaction with the shared saleGroup id, then persist once
@@ -16626,6 +16652,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.59', date: 'Ιούλιος 2026', items: [
+        '↩️ Σωστή επαναφορά όταν διαγράφετε πώληση όμοιου/πανομοιότυπου κομματιού: αν είχατε π.χ. ομάδα με 5 ίδια κομμάτια (ή νομίσματα με τον ίδιο κωδικό), πουλούσατε ένα και μετά ο πελάτης το επέστρεφε, η διαγραφή της πώλησης μπορούσε να ΜΗΝ ξαναβάλει το κομμάτι στο απόθεμα (η ομάδα έμενε στα 4 αντί να γυρίσει στα 5), γιατί όλα τα ίδια κομμάτια έχουν τον ίδιο κωδικό QR. Τώρα κάθε πώληση θυμάται το ΑΚΡΙΒΕΣ κομμάτι που πουλήθηκε, οπότε η διαγραφή το επαναφέρει σωστά και η ομάδα ξαναγίνεται 5. (Ισχύει και για τις παλιές πωλήσεις — η επαναφορά ψάχνει πλέον πουλημένο κομμάτι.)'
+      ]},
       { version: 'v10.58', date: 'Ιούλιος 2026', items: [
         '📈 Ποσοστό μεταβολής και στις κάρτες ομάδας: κάτω από την τιμή μιας ομάδας όμοιων ειδών (π.χ. σκουλαρίκια, βραχιόλια) εμφανίζεται πλέον η «Αρχική αξία ομάδας» με το ποσοστό αύξησης/μείωσης — όπως στα μεμονωμένα κομμάτια. Ο υπολογισμός γίνεται μόνο πάνω στα κομμάτια που υπάρχουν αυτή τη στιγμή στην ομάδα: αν πουλήσετε ένα, το σύνολο μικραίνει αλλά το ποσοστό ΔΕΝ το μετράει ως πτώση τιμής — αφαιρείται μαζί και η αρχική του αξία, οπότε το ποσοστό δείχνει μόνο την πραγματική κίνηση της τιμής του χρυσού/ασημιού.'
       ]},
@@ -16659,9 +16688,6 @@ const ABOUT = {
       ]},
       { version: 'v10.50', date: 'Ιούλιος 2026', items: [
         '✨ Μικρή αισθητική βελτίωση στην καρτέλα Απόθεμα: ο τίτλος «Απόθεμα» έγινε λίγο μικρότερος (δεν ακουμπάει πια στο κουμπί), και το χρυσό νόμισμα στο κουμπί «Προσθήκη νομίσματος» μπήκε αριστερά από τη λέξη — ώστε το κουμπί να είναι συμμετρικό με τα «Προσθήκη μετάλλου» και «Χύδην Αλυσίδες».'
-      ]},
-      { version: 'v10.49', date: 'Ιούλιος 2026', items: [
-        '🐛 Διόρθωση λανθασμένου ποσοστού στα νομίσματα: τα νομίσματα που προσθέσατε πριν εμφανιστεί η γραμμή «Αρχική τιμή» (στην πρώτη μέρα των νομισμάτων) έδειχναν ψεύτικη πτώση ~3–7% αμέσως μετά την προσθήκη — γιατί η αρχική τους τιμή είχε αποθηκευτεί μαζί με το κέρδος πώλησης (π.χ. +€30), ενώ συγκρινόταν με τη σκέτη αξία μετάλλου. Τώρα αφαιρείται σωστά το κέρδος, οπότε το ποσοστό δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού/ασημιού από τη στιγμή που τα προσθέσατε.'
       ]},
           ]
   },
@@ -16745,6 +16771,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.59', date: 'Jul 2026', items: [
+        '↩️ Correct restore when deleting the sale of an identical/grouped piece: if you had e.g. a group of 5 identical pieces (or coins sharing one code), sold one, and then the customer returned it, deleting the sale could FAIL to put the piece back in stock (the group stayed at 4 instead of returning to 5) — because all identical pieces share the same QR code. Now every sale remembers the EXACT piece that was sold, so deleting it restores that piece correctly and the group goes back to 5. (Also improved for older sales — the restore now looks for a sold piece.)'
+      ]},
       { version: 'v10.58', date: 'Jul 2026', items: [
         '📈 Percentage change on group cards: under the price of a similar-items group (e.g. earrings, bracelets) there is now a "Group initial value" line with the rise/drop percentage — just like on individual pieces. It is calculated only over the pieces currently in the group: if you sell one, the total shrinks but the percentage does NOT read it as a price drop — that piece\'s original value is removed too, so the percentage reflects only real gold/silver price movement.'
       ]},
@@ -16778,9 +16807,6 @@ const ABOUT = {
       ]},
       { version: 'v10.50', date: 'Jul 2026', items: [
         '✨ Small cosmetic tidy-up on the Stock tab: the "Inventory" title is a touch smaller (it no longer bumps into the button), and the gold coin on the "Add Coin" button now sits to the left of the word — so the button lines up symmetrically with "Add Metal" and "Bulk Chains".'
-      ]},
-      { version: 'v10.49', date: 'Jul 2026', items: [
-        '🐛 Fixed a wrong percentage on coins: coins you added before the "Initial price" line existed (on the first day coins were introduced) showed a fake ~3–7% drop right after being added — because their initial price had been stored WITH the selling markup (e.g. +€30), yet it was being compared against the plain metal value. The markup is now correctly stripped out, so the percentage reflects only the real gold/silver price movement since you added them.'
       ]},
           ]
   }
@@ -19665,7 +19691,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.58';
+const APP_VERSION = '10.59';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
