@@ -895,7 +895,33 @@
   /* ── INVENTORY PANEL ─────────────────────────────────────── */
   #panel-inventory.panel { padding:0; position:fixed; top:var(--header-h,90px); left:0; right:0; bottom:60px; max-width:480px; margin:0 auto; overflow-y:auto; overflow-x:hidden; z-index:100; background:var(--dark); display:none; }
   #panel-inventory.panel.active { display:block; }
-  @media (min-width:480px) { #panel-inventory.panel { left:50%; transform:translateX(-50%); width:480px; right:auto; } }
+  /* NOTE: the inventory panel is centred with the base rule's `left:0;right:0;margin:0 auto`.
+     It must NOT use `transform` for centring — a transform makes the panel the containing
+     block for its position:fixed children (scroll-top button, notification bell, share bar),
+     which then scroll away with the content instead of staying put (broke on desktop). */
+  /* Floating controls over the inventory column: below 480px the column == viewport
+     (their inline right:16px is correct); at >=480px anchor them to the centred column's
+     right-inside edge (240px half-col - 42px button - 16px inset = 182px). */
+  @media (min-width:480px) {
+    #invScrollTopBtn, #invNotifBtn { right:auto !important; left:50%; margin-left:182px; }
+  }
+  /* ── DESKTOP LAYOUT (>=1000px): wider 960px frame + two-column stock ─────── */
+  @media (min-width:1000px) {
+    .app { max-width:960px; }
+    /* Override each element's base max-width:480 (a plain width: is otherwise capped by it) */
+    .bottom-nav { max-width:960px; width:960px; }
+    #panel-inventory.panel { max-width:960px; }
+    #panel-sales.panel { max-width:960px; width:960px; }
+    /* Form/list panels stay comfortably readable, centred inside the wide frame */
+    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about { max-width:560px; margin-left:auto; margin-right:auto; }
+    .sales-panel-inner { max-width:560px; margin-left:auto; margin-right:auto; }
+    .customer-price-bar { max-width:560px; width:560px; }
+    #cartPanel { max-width:560px !important; }
+    /* Browse stock two-up; vertical spacing keeps each card's own margin-bottom */
+    #invList { display:grid; grid-template-columns:1fr 1fr; column-gap:12px; align-items:start; }
+    /* Anchor the floating controls to the wider column (480 half-col - 42 - 16 = 422) */
+    #invScrollTopBtn, #invNotifBtn { margin-left:422px; }
+  }
   .inv-inner { padding:16px 16px 32px; }
   .inv-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .inv-title { font-family:var(--font-heading); font-size:19px; color:var(--gold-light); font-weight:700; letter-spacing:0.02em; }
@@ -11427,6 +11453,10 @@ function openInvFilterSheet() {
   // If any pieces have no type set, offer a "No type" bucket so they can be found/fixed
   // (a type filter otherwise can't match them, since they belong to no type).
   if (items.some(i => !i.jewelryType)) types.push('__notype__');
+  // Employees don't handle bullion coins or raw/scrap metal — hide those type filters from them.
+  if (creds.role === 'employee') {
+    for (const k of ['coin', 'metal']) { const _i = types.indexOf(k); if (_i >= 0) types.splice(_i, 1); }
+  }
   const vendors = [...new Set(items.map(i => i.vendorName).filter(Boolean))].sort();
   // Extract unique stone types from stonesDesc fields
   const stoneTypeSet = new Set();
@@ -16462,6 +16492,11 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.51', date: 'Ιούλιος 2026', items: [
+        '🖥️ Νέα προβολή για υπολογιστή: σε μεγάλες οθόνες η εφαρμογή γίνεται πιο φαρδιά και η καρτέλα Απόθεμα εμφανίζεται σε ΔΥΟ στήλες, ώστε να βλέπετε περισσότερα κομμάτια μαζί. Στο κινητό δεν αλλάζει τίποτα.',
+        '🐛 Διόρθωση στον υπολογιστή: το στρογγυλό βελάκι «πάνω» δεν εξαφανίζεται πλέον όταν κατεβαίνετε τη λίστα, και η κάτω μπάρα πλοήγησης ευθυγραμμίζεται σωστά με το Απόθεμα σε πλήρη οθόνη.',
+        '🙈 Οι υπάλληλοι δεν βλέπουν πλέον τα φίλτρα «Νόμισμα» και «Μέταλλο» (αφορούν μόνο εσάς).'
+      ]},
       { version: 'v10.50', date: 'Ιούλιος 2026', items: [
         '✨ Μικρή αισθητική βελτίωση στην καρτέλα Απόθεμα: ο τίτλος «Απόθεμα» έγινε λίγο μικρότερος (δεν ακουμπάει πια στο κουμπί), και το χρυσό νόμισμα στο κουμπί «Προσθήκη νομίσματος» μπήκε αριστερά από τη λέξη — ώστε το κουμπί να είναι συμμετρικό με τα «Προσθήκη μετάλλου» και «Χύδην Αλυσίδες».'
       ]},
@@ -16493,10 +16528,6 @@ const ABOUT = {
       ]},
       { version: 'v10.42', date: 'Ιούλιος 2026', items: [
         '🙈 Τα νομίσματα κρύβονται από τη λίστα αποθέματος: για να μη «γεμίζει» η λίστα με νομίσματα, εμφανίζονται πλέον μόνο όταν επιλέξετε τον τύπο «Νόμισμα» στο φίλτρο (ή όταν κάνετε αναζήτηση, για να βρείτε ένα με το όνομα/κωδικό). Η αξία τους ΠΑΡΑΜΕΝΕΙ στα σύνολα (Αξία Λιανική & Αξία Μετάλλου δεν αλλάζουν).'
-      ]},
-      { version: 'v10.41', date: 'Ιούλιος 2026', items: [
-        '🔗 Σύνδεσμος Numista πάνω στην κάρτα του νομίσματος: δίπλα στην κοινοποίηση, ένα κουμπί 🔗 ανοίγει το ακριβές νόμισμα στο Numista — δείχνετε στον πελάτη την τιμή και με ένα πάτημα το ίδιο το νόμισμα και την τρέχουσα αξία του.',
-        '📈 «Αρχική τιμή» στην κάρτα του νομίσματος (όπως στα κανονικά είδη): εμφανίζεται η αρχική τιμή με ημερομηνία και ποσοστό μεταβολής. Αν βάλατε τιμή αγοράς, χρησιμοποιείται αυτή· αλλιώς η αξία του μετάλλου τη στιγμή της προσθήκης.'
       ]},
           ]
   },
@@ -16580,6 +16611,11 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.51', date: 'Jul 2026', items: [
+        '🖥️ New desktop view: on large screens the app now widens and the Stock tab shows TWO columns so you can see more pieces at once. Nothing changes on the phone.',
+        '🐛 Desktop fixes: the round "back to top" arrow no longer disappears as you scroll down the stock list, and the bottom navigation bar now lines up correctly with the inventory in fullscreen.',
+        '🙈 Employees no longer see the "Coin" and "Metal" filters (those are owner-only).'
+      ]},
       { version: 'v10.50', date: 'Jul 2026', items: [
         '✨ Small cosmetic tidy-up on the Stock tab: the "Inventory" title is a touch smaller (it no longer bumps into the button), and the gold coin on the "Add Coin" button now sits to the left of the word — so the button lines up symmetrically with "Add Metal" and "Bulk Chains".'
       ]},
@@ -16611,10 +16647,6 @@ const ABOUT = {
       ]},
       { version: 'v10.42', date: 'Jul 2026', items: [
         '🙈 Coins hidden from the Stock list: to keep the list uncluttered, coins now show only when you pick the "Coin" type in the filter (or during a search, so you can still find one by name/code). Their value STAYS in the totals — Total Retail and Metal Value don\'t change.'
-      ]},
-      { version: 'v10.41', date: 'Jul 2026', items: [
-        '🔗 Numista link on the coin card: next to Share, a 🔗 button opens the exact coin on Numista — show the customer the price and, in one tap, the actual coin and its current value.',
-        '📈 "Initial price" on the coin card (like regular items): shows the starting price with its date and the % change. If you set a purchase price it uses that; otherwise it uses the metal value at the time you added the coin.'
       ]},
           ]
   }
@@ -19499,7 +19531,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.50';
+const APP_VERSION = '10.51';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
