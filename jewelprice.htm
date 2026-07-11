@@ -3118,7 +3118,7 @@ const T = {
     invDateModeAdded:'Ημ. Προσθήκης', invDateModeSold:'Ημ. Πώλησης', invDateMode:'Φίλτρο βάσει',
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
-    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε',
+    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterHidden:'🙈 Κρυφά',
     invFilterGain:'Υπεραξία τιμής',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
@@ -3490,7 +3490,7 @@ const T = {
     invDateModeAdded:'Date Added', invDateModeSold:'Date Sold', invDateMode:'Filter by',
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
-    invFilterInStock:'In Stock', invFilterSold2:'Sold',
+    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterHidden:'🙈 Hidden',
     invFilterGain:'Price Gain',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
@@ -11478,7 +11478,7 @@ function updateInvFilterBadge() {
     if (_invFilters.types.length) parts.push(_invFilters.types.map(k => k === '__notype__' ? (lang==='el'?'Χωρίς τύπο':'No type') : invTypeLabel(k)).join(', '));
     if (_invFilters.vendors.length) parts.push(_invFilters.vendors.join(', '));
     if (_invFilters.stones.length) parts.push('💎 ' + _invFilters.stones.map(s => stoneLabel(s)).join(', '));
-    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : t('invFilterInStock')).join(', '));
+    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : s === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')).join(', '));
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
@@ -11528,7 +11528,7 @@ function openInvFilterSheet() {
   });
   const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
   const stoneTypes = [...STONE_PRIORITY.filter(s => stoneTypeSet.has(s)), ...[...stoneTypeSet].filter(s => !STONE_PRIORITY.includes(s)).sort()];
-  const statuses = ['in_stock','sold'];
+  const statuses = ['in_stock','sold','hidden'];
 
   // Pills for small fixed sets (metal, karat, status)
   function pillGroup(labelKey, vals, selectedArr, groupKey, labelFn) {
@@ -11729,7 +11729,7 @@ function openInvFilterSheet() {
         <div class="inv-fs-picker-list" id="invPickerList_stones">${listHtml}</div>
       </div>`;
     })() +
-    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : t('invFilterInStock')) +
+    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : v === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')) +
     goldColorGroup +
     colorGroup +
     genderGroup +
@@ -12178,11 +12178,15 @@ function renderInvList() {
     }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
-    if (f.status.length) {
+    // 'hidden' is a cross-cutting flag (hidden-from-showroom), not a real status; when
+    // selected, the item must be hidden-from-showroom. The in_stock/sold pills still apply.
+    if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
+    const _realStatus = f.status.filter(s => s !== 'hidden');
+    if (_realStatus.length) {
       const st = isSoldItem ? 'sold' : 'in_stock';
-      if (!f.status.includes(st)) return false;
+      if (!_realStatus.includes(st)) return false;
     } else {
-      // No status filter active — hide sold items by default (bulk chains never sold)
+      // No in_stock/sold pill active — hide sold items by default (bulk chains never sold)
       if (isSoldItem) return false;
     }
     if (f.dateFrom || f.dateTo) {
@@ -12374,6 +12378,7 @@ function renderInvList() {
       }
     }
     const handmadeBadge = _isHandmade ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
+    const _hiddenBadge = item.hideFromShowroom ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
     const _genderBadge = (function() {
       const g = item.gender;
       const gMap = { women: '♀️', men: '♂️', children: '👶' };
@@ -12507,7 +12512,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -12595,6 +12600,8 @@ function renderInvList() {
     // colour, gender). The per-piece decorative colour is shown by the breakdown instead.
     const _grpHandmade = (rep.handmade || !!(getItemCat(rep)?.handmade))
       ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
+    const _grpHidden = rep.hideFromShowroom
+      ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
     const _grpGoldColor = (rep.metal === 'gold' && rep.goldColor && rep.goldColor !== 'gold')
       ? `<span class="inv-card-badge" style="background:rgba(212,175,55,0.13);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${goldColorLabel(rep.goldColor)}</span>` : '';
     const _grpGender = (function() {
@@ -12615,7 +12622,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}${_grpHandmade}${_grpGoldColor}${_grpGender}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}${_grpHandmade}${_grpHidden}${_grpGoldColor}${_grpGender}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -16545,6 +16552,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.53', date: 'Ιούλιος 2026', items: [
+        '🙈 Σήμανση «κρυφών» ειδών: όσα είδη έχετε κρύψει από τη βιτρίνα δείχνουν πλέον ένα εικονίδιο 🙈 στην κάρτα τους (δίπλα στα υπόλοιπα σήματα, όπως το χειροποίητο), για να τα ξεχωρίζετε με μια ματιά.',
+        '🔎 Φίλτρο «Κρυφά»: στα φίλτρα, στην ενότητα Κατάσταση (δίπλα σε «Σε Απόθεμα» / «Πουλήθηκε») προστέθηκε επιλογή «🙈 Κρυφά» — για να βλέπετε μόνο τα είδη που έχετε κρύψει από το online showroom.'
+      ]},
       { version: 'v10.52', date: 'Ιούλιος 2026', items: [
         '🖥️ Επιλογή στηλών στον υπολογιστή: πάνω δεξιά στο Απόθεμα προστέθηκε μενού «Λίστα / 2 στήλες / 3 στήλες» — διαλέγετε πόσο πυκνά θέλετε τη λίστα (λίστα για μικρή οθόνη laptop, 2–3 στήλες για μεγάλη οθόνη). Η επιλογή αποθηκεύεται. Εμφανίζεται μόνο στον υπολογιστή· στο κινητό δεν αλλάζει τίποτα.',
         '🙈 «Απόκρυψη από βιτρίνα» σε κάθε είδος: νέος διακόπτης — και στη δημιουργία νέου είδους (Υπολογισμός → Ετικέτα) και στην Επεξεργασία στο Απόθεμα — που κρύβει το συγκεκριμένο κομμάτι από το online showroom. Λειτουργεί σε όλα τα είδη (χρυσό, ασήμι, άλλο). Ιδανικό π.χ. για ανταλλακτικά σκουλαρικιών που πουλάτε μόνο σε περαστικούς. Έτσι αποφασίζετε μόνοι σας τι φαίνεται στη βιτρίνα.'
@@ -16579,9 +16590,6 @@ const ABOUT = {
       ]},
       { version: 'v10.44', date: 'Ιούλιος 2026', items: [
         '🐛 Διόρθωση «Προσθήκη κι άλλων» σε νομίσματα: όταν πατούσατε «＋ Προσθήκη κι άλλων» από την ομάδα ενός νομίσματος, το παράθυρο άνοιγε στο προεπιλεγμένο νόμισμα (π.χ. το Δολάριο) αντί για το ΙΔΙΟ νόμισμα της ομάδας — γι\' αυτό μπορούσαν να προστεθούν λάθος νομίσματα. Τώρα προεπιλέγεται σωστά το ίδιο νόμισμα.'
-      ]},
-      { version: 'v10.43', date: 'Ιούλιος 2026', items: [
-        '🗑 Διαγραφή όλης της ομάδας με ένα πάτημα: στο «Δες κομμάτια» μιας ομάδας, το κουμπί «Κατάργηση ομαδοποίησης» έγινε «Διαγραφή όλων (N)» — σβήνει όλα τα κομμάτια της ομάδας μαζί, με μία μόνο επιβεβαίωση (χρήσιμο π.χ. αν προσθέσατε μια παρτίδα νομισμάτων κατά λάθος).'
       ]},
           ]
   },
@@ -16665,6 +16673,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.53', date: 'Jul 2026', items: [
+        '🙈 "Hidden" mark on items: any piece you\'ve hidden from the showroom now shows a 🙈 icon on its card (next to the other badges like handmade), so you can spot them at a glance.',
+        '🔎 "Hidden" filter: in Filters → Status (next to "In Stock" / "Sold") there\'s a new "🙈 Hidden" option — to list only the items you\'ve hidden from the online showroom.'
+      ]},
       { version: 'v10.52', date: 'Jul 2026', items: [
         '🖥️ Column picker on desktop: a "List / 2 columns / 3 columns" menu (top-right of Stock) lets you choose how dense the list is — List for a small laptop screen, 2–3 columns for a big monitor. Your choice is remembered. Desktop-only; nothing changes on the phone.',
         '🙈 "Hide from showroom" on every item: a new toggle — both when creating a new item (Calc → Tag) and in Edit on the Stock tab — hides that specific piece from the online showroom. Works for all items (gold, silver, other). Great for e.g. earring backs you only sell to walk-ins. Now you decide what shows in the showroom yourself.'
@@ -16699,9 +16711,6 @@ const ABOUT = {
       ]},
       { version: 'v10.44', date: 'Jul 2026', items: [
         '🐛 Fixed coin "Add more": tapping "＋ Add more" from a coin group opened the window on the default coin (e.g. the Dollar) instead of the SAME coin as the group — which is how a wrong batch could get added. It now correctly pre-selects the same coin.'
-      ]},
-      { version: 'v10.43', date: 'Jul 2026', items: [
-        '🗑 Delete a whole group in one tap: in a group\'s "View pieces", the "Ungroup" button became "Delete all (N)" — it removes every piece of the group at once with a single confirmation (handy e.g. if you added a batch of coins by mistake).'
       ]},
           ]
   }
@@ -19586,7 +19595,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.52';
+const APP_VERSION = '10.53';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
