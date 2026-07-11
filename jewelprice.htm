@@ -279,7 +279,11 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
-  @media (min-width:480px) { .customer-price-bar { left:50%; transform:translateX(-50%); width:480px; } }
+  /* Centre via left:50% + transform. Must clear the base rule's right:0 and margin:0 auto,
+     or the box is over-constrained (left+right+width all set) and the leftover space is
+     absorbed into auto margins — growing with viewport width, so it drifts far right when
+     maximised on a wide desktop monitor (fine on small windows). */
+  @media (min-width:480px) { .customer-price-bar { left:50%; right:auto; margin:0; transform:translateX(-50%); width:480px; } }
 
   /* Top card: left col (price+rounding stacked) | right col (discount+add btn) */
   .cpb-top-card {
@@ -10912,34 +10916,45 @@ async function saveToInventoryFromLabel(labelData) {
   // itemMargin = back-calculated from targetRetail so retail floats with metal+labor+stones
   let perItemLaborCost = null;
   let perItemMargin = null;
+  let perItemPurchaseCost = null;  // effective cost stored on the item (blank → ex-VAT metal cost)
   if (cat?.rateType === 'peritem') {
     const targetRetail = parseFloat(document.getElementById('labelTargetRetailInput')?.value) || 0;
-    const purchaseCostVal = parseFloat(document.getElementById('labelPurchaseCostInput')?.value) || 0;
+    const _enteredPurchase = parseFloat(document.getElementById('labelPurchaseCostInput')?.value) || 0;
+    const vat = parseFloat(state.vat) || 0;
+    // Compute live metal cost directly (the "price of gold before VAT")
+    const _piIsSilver = metal === 'silver';
+    const _piSpot = _piIsSilver ? getSilverPrice() : getGoldPrice();
+    const _piKaratVal = _piIsSilver
+      ? parseInt(document.getElementById('silverPurity')?.value)
+      : parseInt(document.getElementById('karat')?.value);
+    const _piPurity = _piIsSilver
+      ? (silverPurityMap[_piKaratVal] || 0)
+      : (karatPurity[_piKaratVal] || 0);
+    const _piWeight = parseFloat(document.getElementById('weight')?.value) || 0;
+    const metalCostLive = (_piSpot && _piPurity && _piWeight)
+      ? (_piSpot / TROY_OZ_TO_GRAM) * _piPurity * _piWeight
+      : 0;
+    // Read stone cost from stone section (if open)
+    const _piStoneSectionOpen = document.getElementById('stoneSectionBody')?.style.display !== 'none';
+    const _piStoneCost = _piStoneSectionOpen ? (parseFloat(document.getElementById('stoneCostInput')?.value) || 0) : 0;
+    // Include secondary metal cost in base cost
+    const _piSecMetalCost = getSecMetalCost();
+    // Default the purchase cost to the ex-VAT metal cost (primary + secondary) when the owner
+    // leaves it blank — for pieces he makes himself, his cost IS the metal. This keeps profit
+    // and the target-retail margin correct instead of treating the cost as €0.
+    const purchaseCostVal = _enteredPurchase > 0 ? _enteredPurchase : (metalCostLive + _piSecMetalCost);
+    perItemPurchaseCost = purchaseCostVal > 0 ? purchaseCostVal : null;
     if (targetRetail > 0 && purchaseCostVal > 0) {
-      const vat = parseFloat(state.vat) || 0;
-      // Compute live metal cost directly
-      const _piIsSilver = metal === 'silver';
-      const _piSpot = _piIsSilver ? getSilverPrice() : getGoldPrice();
-      const _piKaratVal = _piIsSilver
-        ? parseInt(document.getElementById('silverPurity')?.value)
-        : parseInt(document.getElementById('karat')?.value);
-      const _piPurity = _piIsSilver
-        ? (silverPurityMap[_piKaratVal] || 0)
-        : (karatPurity[_piKaratVal] || 0);
-      const _piWeight = parseFloat(document.getElementById('weight')?.value) || 0;
-      const metalCostLive = (_piSpot && _piPurity && _piWeight)
-        ? (_piSpot / TROY_OZ_TO_GRAM) * _piPurity * _piWeight
-        : 0;
-      // Read stone cost from stone section (if open)
-      const _piStoneSectionOpen = document.getElementById('stoneSectionBody')?.style.display !== 'none';
-      const _piStoneCost = _piStoneSectionOpen ? (parseFloat(document.getElementById('stoneCostInput')?.value) || 0) : 0;
-      // Include secondary metal cost in base cost
-      const _piSecMetalCost = getSecMetalCost();
       // laborCost = real workmanship (supplier fee minus all metals minus stones)
       perItemLaborCost = Math.max(0, purchaseCostVal - metalCostLive - _piSecMetalCost - _piStoneCost);
-      // itemMargin: (retailExVat / purchaseCost - 1) * 100
+      // itemMargin must be relative to the SAME base cost calcInvItemPrice will apply it
+      // to (metal + secondary + stones + labor), NOT to purchaseCost. They're equal in the
+      // normal case (labor = purchaseCost - metal - …), but when the live metal cost exceeds
+      // purchaseCost the labor clamps to 0 and baseCost > purchaseCost — dividing by
+      // purchaseCost then overshoots the target (e.g. a 0.20g gold back showed €54 not €20).
       const retailExVat = targetRetail / (1 + vat / 100);
-      perItemMargin = purchaseCostVal > 0 ? ((retailExVat / purchaseCostVal) - 1) * 100 : 0;
+      const _piBaseCost = metalCostLive + _piSecMetalCost + _piStoneCost + perItemLaborCost;
+      perItemMargin = _piBaseCost > 0 ? ((retailExVat / _piBaseCost) - 1) * 100 : 0;
     }
   }
 
@@ -10993,7 +11008,7 @@ async function saveToInventoryFromLabel(labelData) {
     hideFromShowroom: document.getElementById('labelHideShowroomToggle')?.style.opacity === '1',
     laborCost: perItemLaborCost !== null ? perItemLaborCost : null,
     itemMargin: perItemMargin !== null ? perItemMargin : null,
-    purchaseCost: (cat?.rateType === 'peritem') ? (parseFloat(document.getElementById('labelPurchaseCostInput')?.value) || null) : null,
+    purchaseCost: perItemPurchaseCost,  // blank → ex-VAT metal cost (see per-item block above)
     initialRetail: isOther ? null : (function() {
       // For per-item: use the agreed target retail the user typed in the label modal
       const _labelTarget = parseFloat(document.getElementById('labelTargetRetailInput')?.value);
@@ -14047,9 +14062,13 @@ RETAIL: \u20ac[integer]`;
         const _sc2 = parseFloat(item.stoneCost) || 0;
         const retailExVat2 = _tR / (1 + vat / 100);
         if (_pc2 > 0) {
-          // laborCost = purchaseCost - metal (primary+secondary) - stones; itemMargin from targetRetail
+          // laborCost = purchaseCost - metal (primary+secondary) - stones; itemMargin is taken
+          // against the actual base cost (metal + stones + labor), which equals purchaseCost in
+          // the normal case but is higher when metal cost exceeds purchaseCost (labor clamps to
+          // 0) — dividing by purchaseCost there overshoots the target retail. See label save.
           item.laborCost = Math.max(0, _pc2 - totalMetalCost2 - _sc2);
-          item.itemMargin = ((_tR / (1 + vat / 100)) / _pc2 - 1) * 100;
+          const _ieBaseCost = totalMetalCost2 + _sc2 + item.laborCost;
+          item.itemMargin = _ieBaseCost > 0 ? ((retailExVat2 / _ieBaseCost) - 1) * 100 : 0;
         } else {
           // No purchase cost — derive margin from target retail vs total cost
           // itemMargin is the % above totalCost that reaches the target retail
@@ -14061,7 +14080,15 @@ RETAIL: \u20ac[integer]`;
         item.initialRetail = _tR;
       }
       const _pc = parseFloat(document.getElementById('invEditPurchaseCostInput')?.value);
-      if (!isNaN(_pc) && _pc > 0) item.purchaseCost = _pc;
+      if (!isNaN(_pc) && _pc > 0) {
+        item.purchaseCost = _pc;
+      } else {
+        // Blank purchase cost → default to the ex-VAT metal cost (primary + secondary),
+        // matching label creation: for pieces the owner makes himself, the cost IS the metal.
+        const _mp = calcInvItemPrice(item);
+        const _metalOnly = _mp ? (_mp.metalValue + (_mp.secMetalCost || 0)) : 0;
+        if (_metalOnly > 0) item.purchaseCost = parseFloat(_metalOnly.toFixed(2));
+      }
     }
     // Self-heal: store initialRetail if not yet set (existing items before v9.24)
     if (!item.initialRetail && item.metal !== 'other') {
@@ -16552,6 +16579,11 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.54', date: 'Ιούλιος 2026', items: [
+        '🎯 Διόρθωση τιμής «ανά τεμάχιο»: όταν το κόστος που δίνατε ήταν μικρότερο από την αξία του χρυσού του κομματιού, η τελική τιμή έβγαινε λάθος (π.χ. €54 αντί για €20 που ζητούσατε). Τώρα η Τιμή-Στόχος τηρείται πάντα σωστά.',
+        '💰 Αν αφήσετε το «Κόστος Αγοράς» κενό (σε κατηγορία ανά τεμάχιο), μπαίνει αυτόματα η αξία του μετάλλου πριν τον ΦΠΑ — ιδανικό για κομμάτια που φτιάχνετε εσείς, όπου το κόστος σας είναι ο χρυσός.',
+        '🖥️ Διόρθωση στον υπολογιστή: σε πλήρη οθόνη το πλαίσιο τελικής τιμής «έφευγε» προς τα δεξιά — τώρα είναι κεντραρισμένο κάτω από τη φόρμα.'
+      ]},
       { version: 'v10.53', date: 'Ιούλιος 2026', items: [
         '🙈 Σήμανση «κρυφών» ειδών: όσα είδη έχετε κρύψει από τη βιτρίνα δείχνουν πλέον ένα εικονίδιο 🙈 στην κάρτα τους (δίπλα στα υπόλοιπα σήματα, όπως το χειροποίητο), για να τα ξεχωρίζετε με μια ματιά.',
         '🔎 Φίλτρο «Κρυφά»: στα φίλτρα, στην ενότητα Κατάσταση (δίπλα σε «Σε Απόθεμα» / «Πουλήθηκε») προστέθηκε επιλογή «🙈 Κρυφά» — για να βλέπετε μόνο τα είδη που έχετε κρύψει από το online showroom.'
@@ -16587,9 +16619,6 @@ const ABOUT = {
         '🔢 Τα «Τεμάχια» μετρούν μόνο κοσμήματα: τα νομίσματα ΔΕΝ προσμετρώνται πλέον στο σύνολο τεμαχίων (το νούμερο αφορά τα κοσμήματα του καταστήματος). Η αξία τους παραμένει κανονικά στην «Αξία Λιανική» και «Αξία Μετάλλου». Αν θέλετε το γενικό σύνολο, επιλέξτε όλους τους τύπους (μαζί με «Νόμισμα») στο φίλτρο.',
         '✅ «Επιλογή όλων» στα φίλτρα: στα αναπτυσσόμενα «Τύπος» και «Προμηθευτής» προστέθηκε επιλογή «Επιλογή όλων» για γρήγορη επιλογή/αποεπιλογή όλων με ένα πάτημα.',
         '📂 Καθαρότερη προβολή ομάδας: στο «Δες κομμάτια», τα κουμπιά «Προσθήκη κι άλλων» / «Πώληση» / «Διαγραφή όλων» είναι πλέον στην κορυφή (δεν χρειάζεται να κατεβείτε π.χ. 107 κομμάτια για να προσθέσετε νέα), και η λίστα των μεμονωμένων κομματιών «μαζεύεται» σε πτυσσόμενο μενού.'
-      ]},
-      { version: 'v10.44', date: 'Ιούλιος 2026', items: [
-        '🐛 Διόρθωση «Προσθήκη κι άλλων» σε νομίσματα: όταν πατούσατε «＋ Προσθήκη κι άλλων» από την ομάδα ενός νομίσματος, το παράθυρο άνοιγε στο προεπιλεγμένο νόμισμα (π.χ. το Δολάριο) αντί για το ΙΔΙΟ νόμισμα της ομάδας — γι\' αυτό μπορούσαν να προστεθούν λάθος νομίσματα. Τώρα προεπιλέγεται σωστά το ίδιο νόμισμα.'
       ]},
           ]
   },
@@ -16673,6 +16702,11 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.54', date: 'Jul 2026', items: [
+        '🎯 Per-item price fix: when the cost you entered was lower than the piece\'s gold value, the final price came out wrong (e.g. €54 instead of the €20 you asked for). The Target Retail price is now always honored.',
+        '💰 Leaving "Purchase Cost" blank (per-item category) now auto-fills the metal value before VAT — ideal for pieces you make yourself, where your cost is the gold.',
+        '🖥️ Desktop fix: when maximized, the final-price box drifted to the right — it is now centered under the form.'
+      ]},
       { version: 'v10.53', date: 'Jul 2026', items: [
         '🙈 "Hidden" mark on items: any piece you\'ve hidden from the showroom now shows a 🙈 icon on its card (next to the other badges like handmade), so you can spot them at a glance.',
         '🔎 "Hidden" filter: in Filters → Status (next to "In Stock" / "Sold") there\'s a new "🙈 Hidden" option — to list only the items you\'ve hidden from the online showroom.'
@@ -16708,9 +16742,6 @@ const ABOUT = {
         '🔢 "Pieces" now counts jewellery only: coins are no longer included in the total pieces count (that number is your shop\'s jewellery). Their value still counts normally in Total Retail and Metal Value. To see the grand total, pick all the types (including "Coin") in the filter.',
         '✅ "Select all" in the filters: the Type and Vendor dropdowns got a "Select all" option to tick/untick everything in one tap.',
         '📂 Cleaner group view: in "View pieces", the "Add more" / "Sell" / "Delete all" buttons are now at the top (no scrolling past e.g. 107 pieces to add new ones), and the individual-pieces list is collapsed into an expandable dropdown.'
-      ]},
-      { version: 'v10.44', date: 'Jul 2026', items: [
-        '🐛 Fixed coin "Add more": tapping "＋ Add more" from a coin group opened the window on the default coin (e.g. the Dollar) instead of the SAME coin as the group — which is how a wrong batch could get added. It now correctly pre-selects the same coin.'
       ]},
           ]
   }
@@ -19595,7 +19626,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.53';
+const APP_VERSION = '10.54';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
