@@ -4049,21 +4049,60 @@ function loadSyncForm() {
 }
 
 // ─── SPOT PRICES ──────────────────────────────────────────────────────────────
+// Resilience against the "app open for a while → 'cannot fetch price' → must restart"
+// bug (v10.60): (1) the last good gold/silver price is persisted to localStorage and
+// restored on load, so a network blip never blanks the price; (2) each request has a
+// 12s abort timeout, so a stalled socket (common after a desktop sleeps/wakes) can no
+// longer hang the whole cycle; (3) the warning banner is shown only when the price is
+// genuinely STALE (no successful fetch for SPOT_STALE_MS) — a single failed refresh no
+// longer triggers it; (4) after a failure we retry within a minute, and we refetch on
+// network 'online' / tab refocus, so the price self-heals without restarting the app.
+const SPOT_STALE_MS   = 30 * 60 * 1000; // warn only after ~30 min with no live price
+const SPOT_RETRY_MS   = 60 * 1000;      // retry a minute after a failure (not the full cycle)
+const SPOT_FETCH_TO   = 12 * 1000;      // per-request abort timeout
+let _spotLastOk   = 0;                  // timestamp of last successful gold fetch
+let _spotRetryTimer = null;
+let _spotFetching = false;              // in-flight guard (avoids piling up concurrent fetches)
+
+function _saveSpotPrices() {
+  try { localStorage.setItem('jpro_spot', JSON.stringify({ g: goldPriceOz, s: silverPriceOz, t: _spotLastOk })); } catch(e){}
+}
+function _loadSpotPrices() {
+  try {
+    const d = JSON.parse(localStorage.getItem('jpro_spot') || 'null');
+    if (d && d.g) { goldPriceOz = d.g; silverPriceOz = d.s || null; _spotLastOk = d.t || 0; }
+  } catch(e){}
+}
+function _spotFetch(url) {
+  const ac = new AbortController();
+  const to = setTimeout(() => ac.abort(), SPOT_FETCH_TO);
+  return fetch(url, {cache:'no-store', signal: ac.signal}).finally(() => clearTimeout(to));
+}
+
 async function fetchSpotPrices() {
+  if (_spotFetching) return;             // one at a time (timeout caps it at ~12s)
+  _spotFetching = true;
   let fetchOk = false;
   try {
     const [goldRes, silverRes, fxRes] = await Promise.all([
-      fetch('https://api.gold-api.com/price/XAU', {cache:'no-store'}),
-      fetch('https://api.gold-api.com/price/XAG', {cache:'no-store'}),
-      fetch('https://open.er-api.com/v6/latest/USD', {cache:'no-store'})
+      _spotFetch('https://api.gold-api.com/price/XAU'),
+      _spotFetch('https://api.gold-api.com/price/XAG'),
+      _spotFetch('https://open.er-api.com/v6/latest/USD')
     ]);
     let usdToEur = 1;
     if (fxRes.ok) { const fx = await fxRes.json(); if (fx.rates?.EUR) usdToEur = fx.rates.EUR; }
     if (goldRes.ok) { const g = await goldRes.json(); if (g.price) { goldPriceOz = parseFloat(g.price) * usdToEur; fetchOk = true; } }
     if (silverRes.ok) { const s = await silverRes.json(); if (s.price) silverPriceOz = parseFloat(s.price) * usdToEur; }
   } catch(e) { console.warn('Spot price fetch failed:', e); }
+  _spotFetching = false;
+  if (fetchOk) { _spotLastOk = Date.now(); _saveSpotPrices(); }
   updateSpotDisplay();
-  showSpotWarning(!fetchOk);
+  // Warn only when we have no usable live price at all, or it has gone genuinely stale.
+  const stale = !goldPriceOz || (Date.now() - _spotLastOk) > SPOT_STALE_MS;
+  showSpotWarning(stale);
+  // On failure, retry soon so a transient blip self-heals instead of needing a restart.
+  clearTimeout(_spotRetryTimer);
+  if (!fetchOk) _spotRetryTimer = setTimeout(fetchSpotPrices, SPOT_RETRY_MS);
 }
 
 function showSpotWarning(show) {
@@ -16652,6 +16691,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.60', date: 'Ιούλιος 2026', items: [
+        '📡 Διόρθωση «Δεν είναι δυνατή η λήψη τιμής χρυσού» στον υπολογιστή: όταν η εφαρμογή έμενε ανοιχτή για ώρα (και μετά από αδράνεια/ύπνο της οθόνης), εμφανιζόταν το κόκκινο μήνυμα και έπρεπε να την κλείσετε και να την ξανανοίξετε. Τώρα: (1) η τελευταία τιμή χρυσού/ασημιού αποθηκεύεται και επαναφέρεται, οπότε μια στιγμιαία διακοπή δικτύου δεν σβήνει την τιμή· (2) κάθε αίτημα έχει όριο χρόνου 12 δευτ. ώστε να μην «κολλάει»· (3) το προειδοποιητικό μήνυμα εμφανίζεται μόνο αν η τιμή είναι πραγματικά παλιά (καμία επιτυχής λήψη για ~30 λεπτά), όχι σε μία αποτυχημένη ανανέωση· (4) η εφαρμογή ξαναδοκιμάζει αυτόματα μέσα σε ένα λεπτό και μόλις επανέλθει το δίκτυο ή ξαναεστιάσετε το παράθυρο — χωρίς να χρειάζεται επανεκκίνηση.'
+      ]},
       { version: 'v10.59', date: 'Ιούλιος 2026', items: [
         '↩️ Σωστή επαναφορά όταν διαγράφετε πώληση όμοιου/πανομοιότυπου κομματιού: αν είχατε π.χ. ομάδα με 5 ίδια κομμάτια (ή νομίσματα με τον ίδιο κωδικό), πουλούσατε ένα και μετά ο πελάτης το επέστρεφε, η διαγραφή της πώλησης μπορούσε να ΜΗΝ ξαναβάλει το κομμάτι στο απόθεμα (η ομάδα έμενε στα 4 αντί να γυρίσει στα 5), γιατί όλα τα ίδια κομμάτια έχουν τον ίδιο κωδικό QR. Τώρα κάθε πώληση θυμάται το ΑΚΡΙΒΕΣ κομμάτι που πουλήθηκε, οπότε η διαγραφή το επαναφέρει σωστά και η ομάδα ξαναγίνεται 5. (Ισχύει και για τις παλιές πωλήσεις — η επαναφορά ψάχνει πλέον πουλημένο κομμάτι.)'
       ]},
@@ -16685,9 +16727,6 @@ const ABOUT = {
         '🖥️ Νέα προβολή για υπολογιστή: σε μεγάλες οθόνες η εφαρμογή γίνεται πιο φαρδιά και η καρτέλα Απόθεμα εμφανίζεται σε ΔΥΟ στήλες, ώστε να βλέπετε περισσότερα κομμάτια μαζί. Στο κινητό δεν αλλάζει τίποτα.',
         '🐛 Διόρθωση στον υπολογιστή: το στρογγυλό βελάκι «πάνω» δεν εξαφανίζεται πλέον όταν κατεβαίνετε τη λίστα, και η κάτω μπάρα πλοήγησης ευθυγραμμίζεται σωστά με το Απόθεμα σε πλήρη οθόνη.',
         '🙈 Οι υπάλληλοι δεν βλέπουν πλέον τα φίλτρα «Νόμισμα» και «Μέταλλο» (αφορούν μόνο εσάς).'
-      ]},
-      { version: 'v10.50', date: 'Ιούλιος 2026', items: [
-        '✨ Μικρή αισθητική βελτίωση στην καρτέλα Απόθεμα: ο τίτλος «Απόθεμα» έγινε λίγο μικρότερος (δεν ακουμπάει πια στο κουμπί), και το χρυσό νόμισμα στο κουμπί «Προσθήκη νομίσματος» μπήκε αριστερά από τη λέξη — ώστε το κουμπί να είναι συμμετρικό με τα «Προσθήκη μετάλλου» και «Χύδην Αλυσίδες».'
       ]},
           ]
   },
@@ -16771,6 +16810,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.60', date: 'Jul 2026', items: [
+        '📡 Fixed "Cannot fetch live gold price" on desktop: when the app was left open for a while (and after the screen went idle/asleep) the red warning would appear and you had to close and reopen the app. Now: (1) the last good gold/silver price is saved and restored, so a brief network drop never blanks the price; (2) each request has a 12-second timeout so it can no longer hang; (3) the warning only appears when the price is genuinely stale (no successful fetch for ~30 minutes), not on a single failed refresh; (4) the app automatically retries within a minute and refetches the moment the network returns or you refocus the window — no restart needed.'
+      ]},
       { version: 'v10.59', date: 'Jul 2026', items: [
         '↩️ Correct restore when deleting the sale of an identical/grouped piece: if you had e.g. a group of 5 identical pieces (or coins sharing one code), sold one, and then the customer returned it, deleting the sale could FAIL to put the piece back in stock (the group stayed at 4 instead of returning to 5) — because all identical pieces share the same QR code. Now every sale remembers the EXACT piece that was sold, so deleting it restores that piece correctly and the group goes back to 5. (Also improved for older sales — the restore now looks for a sold piece.)'
       ]},
@@ -16804,9 +16846,6 @@ const ABOUT = {
         '🖥️ New desktop view: on large screens the app now widens and the Stock tab shows TWO columns so you can see more pieces at once. Nothing changes on the phone.',
         '🐛 Desktop fixes: the round "back to top" arrow no longer disappears as you scroll down the stock list, and the bottom navigation bar now lines up correctly with the inventory in fullscreen.',
         '🙈 Employees no longer see the "Coin" and "Metal" filters (those are owner-only).'
-      ]},
-      { version: 'v10.50', date: 'Jul 2026', items: [
-        '✨ Small cosmetic tidy-up on the Stock tab: the "Inventory" title is a touch smaller (it no longer bumps into the button), and the gold coin on the "Add Coin" button now sits to the left of the word — so the button lines up symmetrically with "Add Metal" and "Bulk Chains".'
       ]},
           ]
   }
@@ -19691,7 +19730,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.59';
+const APP_VERSION = '10.60';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -19913,8 +19952,15 @@ showDebugCodes();
 if (!creds.displayName && !userParam) showNamePrompt();
 document.getElementById('vendorSelect').addEventListener('change', () => { updateWorkTypeOptions(); if(calcHandmadeActive){calcHandmadeActive=false;const b=document.getElementById('calcHandmadeToggle');b.style.opacity='0.35';b.style.background='rgba(255,255,255,0.04)';b.style.borderColor='rgba(255,255,255,0.1)';} if(metal==='other') setTimeout(calcOtherRetail,150); updateOtherCalcPanel(); });
 document.getElementById('workType').addEventListener('change', () => { if(metal==='other') calcOtherRetail(); });
+_loadSpotPrices();            // restore last good price so a startup blip never blanks it
 fetchSpotPrices();
 setInterval(fetchSpotPrices, 5 * 60 * 1000);
+// Refetch immediately when the network returns or the app regains focus (desktop sleep/
+// wake, wifi drop) instead of waiting up to 5 min — the main "open for a while" recovery.
+window.addEventListener('online', () => fetchSpotPrices());
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && (Date.now() - _spotLastOk) > SPOT_RETRY_MS) fetchSpotPrices();
+});
 checkForUpdate();
 // Apply language-specific dynamic elements on load
 if (lang === 'el') {
