@@ -4753,7 +4753,7 @@ function buildLabelStrings() {
   return { fullQR, baseQR, greekCode: baseGreek, lines, hasStones: stones.length > 0 };
 }
 
-function buildTSPL(data, qrOnly) {
+function buildTSPL(data, qrOnly, copies) {
   // TSC TTP-244, 203dpi, 65x12mm = 520x96 dots
   // qrOnly=true → skip text lines, center QR horizontally (for long codes that overflow)
 
@@ -4795,15 +4795,16 @@ function buildTSPL(data, qrOnly) {
   }
 
   cmds.push(`QRCODE ${qrX},${qrY},M,${qrCell},A,0,M2,S7,"${data.fullQR}"`);
-  cmds.push('PRINT 1,1');
+  cmds.push('PRINT 1,' + Math.max(1, parseInt(copies) || 1));  // PRINT sets,copies
 
   return cmds.join('\r\n') + '\r\n';
 }
 
 
-async function printLabel(data, statusEl, qrOnly) {
+async function printLabel(data, statusEl, qrOnly, copies) {
   // Push TSPL job to Firebase — Python helper polls and prints
   // qrOnly=true → text omitted from label, QR centered
+  // copies>1 → print that many identical labels in one job (same-weight batch)
   statusEl.textContent = t('labelPrintSending');
   statusEl.style.color = 'var(--text-muted)';
   const fbBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
@@ -4812,7 +4813,7 @@ async function printLabel(data, statusEl, qrOnly) {
     statusEl.style.color = 'var(--error, #e57373)';
     return;
   }
-  const tspl = buildTSPL(data, qrOnly);
+  const tspl = buildTSPL(data, qrOnly, copies);
   const job = { tspl, qrData: data.fullQR, qrX: 395, qrY: 20, createdAt: Date.now(), status: 'pending' };
   try {
     const r = await fetch(fbUrl(`/jewelprice_print_job.json`), {
@@ -15835,6 +15836,9 @@ function invAddSimilar(sourceId) {
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}</div>
       <input id="invAddSimWeight" type="number" step="0.01" min="0" inputmode="decimal"
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Ποσότητα (ίδιο βάρος)':'Quantity (same weight)'}</div>
+      <input id="invAddSimQty" type="number" step="1" min="1" max="50" value="1" inputmode="numeric"
+        style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα':'Color'}</div>
       <select id="invAddSimColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${itemColorOptionsHtml(source.color)}</select>
       <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
@@ -15857,9 +15861,13 @@ function invAddSimilar(sourceId) {
   }
   wEl().addEventListener('input', updatePreview);
 
-  async function addOne(doPrint) {
+  // Add a batch of N identical pieces (same weight/colour). They share one QR (weight-encoded),
+  // so a print prints N copies of the same label in a single job.
+  async function addBatch(doPrint) {
     const w = parseFloat(wEl().value);
     if (isNaN(w) || w <= 0) { showToast(lang==='el'?'⚠️ Βάλτε βάρος':'⚠️ Enter a weight'); wEl().focus(); return; }
+    let qty = parseInt(document.getElementById('invAddSimQty').value) || 1;
+    qty = Math.max(1, Math.min(50, qty));
     const colorVal = document.getElementById('invAddSimColor').value || null;
     // Ensure the source carries a groupId (mint on first add so source + clone group up)
     let gid = source.groupId;
@@ -15869,28 +15877,32 @@ function invAddSimilar(sourceId) {
       _inventoryCache[sourceId] = source;
       await saveInventoryItem(sourceId, source);
     }
-    const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
-    const newItem = Object.assign({}, source, {
-      weight: w, color: colorVal, groupId: gid, status: 'in_stock',
-      dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || '', dateSold: null
-    });
-    delete newItem.dateSold;
-    if (_canRegenQR) { newItem.qrCode = buildQR(w); newItem.code = _latinBase + w.toString(); }
-    // Keep seqId + refType (shared reference code) — copied by Object.assign above.
-    // Re-baseline initialRetail to THIS piece's own retail so its gain % starts at 0
-    // (never inherit the source's baseline, which would be wrong for per-gram pricing).
-    if (newItem.metal !== 'other') {
-      const _p = calcInvItemPrice(newItem);
-      if (_p) newItem.initialRetail = parseFloat(_p.retail.toFixed(2));
+    let lastItem = null;
+    for (let i = 0; i < qty; i++) {
+      const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      const newItem = Object.assign({}, source, {
+        weight: w, color: colorVal, groupId: gid, status: 'in_stock',
+        dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || '', dateSold: null
+      });
+      delete newItem.dateSold;
+      if (_canRegenQR) { newItem.qrCode = buildQR(w); newItem.code = _latinBase + w.toString(); }
+      // Keep seqId + refType (shared reference code) — copied by Object.assign above.
+      // Re-baseline initialRetail to THIS piece's own retail so its gain % starts at 0
+      // (never inherit the source's baseline, which would be wrong for per-gram pricing).
+      if (newItem.metal !== 'other') {
+        const _p = calcInvItemPrice(newItem);
+        if (_p) newItem.initialRetail = parseFloat(_p.retail.toFixed(2));
+      }
+      _inventoryCache[newId] = newItem;
+      await saveInventoryItem(newId, newItem);
+      _added++;
+      lastItem = newItem;
     }
-    _inventoryCache[newId] = newItem;
-    await saveInventoryItem(newId, newItem);
-    _added++;
     counterEl.textContent = (lang==='el'?'Προστέθηκαν: ':'Added: ') + _added;
-    wEl().value = ''; updatePreview(); wEl().focus();
-    if (doPrint) {
+    wEl().value = ''; document.getElementById('invAddSimQty').value = '1'; updatePreview(); wEl().focus();
+    if (doPrint && lastItem) {
       const statusEl = document.getElementById('invAddSimStatus');
-      const qr = newItem.qrCode || newItem.code || '';
+      const qr = lastItem.qrCode || lastItem.code || '';
       const di = qr.indexOf('-');
       const baseQR = di !== -1 ? qr.slice(0, di) : qr;
       const stoneStr = di !== -1 ? qr.slice(di + 1) : '';
@@ -15898,13 +15910,13 @@ function invAddSimilar(sourceId) {
       const isOther = parts.length === 1 && parts[0].includes('-');
       const lines = [baseQR];
       if (isOther) lines.push('-' + parts[0]); else parts.forEach((p, i) => lines.push((i === 0 ? '-' : '+') + p));
-      const data = { fullQR: qr, baseQR, greekCode: baseQR, lines, hasStones: parts.length > 0 || isOther, refCode: newItem.seqId ? itemRefCode(newItem) : null };
-      try { await printLabel(data, statusEl || document.createElement('div')); } catch(e) {}
+      const data = { fullQR: qr, baseQR, greekCode: baseQR, lines, hasStones: parts.length > 0 || isOther, refCode: lastItem.seqId ? itemRefCode(lastItem) : null };
+      try { await printLabel(data, statusEl || document.createElement('div'), false, qty); } catch(e) {}
     }
   }
 
-  document.getElementById('invAddSimPrintBtn').addEventListener('click', function(){ addOne(true); });
-  document.getElementById('invAddSimAddBtn').addEventListener('click', function(){ addOne(false); });
+  document.getElementById('invAddSimPrintBtn').addEventListener('click', function(){ addBatch(true); });
+  document.getElementById('invAddSimAddBtn').addEventListener('click', function(){ addBatch(false); });
   document.getElementById('invAddSimDoneBtn').addEventListener('click', function(){
     overlay.remove();
     if (_added > 0) { showToast((lang==='el'?'✅ Προστέθηκαν ':'✅ Added ') + _added + (lang==='el'?' όμοια είδη':' similar items')); renderInvList(); }
@@ -16579,6 +16591,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.55', date: 'Ιούλιος 2026', items: [
+        '🔢 «Προσθήκη όμοιων ειδών» με ποσότητα: στο παράθυρο προστέθηκε πεδίο «Ποσότητα» με βελάκια πάνω/κάτω. Βάλτε βάρος και ποσότητα (π.χ. 5) και προστίθενται και τα 5 μαζί με ένα πάτημα — και με «Εκτύπωση & Προσθήκη» τυπώνονται και οι 5 ίδιες ετικέτες με μία εντολή. Τέλος πια το ένα-ένα.'
+      ]},
       { version: 'v10.54', date: 'Ιούλιος 2026', items: [
         '🎯 Διόρθωση τιμής «ανά τεμάχιο»: όταν το κόστος που δίνατε ήταν μικρότερο από την αξία του χρυσού του κομματιού, η τελική τιμή έβγαινε λάθος (π.χ. €54 αντί για €20 που ζητούσατε). Τώρα η Τιμή-Στόχος τηρείται πάντα σωστά.',
         '💰 Αν αφήσετε το «Κόστος Αγοράς» κενό (σε κατηγορία ανά τεμάχιο), μπαίνει αυτόματα η αξία του μετάλλου πριν τον ΦΠΑ — ιδανικό για κομμάτια που φτιάχνετε εσείς, όπου το κόστος σας είναι ο χρυσός.',
@@ -16614,11 +16629,6 @@ const ABOUT = {
       ]},
       { version: 'v10.46', date: 'Ιούλιος 2026', items: [
         '🔎 Φίλτρο «Χωρίς τύπο»: αν κάποια είδη δεν έχουν καθορισμένο τύπο, εμφανίζεται στο φίλτρο «Τύπος» μια επιλογή «Χωρίς τύπο» για να τα βρείτε και να τους ορίσετε τύπο. (Γι\' αυτό το σύνολο «Επιλογή όλων» μπορεί να μη συμφωνεί με τη γενική λίστα — τα άτυπα είδη δεν ανήκαν σε κανέναν τύπο.)'
-      ]},
-      { version: 'v10.45', date: 'Ιούλιος 2026', items: [
-        '🔢 Τα «Τεμάχια» μετρούν μόνο κοσμήματα: τα νομίσματα ΔΕΝ προσμετρώνται πλέον στο σύνολο τεμαχίων (το νούμερο αφορά τα κοσμήματα του καταστήματος). Η αξία τους παραμένει κανονικά στην «Αξία Λιανική» και «Αξία Μετάλλου». Αν θέλετε το γενικό σύνολο, επιλέξτε όλους τους τύπους (μαζί με «Νόμισμα») στο φίλτρο.',
-        '✅ «Επιλογή όλων» στα φίλτρα: στα αναπτυσσόμενα «Τύπος» και «Προμηθευτής» προστέθηκε επιλογή «Επιλογή όλων» για γρήγορη επιλογή/αποεπιλογή όλων με ένα πάτημα.',
-        '📂 Καθαρότερη προβολή ομάδας: στο «Δες κομμάτια», τα κουμπιά «Προσθήκη κι άλλων» / «Πώληση» / «Διαγραφή όλων» είναι πλέον στην κορυφή (δεν χρειάζεται να κατεβείτε π.χ. 107 κομμάτια για να προσθέσετε νέα), και η λίστα των μεμονωμένων κομματιών «μαζεύεται» σε πτυσσόμενο μενού.'
       ]},
           ]
   },
@@ -16702,6 +16712,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.55', date: 'Jul 2026', items: [
+        '🔢 "Add similar items" with quantity: the window now has a "Quantity" field with up/down arrows. Enter a weight and a quantity (e.g. 5) and all 5 are added at once with one tap — and "Print & Add" prints all 5 identical labels in one command. No more one-by-one.'
+      ]},
       { version: 'v10.54', date: 'Jul 2026', items: [
         '🎯 Per-item price fix: when the cost you entered was lower than the piece\'s gold value, the final price came out wrong (e.g. €54 instead of the €20 you asked for). The Target Retail price is now always honored.',
         '💰 Leaving "Purchase Cost" blank (per-item category) now auto-fills the metal value before VAT — ideal for pieces you make yourself, where your cost is the gold.',
@@ -16737,11 +16750,6 @@ const ABOUT = {
       ]},
       { version: 'v10.46', date: 'Jul 2026', items: [
         '🔎 "No type" filter: if some pieces have no type set, the Type filter now shows a "No type" option so you can find them and assign a type. (That\'s also why "Select all" could differ from the full list — untyped pieces belonged to no type.)'
-      ]},
-      { version: 'v10.45', date: 'Jul 2026', items: [
-        '🔢 "Pieces" now counts jewellery only: coins are no longer included in the total pieces count (that number is your shop\'s jewellery). Their value still counts normally in Total Retail and Metal Value. To see the grand total, pick all the types (including "Coin") in the filter.',
-        '✅ "Select all" in the filters: the Type and Vendor dropdowns got a "Select all" option to tick/untick everything in one tap.',
-        '📂 Cleaner group view: in "View pieces", the "Add more" / "Sell" / "Delete all" buttons are now at the top (no scrolling past e.g. 107 pieces to add new ones), and the individual-pieces list is collapsed into an expandable dropdown.'
       ]},
           ]
   }
@@ -19626,7 +19634,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.54';
+const APP_VERSION = '10.55';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
