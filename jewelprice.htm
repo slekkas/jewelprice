@@ -3129,6 +3129,7 @@ const T = {
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
     invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά',
+    grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
@@ -3501,6 +3502,7 @@ const T = {
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
     invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden',
+    grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
@@ -12636,6 +12638,28 @@ function renderInvList() {
       (rep.alsoGenders || []).forEach(x => { if (m[x]) o += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.07);border:1px solid rgba(100,160,255,0.2);color:#6a90c0;font-size:11px">+${m[x]}</span>`; });
       return o;
     })();
+    // Group appreciation line (owner/manager, non-coin): the combined value change vs when
+    // the pieces were added. Summed ONLY over the members currently in the group's view, so
+    // selling a piece removes its live price AND its baseline together — the % reflects real
+    // metal-price movement, never the smaller total from simply having fewer pieces in stock.
+    // (Coins carry their own per-coin line via coinInitialLineHtml; 'other'-type has no baseline.)
+    let _grpAppreciation = '';
+    if (!rep.isCoin && !_isEmpInv && rep.metal !== 'other') {
+      let _sumCur = 0, _sumInit = 0;
+      members.forEach(([, it]) => {
+        if (it.isCoin || it.metal === 'other') return;
+        const _p = _px(it); const _init = parseFloat(it.initialRetail);
+        if (_p && _init > 0) { _sumCur += _p.retail; _sumInit += _init; }
+      });
+      if (_sumInit > 0) {
+        const _diff = _sumCur - _sumInit;
+        const _absPct = Math.abs(_diff / _sumInit * 100);
+        const _pctStr = _absPct < 0.05 ? '0.0' : _absPct.toFixed(1);
+        const _sign = _absPct < 0.05 ? '±' : (_diff >= 0 ? '+' : '-');
+        const _color = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+        _grpAppreciation = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${t('grpInitialLbl')}: ${cur}${_sumInit.toFixed(2)} <span style="color:${_color}">(${_sign}${_pctStr}%)</span></div>`;
+      }
+    }
     const codeStr = rep.seqId ? itemRefCode(rep) : (rep.qrCode || rep.code || '—');
     return `
       <div class="inv-card inv-group-card" data-inv-id="${repId}" data-group-id="${gid}" style="border-color:rgba(201,168,76,0.4)">
@@ -12655,6 +12679,7 @@ function renderInvList() {
         ${(metaLine || colorSummary) ? `<div class="inv-card-meta">${metaLine}${colorSummary ? (metaLine ? '<br>' : '') + colorSummary : ''}</div>` : ''}
         ${(rep.isCoin || !_isEmpInv) ? `<div class="inv-card-price">${priceStr}</div>` : ''}
         ${(rep.isCoin && !_isEmpInv) ? coinInitialLineHtml(rep) : ''}
+        ${_grpAppreciation}
         <div class="inv-card-actions">
           <button class="inv-action-btn" style="flex:1;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="openInvGroup('${gid}')">${lang==='el' ? '🔗 Δες '+count+' κομμάτια' : '🔗 View '+count+' pieces'}</button>
         </div>
@@ -16601,6 +16626,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.58', date: 'Ιούλιος 2026', items: [
+        '📈 Ποσοστό μεταβολής και στις κάρτες ομάδας: κάτω από την τιμή μιας ομάδας όμοιων ειδών (π.χ. σκουλαρίκια, βραχιόλια) εμφανίζεται πλέον η «Αρχική αξία ομάδας» με το ποσοστό αύξησης/μείωσης — όπως στα μεμονωμένα κομμάτια. Ο υπολογισμός γίνεται μόνο πάνω στα κομμάτια που υπάρχουν αυτή τη στιγμή στην ομάδα: αν πουλήσετε ένα, το σύνολο μικραίνει αλλά το ποσοστό ΔΕΝ το μετράει ως πτώση τιμής — αφαιρείται μαζί και η αρχική του αξία, οπότε το ποσοστό δείχνει μόνο την πραγματική κίνηση της τιμής του χρυσού/ασημιού.'
+      ]},
       { version: 'v10.57', date: 'Ιούλιος 2026', items: [
         '🔗 Νέο φίλτρο «Ομαδοποιημένα»: στα φίλτρα, στην ενότητα Κατάσταση (ανάμεσα σε «Πουλήθηκε» και «Κρυφά») προστέθηκε επιλογή «🔗 Ομαδοποιημένα» — δείχνει μόνο τα είδη που ανήκουν σε ομάδα όμοιων. Συνδυάζεται με τα άλλα φίλτρα: π.χ. «Δαχτυλίδια + Ομαδοποιημένα + Προμηθευτής» για να βρείτε γρήγορα μια υπάρχουσα ομάδα δαχτυλιδιών, χωρίς να ψάχνετε ανάμεσα στα μεμονωμένα.'
       ]},
@@ -16634,12 +16662,6 @@ const ABOUT = {
       ]},
       { version: 'v10.49', date: 'Ιούλιος 2026', items: [
         '🐛 Διόρθωση λανθασμένου ποσοστού στα νομίσματα: τα νομίσματα που προσθέσατε πριν εμφανιστεί η γραμμή «Αρχική τιμή» (στην πρώτη μέρα των νομισμάτων) έδειχναν ψεύτικη πτώση ~3–7% αμέσως μετά την προσθήκη — γιατί η αρχική τους τιμή είχε αποθηκευτεί μαζί με το κέρδος πώλησης (π.χ. +€30), ενώ συγκρινόταν με τη σκέτη αξία μετάλλου. Τώρα αφαιρείται σωστά το κέρδος, οπότε το ποσοστό δείχνει μόνο την πραγματική μεταβολή της τιμής του χρυσού/ασημιού από τη στιγμή που τα προσθέσατε.'
-      ]},
-      { version: 'v10.48', date: 'Ιούλιος 2026', items: [
-        '🧱 Ακατέργαστο μέταλλο / scrap στο απόθεμα (νέο): κουμπί «🧱 Προσθήκη μετάλλου» στην καρτέλα Απόθεμα — για το χρυσάφι/ασήμι που κρατάτε στο χρηματοκιβώτιο για λιώσιμο (καθαρός χρυσός/ασήμι σε μπίλιες, 14/18/22Κ παλιά κοσμήματα πελατών, scrap ασήμι). Διαλέγετε Χρυσό/Ασήμι + καθαρότητα + βάρος. Η αξία υπολογίζεται ζωντανά από την τιμή του μετάλλου.',
-        '➕ Προσθέτετε στην ίδια καθαρότητα και το βάρος αθροίζεται: σήμερα 30g 14Κ, αύριο άλλα 30g → η κάρτα δείχνει 60g. Κάθε καθαρότητα (24Κ, 18Κ, 14Κ, καθαρό ασήμι κ.λπ.) έχει τη δική της κάρτα.',
-        '💶 Αγορά scrap κάτω από την αξία = κέρδος: αν αγοράσετε π.χ. 30g 14Κ (αξία ~€2030) για €1500, το κέρδος — αφού αφαιρεθεί η απώλεια καθαρισμού (προεπιλογή 3%, ρυθμίζεται στις Ρυθμίσεις) — προστίθεται αυτόματα στις σημερινές σας πωλήσεις ως «♻️ Κέρδος scrap».',
-        '📊 Το μέταλλο μετράει στα σύνολα (Αξία Λιανική + Καθαρός χρυσός/ασήμι) αλλά ΔΕΝ μετράει στα «Τεμάχια» (είναι απόθεμα μετάλλου, όχι κόσμημα). Κρύβεται από τη λίστα εκτός αν επιλέξετε τον τύπο «Μέταλλο» στο φίλτρο. Δεν εμφανίζεται ΠΟΤΕ στη δημόσια βιτρίνα. Η κάρτα δείχνει την αξία τώρα και την αξία κατά την προσθήκη με ποσοστό μεταβολής.'
       ]},
           ]
   },
@@ -16723,6 +16745,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.58', date: 'Jul 2026', items: [
+        '📈 Percentage change on group cards: under the price of a similar-items group (e.g. earrings, bracelets) there is now a "Group initial value" line with the rise/drop percentage — just like on individual pieces. It is calculated only over the pieces currently in the group: if you sell one, the total shrinks but the percentage does NOT read it as a price drop — that piece\'s original value is removed too, so the percentage reflects only real gold/silver price movement.'
+      ]},
       { version: 'v10.57', date: 'Jul 2026', items: [
         '🔗 New "Grouped" filter: under Status (between "Sold" and "Hidden") there is now a "🔗 Grouped" option — it shows only items that belong to a similar-items group. Combine it with the other filters, e.g. "Rings + Grouped + Vendor", to quickly find an existing ring group instead of hunting through the individual pieces.'
       ]},
@@ -16756,12 +16781,6 @@ const ABOUT = {
       ]},
       { version: 'v10.49', date: 'Jul 2026', items: [
         '🐛 Fixed a wrong percentage on coins: coins you added before the "Initial price" line existed (on the first day coins were introduced) showed a fake ~3–7% drop right after being added — because their initial price had been stored WITH the selling markup (e.g. +€30), yet it was being compared against the plain metal value. The markup is now correctly stripped out, so the percentage reflects only the real gold/silver price movement since you added them.'
-      ]},
-      { version: 'v10.48', date: 'Jul 2026', items: [
-        '🧱 Raw metal / scrap stock (new): a "🧱 Add Metal" button on the Stock tab — for the gold/silver you keep in the vault to melt down (pure gold/silver balls, 14/18/22K old jewellery from customers, scrap silver). Pick Gold/Silver + purity + weight; the value is computed live from the metal price.',
-        '➕ Add the same purity and the weight adds up: today 30g 14K, tomorrow another 30g → the card shows 60g. Each purity (24K, 18K, 14K, pure silver, etc.) has its own card.',
-        '💶 Buying scrap below its value = profit: if you buy e.g. 30g 14K (worth ~€2030) for €1500, the gain — after the refining loss (default 3%, editable in Settings) — is automatically added to today\'s sales as "♻️ Scrap gain".',
-        '📊 Metal counts toward your totals (Total Retail + Pure gold/silver) but is NOT counted in "Pieces" (it\'s metal stock, not a jewel). It\'s hidden from the list unless you pick the "Metal" type in the filter, and NEVER shown in the public showroom. The card shows the value now and the value when added with a change %.'
       ]},
           ]
   }
@@ -19646,7 +19665,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.57';
+const APP_VERSION = '10.58';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
