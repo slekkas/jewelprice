@@ -924,10 +924,16 @@
     #cartPanel { max-width:560px !important; }
     /* Stock density picker (List / 2 / 3 columns) — shown only on desktop */
     #invColsWrap { display:flex !important; }
-    /* Default (and data-cols=2): two columns; vertical spacing keeps each card's margin-bottom */
-    #invList, #invList[data-cols="2"] { display:grid; grid-template-columns:repeat(2,1fr); column-gap:12px; align-items:start; }
+    /* Default (and data-cols=2): two columns; vertical spacing keeps each card's margin-bottom.
+       align-items defaults to stretch so every card in a row shares the tallest card's height
+       (a grouped card that carries less text no longer looks stunted next to its neighbours). */
+    #invList, #invList[data-cols="2"] { display:grid; grid-template-columns:repeat(2,1fr); column-gap:12px; }
     #invList[data-cols="3"] { grid-template-columns:repeat(3,1fr); }
     #invList[data-cols="1"] { display:block; max-width:600px; margin-left:auto; margin-right:auto; }
+    /* Stretched cards fill the row height; make each a flex column and pin its action row to
+       the bottom so the leftover space sits between the content and the buttons, not below them. */
+    #invList[data-cols="2"] .inv-card, #invList[data-cols="3"] .inv-card { display:flex; flex-direction:column; }
+    #invList[data-cols="2"] .inv-card .inv-card-actions, #invList[data-cols="3"] .inv-card .inv-card-actions { margin-top:auto; }
     /* Hug the wider frame's right-inside edge (1120 frame → 560 half - 16 = 544) */
     #invScrollTopBtn, #invNotifBtn { right: max(16px, calc(50vw - 544px)) !important; }
   }
@@ -12614,7 +12620,9 @@ function renderInvList() {
     const countBadge = `<span class="inv-card-badge" style="background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);font-weight:700">🔗 ${count} ${lang==='el'?'σε απόθεμα':'in stock'}</span>`;
     // Shared badges from the representative — mirror the single card (handmade, gold
     // colour, gender). The per-piece decorative colour is shown by the breakdown instead.
-    const _grpHandmade = (rep.handmade || !!(getItemCat(rep)?.handmade))
+    // Show the handmade mark if ANY piece in the group is handmade (the representative
+    // isn't necessarily the one flagged), mirroring the single card's badge.
+    const _grpHandmade = members.some(([, it]) => it.handmade || !!(getItemCat(it)?.handmade))
       ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
     const _grpHidden = rep.hideFromShowroom
       ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
@@ -16591,6 +16599,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.56', date: 'Ιούλιος 2026', items: [
+        '🖥️ Ομοιόμορφες κάρτες στον υπολογιστή: στην προβολή 2/3 στηλών, η κάρτα ομαδοποιημένων («όμοιων») ειδών ήταν πιο κοντή από τις υπόλοιπες και φαινόταν άσχημα — τώρα όλες οι κάρτες σε μια σειρά έχουν το ίδιο ύψος και τα κουμπιά ευθυγραμμίζονται κάτω. (Στο κινητό δεν αλλάζει τίποτα.)',
+        '✋ Το σήμα «χειροποίητο» εμφανίζεται πλέον και στις κάρτες ομαδοποιημένων ειδών, όταν κάποιο από τα κομμάτια της ομάδας είναι χειροποίητο.'
+      ]},
       { version: 'v10.55', date: 'Ιούλιος 2026', items: [
         '🔢 «Προσθήκη όμοιων ειδών» με ποσότητα: στο παράθυρο προστέθηκε πεδίο «Ποσότητα» με βελάκια πάνω/κάτω. Βάλτε βάρος και ποσότητα (π.χ. 5) και προστίθενται και τα 5 μαζί με ένα πάτημα — και με «Εκτύπωση & Προσθήκη» τυπώνονται και οι 5 ίδιες ετικέτες με μία εντολή. Τέλος πια το ένα-ένα.'
       ]},
@@ -16626,9 +16638,6 @@ const ABOUT = {
       ]},
       { version: 'v10.47', date: 'Ιούλιος 2026', items: [
         '⚖️ Μεγαλύτερη προεπιλεγμένη ανοχή στην «Αναγνώριση από βάρος»: από ±0.2 σε ±0.5 γραμμάρια (με νέα επιλογή ±1.5) — ώστε τα φθαρμένα παλιά νομίσματα, που ζυγίζουν λιγότερο από το κανονικό, να εντοπίζονται πιο εύκολα.'
-      ]},
-      { version: 'v10.46', date: 'Ιούλιος 2026', items: [
-        '🔎 Φίλτρο «Χωρίς τύπο»: αν κάποια είδη δεν έχουν καθορισμένο τύπο, εμφανίζεται στο φίλτρο «Τύπος» μια επιλογή «Χωρίς τύπο» για να τα βρείτε και να τους ορίσετε τύπο. (Γι\' αυτό το σύνολο «Επιλογή όλων» μπορεί να μη συμφωνεί με τη γενική λίστα — τα άτυπα είδη δεν ανήκαν σε κανέναν τύπο.)'
       ]},
           ]
   },
@@ -16712,6 +16721,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.56', date: 'Jul 2026', items: [
+        '🖥️ Even cards on desktop: in the 2/3-column view the grouped ("similar items") card was shorter than the rest and looked awkward — now every card in a row shares the same height and the buttons line up along the bottom. (Nothing changes on mobile.)',
+        '✋ The handmade mark now also shows on grouped-item cards when any piece in the group is handmade.'
+      ]},
       { version: 'v10.55', date: 'Jul 2026', items: [
         '🔢 "Add similar items" with quantity: the window now has a "Quantity" field with up/down arrows. Enter a weight and a quantity (e.g. 5) and all 5 are added at once with one tap — and "Print & Add" prints all 5 identical labels in one command. No more one-by-one.'
       ]},
@@ -16747,9 +16760,6 @@ const ABOUT = {
       ]},
       { version: 'v10.47', date: 'Jul 2026', items: [
         '⚖️ Bigger default tolerance in "Identify by weight": from ±0.2 to ±0.5 g (plus a new ±1.5 option) — so worn old coins, which weigh less than standard, are matched more easily.'
-      ]},
-      { version: 'v10.46', date: 'Jul 2026', items: [
-        '🔎 "No type" filter: if some pieces have no type set, the Type filter now shows a "No type" option so you can find them and assign a type. (That\'s also why "Select all" could differ from the full list — untyped pieces belonged to no type.)'
       ]},
           ]
   }
@@ -19634,7 +19644,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.55';
+const APP_VERSION = '10.56';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
