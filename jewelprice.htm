@@ -3128,7 +3128,7 @@ const T = {
     invDateModeAdded:'Ημ. Προσθήκης', invDateModeSold:'Ημ. Πώλησης', invDateMode:'Φίλτρο βάσει',
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
-    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterHidden:'🙈 Κρυφά',
+    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά',
     invFilterGain:'Υπεραξία τιμής',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
@@ -3500,7 +3500,7 @@ const T = {
     invDateModeAdded:'Date Added', invDateModeSold:'Date Sold', invDateMode:'Filter by',
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
-    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterHidden:'🙈 Hidden',
+    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden',
     invFilterGain:'Price Gain',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
@@ -11500,7 +11500,7 @@ function updateInvFilterBadge() {
     if (_invFilters.types.length) parts.push(_invFilters.types.map(k => k === '__notype__' ? (lang==='el'?'Χωρίς τύπο':'No type') : invTypeLabel(k)).join(', '));
     if (_invFilters.vendors.length) parts.push(_invFilters.vendors.join(', '));
     if (_invFilters.stones.length) parts.push('💎 ' + _invFilters.stones.map(s => stoneLabel(s)).join(', '));
-    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : s === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')).join(', '));
+    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : s === 'grouped' ? t('invFilterGrouped') : s === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')).join(', '));
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
@@ -11550,7 +11550,7 @@ function openInvFilterSheet() {
   });
   const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
   const stoneTypes = [...STONE_PRIORITY.filter(s => stoneTypeSet.has(s)), ...[...stoneTypeSet].filter(s => !STONE_PRIORITY.includes(s)).sort()];
-  const statuses = ['in_stock','sold','hidden'];
+  const statuses = ['in_stock','sold','grouped','hidden'];
 
   // Pills for small fixed sets (metal, karat, status)
   function pillGroup(labelKey, vals, selectedArr, groupKey, labelFn) {
@@ -11751,7 +11751,7 @@ function openInvFilterSheet() {
         <div class="inv-fs-picker-list" id="invPickerList_stones">${listHtml}</div>
       </div>`;
     })() +
-    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : v === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')) +
+    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : v === 'grouped' ? t('invFilterGrouped') : v === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')) +
     goldColorGroup +
     colorGroup +
     genderGroup +
@@ -12200,10 +12200,12 @@ function renderInvList() {
     }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
-    // 'hidden' is a cross-cutting flag (hidden-from-showroom), not a real status; when
-    // selected, the item must be hidden-from-showroom. The in_stock/sold pills still apply.
+    // 'hidden' and 'grouped' are cross-cutting flags, not real statuses; when selected the
+    // item must be hidden-from-showroom / part of a similar-items group. The in_stock/sold
+    // pills still apply (so "Rings + Grouped" narrows to in-stock ring groups).
     if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
-    const _realStatus = f.status.filter(s => s !== 'hidden');
+    if (f.status.includes('grouped') && !(item.groupId && !item.isMetal)) return false;
+    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped');
     if (_realStatus.length) {
       const st = isSoldItem ? 'sold' : 'in_stock';
       if (!_realStatus.includes(st)) return false;
@@ -16599,6 +16601,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.57', date: 'Ιούλιος 2026', items: [
+        '🔗 Νέο φίλτρο «Ομαδοποιημένα»: στα φίλτρα, στην ενότητα Κατάσταση (ανάμεσα σε «Πουλήθηκε» και «Κρυφά») προστέθηκε επιλογή «🔗 Ομαδοποιημένα» — δείχνει μόνο τα είδη που ανήκουν σε ομάδα όμοιων. Συνδυάζεται με τα άλλα φίλτρα: π.χ. «Δαχτυλίδια + Ομαδοποιημένα + Προμηθευτής» για να βρείτε γρήγορα μια υπάρχουσα ομάδα δαχτυλιδιών, χωρίς να ψάχνετε ανάμεσα στα μεμονωμένα.'
+      ]},
       { version: 'v10.56', date: 'Ιούλιος 2026', items: [
         '🖥️ Ομοιόμορφες κάρτες στον υπολογιστή: στην προβολή 2/3 στηλών, η κάρτα ομαδοποιημένων («όμοιων») ειδών ήταν πιο κοντή από τις υπόλοιπες και φαινόταν άσχημα — τώρα όλες οι κάρτες σε μια σειρά έχουν το ίδιο ύψος και τα κουμπιά ευθυγραμμίζονται κάτω. (Στο κινητό δεν αλλάζει τίποτα.)',
         '✋ Το σήμα «χειροποίητο» εμφανίζεται πλέον και στις κάρτες ομαδοποιημένων ειδών, όταν κάποιο από τα κομμάτια της ομάδας είναι χειροποίητο.'
@@ -16635,9 +16640,6 @@ const ABOUT = {
         '➕ Προσθέτετε στην ίδια καθαρότητα και το βάρος αθροίζεται: σήμερα 30g 14Κ, αύριο άλλα 30g → η κάρτα δείχνει 60g. Κάθε καθαρότητα (24Κ, 18Κ, 14Κ, καθαρό ασήμι κ.λπ.) έχει τη δική της κάρτα.',
         '💶 Αγορά scrap κάτω από την αξία = κέρδος: αν αγοράσετε π.χ. 30g 14Κ (αξία ~€2030) για €1500, το κέρδος — αφού αφαιρεθεί η απώλεια καθαρισμού (προεπιλογή 3%, ρυθμίζεται στις Ρυθμίσεις) — προστίθεται αυτόματα στις σημερινές σας πωλήσεις ως «♻️ Κέρδος scrap».',
         '📊 Το μέταλλο μετράει στα σύνολα (Αξία Λιανική + Καθαρός χρυσός/ασήμι) αλλά ΔΕΝ μετράει στα «Τεμάχια» (είναι απόθεμα μετάλλου, όχι κόσμημα). Κρύβεται από τη λίστα εκτός αν επιλέξετε τον τύπο «Μέταλλο» στο φίλτρο. Δεν εμφανίζεται ΠΟΤΕ στη δημόσια βιτρίνα. Η κάρτα δείχνει την αξία τώρα και την αξία κατά την προσθήκη με ποσοστό μεταβολής.'
-      ]},
-      { version: 'v10.47', date: 'Ιούλιος 2026', items: [
-        '⚖️ Μεγαλύτερη προεπιλεγμένη ανοχή στην «Αναγνώριση από βάρος»: από ±0.2 σε ±0.5 γραμμάρια (με νέα επιλογή ±1.5) — ώστε τα φθαρμένα παλιά νομίσματα, που ζυγίζουν λιγότερο από το κανονικό, να εντοπίζονται πιο εύκολα.'
       ]},
           ]
   },
@@ -16721,6 +16723,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.57', date: 'Jul 2026', items: [
+        '🔗 New "Grouped" filter: under Status (between "Sold" and "Hidden") there is now a "🔗 Grouped" option — it shows only items that belong to a similar-items group. Combine it with the other filters, e.g. "Rings + Grouped + Vendor", to quickly find an existing ring group instead of hunting through the individual pieces.'
+      ]},
       { version: 'v10.56', date: 'Jul 2026', items: [
         '🖥️ Even cards on desktop: in the 2/3-column view the grouped ("similar items") card was shorter than the rest and looked awkward — now every card in a row shares the same height and the buttons line up along the bottom. (Nothing changes on mobile.)',
         '✋ The handmade mark now also shows on grouped-item cards when any piece in the group is handmade.'
@@ -16757,9 +16762,6 @@ const ABOUT = {
         '➕ Add the same purity and the weight adds up: today 30g 14K, tomorrow another 30g → the card shows 60g. Each purity (24K, 18K, 14K, pure silver, etc.) has its own card.',
         '💶 Buying scrap below its value = profit: if you buy e.g. 30g 14K (worth ~€2030) for €1500, the gain — after the refining loss (default 3%, editable in Settings) — is automatically added to today\'s sales as "♻️ Scrap gain".',
         '📊 Metal counts toward your totals (Total Retail + Pure gold/silver) but is NOT counted in "Pieces" (it\'s metal stock, not a jewel). It\'s hidden from the list unless you pick the "Metal" type in the filter, and NEVER shown in the public showroom. The card shows the value now and the value when added with a change %.'
-      ]},
-      { version: 'v10.47', date: 'Jul 2026', items: [
-        '⚖️ Bigger default tolerance in "Identify by weight": from ±0.2 to ±0.5 g (plus a new ±1.5 option) — so worn old coins, which weigh less than standard, are matched more easily.'
       ]},
           ]
   }
@@ -19644,7 +19646,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.56';
+const APP_VERSION = '10.57';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
