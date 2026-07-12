@@ -1614,14 +1614,6 @@
       <div class="hint" data-i18n="spotHint" style="margin-bottom:12px">Αφήστε κενό για αυτόματη τιμή σε €.</div>
       <button class="save-btn" onclick="saveSettings()" data-i18n="save">Αποθήκευση</button>
 
-      <!-- BACKUP SECTION (owner/manager only) -->
-      <div class="settings-section" id="dupScanSection" style="display:none;margin-top:18px">
-        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0">🔍 <span data-i18n="dupScanTitle">Έλεγχος Διπλότυπων QR</span></h4>
-        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0" data-i18n="dupScanDesc">Σάρωση αποθέματος για αντικείμενα που μοιράζονται τον ίδιο κωδικό QR.</p>
-        <button onclick="runDuplicateQrScan()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="dupScanBtn">🔍 Σάρωση Τώρα</button>
-        <div id="dupScanResults" style="margin-top:10px"></div>
-      </div>
-
       <div class="settings-section" id="backupSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="backupTitle">💾 Αντίγραφο Ασφαλείας</h4>
         <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0" data-i18n="backupDesc">Κατεβάστε όλα τα δεδομένα (ρυθμίσεις, αποσπάσματα, πελάτες, πωλήσεις, πέτρες) σε ένα αρχείο JSON.</p>
@@ -3043,7 +3035,6 @@ const T = {
     shareQuoteBtn:'📤 Αποστολή',
     clientSyncOk:'Πελάτες αποθηκεύτηκαν ✓',
     clientSyncFail:'Αποτυχία αποθήκευσης',
-    dupScanTitle:'Έλεγχος Διπλότυπων QR', dupScanDesc:'Σάρωση αποθέματος για αντικείμενα που μοιράζονται τον ίδιο κωδικό QR.', dupScanBtn:'🔍 Σάρωση Τώρα',
     stoneAuditTitle:'💎 Έλεγχος Τιμών Πετρών',
     stoneAuditDesc:'Βρίσκει είδη με πέτρα των οποίων η τιμή μοιάζει να προστέθηκε αυτόματα από παλιό σφάλμα (όχι από εσάς). Ελέγξτε το καθένα· «Μηδενισμός πέτρας» βάζει την τιμή πέτρας στο 0 και διορθώνει την υπεραξία. Δεν αλλάζει καμία τιμή χωρίς την έγκρισή σας.',
     stoneAuditRun:'🔍 Σάρωση Αποθέματος',
@@ -3416,7 +3407,6 @@ const T = {
     shareQuoteBtn:'📤 Share',
     clientSyncOk:'Clients saved ✓',
     clientSyncFail:'Save failed',
-    dupScanTitle:'Duplicate QR Check', dupScanDesc:'Scan inventory for items sharing the same QR code.', dupScanBtn:'🔍 Scan Now',
     stoneAuditTitle:'💎 Stone Price Audit',
     stoneAuditDesc:'Finds stone items whose price looks like it was auto-added by the old bug (not by you). Review each — "Set stone free" puts the stone price to 0 and fixes the gain. It never changes a price without your confirmation.',
     stoneAuditRun:'🔍 Scan Inventory',
@@ -4010,7 +4000,6 @@ function applyRoleUI() {
   const _ss = document.getElementById('salesSection'); if (_ss) _ss.style.display = isOwnerMgr ? '' : 'none';
   const _bs = document.getElementById('backupSection'); if (_bs) _bs.style.display = isOwnerMgr ? '' : 'none';
   const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
-  const _ds = document.getElementById('dupScanSection'); if (_ds) _ds.style.display = isOwnerMgr ? '' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
   if (isEmployee && (activePanel === 'panel-settings' || activePanel === 'panel-sync')) {
@@ -9998,188 +9987,6 @@ function saveSettings() {
   state.manualSilver = document.getElementById('manualSilver').value;
   saveState(); pushIfOwner(); updateSpotDisplay(); showSpotWarning(false);
   showStatus('settingsStatus', t('settingsSaved'), 'ok');
-}
-
-// ── Duplicate QR Scanner (ongoing utility — not a one-time fix) ─────────────
-async function runDuplicateQrScan() {
-  const resultsEl = document.getElementById('dupScanResults');
-  if (!resultsEl) return;
-  resultsEl.innerHTML = `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);text-align:center;padding:8px 0">${lang==='el'?'⏳ Σάρωση...':'⏳ Scanning...'}</div>`;
-  const inv = await loadInventory();
-  if (!inv) { resultsEl.innerHTML = `<div style="color:var(--danger);font-size:12px">${lang==='el'?'❌ Αποτυχία φόρτωσης':'❌ Failed to load'}</div>`; return; }
-  // Group by qrCode
-  const groups = {};
-  Object.entries(inv).forEach(([fbKey, item]) => {
-    const qr = (item.qrCode || item.code || '').trim().toUpperCase();
-    if (!qr) return;
-    if (!groups[qr]) groups[qr] = [];
-    groups[qr].push({ fbKey, item });
-  });
-  // Store full inventory in cache for fix flow
-  _inventoryCache = inv;
-  const dupes = Object.entries(groups).filter(([, arr]) => arr.length > 1);
-  if (dupes.length === 0) {
-    resultsEl.innerHTML = `<div style="font-family:var(--font-body);font-size:12px;color:#27AE60;text-align:center;padding:8px 0">✅ ${lang==='el'?'Δεν βρέθηκαν διπλότυπα!':'No duplicates found!'}</div>`;
-    return;
-  }
-  let html = `<div style="font-family:var(--font-body);font-size:11px;color:var(--danger);margin-bottom:8px">⚠️ ${lang==='el'?'Βρέθηκαν':'Found'} ${dupes.length} ${lang==='el'?'διπλότυπα QR:':'duplicate QR codes:'}</div>`;
-  dupes.forEach(([qr, arr]) => {
-    html += `<div style="background:rgba(255,80,80,0.07);border:1px solid rgba(255,80,80,0.25);border-radius:8px;padding:10px 12px;margin-bottom:8px">`;
-    html += `<div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gold-light);margin-bottom:6px">${qr} <span style="color:var(--text-muted);font-size:10px">(${arr.length} ${lang==='el'?'αντικείμενα':'items'})</span></div>`;
-    arr.forEach(({ fbKey, item }, arrIdx) => {
-      const desc = lang==='el' ? (item.descEl||item.descEn||item.description||'—') : (item.descEn||item.descEl||item.description||'—');
-      const photo = item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;border:1px solid rgba(212,175,55,0.2);cursor:pointer">` : `<div style="width:36px;height:36px;border-radius:4px;background:rgba(255,255,255,0.05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">💎</div>`;
-      const statusColor = item.status === 'sold' ? 'rgba(255,80,80,0.7)' : '#27AE60';
-      const statusLabel = item.status === 'sold' ? (lang==='el'?'Πουλήθηκε':'Sold') : (lang==='el'?'Στο απόθεμα':'In stock');
-      const canFix = arrIdx > 0 && item.status === 'in_stock' && item.metal !== 'other';
-      html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06)">`;
-      html += photo;
-      html += `<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div><div style="font-size:10px;color:var(--text-muted);margin-top:1px">${item.vendorName||''} · ${item.catName||''} · <span style="color:${statusColor}">${statusLabel}</span></div></div>`;
-      if (canFix) {
-        html += `<button onclick="_fixDupQrFromScanner('${fbKey}')" style="flex-shrink:0;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.5);color:var(--gold-light);border-radius:4px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:var(--font-body);font-weight:700">${lang==='el'?'Διόρθωση →':'Fix →'}</button>`;
-      } else {
-        html += `<button onclick="_jumpToInvCard('${fbKey}')" style="flex-shrink:0;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:4px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:var(--font-body)">${lang==='el'?'Δες →':'View →'}</button>`;
-      }
-      html += `</div>`;
-    });
-    html += `</div>`;
-  });
-  resultsEl.innerHTML = html;
-}
-
-async function _fixDupQrFromScanner(fbKey) {
-  const item = (_inventoryCache || {})[fbKey];
-  if (!item) { showToast('⚠️ ' + (lang==='el'?'Αντικείμενο δεν βρέθηκε':'Item not found')); return; }
-  const isEl = lang === 'el';
-
-  // Find vendor and cat index from stored names
-  const vendorIdx = state.vendors.findIndex(v => v.name === item.vendorName);
-  if (vendorIdx < 0) { showToast('⚠️ ' + (isEl?'Ο προμηθευτής δεν βρέθηκε':'Vendor not found')); return; }
-  const vendor = state.vendors[vendorIdx];
-  const cats = getVendorCategories(vendor);
-  const catIdx = item.catName ? cats.findIndex(c => c.name === item.catName) : (item.catIdx ?? -1);
-  if (catIdx < 0) { showToast('⚠️ ' + (isEl?'Η κατηγορία δεν βρέθηκε':'Category not found')); return; }
-
-  // Extract stone suffix from existing QR (everything after baseCode+weight)
-  const existingQR = (item.qrCode || item.code || '');
-  const latinBase = getLatinCodeForCat(vendor, catIdx, state.vendors);
-  const curWeight = parseFloat(item.weight) || 0;
-  // Stone suffix = whatever comes after the base+weight portion
-  const baseWithWeight = latinBase + (curWeight ? curWeight.toString() : '');
-  const stoneSuffix = existingQR.toUpperCase().startsWith(baseWithWeight.toUpperCase())
-    ? existingQR.slice(baseWithWeight.length)
-    : '';
-
-  function buildNewQR(newWeight) {
-    return latinBase + newWeight.toString() + stoneSuffix;
-  }
-
-  const suggestedWeight = curWeight > 0 ? (curWeight + 0.01).toFixed(2) : '';
-  const desc = isEl ? (item.descEl||item.descEn||item.description||'—') : (item.descEn||item.descEl||item.description||'—');
-  const photo = item.photoUrl
-    ? `<img src="${item.photoUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);flex-shrink:0">`
-    : `<div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">💎</div>`;
-
-  const overlay = document.createElement('div');
-  overlay.id = 'fixDupQrOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.innerHTML = `
-    <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.35);border-radius:14px;padding:22px;width:100%;max-width:360px;max-height:90vh;overflow-y:auto">
-      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">🔧 ${isEl?'Διόρθωση QR Κωδικού':'Fix QR Code'}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;font-family:var(--font-body)">${isEl?'Αλλάξτε το βάρος για μοναδικό QR. Μόνο ο κωδικός QR ενημερώνεται — τίποτα άλλο δεν αλλάζει.':'Change the weight for a unique QR. Only the QR code is updated — nothing else changes.'}</div>
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px;margin-bottom:16px">
-        ${photo}
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-body);font-size:13px;color:var(--text-light);margin-bottom:3px">${desc}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${existingQR}</div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${item.vendorName||''} · ${item.catName||''}</div>
-        </div>
-      </div>
-      <div style="font-size:12px;color:var(--text-light);font-family:var(--font-body);margin-bottom:6px">${isEl?'Νέο βάρος (g):':'New weight (g):'}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <input id="fixDupWeightInput" type="number" step="0.01" inputmode="decimal" value="${suggestedWeight}" style="flex:1;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.4);border-radius:6px;color:var(--gold-light);font-family:'DM Mono',monospace;font-size:15px;outline:none">
-        <span style="font-size:12px;color:var(--text-muted);font-family:var(--font-body)">g</span>
-      </div>
-      <div id="fixDupNewCode" style="font-family:'DM Mono',monospace;font-size:12px;text-align:center;margin-bottom:16px;min-height:16px;color:var(--text-muted)"></div>
-      <div id="fixDupStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:10px;min-height:14px;font-family:'DM Mono',monospace"></div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button id="fixDupCancelBtn" style="flex:1;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl?'Ακύρωση':'Cancel'}</button>
-        <button id="fixDupSaveBtn" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;color:var(--dark);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">${isEl?'💾 Αποθήκευση':'💾 Save'}</button>
-      </div>
-      <button id="fixDupPrintBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'🖨️ Αποθήκευση & Εκτύπωση Ετικέτας':'🖨️ Save & Print Tag'}</button>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const weightInput = document.getElementById('fixDupWeightInput');
-  const newCodeEl = document.getElementById('fixDupNewCode');
-  const statusEl = document.getElementById('fixDupStatus');
-
-  function updatePreview() {
-    const w = parseFloat(weightInput.value);
-    if (isNaN(w) || w <= 0) { newCodeEl.textContent = ''; return; }
-    const newQR = buildNewQR(w);
-    const isDup = Object.values(_inventoryCache||{}).some(it =>
-      it !== item && (it.qrCode||it.code||'').trim().toUpperCase() === newQR.trim().toUpperCase()
-    );
-    newCodeEl.style.color = isDup ? 'var(--danger)' : '#27AE60';
-    newCodeEl.textContent = '→ ' + newQR + (isDup ? (isEl?' ⚠️ Ακόμα διπλό!':' ⚠️ Still duplicate!') : (isEl?' ✓ Μοναδικό':' ✓ Unique'));
-  }
-  weightInput.addEventListener('input', updatePreview);
-  updatePreview();
-
-  async function doSave(andPrint) {
-    const w = parseFloat(weightInput.value);
-    if (isNaN(w) || w <= 0) { showToast('⚠️ ' + (isEl?'Εισάγετε έγκυρο βάρος':'Enter a valid weight')); return; }
-    const newQR = buildNewQR(w);
-    const isDup = Object.values(_inventoryCache||{}).some(it =>
-      it !== item && (it.qrCode||it.code||'').trim().toUpperCase() === newQR.trim().toUpperCase()
-    );
-    if (isDup) { showToast('⚠️ ' + (isEl?'Ο κωδικός είναι ακόμα διπλότυπος':'QR is still duplicate')); return; }
-
-    document.getElementById('fixDupSaveBtn').disabled = true;
-    document.getElementById('fixDupPrintBtn').disabled = true;
-    statusEl.textContent = isEl ? '⏳ Αποθήκευση...' : '⏳ Saving...';
-    statusEl.style.color = 'var(--text-muted)';
-
-    // Update only qrCode and code fields
-    item.qrCode = newQR;
-    item.code = latinBase + w.toString();
-    _inventoryCache[fbKey] = item;
-    const ok = await saveInventoryItem(fbKey, item);
-    if (!ok) {
-      statusEl.textContent = '❌ ' + (isEl?'Αποτυχία αποθήκευσης':'Save failed');
-      statusEl.style.color = 'var(--danger)';
-      document.getElementById('fixDupSaveBtn').disabled = false;
-      document.getElementById('fixDupPrintBtn').disabled = false;
-      return;
-    }
-
-    if (andPrint) {
-      statusEl.textContent = isEl ? '🖨️ Εκτύπωση...' : '🖨️ Printing...';
-      // Build label data from the new QR
-      const dashIdx = newQR.indexOf('-');
-      const baseQR = dashIdx !== -1 ? newQR.slice(0, dashIdx) : newQR;
-      const stoneStr = dashIdx !== -1 ? newQR.slice(dashIdx + 1) : '';
-      const stoneParts = stoneStr ? stoneStr.split('+').filter(Boolean) : [];
-      const lines = [baseQR];
-      stoneParts.forEach((p, i) => lines.push((i===0?'-':'+')+p));
-      const labelData = { fullQR: newQR, baseQR, greekCode: baseQR, lines, hasStones: stoneParts.length > 0 };
-      await printLabel(labelData, statusEl);
-    } else {
-      statusEl.textContent = '✅ ' + (isEl?'Αποθηκεύτηκε!':'Saved!');
-      statusEl.style.color = '#27AE60';
-    }
-
-    setTimeout(() => {
-      overlay.remove();
-      // Refresh the scan results
-      runDuplicateQrScan();
-    }, 1500);
-  }
-
-  document.getElementById('fixDupCancelBtn').addEventListener('click', () => overlay.remove());
-  document.getElementById('fixDupSaveBtn').addEventListener('click', () => doSave(false));
-  document.getElementById('fixDupPrintBtn').addEventListener('click', () => doSave(true));
 }
 
 // ── Database Backup ──────────────────────────────────────────────────────────
@@ -16691,6 +16498,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.61', date: 'Ιούλιος 2026', items: [
+        '🔧 Αφαιρέθηκε το κουμπί «Έλεγχος Διπλότυπων QR» από τις Ρυθμίσεις: το είχαμε φτιάξει παλιά για μια έκτακτη διόρθωση της βάσης. Πλέον χρησιμοποιούμε σκόπιμα ίδιους κωδικούς QR (στα νομίσματα και στα όμοια/επαναλαμβανόμενα είδη), οπότε το κουμπί έδειχνε δεκάδες «διπλότυπα» που είναι κανονικά — και το κουμπί «Διόρθωση» δίπλα τους θα άλλαζε το βάρος (άρα και την τιμή) ενός κομματιού. Η εφαρμογή ήδη σας προειδοποιεί μόνη της αν προσπαθήσετε να αποθηκεύσετε κατά λάθος ίδιο κωδικό, οπότε το εργαλείο δεν χρειάζεται πια.'
+      ]},
       { version: 'v10.60', date: 'Ιούλιος 2026', items: [
         '📡 Διόρθωση «Δεν είναι δυνατή η λήψη τιμής χρυσού» στον υπολογιστή: όταν η εφαρμογή έμενε ανοιχτή για ώρα (και μετά από αδράνεια/ύπνο της οθόνης), εμφανιζόταν το κόκκινο μήνυμα και έπρεπε να την κλείσετε και να την ξανανοίξετε. Τώρα: (1) η τελευταία τιμή χρυσού/ασημιού αποθηκεύεται και επαναφέρεται, οπότε μια στιγμιαία διακοπή δικτύου δεν σβήνει την τιμή· (2) κάθε αίτημα έχει όριο χρόνου 12 δευτ. ώστε να μην «κολλάει»· (3) το προειδοποιητικό μήνυμα εμφανίζεται μόνο αν η τιμή είναι πραγματικά παλιά (καμία επιτυχής λήψη για ~30 λεπτά), όχι σε μία αποτυχημένη ανανέωση· (4) η εφαρμογή ξαναδοκιμάζει αυτόματα μέσα σε ένα λεπτό και μόλις επανέλθει το δίκτυο ή ξαναεστιάσετε το παράθυρο — χωρίς να χρειάζεται επανεκκίνηση.'
       ]},
@@ -16722,11 +16532,6 @@ const ABOUT = {
       { version: 'v10.52', date: 'Ιούλιος 2026', items: [
         '🖥️ Επιλογή στηλών στον υπολογιστή: πάνω δεξιά στο Απόθεμα προστέθηκε μενού «Λίστα / 2 στήλες / 3 στήλες» — διαλέγετε πόσο πυκνά θέλετε τη λίστα (λίστα για μικρή οθόνη laptop, 2–3 στήλες για μεγάλη οθόνη). Η επιλογή αποθηκεύεται. Εμφανίζεται μόνο στον υπολογιστή· στο κινητό δεν αλλάζει τίποτα.',
         '🙈 «Απόκρυψη από βιτρίνα» σε κάθε είδος: νέος διακόπτης — και στη δημιουργία νέου είδους (Υπολογισμός → Ετικέτα) και στην Επεξεργασία στο Απόθεμα — που κρύβει το συγκεκριμένο κομμάτι από το online showroom. Λειτουργεί σε όλα τα είδη (χρυσό, ασήμι, άλλο). Ιδανικό π.χ. για ανταλλακτικά σκουλαρικιών που πουλάτε μόνο σε περαστικούς. Έτσι αποφασίζετε μόνοι σας τι φαίνεται στη βιτρίνα.'
-      ]},
-      { version: 'v10.51', date: 'Ιούλιος 2026', items: [
-        '🖥️ Νέα προβολή για υπολογιστή: σε μεγάλες οθόνες η εφαρμογή γίνεται πιο φαρδιά και η καρτέλα Απόθεμα εμφανίζεται σε ΔΥΟ στήλες, ώστε να βλέπετε περισσότερα κομμάτια μαζί. Στο κινητό δεν αλλάζει τίποτα.',
-        '🐛 Διόρθωση στον υπολογιστή: το στρογγυλό βελάκι «πάνω» δεν εξαφανίζεται πλέον όταν κατεβαίνετε τη λίστα, και η κάτω μπάρα πλοήγησης ευθυγραμμίζεται σωστά με το Απόθεμα σε πλήρη οθόνη.',
-        '🙈 Οι υπάλληλοι δεν βλέπουν πλέον τα φίλτρα «Νόμισμα» και «Μέταλλο» (αφορούν μόνο εσάς).'
       ]},
           ]
   },
@@ -16810,6 +16615,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.61', date: 'Jul 2026', items: [
+        '🔧 Removed the "Duplicate QR Check" button from Settings: we built it long ago for a one-off database fix. We now deliberately use the same QR code in several places (coins, and identical/restocked "similar items"), so the button flagged dozens of perfectly normal "duplicates" — and its "Fix" button next to them would have changed a piece\'s weight (and therefore its price). The app already warns you by itself if you ever try to save a duplicate code by accident, so the tool is no longer needed.'
+      ]},
       { version: 'v10.60', date: 'Jul 2026', items: [
         '📡 Fixed "Cannot fetch live gold price" on desktop: when the app was left open for a while (and after the screen went idle/asleep) the red warning would appear and you had to close and reopen the app. Now: (1) the last good gold/silver price is saved and restored, so a brief network drop never blanks the price; (2) each request has a 12-second timeout so it can no longer hang; (3) the warning only appears when the price is genuinely stale (no successful fetch for ~30 minutes), not on a single failed refresh; (4) the app automatically retries within a minute and refetches the moment the network returns or you refocus the window — no restart needed.'
       ]},
@@ -16841,11 +16649,6 @@ const ABOUT = {
       { version: 'v10.52', date: 'Jul 2026', items: [
         '🖥️ Column picker on desktop: a "List / 2 columns / 3 columns" menu (top-right of Stock) lets you choose how dense the list is — List for a small laptop screen, 2–3 columns for a big monitor. Your choice is remembered. Desktop-only; nothing changes on the phone.',
         '🙈 "Hide from showroom" on every item: a new toggle — both when creating a new item (Calc → Tag) and in Edit on the Stock tab — hides that specific piece from the online showroom. Works for all items (gold, silver, other). Great for e.g. earring backs you only sell to walk-ins. Now you decide what shows in the showroom yourself.'
-      ]},
-      { version: 'v10.51', date: 'Jul 2026', items: [
-        '🖥️ New desktop view: on large screens the app now widens and the Stock tab shows TWO columns so you can see more pieces at once. Nothing changes on the phone.',
-        '🐛 Desktop fixes: the round "back to top" arrow no longer disappears as you scroll down the stock list, and the bottom navigation bar now lines up correctly with the inventory in fullscreen.',
-        '🙈 Employees no longer see the "Coin" and "Metal" filters (those are owner-only).'
       ]},
           ]
   }
@@ -19730,7 +19533,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.60';
+const APP_VERSION = '10.61';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
