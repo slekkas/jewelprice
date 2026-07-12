@@ -957,6 +957,7 @@
   }
   .inv-stat-val { font-family:var(--font-heading); font-size:22px; color:var(--gold-light); font-weight:700; line-height:1.1; }
   .inv-stat-val.small { font-size:17px; }
+  .inv-stat-gain { font-family:var(--font-mono); font-size:12px; font-weight:600; margin-top:3px; line-height:1; min-height:12px; }
   .inv-stat-lbl { font-family:var(--font-body); font-size:11px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
   .inv-stat { cursor:pointer; transition:border-color 0.2s, background 0.2s; }
   .inv-stat:active { background:rgba(212,175,55,0.14); }
@@ -2409,6 +2410,7 @@
       </div>
       <div class="inv-stat" id="invStatCard1" onclick="toggleInvStat(1)">
         <div class="inv-stat-val small" id="invStatRetail">—</div>
+        <div class="inv-stat-gain" id="invStatRetailGain"></div>
         <div class="inv-stat-lbl" data-i18n="invTotalRetail">Αξία Λιανική</div>
         <div class="inv-stat-expand" id="invStatExpand1">
           <div class="inv-stat-row"><span>🥇</span><span id="invStatRetailGold">—</span></div>
@@ -2418,6 +2420,7 @@
       </div>
       <div class="inv-stat" id="invStatCard2" onclick="toggleInvStat(2)">
         <div class="inv-stat-val small" id="invStatMetal">—</div>
+        <div class="inv-stat-gain" id="invStatMetalGain"></div>
         <div id="invStatPureGold" style="font-size:11px;color:var(--gold);font-family:var(--font-mono);letter-spacing:0.04em;margin-top:1px;display:none"></div>
         <div class="inv-stat-lbl" data-i18n="invTotalMetal">Αξία Μετάλλου</div>
         <div class="inv-stat-expand" id="invStatExpand2">
@@ -11269,6 +11272,31 @@ function invGainPct(item) {
   return (p.retail - _init) / _init * 100;
 }
 
+// ── Metal-value baseline anchor (for the Stock header "Metal Value" gain %) ──────
+// Pure metal is simple: its value = pure grams × spot. Items added going forward store
+// their own metal value at add time (initialMetalValue). Existing stock has no such
+// field, so its metal baseline is computed on the fly from the gold/silver price on
+// 20 May 2025 (the owner's main buying date) — €/troy-ounce. Change these two numbers
+// to re-anchor every legacy piece at once; nothing is written to the database.
+const METAL_BASELINE_ANCHOR = { gold: 2921.38, silver: 29.339 }; // €/oz, 20 May 2025
+
+// The starting metal value used for the total "Metal Value" gain %. Coins & raw-metal
+// lots carry their own add-time melt (initialMelt); regular gold/silver jewelry uses
+// initialMetalValue when present (new items), else the May-2025 anchor (legacy stock).
+// `pureGrams` is the item's pure-metal grams (already computed by the caller).
+function invMetalBaseline(item, pureGrams) {
+  if (!item || (item.metal !== 'gold' && item.metal !== 'silver')) return null;
+  if (item.isCoin || item.isMetal) {
+    const m = parseFloat(item.initialMelt);
+    return m > 0 ? m : null;
+  }
+  const imv = parseFloat(item.initialMetalValue);
+  if (Number.isFinite(imv) && imv > 0) return imv;
+  // Legacy piece — anchor to the 20 May 2025 spot price.
+  const oz = item.metal === 'gold' ? METAL_BASELINE_ANCHOR.gold : METAL_BASELINE_ANCHOR.silver;
+  return pureGrams > 0 ? pureGrams * oz / 31.1035 : null;
+}
+
 // ── Inventory Sort ────────────────────────────────────────────────────────────
 const INV_SORT_OPTIONS = [
   { key: 'newest',      icon: '🕐', i18n: 'invSortNewest' },
@@ -11872,9 +11900,15 @@ function renderInvSummary(filteredItems) {
   let piecesGold = 0, piecesSilver = 0, piecesOther = 0;
   let retailGold = 0, retailSilver = 0, retailOther = 0;
   let metalGold = 0, metalSilver = 0;
+  // Appreciation baselines (owner-only header gain %). Count-independent: each piece's
+  // live value AND its baseline enter/leave the sums together, so adding or selling stock
+  // never moves the %, only real metal-price movement does.
+  let retailCur = 0, retailBase = 0, metalCur = 0, metalBase = 0;
   inStock.forEach(item => {
     const p = calcInvItemPrice(item);
     if (p) { totalRetail += p.retail; totalMetal += p.metalValue; }
+    // Retail gain baseline — the add-date "initial price" each item already stores.
+    if (p) { const _ir = parseFloat(item.initialRetail); if (_ir > 0) { retailBase += _ir; retailCur += p.retail; } }
     // Coins & raw-metal lots aren't counted as pieces unless they're being shown (their
     // VALUE and pure-metal grams still always count in the totals).
     const _skipPiece = (item.isCoin && !_countCoins) || (item.isMetal && !_countMetal);
@@ -11882,29 +11916,35 @@ function renderInvSummary(filteredItems) {
     if (item.metal === 'gold') {
       if (!_skipPiece) piecesGold++;
       if (p) { retailGold += p.retail; metalGold += p.metalValue; }
+      let _pureG = 0;
       if (item.isCoin) {
         // Coins carry their exact pure-gold content — use it directly (a coin's
         // fineness isn't a standard karat, so weight×karatPurity would be wrong).
-        totalPureGoldGrams += parseFloat(item.coinPure) || 0;
+        _pureG = parseFloat(item.coinPure) || 0;
       } else if (item.isMetal) {
         // Raw metal lots carry exact pure grams (handles custom / non-standard finenesses).
-        totalPureGoldGrams += parseFloat(item.metalPure) || 0;
+        _pureG = parseFloat(item.metalPure) || 0;
       } else if (item.weight && item.karat) {
         const pur = karatPurity[parseInt(item.karat)] || 0;
-        totalPureGoldGrams += parseFloat(item.weight) * pur;
+        _pureG = parseFloat(item.weight) * pur;
       }
+      totalPureGoldGrams += _pureG;
+      if (p) { const _mb = invMetalBaseline(item, _pureG); if (_mb != null) { metalBase += _mb; metalCur += p.metalValue; } }
     } else if (item.metal === 'silver') {
       if (!_skipPiece) piecesSilver++;
       if (p) { retailSilver += p.retail; metalSilver += p.metalValue; }
+      let _pureS = 0;
       if (item.isCoin) {
         // Silver coins carry their exact pure-silver content — use it directly.
-        totalPureSilverGrams += parseFloat(item.coinPure) || 0;
+        _pureS = parseFloat(item.coinPure) || 0;
       } else if (item.isMetal) {
-        totalPureSilverGrams += parseFloat(item.metalPure) || 0;
+        _pureS = parseFloat(item.metalPure) || 0;
       } else if (item.weight && item.karat) {
         const pur = silverPurityMap[parseInt(item.karat)] || 0;
-        totalPureSilverGrams += parseFloat(item.weight) * pur;
+        _pureS = parseFloat(item.weight) * pur;
       }
+      totalPureSilverGrams += _pureS;
+      if (p) { const _mb = invMetalBaseline(item, _pureS); if (_mb != null) { metalBase += _mb; metalCur += p.metalValue; } }
     } else {
       piecesOther++;
       if (p) retailOther += p.retail;
@@ -11914,6 +11954,21 @@ function renderInvSummary(filteredItems) {
   const _isEmpSummary = creds.role === 'employee';
   document.getElementById('invStatRetail').textContent = _isEmpSummary ? '—' : (totalRetail > 0 ? cur + totalRetail.toFixed(2) : '—');
   document.getElementById('invStatMetal').textContent = _isEmpSummary ? '—' : (totalMetal > 0 ? cur + Math.round(totalMetal).toLocaleString() : '—');
+  // Appreciation % on the Retail & Metal totals (owner/manager only). Green up / red down,
+  // matching the per-item card gain line. Blank when there's no baseline to compare against.
+  const _gainHtml = (base, cur2) => {
+    if (!(base > 0)) return '';
+    const diff = cur2 - base;
+    const absPct = Math.abs(diff / base * 100);
+    const pctStr = absPct < 0.05 ? '0.0' : absPct.toFixed(1);
+    const sign = absPct < 0.05 ? '±' : (diff >= 0 ? '+' : '-');
+    const color = diff > 0.01 ? '#4caf84' : diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+    return `<span style="color:${color}">${sign}${pctStr}%</span>`;
+  };
+  const _rgEl = document.getElementById('invStatRetailGain');
+  if (_rgEl) _rgEl.innerHTML = _isEmpSummary ? '' : _gainHtml(retailBase, retailCur);
+  const _mgEl = document.getElementById('invStatMetalGain');
+  if (_mgEl) _mgEl.innerHTML = _isEmpSummary ? '' : _gainHtml(metalBase, metalCur);
   // Breakdown details
   const _setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setTxt('invStatPiecesGold', piecesGold);
@@ -12222,6 +12277,10 @@ function renderInvList() {
     // Coins are excluded — their value floats with spot, so a baseline is meaningless.
     if (p && item.metal !== 'other' && !item.isCoin && !item.initialRetail && !isSold) {
       item.initialRetail = parseFloat(p.retail.toFixed(2));
+      // Capture the metal-value baseline at the same moment (add-date for new items).
+      // Only fires for items missing a baseline — i.e. freshly-created ones; existing
+      // stock already has initialRetail, so it keeps the May-2025 anchor instead.
+      if (!item.isMetal && Number.isFinite(p.metalValue)) item.initialMetalValue = parseFloat(p.metalValue.toFixed(2));
       saveInventoryItem(id, item).catch(() => {});
     }
     // Appreciation line for owner/manager (hidden from employees)
@@ -13117,7 +13176,10 @@ RETAIL: €[integer]`;
     // Store initialRetail if not already set (for appreciation tracking)
     if (!item.initialRetail && item.metal !== 'other') {
       const _scanPrice = calcInvItemPrice(item);
-      if (_scanPrice) item.initialRetail = parseFloat(_scanPrice.retail.toFixed(2));
+      if (_scanPrice) {
+        item.initialRetail = parseFloat(_scanPrice.retail.toFixed(2));
+        if (Number.isFinite(_scanPrice.metalValue)) item.initialMetalValue = parseFloat(_scanPrice.metalValue.toFixed(2));
+      }
     }
     const ok = await saveInventoryItem(id, item);
     if (ok) {
@@ -15798,7 +15860,11 @@ function invAddSimilar(sourceId) {
       // (never inherit the source's baseline, which would be wrong for per-gram pricing).
       if (newItem.metal !== 'other') {
         const _p = calcInvItemPrice(newItem);
-        if (_p) newItem.initialRetail = parseFloat(_p.retail.toFixed(2));
+        if (_p) {
+          newItem.initialRetail = parseFloat(_p.retail.toFixed(2));
+          // Re-baseline metal too (don't inherit the source's initialMetalValue).
+          if (Number.isFinite(_p.metalValue)) newItem.initialMetalValue = parseFloat(_p.metalValue.toFixed(2));
+        }
       }
       _inventoryCache[newId] = newItem;
       await saveInventoryItem(newId, newItem);
@@ -16498,6 +16564,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.62', date: 'Ιούλιος 2026', items: [
+        '📈 Ποσοστό ανατίμησης στα σύνολα του αποθέματος: κάτω από τη «Συνολική Αξία Λιανική» και την «Αξία Μετάλλου» εμφανίζεται πλέον (μόνο για ιδιοκτήτη/διαχειριστή) το ποσοστό αύξησης/μείωσης — πράσινο για άνοδο, κόκκινο για πτώση — όπως ήδη βλέπετε σε κάθε κομμάτι. Είναι ανεξάρτητο από ποσότητα: όταν προσθέτετε ή πουλάτε ένα κομμάτι το ποσοστό ΔΕΝ αλλάζει — μόνο η πραγματική κίνηση της τιμής χρυσού/ασημιού το μετακινεί. Η Λιανική μετριέται από την τιμή που καταχωρήσατε κάθε κομμάτι· η Αξία Μετάλλου για τα υπάρχοντα κομμάτια μετριέται από την τιμή μετάλλου της 20ής Μαΐου 2025, ενώ ό,τι προσθέτετε από εδώ και πέρα ξεκινά από τη δική του τρέχουσα τιμή.'
+      ]},
       { version: 'v10.61', date: 'Ιούλιος 2026', items: [
         '🔧 Αφαιρέθηκε το κουμπί «Έλεγχος Διπλότυπων QR» από τις Ρυθμίσεις: το είχαμε φτιάξει παλιά για μια έκτακτη διόρθωση της βάσης. Πλέον χρησιμοποιούμε σκόπιμα ίδιους κωδικούς QR (στα νομίσματα και στα όμοια/επαναλαμβανόμενα είδη), οπότε το κουμπί έδειχνε δεκάδες «διπλότυπα» που είναι κανονικά — και το κουμπί «Διόρθωση» δίπλα τους θα άλλαζε το βάρος (άρα και την τιμή) ενός κομματιού. Η εφαρμογή ήδη σας προειδοποιεί μόνη της αν προσπαθήσετε να αποθηκεύσετε κατά λάθος ίδιο κωδικό, οπότε το εργαλείο δεν χρειάζεται πια.'
       ]},
@@ -16528,10 +16597,6 @@ const ABOUT = {
       { version: 'v10.53', date: 'Ιούλιος 2026', items: [
         '🙈 Σήμανση «κρυφών» ειδών: όσα είδη έχετε κρύψει από τη βιτρίνα δείχνουν πλέον ένα εικονίδιο 🙈 στην κάρτα τους (δίπλα στα υπόλοιπα σήματα, όπως το χειροποίητο), για να τα ξεχωρίζετε με μια ματιά.',
         '🔎 Φίλτρο «Κρυφά»: στα φίλτρα, στην ενότητα Κατάσταση (δίπλα σε «Σε Απόθεμα» / «Πουλήθηκε») προστέθηκε επιλογή «🙈 Κρυφά» — για να βλέπετε μόνο τα είδη που έχετε κρύψει από το online showroom.'
-      ]},
-      { version: 'v10.52', date: 'Ιούλιος 2026', items: [
-        '🖥️ Επιλογή στηλών στον υπολογιστή: πάνω δεξιά στο Απόθεμα προστέθηκε μενού «Λίστα / 2 στήλες / 3 στήλες» — διαλέγετε πόσο πυκνά θέλετε τη λίστα (λίστα για μικρή οθόνη laptop, 2–3 στήλες για μεγάλη οθόνη). Η επιλογή αποθηκεύεται. Εμφανίζεται μόνο στον υπολογιστή· στο κινητό δεν αλλάζει τίποτα.',
-        '🙈 «Απόκρυψη από βιτρίνα» σε κάθε είδος: νέος διακόπτης — και στη δημιουργία νέου είδους (Υπολογισμός → Ετικέτα) και στην Επεξεργασία στο Απόθεμα — που κρύβει το συγκεκριμένο κομμάτι από το online showroom. Λειτουργεί σε όλα τα είδη (χρυσό, ασήμι, άλλο). Ιδανικό π.χ. για ανταλλακτικά σκουλαρικιών που πουλάτε μόνο σε περαστικούς. Έτσι αποφασίζετε μόνοι σας τι φαίνεται στη βιτρίνα.'
       ]},
           ]
   },
@@ -16615,6 +16680,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.62', date: 'Jul 2026', items: [
+        '📈 Appreciation % on the inventory totals: under "Total Retail Value" and "Metal Value" you (owner/manager only) now see the rise/drop percentage — green for up, red for down — the same as on every item card. It is count-independent: adding or selling a piece does NOT move the %, only real gold/silver price movement does. Retail is measured from the price you entered each piece at; Metal Value for your existing stock is measured from the metal price on 20 May 2025, while anything you add from now on starts from its own current price.'
+      ]},
       { version: 'v10.61', date: 'Jul 2026', items: [
         '🔧 Removed the "Duplicate QR Check" button from Settings: we built it long ago for a one-off database fix. We now deliberately use the same QR code in several places (coins, and identical/restocked "similar items"), so the button flagged dozens of perfectly normal "duplicates" — and its "Fix" button next to them would have changed a piece\'s weight (and therefore its price). The app already warns you by itself if you ever try to save a duplicate code by accident, so the tool is no longer needed.'
       ]},
@@ -16645,10 +16713,6 @@ const ABOUT = {
       { version: 'v10.53', date: 'Jul 2026', items: [
         '🙈 "Hidden" mark on items: any piece you\'ve hidden from the showroom now shows a 🙈 icon on its card (next to the other badges like handmade), so you can spot them at a glance.',
         '🔎 "Hidden" filter: in Filters → Status (next to "In Stock" / "Sold") there\'s a new "🙈 Hidden" option — to list only the items you\'ve hidden from the online showroom.'
-      ]},
-      { version: 'v10.52', date: 'Jul 2026', items: [
-        '🖥️ Column picker on desktop: a "List / 2 columns / 3 columns" menu (top-right of Stock) lets you choose how dense the list is — List for a small laptop screen, 2–3 columns for a big monitor. Your choice is remembered. Desktop-only; nothing changes on the phone.',
-        '🙈 "Hide from showroom" on every item: a new toggle — both when creating a new item (Calc → Tag) and in Edit on the Stock tab — hides that specific piece from the online showroom. Works for all items (gold, silver, other). Great for e.g. earring backs you only sell to walk-ins. Now you decide what shows in the showroom yourself.'
       ]},
           ]
   }
@@ -19533,7 +19597,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.61';
+const APP_VERSION = '10.62';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
