@@ -10232,6 +10232,25 @@ function _invItemDate(id, item) {
   return m ? Number(m[1]) : 0;
 }
 
+// Real cost of an "Other"-type item. Other items don't store a plain purchaseCost;
+// the gross purchase price is encoded as the QR code's last numeric segment and the
+// supplier (vendor) discount is applied on top — this reproduces the exact "Cost
+// after discount" the scan breakdown shows. Falls back to any stored purchaseCost.
+function _invOtherCost(item) {
+  if (!item) return 0;
+  const parts = (item.qrCode || '').trim().split('-');
+  let gross = 0;
+  for (let i = parts.length - 1; i >= 1; i--) {
+    if (!/^\d+(\.\d+)?$/.test(parts[i])) continue;       // skip a stone suffix like "10xPEA"
+    const n = parseFloat(parts[i]);
+    if (!isNaN(n) && n > 0 && n < 100000) { gross = n; break; }
+  }
+  const v = (item.vendorIdx != null) ? state.vendors[item.vendorIdx] : null;
+  const disc = v ? (parseFloat(v.discount) || 0) : 0;
+  if (gross > 0) return parseFloat((gross * (1 - disc / 100)).toFixed(2));
+  const pc = parseFloat(item.purchaseCost); return pc > 0 ? pc : 0;
+}
+
 // Pure precious-metal grams in one item (exact for coins/scrap, weight×purity else).
 function _invPureGrams(item) {
   if (!item) return 0;
@@ -10383,7 +10402,9 @@ function runInvExport() {
   rows.forEach(({ id, it }) => {
     const p = calcInvItemPrice(it) || {};
     const retail = p.retail || 0;
-    const cost = (parseFloat(it.purchaseCost) > 0) ? parseFloat(it.purchaseCost) : (p.baseCost || 0);
+    const cost = (it.metal === 'other')
+      ? _invOtherCost(it)
+      : ((parseFloat(it.purchaseCost) > 0) ? parseFloat(it.purchaseCost) : (p.baseCost || 0));
     const pure = _invPureGrams(it);
     const w = parseFloat(it.weight) || 0;
     if (groupBy && it.jewelryType !== curType) { flushSub(); curType = it.jewelryType; sub = { count: 0, weight: 0, pure: 0, cost: 0, retail: 0 }; }
@@ -17245,8 +17266,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.70', date: 'Ιούλιος 2026', items: [
-        '🔍 Έλεγχος απογραφής τέλους σεζόν: Ρυθμίσεις → «Έλεγχος Απογραφής» → «Έναρξη». Εμφανίζεται κουμπί «Σάρωση» σε ΟΛΕΣ τις συσκευές — εσείς κι οι υπάλληλοι σαρώνετε τα QR όλων των ειδών (τα νομίσματα & το μέταλλο δεν μετρούν). Βλέπετε ζωντανά πόσα σαρώθηκαν συνολικά. Όταν τελειώσετε, «Ολοκλήρωση & Σύγκριση»: η εφαρμογή συγκρίνει ό,τι σαρώθηκε με το απόθεμα και δείχνει τι λείπει (με αξία), τι σαρώθηκε ενώ είναι πουλημένο, και άγνωστους κωδικούς. Εξαγωγή αποτελέσματος σε CSV. Λειτουργεί και με πληκτρολόγηση κωδικού (π.χ. σε iPhone).'
+      { version: 'v10.71', date: 'Ιούλιος 2026', items: [
+        '🔧 Διόρθωση: η εξαγωγή απογραφής σε CSV έδειχνε κόστος €0 για είδη τύπου «Άλλο». Τώρα υπολογίζει το πραγματικό κόστος (τιμή αγοράς − έκπτωση προμηθευτή), όπως ακριβώς φαίνεται όταν σαρώνετε το είδος.'
       ]},
           ]
   },
@@ -17277,8 +17298,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.70', date: 'Jul 2026', items: [
-        '🔍 End-of-season inventory check: Settings → «Inventory Check» → «Start». A «Scan» button appears on EVERY device — you and your staff scan every item\'s QR (coins & scrap metal don\'t count). You see the running total scanned across all phones live. When done, «Finish & Compare»: the app checks what was scanned against your stock and shows what\'s missing (with value), what was scanned but marked sold, and any unknown codes. Export the result to CSV. Also works by typing a code (e.g. on iPhone).'
+      { version: 'v10.71', date: 'Jul 2026', items: [
+        '🔧 Fix: the inventory CSV export showed €0 cost for «Other»-type items. It now computes the real cost (purchase price − supplier discount), exactly as shown when you scan the item.'
       ]},
           ]
   }
@@ -20168,7 +20189,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.70';
+const APP_VERSION = '10.71';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
