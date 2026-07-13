@@ -3173,7 +3173,7 @@ const T = {
     exportRun:'⬇️ Εξαγωγή CSV',
     exportNoItems:'Κανένα είδος δεν ταιριάζει στα φίλτρα.',
     exportDone:'✓ Το αρχείο κατέβηκε',
-    exportFmtNote:'Μορφή: Ελληνικό Excel (διαχωριστικό «;», υποδιαστολή κόμμα, UTF-8).',
+    exportFmtNote:'Μορφή: τυπικό CSV (διαχωρισμός με κόμμα, UTF-8) — ανοίγει σε Excel & Google Sheets.',
     stkBannerLabel:'Απογραφή σε εξέλιξη — Σάρωση',
     stkTitle:'🔍 Έλεγχος Απογραφής',
     stkDesc:'Στο κλείσιμο της σεζόν: πατήστε «Έναρξη» και όλοι σαρώνουν τα QR των ειδών. Όταν τελειώσετε, «Ολοκλήρωση & Σύγκριση» ελέγχει τι σαρώθηκε έναντι του αποθέματος και δείχνει τι λείπει. Τα νομίσματα & το μέταλλο δεν σαρώνονται.',
@@ -10376,10 +10376,15 @@ function runInvExport() {
   rows.sort((a, b) => typeOrder(a.it.jewelryType) - typeOrder(b.it.jewelryType) ||
     (itemRefCode(a.it) || '').localeCompare(itemRefCode(b.it) || ''));
 
-  const DELIM = isEl ? ';' : ',';
+  // Always a standard comma-delimited CSV with decimal points — opens cleanly in Excel
+  // (any language), Google Sheets and Numbers. (A Greek-locale ';' + decimal-comma file
+  // is technically "correct" for a Greek desktop Excel, but it broke in the owner's
+  // actual Excel, which splits on commas and so cut every "986,42" in half.) Only the
+  // TEXT is translated by language.
+  const DELIM = ',';
   const NL = '\r\n';
-  const num = n => { const s = (Math.round((n || 0) * 100) / 100).toFixed(2); return isEl ? s.replace('.', ',') : s; };
-  const g3  = n => { const s = (Math.round((n || 0) * 1000) / 1000).toFixed(3); return isEl ? s.replace('.', ',') : s; };
+  const num = n => (Math.round((n || 0) * 100) / 100).toFixed(2);
+  const g3  = n => (Math.round((n || 0) * 1000) / 1000).toFixed(3);
   const esc = v => { let s = (v == null ? '' : String(v)); if (/["\n\r;,]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
   const metalLbl = m => m === 'gold' ? (isEl ? 'Χρυσός' : 'Gold') : m === 'silver' ? (isEl ? 'Ασήμι' : 'Silver') : (isEl ? 'Άλλο' : 'Other');
   const nameOf = it => isEl ? (it.descEl || it.descEn || it.description || '') : (it.descEn || it.descEl || it.description || '');
@@ -10858,8 +10863,8 @@ function stkShowReport(rep) {
 function stkExportReport() {
   const rep = window._stkLastReport; if (!rep) return;
   const isEl = lang === 'el';
-  const DELIM = isEl ? ';' : ',', NL = '\r\n';
-  const num = n => { const s = (Math.round((n || 0) * 100) / 100).toFixed(2); return isEl ? s.replace('.', ',') : s; };
+  const DELIM = ',', NL = '\r\n'; // standard comma CSV (see runInvExport note)
+  const num = n => (Math.round((n || 0) * 100) / 100).toFixed(2);
   const esc = v => { let s = (v == null ? '' : String(v)); if (/["\n\r;,]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
   const lines = [];
   lines.push(esc('JewelPrice — ' + (isEl ? 'Έλεγχος Απογραφής' : 'Inventory Check')));
@@ -17375,8 +17380,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.76', date: 'Ιούλιος 2026', items: [
-        '🔧 Διόρθωση εξαγωγής CSV: στην ανάλυση ανά τύπο, η ανάλυση ασημιού ανά καθαρότητα εμφανιζόταν λάθος (π.χ. «925:30:00») επειδή το Excel το διάβαζε ως ώρα. Τώρα εμφανίζεται σωστά ως «925 (30)».'
+      { version: 'v10.77', date: 'Ιούλιος 2026', items: [
+        '🔧 Διόρθωση εξαγωγής CSV στα Ελληνικά: το αρχείο έβγαινε μπερδεμένο (οι αριθμοί κόβονταν σε λάθος στήλες) γιατί χρησιμοποιούσε «;» και υποδιαστολή κόμμα. Τώρα η ελληνική εξαγωγή έχει την ίδια δομή με την αγγλική (διαχωρισμός με κόμμα, υποδιαστολή τελεία) — μόνο τα κείμενα είναι στα ελληνικά — και ανοίγει σωστά.'
       ]},
           ]
   },
@@ -17407,8 +17412,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.76', date: 'Jul 2026', items: [
-        '🔧 CSV export fix: in the breakdown by type, the silver-by-fineness detail showed wrong (e.g. «925:30:00») because Excel read it as a time. It now shows correctly as «925 (30)».'
+      { version: 'v10.77', date: 'Jul 2026', items: [
+        '🔧 Greek CSV export fix: the file came out scrambled (numbers split into the wrong columns) because it used «;» and decimal commas. The Greek export now uses the same structure as the English one (comma-separated, decimal points) with Greek text, and opens correctly.'
       ]},
           ]
   }
@@ -20298,7 +20303,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.76';
+const APP_VERSION = '10.77';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
