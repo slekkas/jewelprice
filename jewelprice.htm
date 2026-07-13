@@ -1464,6 +1464,7 @@
     <div id="pfsDetails" style="display:flex;flex-direction:column;gap:0;width:100%;max-width:420px;margin-top:14px"></div>
     <div id="pfsType" style="font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.18em;color:#FFEBB0;text-transform:uppercase;margin-top:20px"></div>
     <div id="pfsDesc" style="font-family:var(--font-heading);font-style:italic;font-size:clamp(15px,4vw,19px);color:#FFEBB0;text-align:center;line-height:1.55;max-width:400px;padding:0 10px"></div>
+    <img id="pfsPhoto" src="" alt="" style="display:none;max-width:min(72vw,300px);max-height:44vh;background:#fff;border-radius:14px;padding:8px;margin-top:10px;box-shadow:0 6px 26px rgba(0,0,0,0.5)">
     <div style="position:absolute;bottom:40px;font-family:var(--font-mono);font-size:11px;color:rgba(255,255,255,0.2);letter-spacing:0.1em">TAP TO CLOSE</div>
   </div>
 
@@ -10730,7 +10731,7 @@ function _photoInputChanged(inputEl, previewId) {
         : dataUrl;
       showToast('✓ ' + Math.round(dataUrl.length/1024) + 'KB — tap Save to upload');
       const wrap = document.getElementById(previewId + '_wrap');
-      if (wrap) wrap.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px">';
+      if (wrap) wrap.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:contain;background:#fff;border-radius:8px">';
       const cb = _photoCaptureFns[previewId];
       if (cb) cb(dataUrl, hiUrl);
     };
@@ -10754,7 +10755,7 @@ function renderPhotoPicker(container, opts) {
   container.innerHTML =
     '<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">' +
       '<div id="' + previewId + '_wrap" style="width:72px;height:72px;border-radius:8px;overflow:hidden;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);flex-shrink:0;display:flex;align-items:center;justify-content:center">' +
-        (existingUrl ? '<img src="' + existingUrl + '" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:28px;color:var(--text-dim)">📷</span>') +
+        (existingUrl ? '<img src="' + existingUrl + '" style="width:100%;height:100%;object-fit:contain;background:#fff">' : '<span style="font-size:28px;color:var(--text-dim)">📷</span>') +
       '</div>' +
       '<div style="flex:1;display:flex;flex-direction:column;gap:7px">' +
         '<label for="' + camId + '" style="' + lbStyle + 'background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light)">' +
@@ -16564,6 +16565,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.65', date: 'Ιούλιος 2026', items: [
+        '🖼️ Ολόκληρη η φωτογραφία και στις υπόλοιπες μικρές προεπισκοπήσεις: στη δημιουργία ετικέτας (καρτέλα Αριθμομηχανή), στο σκανάρισμα προς απόθεμα και στην Επεξεργασία είδους, η μικρή φωτογραφία κοβόταν — τώρα δείχνει ολόκληρο το κόσμημα σε λευκό φόντο.',
+        '🔍 Φωτογραφία στη μεγεθυσμένη τιμή: όταν πατάτε την τελική τιμή για να μεγαλώσει (η οθόνη προς τον πελάτη), εμφανίζεται πλέον και η φωτογραφία του κομματιού κάτω από τα στοιχεία — ώστε ο πελάτης να βλέπει και το κόσμημα, όχι μόνο την τιμή. (Αν το κομμάτι δεν έχει φωτογραφία, απλώς δεν εμφανίζεται τίποτα.)'
+      ]},
       { version: 'v10.64', date: 'Ιούλιος 2026', items: [
         '🖼️ Πλήρης εικόνα στις μικρογραφίες: οι μικρές φωτογραφίες κοβόντουσαν (π.χ. σε ψηλές φωτογραφίες κολιέ έβλεπες μόνο τη μέση της αλυσίδας, όχι το μοτίφ), οπότε δεν καταλάβαινες ποιο κομμάτι είναι χωρίς να τη μεγεθύνεις. Τώρα δείχνουν ολόκληρη τη φωτογραφία σε λευκό φόντο — στις κάρτες του αποθέματος, στο πλαίσιο τιμής της αριθμομηχανής όταν σκανάρετε ένα κομμάτι, και στην προειδοποίηση διπλού κωδικού QR. (Ίδιο σε κινητό και υπολογιστή.)'
       ]},
@@ -16591,9 +16596,6 @@ const ABOUT = {
       { version: 'v10.56', date: 'Ιούλιος 2026', items: [
         '🖥️ Ομοιόμορφες κάρτες στον υπολογιστή: στην προβολή 2/3 στηλών, η κάρτα ομαδοποιημένων («όμοιων») ειδών ήταν πιο κοντή από τις υπόλοιπες και φαινόταν άσχημα — τώρα όλες οι κάρτες σε μια σειρά έχουν το ίδιο ύψος και τα κουμπιά ευθυγραμμίζονται κάτω. (Στο κινητό δεν αλλάζει τίποτα.)',
         '✋ Το σήμα «χειροποίητο» εμφανίζεται πλέον και στις κάρτες ομαδοποιημένων ειδών, όταν κάποιο από τα κομμάτια της ομάδας είναι χειροποίητο.'
-      ]},
-      { version: 'v10.55', date: 'Ιούλιος 2026', items: [
-        '🔢 «Προσθήκη όμοιων ειδών» με ποσότητα: στο παράθυρο προστέθηκε πεδίο «Ποσότητα» με βελάκια πάνω/κάτω. Βάλτε βάρος και ποσότητα (π.χ. 5) και προστίθενται και τα 5 μαζί με ένα πάτημα — και με «Εκτύπωση & Προσθήκη» τυπώνονται και οι 5 ίδιες ετικέτες με μία εντολή. Τέλος πια το ένα-ένα.'
       ]},
           ]
   },
@@ -16677,6 +16679,10 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.65', date: 'Jul 2026', items: [
+        '🖼️ Whole photo in the remaining small previews too: in label creation (Calc tab), scan-to-inventory and Edit item, the small photo was cropped — it now shows the whole piece on a white background.',
+        '🔍 Photo in the enlarged price view: when you tap the final price to enlarge it (the customer-facing screen), the piece\'s photo now appears under the details — so the customer sees the jewelry, not just the price. (If the piece has no photo, nothing is shown.)'
+      ]},
       { version: 'v10.64', date: 'Jul 2026', items: [
         '🖼️ Full image in thumbnails: the small photos were being cropped (e.g. on tall necklace photos you only saw the middle of the chain, not the motif), so you couldn\'t tell which piece it was without enlarging it. They now show the whole photo on a white background — on the inventory cards, in the Calc price bar when you scan a piece, and in the duplicate-QR warning. (Same on mobile and desktop.)'
       ]},
@@ -16704,9 +16710,6 @@ const ABOUT = {
       { version: 'v10.56', date: 'Jul 2026', items: [
         '🖥️ Even cards on desktop: in the 2/3-column view the grouped ("similar items") card was shorter than the rest and looked awkward — now every card in a row shares the same height and the buttons line up along the bottom. (Nothing changes on mobile.)',
         '✋ The handmade mark now also shows on grouped-item cards when any piece in the group is handmade.'
-      ]},
-      { version: 'v10.55', date: 'Jul 2026', items: [
-        '🔢 "Add similar items" with quantity: the window now has a "Quantity" field with up/down arrows. Enter a weight and a quantity (e.g. 5) and all 5 are added at once with one tap — and "Print & Add" prints all 5 identical labels in one command. No more one-by-one.'
       ]},
           ]
   }
@@ -17044,6 +17047,15 @@ function togglePriceFullscreen() {
     : (lastCalcResult.descEn || lastCalcResult.descEl || '');
   descEl.textContent = desc;
   descEl.style.marginTop = desc ? (typeLabel ? '6px' : '20px') : '0';
+
+  // Item photo (from the scanned/looked-up inventory item) — shown big for the
+  // customer under the details; hidden when the calc has no associated photo.
+  const photoEl = document.getElementById('pfsPhoto');
+  if (photoEl) {
+    const pUrl = lastCalcResult.photoUrl || null;
+    if (pUrl) { photoEl.src = pUrl; photoEl.style.display = 'block'; }
+    else { photoEl.removeAttribute('src'); photoEl.style.display = 'none'; }
+  }
 
   overlay.style.display = 'flex';
 }
@@ -19591,7 +19603,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.64';
+const APP_VERSION = '10.65';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -21884,6 +21896,8 @@ function calculateOtherPrice() {
       (it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm)
     );
     const url = (match && match.photoUrl) ? match.photoUrl : null;
+    // Keep lastCalcResult.photoUrl in sync (used by the maximized price view & quote modal)
+    if (lastCalcResult) lastCalcResult.photoUrl = url || null;
     if (url) {
       cpbThumb.setAttribute('data-src', url);
       cpbThumb.src = url;
