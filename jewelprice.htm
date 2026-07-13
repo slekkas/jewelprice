@@ -10408,6 +10408,9 @@ function runInvExport() {
 
   const grand = { count: 0, weight: 0, pure: 0, cost: 0, retail: 0 };
   const pureByKarat = {}; // "gold|18" → grams
+  // Per-type PIECE counts split by metal & karat, for the end-of-file breakdown table.
+  // byType[typeKey] = { total, gold:{total,karats:{'18':n}}, silver:{total,karats:{'925':n}} }
+  const byType = {};
   let curType = null, sub = null;
   const flushSub = () => {
     if (!groupBy || !sub) return;
@@ -10450,6 +10453,15 @@ function runInvExport() {
     if (pure > 0 && (it.metal === 'gold' || it.metal === 'silver')) {
       const key = it.metal + '|' + (it.karat || '?'); pureByKarat[key] = (pureByKarat[key] || 0) + pure;
     }
+    // Per-type piece counts split by metal & karat.
+    const _tk = it.jewelryType || 'other';
+    const _bt = byType[_tk] || (byType[_tk] = { total: 0, gold: { total: 0, karats: {} }, silver: { total: 0, karats: {} } });
+    _bt.total++;
+    if (it.metal === 'gold' || it.metal === 'silver') {
+      const _mb = _bt[it.metal]; _mb.total++;
+      const _kk = it.karat ? String(it.karat) : '?';
+      _mb.karats[_kk] = (_mb.karats[_kk] || 0) + 1;
+    }
   });
   flushSub();
 
@@ -10477,6 +10489,30 @@ function runInvExport() {
   if (incCost)   lines.push(esc(isEl ? 'Συνολικό κόστος' : 'Total cost') + DELIM + num(grand.cost) + DELIM + esc('€'));
   if (incRetail) lines.push(esc(isEl ? 'Συνολική λιανική' : 'Total retail') + DELIM + num(grand.retail) + DELIM + esc('€'));
   lines.push(esc(isEl ? 'Σύνολο τεμαχίων' : 'Total pieces') + DELIM + grand.count);
+
+  // Breakdown-by-type table: pieces per type split by metal, with a per-karat detail
+  // (e.g. Rings 90 · gold 40 [18K:20 · 14K:20] · silver 50 [925:50]).
+  const _anyType = Object.keys(byType).length > 0;
+  if (_anyType) {
+    lines.push('');
+    lines.push(esc(isEl ? 'ΑΝΑΛΥΣΗ ΑΝΑ ΤΥΠΟ (τεμάχια)' : 'BREAKDOWN BY TYPE (pieces)'));
+    lines.push([
+      esc(isEl ? 'Τύπος' : 'Type'), esc(isEl ? 'Σύνολο' : 'Total'),
+      esc(isEl ? 'Χρυσός' : 'Gold'), esc(isEl ? 'Καράτια χρυσού' : 'Gold karats'),
+      esc(isEl ? 'Ασήμι' : 'Silver'), esc(isEl ? 'Καθαρότητα ασημιού' : 'Silver fineness')
+    ].join(DELIM));
+    const _karatStr = (karats, suffix) => Object.keys(karats)
+      .sort((a, b) => (parseInt(b) || 0) - (parseInt(a) || 0))
+      .map(k => k + suffix + ':' + karats[k]).join(' · ');
+    INV_JEWELRY_TYPES.forEach(jt => {
+      const bt = byType[jt.key]; if (!bt) return;
+      lines.push([
+        esc(invTypeLabel(jt.key)), bt.total,
+        bt.gold.total || '', esc(_karatStr(bt.gold.karats, 'K')),
+        bt.silver.total || '', esc(_karatStr(bt.silver.karats, ''))
+      ].join(DELIM));
+    });
+  }
 
   // UTF-8 BOM (U+FEFF) so Greek renders in Excel; \r\n line endings for Excel.
   const BOM = String.fromCharCode(0xFEFF);
@@ -17337,8 +17373,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.74', date: 'Ιούλιος 2026', items: [
-        '🔧 Διόρθωση εξαγωγής CSV: τα κουμπιά επιλογών (κατάσταση, τύποι, στήλες) δεν λειτουργούσαν σε ορισμένα κινητά και η λίστα «Τύποι» ήταν κενή αν δεν είχατε ανοίξει πρώτα το «Απόθεμα». Τώρα οι επιλογές είναι κανονικά κουμπιά που πατιούνται, και το απόθεμα φορτώνει αυτόματα μόλις ανοίξει η εξαγωγή.'
+      { version: 'v10.75', date: 'Ιούλιος 2026', items: [
+        '📊 Εξαγωγή CSV: στο τέλος του αρχείου προστέθηκε πίνακας «Ανάλυση ανά τύπο» — για κάθε τύπο (δαχτυλίδια, σταυροί κ.λπ.) δείχνει σύνολο τεμαχίων, πόσα χρυσά και πόσα ασημένια, με ανάλυση ανά καράτι (π.χ. δαχτυλίδια 90 · χρυσός 40 [18K:20 · 14K:20] · ασήμι 50 [925:50]).'
       ]},
           ]
   },
@@ -17369,8 +17405,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.74', date: 'Jul 2026', items: [
-        '🔧 CSV export fix: the option buttons (status, types, columns) didn\'t respond on some phones, and the «Types» list was empty unless you\'d opened the Stock tab first. The options are now proper tappable buttons, and your inventory loads automatically when the export opens.'
+      { version: 'v10.75', date: 'Jul 2026', items: [
+        '📊 CSV export: a «Breakdown by type» table was added at the end of the file — for each type (rings, crosses, etc.) it shows total pieces, how many are gold and how many silver, broken down by karat (e.g. Rings 90 · gold 40 [18K:20 · 14K:20] · silver 50 [925:50]).'
       ]},
           ]
   }
@@ -20260,7 +20296,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.74';
+const APP_VERSION = '10.75';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
