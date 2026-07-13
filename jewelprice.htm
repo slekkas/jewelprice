@@ -10539,15 +10539,22 @@ async function stkCancel() {
     }, null, { danger: true });
 }
 
-function stkOpenScanner() {
+async function stkOpenScanner() {
   const overlay = document.getElementById('stkOverlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
   const myEl = document.getElementById('stkMyCount'); if (myEl) myEl.textContent = _stk.myCount;
   const fb = document.getElementById('stkFeedback'); if (fb) fb.textContent = '';
   const footer = document.getElementById('stkOwnerFooter'); if (footer) footer.style.display = isOwnerOrManager() ? 'block' : 'none';
-  stkRefreshTotal();
   const status = document.getElementById('stkStatus');
+  // The scanner opens straight from the banner, so the Stock tab (which lazily loads
+  // the inventory cache) may never have run — load it now, or every scan resolves to
+  // "unknown code" because stkResolve searches an empty _inventoryCache.
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    if (status) status.textContent = lang === 'el' ? 'Φόρτωση αποθέματος…' : 'Loading inventory…';
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  stkRefreshTotal();
   const video = document.getElementById('stkVideo');
   const wrap = document.getElementById('stkVideoWrap');
   if (canDecodeQr()) {
@@ -17266,8 +17273,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.71', date: 'Ιούλιος 2026', items: [
-        '🔧 Διόρθωση: η εξαγωγή απογραφής σε CSV έδειχνε κόστος €0 για είδη τύπου «Άλλο». Τώρα υπολογίζει το πραγματικό κόστος (τιμή αγοράς − έκπτωση προμηθευτή), όπως ακριβώς φαίνεται όταν σαρώνετε το είδος.'
+      { version: 'v10.72', date: 'Ιούλιος 2026', items: [
+        '🔧 Διόρθωση ελέγχου απογραφής: η σάρωση έδειχνε «Άγνωστος κωδικός» για κανονικά είδη, όταν ανοίγατε τη σάρωση χωρίς να έχετε επισκεφθεί πρώτα την καρτέλα «Απόθεμα». Τώρα φορτώνει το απόθεμα αυτόματα μόλις ανοίξει η σάρωση, ώστε κάθε κωδικός να αναγνωρίζεται σωστά.'
       ]},
           ]
   },
@@ -17298,8 +17305,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.71', date: 'Jul 2026', items: [
-        '🔧 Fix: the inventory CSV export showed €0 cost for «Other»-type items. It now computes the real cost (purchase price − supplier discount), exactly as shown when you scan the item.'
+      { version: 'v10.72', date: 'Jul 2026', items: [
+        '🔧 Inventory-check fix: scanning showed «Unknown code» for normal items when you opened the scanner without first visiting the Stock tab. It now loads your inventory automatically as the scanner opens, so every code is recognised correctly.'
       ]},
           ]
   }
@@ -20189,7 +20196,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.71';
+const APP_VERSION = '10.72';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
