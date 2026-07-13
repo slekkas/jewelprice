@@ -1415,7 +1415,7 @@
         </button>
         <img id="cpbPhotoThumb" src="" alt=""
           onclick="if(this.getAttribute('data-src'))showPhotoFullscreen(this.getAttribute('data-src'),event)"
-          style="display:none;width:54px;height:54px;object-fit:cover;border-radius:7px;border:1.5px solid rgba(212,175,55,0.4);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.5);flex-shrink:0">
+          style="display:none;width:54px;height:54px;object-fit:contain;background:#fff;border-radius:7px;border:1.5px solid rgba(212,175,55,0.4);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.5);flex-shrink:0">
       </div>
     </div>
 
@@ -4984,7 +4984,7 @@ function _showDupQrWarning(data, existing) {
     : (existing.descEn||existing.descEl||existing.description||'—'))
     + (existing.status !== 'in_stock' ? (lang==='el' ? ' [πωλημένο]' : ' [sold]') : '');
   const photo = existing.photoUrl
-    ? `<img src="${existing.photoUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);flex-shrink:0">`
+    ? `<img src="${existing.photoUrl}" style="width:56px;height:56px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);flex-shrink:0">`
     : `<div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">💎</div>`;
   const curWeight = parseFloat(document.getElementById('weight')?.value) || 0;
   const suggestedWeight = curWeight > 0 ? (curWeight + 0.01).toFixed(2) : '';
@@ -12468,7 +12468,7 @@ function renderInvList() {
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-            ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
+            ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
@@ -12602,7 +12602,7 @@ function renderInvList() {
             <button onclick="invShareGroup('${gid}')" class="inv-share-btn" title="Share all ${count}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-            ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
+            ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}${_grpHandmade}${_grpHidden}${_grpGoldColor}${_grpGender}</div>
           </div>
         </div>
@@ -16564,6 +16564,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.64', date: 'Ιούλιος 2026', items: [
+        '🖼️ Πλήρης εικόνα στις μικρογραφίες: οι μικρές φωτογραφίες κοβόντουσαν (π.χ. σε ψηλές φωτογραφίες κολιέ έβλεπες μόνο τη μέση της αλυσίδας, όχι το μοτίφ), οπότε δεν καταλάβαινες ποιο κομμάτι είναι χωρίς να τη μεγεθύνεις. Τώρα δείχνουν ολόκληρη τη φωτογραφία σε λευκό φόντο — στις κάρτες του αποθέματος, στο πλαίσιο τιμής της αριθμομηχανής όταν σκανάρετε ένα κομμάτι, και στην προειδοποίηση διπλού κωδικού QR. (Ίδιο σε κινητό και υπολογιστή.)'
+      ]},
       { version: 'v10.63', date: 'Ιούλιος 2026', items: [
         '🔤 Διόρθωση τόνων στα κεφαλαία: στα ελληνικά, οι λέξεις γραμμένες ΟΛΕΣ ΜΕ ΚΕΦΑΛΑΙΑ δεν παίρνουν τόνο. Σε ορισμένα σημεία (π.χ. στη βιτρίνα ο τύπος «ΑΛΥΣΙΔΑ» και το μέταλλο «ΧΡΥΣΟΣ», καθώς και οι τίτλοι «ΚΑΤΑΛΟΓΟΣ» / «ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ» στα PDF και το κουμπί «ΠΡΟΣΘΗΚΗ») εμφανιζόταν λανθασμένα ο τόνος. Αφαιρέθηκε παντού. Τα διαλυτικά (¨) διατηρούνται κανονικά.'
       ]},
@@ -16591,11 +16594,6 @@ const ABOUT = {
       ]},
       { version: 'v10.55', date: 'Ιούλιος 2026', items: [
         '🔢 «Προσθήκη όμοιων ειδών» με ποσότητα: στο παράθυρο προστέθηκε πεδίο «Ποσότητα» με βελάκια πάνω/κάτω. Βάλτε βάρος και ποσότητα (π.χ. 5) και προστίθενται και τα 5 μαζί με ένα πάτημα — και με «Εκτύπωση & Προσθήκη» τυπώνονται και οι 5 ίδιες ετικέτες με μία εντολή. Τέλος πια το ένα-ένα.'
-      ]},
-      { version: 'v10.54', date: 'Ιούλιος 2026', items: [
-        '🎯 Διόρθωση τιμής «ανά τεμάχιο»: όταν το κόστος που δίνατε ήταν μικρότερο από την αξία του χρυσού του κομματιού, η τελική τιμή έβγαινε λάθος (π.χ. €54 αντί για €20 που ζητούσατε). Τώρα η Τιμή-Στόχος τηρείται πάντα σωστά.',
-        '💰 Αν αφήσετε το «Κόστος Αγοράς» κενό (σε κατηγορία ανά τεμάχιο), μπαίνει αυτόματα η αξία του μετάλλου πριν τον ΦΠΑ — ιδανικό για κομμάτια που φτιάχνετε εσείς, όπου το κόστος σας είναι ο χρυσός.',
-        '🖥️ Διόρθωση στον υπολογιστή: σε πλήρη οθόνη το πλαίσιο τελικής τιμής «έφευγε» προς τα δεξιά — τώρα είναι κεντραρισμένο κάτω από τη φόρμα.'
       ]},
           ]
   },
@@ -16679,6 +16677,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.64', date: 'Jul 2026', items: [
+        '🖼️ Full image in thumbnails: the small photos were being cropped (e.g. on tall necklace photos you only saw the middle of the chain, not the motif), so you couldn\'t tell which piece it was without enlarging it. They now show the whole photo on a white background — on the inventory cards, in the Calc price bar when you scan a piece, and in the duplicate-QR warning. (Same on mobile and desktop.)'
+      ]},
       { version: 'v10.63', date: 'Jul 2026', items: [
         '🔤 Uppercase accent fix: in Greek, words written in ALL CAPS do not take an accent. In a few places (e.g. the showroom type "ΑΛΥΣΙΔΑ" and metal "ΧΡΥΣΟΣ", plus the "ΚΑΤΑΛΟΓΟΣ" / "ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ" PDF titles and the "ΠΡΟΣΘΗΚΗ" button) the accent was showing incorrectly. Removed everywhere. The dialytika (¨) is kept as normal.'
       ]},
@@ -16706,11 +16707,6 @@ const ABOUT = {
       ]},
       { version: 'v10.55', date: 'Jul 2026', items: [
         '🔢 "Add similar items" with quantity: the window now has a "Quantity" field with up/down arrows. Enter a weight and a quantity (e.g. 5) and all 5 are added at once with one tap — and "Print & Add" prints all 5 identical labels in one command. No more one-by-one.'
-      ]},
-      { version: 'v10.54', date: 'Jul 2026', items: [
-        '🎯 Per-item price fix: when the cost you entered was lower than the piece\'s gold value, the final price came out wrong (e.g. €54 instead of the €20 you asked for). The Target Retail price is now always honored.',
-        '💰 Leaving "Purchase Cost" blank (per-item category) now auto-fills the metal value before VAT — ideal for pieces you make yourself, where your cost is the gold.',
-        '🖥️ Desktop fix: when maximized, the final-price box drifted to the right — it is now centered under the form.'
       ]},
           ]
   }
@@ -19595,7 +19591,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.63';
+const APP_VERSION = '10.64';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
