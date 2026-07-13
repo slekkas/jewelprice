@@ -2828,7 +2828,7 @@ const T = {
     laborCat:'Κατηγορία Εργασίας', discount:'Έκπτωση %',
     calculate:'Υπολογισμός', finalPrice:'Τελική Τιμή',
     pfsMetal:'Μέταλλο', pfsWeight:'Βάρος', pfsStone:'Πέτρα', pfsStones:'Πέτρες',
-    addVendor:'Προσθήκη Προμηθευτή', addVendorBtn:'ΠΡΟΣΘΉΚΗ', editVendor:'Επεξεργασία Προμηθευτή', vendorsTab:'Προμηθευτές',
+    addVendor:'Προσθήκη Προμηθευτή', addVendorBtn:'ΠΡΟΣΘΗΚΗ', editVendor:'Επεξεργασία Προμηθευτή', vendorsTab:'Προμηθευτές',
     vendorName:'Όνομα Προμηθευτή', vendorNamePh:'π.χ. Goldsmith Italia',
     categoryName:'Όνομα Κατηγορίας', euroPerGram:'€/γρ.', categoryPh:'π.χ. Αλυσίδες',
     addCategory:'+ Προσθήκη Κατηγορίας', saveVendor:'Αποθήκευση Προμηθευτή',
@@ -16564,6 +16564,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.63', date: 'Ιούλιος 2026', items: [
+        '🔤 Διόρθωση τόνων στα κεφαλαία: στα ελληνικά, οι λέξεις γραμμένες ΟΛΕΣ ΜΕ ΚΕΦΑΛΑΙΑ δεν παίρνουν τόνο. Σε ορισμένα σημεία (π.χ. στη βιτρίνα ο τύπος «ΑΛΥΣΙΔΑ» και το μέταλλο «ΧΡΥΣΟΣ», καθώς και οι τίτλοι «ΚΑΤΑΛΟΓΟΣ» / «ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ» στα PDF και το κουμπί «ΠΡΟΣΘΗΚΗ») εμφανιζόταν λανθασμένα ο τόνος. Αφαιρέθηκε παντού. Τα διαλυτικά (¨) διατηρούνται κανονικά.'
+      ]},
       { version: 'v10.62', date: 'Ιούλιος 2026', items: [
         '📈 Ποσοστό ανατίμησης στα σύνολα του αποθέματος: κάτω από τη «Συνολική Αξία Λιανική» και την «Αξία Μετάλλου» εμφανίζεται πλέον (μόνο για ιδιοκτήτη/διαχειριστή) το ποσοστό αύξησης/μείωσης — πράσινο για άνοδο, κόκκινο για πτώση — όπως ήδη βλέπετε σε κάθε κομμάτι. Είναι ανεξάρτητο από ποσότητα: όταν προσθέτετε ή πουλάτε ένα κομμάτι το ποσοστό ΔΕΝ αλλάζει — μόνο η πραγματική κίνηση της τιμής χρυσού/ασημιού το μετακινεί. Η Λιανική μετριέται από την τιμή που καταχωρήσατε κάθε κομμάτι· η Αξία Μετάλλου για τα υπάρχοντα κομμάτια μετριέται από την τιμή μετάλλου της 20ής Μαΐου 2025, ενώ ό,τι προσθέτετε από εδώ και πέρα ξεκινά από τη δική του τρέχουσα τιμή.'
       ]},
@@ -16593,10 +16596,6 @@ const ABOUT = {
         '🎯 Διόρθωση τιμής «ανά τεμάχιο»: όταν το κόστος που δίνατε ήταν μικρότερο από την αξία του χρυσού του κομματιού, η τελική τιμή έβγαινε λάθος (π.χ. €54 αντί για €20 που ζητούσατε). Τώρα η Τιμή-Στόχος τηρείται πάντα σωστά.',
         '💰 Αν αφήσετε το «Κόστος Αγοράς» κενό (σε κατηγορία ανά τεμάχιο), μπαίνει αυτόματα η αξία του μετάλλου πριν τον ΦΠΑ — ιδανικό για κομμάτια που φτιάχνετε εσείς, όπου το κόστος σας είναι ο χρυσός.',
         '🖥️ Διόρθωση στον υπολογιστή: σε πλήρη οθόνη το πλαίσιο τελικής τιμής «έφευγε» προς τα δεξιά — τώρα είναι κεντραρισμένο κάτω από τη φόρμα.'
-      ]},
-      { version: 'v10.53', date: 'Ιούλιος 2026', items: [
-        '🙈 Σήμανση «κρυφών» ειδών: όσα είδη έχετε κρύψει από τη βιτρίνα δείχνουν πλέον ένα εικονίδιο 🙈 στην κάρτα τους (δίπλα στα υπόλοιπα σήματα, όπως το χειροποίητο), για να τα ξεχωρίζετε με μια ματιά.',
-        '🔎 Φίλτρο «Κρυφά»: στα φίλτρα, στην ενότητα Κατάσταση (δίπλα σε «Σε Απόθεμα» / «Πουλήθηκε») προστέθηκε επιλογή «🙈 Κρυφά» — για να βλέπετε μόνο τα είδη που έχετε κρύψει από το online showroom.'
       ]},
           ]
   },
@@ -16680,6 +16679,9 @@ const ABOUT = {
       ]}
     ],
     changelog: [
+      { version: 'v10.63', date: 'Jul 2026', items: [
+        '🔤 Uppercase accent fix: in Greek, words written in ALL CAPS do not take an accent. In a few places (e.g. the showroom type "ΑΛΥΣΙΔΑ" and metal "ΧΡΥΣΟΣ", plus the "ΚΑΤΑΛΟΓΟΣ" / "ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ" PDF titles and the "ΠΡΟΣΘΗΚΗ" button) the accent was showing incorrectly. Removed everywhere. The dialytika (¨) is kept as normal.'
+      ]},
       { version: 'v10.62', date: 'Jul 2026', items: [
         '📈 Appreciation % on the inventory totals: under "Total Retail Value" and "Metal Value" you (owner/manager only) now see the rise/drop percentage — green for up, red for down — the same as on every item card. It is count-independent: adding or selling a piece does NOT move the %, only real gold/silver price movement does. Retail is measured from the price you entered each piece at; Metal Value for your existing stock is measured from the metal price on 20 May 2025, while anything you add from now on starts from its own current price.'
       ]},
@@ -16709,10 +16711,6 @@ const ABOUT = {
         '🎯 Per-item price fix: when the cost you entered was lower than the piece\'s gold value, the final price came out wrong (e.g. €54 instead of the €20 you asked for). The Target Retail price is now always honored.',
         '💰 Leaving "Purchase Cost" blank (per-item category) now auto-fills the metal value before VAT — ideal for pieces you make yourself, where your cost is the gold.',
         '🖥️ Desktop fix: when maximized, the final-price box drifted to the right — it is now centered under the form.'
-      ]},
-      { version: 'v10.53', date: 'Jul 2026', items: [
-        '🙈 "Hidden" mark on items: any piece you\'ve hidden from the showroom now shows a 🙈 icon on its card (next to the other badges like handmade), so you can spot them at a glance.',
-        '🔎 "Hidden" filter: in Filters → Status (next to "In Stock" / "Sold") there\'s a new "🙈 Hidden" option — to list only the items you\'ve hidden from the online showroom.'
       ]},
           ]
   }
@@ -19597,7 +19595,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.62';
+const APP_VERSION = '10.63';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -21314,8 +21312,8 @@ async function buildSharePDF(items, includePrice, mode) {
 
   // ── DOC TYPE TITLE ────────────────────────────────────────────────────────
   const docTitle = (mode === 'catalog')
-    ? (isEl ? 'ΚΑΤΆΛΟΓΟΣ' : 'CATALOG')
-    : (isEl ? 'ΦΎΛΛΟ ΠΑΡΑΓΓΕΛΊΑΣ' : 'ORDER SHEET');
+    ? (isEl ? 'ΚΑΤΑΛΟΓΟΣ' : 'CATALOG')
+    : (isEl ? 'ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ' : 'ORDER SHEET');
   doc.setFont('NotoSans', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(150, 130, 80);
