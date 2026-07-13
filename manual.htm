@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lekkas Jewelry — User Manual</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --gold:#C9A84C; --gold-light:#E8C97A; --gold-dim:#8C7E60;
+    --ink:#0E0C08; --surface:#131108; --surface-2:#1C1A10; --surface-3:#252210;
+    --border:rgba(201,168,76,0.18); --text:#F0EAD6; --text-dim:#8C7E60; --text-muted:#5A5240;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:300;min-height:100vh;-webkit-font-smoothing:antialiased}
+  header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:0;background:rgba(14,12,8,0.96);backdrop-filter:blur(10px);z-index:10}
+  .lang-toggle{display:flex;gap:6px}
+  .lang-btn{background:none;border:1px solid var(--border);color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.12em;padding:6px 12px;border-radius:4px;cursor:pointer;transition:all .18s}
+  .lang-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.08)}
+  .container{max-width:680px;margin:0 auto;padding:26px 18px 70px}
+  h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:34px;font-weight:600;color:var(--gold-light);margin-bottom:6px}
+  .subtitle{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px}
+  .toolbar{display:flex;gap:8px;margin:14px 0 20px}
+  .tool-btn{flex:1;background:none;border:1px solid var(--border);color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;padding:9px;border-radius:6px;cursor:pointer;transition:all .18s}
+  .tool-btn:hover{border-color:var(--gold);color:var(--gold)}
+  .sec{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;background:var(--surface)}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px;cursor:pointer;user-select:none}
+  .sec-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;font-weight:600;color:var(--gold-light)}
+  .sec-chev{color:var(--gold-dim);font-size:12px;transition:transform .2s;flex-shrink:0}
+  .sec.open .sec-chev{transform:rotate(180deg)}
+  .sec-body{display:none;padding:2px 18px 16px}
+  .sec.open .sec-body{display:block}
+  .sec-body ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .sec-body li{font-size:14px;line-height:1.62;color:var(--text);padding-left:16px;position:relative}
+  .sec-body li::before{content:'•';position:absolute;left:2px;color:var(--gold-dim)}
+  .sec-body strong{color:var(--gold-light);font-weight:600}
+  .sec-body code{font-family:'DM Mono',monospace;font-size:12.5px;background:var(--surface-3);color:var(--gold-light);padding:1px 6px;border-radius:4px}
+  .backlink{display:inline-block;margin-top:16px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.12em;color:var(--gold-dim);text-decoration:none;text-transform:uppercase;border:1px solid var(--border);border-radius:6px;padding:10px 18px;transition:all .18s}
+  .backlink:hover{border-color:var(--gold);color:var(--gold)}
+  footer{text-align:center;padding:24px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.12em;color:var(--text-muted);text-transform:uppercase;border-top:1px solid rgba(201,168,76,0.06)}
+</style>
+</head>
+<body>
+<header>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" height="22" style="display:block">
+    <defs><linearGradient id="dg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#E8C97A"/><stop offset="100%" style="stop-color:#A8882A"/></linearGradient></defs>
+    <g transform="translate(40,40)">
+      <rect x="-26" y="-26" width="52" height="52" rx="4" transform="rotate(45)" fill="url(#dg)"/>
+      <rect x="-20" y="-20" width="40" height="40" rx="2" transform="rotate(45)" fill="none" stroke="#0E0C08" stroke-width="1.5" opacity="0.3"/>
+      <line x1="-9" y1="-12" x2="-9" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="-9" y1="8" x2="6" y2="8" stroke="#0E0C08" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+    </g>
+    <text x="82" y="50" font-family="Georgia,'Times New Roman',serif" font-size="36" letter-spacing="4" fill="#E8C97A">LEKKAS</text>
+    <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
+  </svg>
+  <div class="lang-toggle">
+    <button class="lang-btn" id="btnEl" onclick="setLang('el')">ΕΛ</button>
+    <button class="lang-btn" id="btnEn" onclick="setLang('en')">EN</button>
+  </div>
+</header>
+<div class="container">
+  <h1 id="pageTitle"></h1>
+  <div class="subtitle" id="pageSub"></div>
+  <div class="toolbar">
+    <button class="tool-btn" id="btnExpand" onclick="setAll(true)"></button>
+    <button class="tool-btn" id="btnCollapse" onclick="setAll(false)"></button>
+  </div>
+  <div id="list"></div>
+  <a class="backlink" id="backLink" href="./jewelprice.htm"></a>
+</div>
+<footer>Lekkas Jewelry · Karpathos, Greece</footer>
+<script>
+const MANUAL = {
+  el: [
+    { icon:"🚀", title:"Ξεκινώντας", items:[
+      "Η εφαρμογή είναι οργανωμένη σε καρτέλες στο κάτω μέρος: <strong>Υπολογ.</strong> (τιμές), <strong>Απόθεμα</strong>, <strong>Προμ.</strong> (προμηθευτές), <strong>Πελάτες</strong>, <strong>Πωλήσεις</strong>, <strong>Συγχρ.</strong> (cloud) και <strong>Ρυθμίσεις / Πληροφορίες</strong>.",
+      "Αλλάξτε γλώσσα (Ελληνικά / Αγγλικά) από τις σημαίες πάνω δεξιά. Όλη η εφαρμογή αλλάζει αμέσως.",
+      "Ορισμένες λειτουργίες (κόστη, περιθώρια, νομίσματα, μέταλλο) φαίνονται μόνο σε <strong>Ιδιοκτήτη/Διευθυντή</strong>. Οι υπάλληλοι βλέπουν μόνο ό,τι χρειάζονται για την πώληση.",
+      "Η εφαρμογή δουλεύει και <strong>χωρίς internet</strong> με τις τελευταίες αποθηκευμένες τιμές, και εγκαθίσταται στο κινητό σαν κανονική εφαρμογή (δείτε «Εγκατάσταση»)."
+    ]},
+    { icon:"🧮", title:"Υπολογισμός τιμής", items:[
+      "<strong>Με σάρωση:</strong> πατήστε το εικονίδιο κάμερας και σαρώστε το QR της ετικέτας — όλα τα πεδία συμπληρώνονται και η τιμή υπολογίζεται μόνη της.",
+      "<strong>Με κωδικό:</strong> πληκτρολογήστε τον κωδικό ετικέτας (π.χ. <code>ΚΑΛ18Σ2.1</code> ή <code>KAL18S2.1</code>) και η εφαρμογή τον αναγνωρίζει.",
+      "<strong>Χειροκίνητα:</strong> επιλέξτε μέταλλο, βάρος, καράτι, προμηθευτή και κατηγορία εργασίας.",
+      "Προσθέστε <strong>έκπτωση %</strong> αν χρειάζεται, και <strong>στρογγυλοποίηση</strong> στο επιθυμητό τελικό ποσό.",
+      "<strong>Πέτρες:</strong> ανοίξτε την ενότητα πετρών, προσθέστε πέτρα (τύπος, καράτια, ποσότητα) και πατήστε <strong>✨ Εκτίμηση</strong> για αυτόματη τιμή (χονδρική/λιανική).",
+      "<strong>Χειροποίητο</strong> και <strong>δεύτερο μέταλλο</strong> υποστηρίζονται με έναν διακόπτη.",
+      "Δείξτε την οθόνη στον πελάτη: φαίνεται μόνο η τελική τιμή. Πατήστε την τιμή για να <strong>μεγαλώσει σε πλήρη οθόνη</strong> (με τη φωτογραφία του κομματιού)."
+    ]},
+    { icon:"📷", title:"Σάρωση (QR & κείμενο)", items:[
+      "Η κάμερα διαβάζει το <strong>τετράγωνο QR</strong> της ετικέτας. Δουλεύει σε Android/Chrome και σε υπολογιστή· στο iPhone/Safari ανοίγει κατευθείαν σε λειτουργία κειμένου.",
+      "<strong>Σάρωση κειμένου (OCR):</strong> αν το QR είναι ξεθωριασμένο ή χαραγμένο, πατήστε «Σάρωση κωδικού κειμένου» και σκανάρετε τον <strong>τυπωμένο κωδικό αναφοράς</strong> (π.χ. <code>PE0142</code>). Το πλαίσιο γίνεται πράσινο μόλις διαβαστεί σωστά.",
+      "Μπορείτε επίσης να <strong>σαρώσετε φωτογραφία</strong> ετικέτας από τη συλλογή.",
+      "Την πρώτη φορά, η σάρωση κειμένου χρειάζεται internet για να κατεβάσει τη μηχανή αναγνώρισης — μετά δουλεύει και offline."
+    ]},
+    { icon:"📡", title:"Τιμές χρυσού & ασημιού", items:[
+      "Οι ζωντανές τιμές σε € ανανεώνονται αυτόματα (~κάθε 5 λεπτά) με μίνι γράφημα.",
+      "Αν δεν υπάρχει internet, χρησιμοποιείται η <strong>τελευταία αποθηκευμένη τιμή</strong> — δεν χάνεται ποτέ.",
+      "Αν εμφανιστεί προειδοποίηση ότι δεν λαμβάνεται τιμή, μπορείτε να καταχωρίσετε <strong>χειροκίνητη τιμή</strong> στις Ρυθμίσεις. Η εφαρμογή ξαναπροσπαθεί μόνη της μόλις επανέλθει το δίκτυο."
+    ]},
+    { icon:"🏷️", title:"Ετικέτες & κωδικοί QR", items:[
+      "Από τον Υπολογισμό, πατήστε <strong>Ετικέτα</strong> για να δημιουργήσετε τον κωδικό και να τυπώσετε. Κάθε κατηγορία έχει δύο κωδικούς: έναν <strong>ελληνικό</strong> (<code>ΚΑΛ18Σ</code>) και έναν <strong>λατινικό</strong> (<code>KAL18S</code>).",
+      "Χρησιμοποιήστε τον <strong>λατινικό</strong> κωδικό για το QR στο BarTender (τα ελληνικά δεν κωδικοποιούνται σε QR).",
+      "Βασική μορφή: <code>KAL18S2.1</code> = κωδικός + βάρος (χωρίς κενό). Σάρωση → αυτόματη συμπλήρωση.",
+      "<strong>Με διαμάντι:</strong> <code>KAL18S2.1-.30VS2H</code> — το <code>-</code> ορίζει πού τελειώνει το βάρος· μετά: καράτια (.30), καθαρότητα (VS2), χρώμα (H).",
+      "<strong>Χρωματιστές πέτρες</strong> με συντομογραφία, π.χ. <code>-.50SAP</code> (ζαφείρι). <strong>Δεύτερη πέτρα</strong> με <code>+</code>, π.χ. <code>...SAP+.80SI2G</code>.",
+      "Ο <strong>κωδικός αναφοράς</strong> (π.χ. <code>NK0342</code>) είναι αυτός που βλέπει ο πελάτης· μένει σταθερός στην ετικέτα ακόμη κι αν αλλάξετε τύπο (ξανασυγχρονίζεται μόνο όταν τυπώσετε νέα ετικέτα).",
+      "Πατήστε <strong>Κάρτα Αναφοράς</strong> για εκτυπώσιμη λίστα όλων των κωδικών."
+    ]},
+    { icon:"📦", title:"Απόθεμα (Stock)", items:[
+      "<strong>Προσθήκη:</strong> από τον Υπολογισμό → Ετικέτα → <strong>Αποθήκευση στο Απόθεμα</strong>, ή σαρώστε ένα QR που δεν υπάρχει ακόμη και θα σας προτείνει να το προσθέσετε.",
+      "<strong>Αναζήτηση</strong> με περιγραφή, κωδικό ή αναφορά. <strong>Φίλτρα</strong> (τύπος, μέταλλο, χρώμα, κατάσταση, φύλο κ.ά.) και <strong>Ταξινόμηση</strong> (νεότερα, τιμή, ανατίμηση).",
+      "Σε <strong>υπολογιστή</strong> επιλέγετε προβολή 1/2/3 στηλών για πυκνότερη λίστα.",
+      "Κάθε κάρτα: <strong>Πούλησέ το</strong>, <strong>Εκτύπωση ετικέτας</strong>, <strong>Επεξεργασία</strong>, <strong>Διαγραφή</strong>. Πατήστε τη φωτογραφία για μεγέθυνση.",
+      "<strong>Ανατίμηση:</strong> κάτω από την τιμή (μόνο ιδιοκτήτης) φαίνεται πόσο ανέβηκε/κατέβηκε από την ημέρα καταχώρισης — και συνολικά στην κορυφή (Λιανική & Αξία Μετάλλου).",
+      "<strong>Κρυφά:</strong> με το 🙈 κρύβετε ένα κομμάτι από την online βιτρίνα, χωρίς να το διαγράψετε."
+    ]},
+    { icon:"🔗", title:"Όμοια είδη (ομάδες)", items:[
+      "Πολλά σχεδόν ίδια κομμάτια μπορούν να ενωθούν σε <strong>μία κάρτα</strong> — κάθε κομμάτι μένει ξεχωριστό από κάτω (βάρος/τιμή/QR ανέπαφα).",
+      "<strong>Δημιουργία ομάδας:</strong> στη λειτουργία Επιλογής διαλέξτε κομμάτια και πατήστε 🔗.",
+      "<strong>Προσθήκη όμοιων:</strong> από την Επεξεργασία ενός κομματιού → «Προσθήκη όμοιων ειδών»: βάζετε βάρος (και ποσότητα) και τυπώνει τις ετικέτες μαζί.",
+      "<strong>＋ Προσθήκη</strong> (restock) και <strong>Πώληση πολλών</strong> μαζί γίνονται από την κάρτα της ομάδας."
+    ]},
+    { icon:"🪙", title:"Νομίσματα (χρυσά & ασημένια)", items:[
+      "Πατήστε <strong>🪙 Προσθήκη Νομίσματος</strong> στο Απόθεμα (ιδιοκτήτης/διευθυντής).",
+      "Επιλέξτε χρυσό/ασήμι και το νόμισμα από τον κατάλογο, ή χρησιμοποιήστε το <strong>⚖️ Αναγνώριση με βάρος</strong> για να βρείτε ποιο είναι.",
+      "Η <strong>ζωντανή αξία τήξης</strong> υπολογίζεται από την καθαρή περιεκτικότητα σε μέταλλο· ορίστε <strong>markup</strong> στις Ρυθμίσεις για την προτεινόμενη τιμή πώλησης.",
+      "Κάθε νόμισμα έχει σύνδεσμο <strong>Numista 🔗</strong> για επιβεβαίωση. Τα δικά σας νομίσματα αποθηκεύονται στα «My coins».",
+      "Στην πώληση, τα νομίσματα προεπιλέγουν <strong>μετρητά</strong>. Τα νομίσματα δεν εμφανίζονται στην online βιτρίνα.",
+      "Συμβουλή: πριν πουλήσετε ένα νόμισμα, ελέγξτε αν έχει <strong>συλλεκτική αξία πάνω από την αξία τήξης</strong>."
+    ]},
+    { icon:"🧱", title:"Μέταλλο / scrap", items:[
+      "Πατήστε <strong>🧱 Προσθήκη Μετάλλου</strong> για καθαρό χρυσό/ασήμι ή παλιά κοσμήματα προς τήξη.",
+      "Κάθε καράτι κρατά <strong>έναν σωρό</strong> που μεγαλώνει — προσθέτετε γραμμάρια στο ίδιο καράτι.",
+      "Αν βάλετε <strong>τιμή αγοράς κάτω από την αξία</strong>, το κέρδος καταχωρείται αυτόματα ως έσοδο στις σημερινές Πωλήσεις («♻️ Scrap gain»).",
+      "Το μέταλλο μετρά στα σύνολα αξίας αλλά δεν εμφανίζεται στη λίστα εκτός αν επιλέξετε το φίλτρο «Μέταλλο». Μετά την τήξη, απλώς διαγράφετε τον σωρό."
+    ]},
+    { icon:"🏪", title:"Προμηθευτές & εργασία", items:[
+      "Καρτέλα <strong>Προμ.</strong> → <strong>+ Προσθήκη Κατηγορίας</strong> για κάθε τύπο κοσμήματος.",
+      "Κάθε κατηγορία έχει: όνομα, καράτι, <strong>τιμή εργασίας ανά γραμμάριο</strong> και προαιρετικό περιθώριο κέρδους.",
+      "Οι κωδικοί ετικετών δημιουργούνται αυτόματα (ελληνικά & λατινικά) από τον προμηθευτή και την κατηγορία."
+    ]},
+    { icon:"💰", title:"Πωλήσεις & κατάταξη", items:[
+      "<strong>Καταχώριση:</strong> πατήστε «Πουλήθηκε» στη μπάρα τιμής (ή από την κάρτα του κομματιού) — επιβεβαιώστε ποσό, σημείωση, ημερομηνία, πωλητή.",
+      "<strong>Μετρητά:</strong> διακόπτης «CASH» για κάθε πώληση (επηρεάζει το κέρδος).",
+      "<strong>Πολλά είδη μαζί:</strong> μια πώληση καλαθιού εμφανίζεται σαν μία γραμμή «🛍 N είδη»· πατώντας την βλέπετε αναλυτικά.",
+      "<strong>Διαγραφή πώλησης</strong> επαναφέρει το ακριβές κομμάτι στο απόθεμα.",
+      "<strong>Πίνακες:</strong> ανά ημερομηνία, ανά προμηθευτή και <strong>κατάταξη ανά υπάλληλο</strong> (🥇🥈🥉, μηνιαία ανάλυση). <strong>Bonus %</strong> ανά μέλος εμφανίζεται ζωντανά.",
+      "Οι υπάλληλοι βλέπουν μόνο τις δικές τους πωλήσεις, όχι τα σύνολα του καταστήματος."
+    ]},
+    { icon:"👤", title:"Πελάτες", items:[
+      "Καρτέλα <strong>Πελάτες</strong>: κρατήστε καρτέλες πελατών με στοιχεία επικοινωνίας.",
+      "Το <strong>ιστορικό αγορών</strong> κάθε πελάτη ομαδοποιεί τις πολλαπλές αγορές· από εκεί ανοίγετε την πώληση και το κομμάτι.",
+      "Ταξινόμηση (όνομα, ημερομηνία) και φίλτρο <strong>«εποχής»</strong> για γρήγορη εύρεση."
+    ]},
+    { icon:"🧾", title:"Προσφορές & πιστοποιητικά", items:[
+      "<strong>Καλάθι προσφοράς:</strong> προσθέστε πολλά κομμάτια και εκτυπώστε μία προσφορά A4 (με προαιρετική φωτογραφία).",
+      "Το <strong>ιστορικό προσφορών</strong> είναι αναζητήσιμο.",
+      "Μπορείτε να δημιουργήσετε <strong>πιστοποιητικό</strong> για ένα κομμάτι."
+    ]},
+    { icon:"📤", title:"Κοινοποίηση", items:[
+      "<strong>Κατάλογος / Φύλλο παραγγελίας (PDF):</strong> επιλέξτε κομμάτια → Κοινοποίηση, με ή χωρίς τιμές.",
+      "<strong>Promo εικόνα</strong> για Instagram/Facebook (λογότυπο + φωτογραφία + περιγραφή, χωρίς τιμή· Story ή Post).",
+      "<strong>Αποστολή στην ομάδα</strong> και κοινοποίηση μεμονωμένου κομματιού ή ολόκληρης ομάδας.",
+      "Τα όμοια κομμάτια συμπτύσσονται αυτόματα στον κατάλογο (ένα ανά χρώμα, με πλήθος αποθέματος)."
+    ]},
+    { icon:"🌐", title:"Online Βιτρίνα (Showroom)", items:[
+      "Υπάρχει μια δημόσια σελίδα όπου οι πελάτες βλέπουν το τρέχον απόθεμα (φωτογραφία, τύπος, μέταλλο — <strong>χωρίς τιμές</strong>) και στέλνουν αίτημα.",
+      "Η βιτρίνα προστατεύεται με <strong>κωδικό</strong> και δείχνει μόνο ό,τι είναι <strong>Σε απόθεμα</strong>.",
+      "Κρύψτε ένα κομμάτι με το 🙈 (π.χ. είδη μόνο για το κατάστημα). Νομίσματα και μέταλλο δεν εμφανίζονται ποτέ.",
+      "Η βιτρίνα ενημερώνεται αυτόματα από το απόθεμα και δεν εκθέτει ποτέ κόστη/προμηθευτές."
+    ]},
+    { icon:"👥", title:"Διαχείριση ομάδας", items:[
+      "Καρτέλα <strong>Συγχρ.</strong> → Ομάδα → <strong>+ Πρόσθεσε</strong>: όνομα (Ελ & Αγγλ), ρόλος (Υπάλληλος/Διευθυντής), προαιρετικό Bonus %.",
+      "Πατήστε 📤 για να στείλετε <strong>προσωπικό σύνδεσμο εγκατάστασης</strong> — ο υπάλληλος τον ανοίγει και η εφαρμογή στήνεται μόνη της με το όνομα/ρόλο του.",
+      "<strong>Νέο τηλέφωνο:</strong> ανοίγει ξανά τον ίδιο σύνδεσμο και όλα επανέρχονται.",
+      "<strong>Ρόλος/Απενεργοποίηση:</strong> με ✏️ αλλάζετε ρόλο· με ⏸ μπλοκάρετε την πρόσβαση χωρίς να χαθούν δεδομένα."
+    ]},
+    { icon:"☁️", title:"Συγχρονισμός & ταυτότητα", items:[
+      "Όλα τα δεδομένα συγχρονίζονται στο cloud (Firebase) ανάμεσα στις συσκευές αυτόματα.",
+      "<strong>Ιδιοκτήτης:</strong> στη Συγχρ. καταχωρείτε τη σύνδεση και πατάτε Αποθήκευση & Ανέβασμα.",
+      "<strong>PIN:</strong> ορίστε PIN ώστε να μην μπαίνουν οι υπάλληλοι σε λειτουργία Ιδιοκτήτη.",
+      "Αλλάζετε τηλέφωνο; Ανοίγετε ξανά τον σύνδεσμό σας και όλα αποκαθίστανται."
+    ]},
+    { icon:"💾", title:"Αντίγραφα ασφαλείας", items:[
+      "Η εφαρμογή κρατά <strong>αυτόματο ημερήσιο αντίγραφο</strong> όλων των δεδομένων στο cloud (ιδιωτικό).",
+      "Ρυθμίσεις → Αντίγραφα: <strong>☁️ Δημιουργία τώρα</strong> και <strong>↩️ Επαναφορά</strong> από προηγούμενο αντίγραφο (κρατά μια ασφαλή εικόνα πριν την επαναφορά).",
+      "Υπάρχει και <strong>εξαγωγή JSON</strong> για τοπικό αντίγραφο.",
+      "Συμβουλή: πριν από μεγάλες αλλαγές, κρατήστε ένα αντίγραφο."
+    ]},
+    { icon:"⚙️", title:"Ρυθμίσεις", items:[
+      "<strong>ΦΠΑ %</strong>, <strong>προεπιλεγμένο περιθώριο %</strong>, <strong>σύμβολο νομίσματος</strong>.",
+      "<strong>Επίπεδα βάρους:</strong> διαφορετικό περιθώριο ανά βάρος (π.χ. άνω των 10γρ → 70%).",
+      "<strong>Χειροκίνητη τιμή spot</strong> για όταν δεν υπάρχει internet.",
+      "<strong>Markup νομισμάτων</strong> (χρυσό/ασήμι) και <strong>απώλεια διύλισης %</strong> για το scrap.",
+      "Διαχείριση cache τιμών πετρών και «My coins»."
+    ]},
+    { icon:"📱", title:"Εγκατάσταση & offline", items:[
+      "Εγκαταστήστε την εφαρμογή στην αρχική οθόνη: Android/Chrome → μενού → «Προσθήκη στην αρχική»· iPhone/Safari → Κοινή χρήση → «Προσθήκη στην αρχική οθόνη».",
+      "Ανοίγει σαν κανονική εφαρμογή, χωρίς μπάρα browser.",
+      "Δουλεύει και <strong>offline</strong> με τις τελευταίες αποθηκευμένες τιμές· ο συγχρονισμός γίνεται μόλις επανέλθει το δίκτυο.",
+      "Μετά από ενημέρωση, εμφανίζεται πράσινη μπάρα «Νέα έκδοση» — πατήστε Ανανέωση."
+    ]},
+    { icon:"🆘", title:"Συμβουλές & προβλήματα", items:[
+      "<strong>«Δεν λαμβάνεται τιμή χρυσού»:</strong> η εφαρμογή ξαναπροσπαθεί μόνη της· αν επιμένει, βάλτε χειροκίνητη τιμή στις Ρυθμίσεις.",
+      "<strong>Δεν σαρώνει το QR;</strong> Δοκιμάστε τη σάρωση κειμένου του κωδικού αναφοράς (π.χ. <code>PE0142</code>) ή σαρώστε φωτογραφία.",
+      "<strong>«Ο κωδικός δεν βρέθηκε»:</strong> ελέγξτε ότι το κομμάτι υπάρχει στο απόθεμα και ότι σαρώσατε τον σωστό κωδικό.",
+      "<strong>Χάθηκαν δεδομένα;</strong> Χρησιμοποιήστε Ρυθμίσεις → Ανάκτηση/Επαναφορά από αντίγραφο.",
+      "Για τεχνική υποστήριξη, επικοινωνήστε με τον developer από την ενότητα Υποστήριξη."
+    ]}
+  ],
+  en: [
+    { icon:"🚀", title:"Getting started", items:[
+      "The app is organised into tabs at the bottom: <strong>Calc</strong> (pricing), <strong>Stock</strong>, <strong>Vendors</strong>, <strong>Clients</strong>, <strong>Sales</strong>, <strong>Sync</strong> (cloud) and <strong>Settings / Info</strong>.",
+      "Switch language (Greek / English) from the flags top-right. The whole app updates instantly.",
+      "Some things (costs, margins, coins, metal) are visible only to the <strong>Owner/Manager</strong>. Employees see only what they need to sell.",
+      "The app works <strong>offline</strong> with the last saved prices, and installs on your phone like a real app (see «Install»)."
+    ]},
+    { icon:"🧮", title:"Pricing an item", items:[
+      "<strong>By scanning:</strong> tap the camera icon and scan the tag's QR — all fields fill in and the price is calculated automatically.",
+      "<strong>By code:</strong> type the label code (e.g. <code>KAL18S2.1</code>) and the app recognises it.",
+      "<strong>Manually:</strong> pick metal, weight, karat, vendor and labor category.",
+      "Add a <strong>discount %</strong> if needed, and a <strong>rounding</strong> to the exact final amount.",
+      "<strong>Stones:</strong> open the stones section, add a stone (type, carats, quantity) and tap <strong>✨ Estimate</strong> for an automatic price (wholesale/retail).",
+      "<strong>Handmade</strong> and a <strong>secondary metal</strong> are supported with a toggle.",
+      "Show the screen to the customer: only the final price is visible. Tap the price to <strong>enlarge it full-screen</strong> (with the item's photo)."
+    ]},
+    { icon:"📷", title:"Scanning (QR & text)", items:[
+      "The camera reads the tag's <strong>QR square</strong>. Works on Android/Chrome and desktop; on iPhone/Safari it opens straight into text mode.",
+      "<strong>Text scan (OCR):</strong> if the QR is faded or scratched, tap «Scan code text» and scan the <strong>printed reference code</strong> (e.g. <code>PE0142</code>). The frame turns green the moment it reads correctly.",
+      "You can also <strong>scan a photo</strong> of a tag from your gallery.",
+      "The first time, text scan needs internet to download the recognition engine — after that it works offline too."
+    ]},
+    { icon:"📡", title:"Gold & silver prices", items:[
+      "Live prices in € refresh automatically (~every 5 min) with a mini chart.",
+      "With no internet, the <strong>last saved price</strong> is used — it's never lost.",
+      "If a warning appears that no price can be fetched, you can enter a <strong>manual price</strong> in Settings. The app retries by itself once the network returns."
+    ]},
+    { icon:"🏷️", title:"Labels & QR codes", items:[
+      "From Calc, tap <strong>Tag</strong> to create the code and print. Each category has two codes: a <strong>Greek</strong> one (<code>ΚΑΛ18Σ</code>) and a <strong>Latin</strong> one (<code>KAL18S</code>).",
+      "Use the <strong>Latin</strong> code for the QR in BarTender (Greek can't be encoded in a QR).",
+      "Basic format: <code>KAL18S2.1</code> = code + weight (no space). Scan → auto-fill.",
+      "<strong>With a diamond:</strong> <code>KAL18S2.1-.30VS2H</code> — the <code>-</code> marks where the weight ends; then carats (.30), clarity (VS2), color (H).",
+      "<strong>Colored stones</strong> by abbreviation, e.g. <code>-.50SAP</code> (sapphire). <strong>Second stone</strong> with <code>+</code>, e.g. <code>...SAP+.80SI2G</code>.",
+      "The <strong>reference code</strong> (e.g. <code>NK0342</code>) is what the customer sees; it stays fixed on the tag even if you change the type (it re-syncs only when you print a new tag).",
+      "Tap <strong>Reference Card</strong> for a printable list of all codes."
+    ]},
+    { icon:"📦", title:"Stock (inventory)", items:[
+      "<strong>Add:</strong> from Calc → Tag → <strong>Save to Inventory</strong>, or scan a QR that doesn't exist yet and it offers to add it.",
+      "<strong>Search</strong> by description, code or reference. <strong>Filters</strong> (type, metal, color, status, gender…) and <strong>Sort</strong> (newest, price, appreciation).",
+      "On <strong>desktop</strong> choose a 1/2/3-column view for a denser list.",
+      "Each card: <strong>Mark Sold</strong>, <strong>Print Tag</strong>, <strong>Edit</strong>, <strong>Delete</strong>. Tap the photo to enlarge.",
+      "<strong>Appreciation:</strong> under the price (owner only) you see how much it rose/fell since it was added — and overall at the top (Retail & Metal value).",
+      "<strong>Hidden:</strong> use 🙈 to hide an item from the online showroom without deleting it."
+    ]},
+    { icon:"🔗", title:"Similar items (groups)", items:[
+      "Many near-identical pieces can be folded into <strong>one card</strong> — each piece stays separate underneath (weight/price/QR intact).",
+      "<strong>Create a group:</strong> in Select mode pick the pieces and tap 🔗.",
+      "<strong>Add similar:</strong> from an item's Edit → «Add similar items»: enter a weight (and quantity) and it prints the tags together.",
+      "<strong>＋ Add more</strong> (restock) and <strong>Sell several</strong> at once are done from the group card."
+    ]},
+    { icon:"🪙", title:"Coins (gold & silver)", items:[
+      "Tap <strong>🪙 Add Coin</strong> in Stock (owner/manager).",
+      "Pick gold/silver and the coin from the catalogue, or use <strong>⚖️ Identify by weight</strong> to find which one it is.",
+      "The <strong>live melt value</strong> is computed from the pure metal content; set a <strong>markup</strong> in Settings for the suggested selling price.",
+      "Each coin has a <strong>Numista 🔗</strong> link to confirm. Your own coins are saved under «My coins».",
+      "When selling, coins default to <strong>cash</strong>. Coins never appear in the online showroom.",
+      "Tip: before selling a coin, check whether it has <strong>collectable value above its melt value</strong>."
+    ]},
+    { icon:"🧱", title:"Metal / scrap stock", items:[
+      "Tap <strong>🧱 Add Metal</strong> for pure gold/silver or old jewellery to melt down.",
+      "Each karat keeps <strong>one growing pile</strong> — you add grams to the same karat.",
+      "If you enter a <strong>purchase price below the value</strong>, the gain is booked automatically as income in today's Sales («♻️ Scrap gain»).",
+      "Metal counts toward the value totals but isn't shown in the list unless you pick the «Metal» filter. After melting, just delete the pile."
+    ]},
+    { icon:"🏪", title:"Vendors & labor", items:[
+      "<strong>Vendors</strong> tab → <strong>+ Add Category</strong> for each jewelry type.",
+      "Each category has: name, karat, <strong>labor price per gram</strong> and an optional profit margin.",
+      "Label codes are generated automatically (Greek & Latin) from the vendor and category."
+    ]},
+    { icon:"💰", title:"Sales & leaderboard", items:[
+      "<strong>Record:</strong> tap «Sold» on the price bar (or from the item card) — confirm amount, note, date, seller.",
+      "<strong>Cash:</strong> a «CASH» toggle per sale (affects profit).",
+      "<strong>Multiple items together:</strong> a cart sale shows as one «🛍 N items» row; tap it for the breakdown.",
+      "<strong>Deleting a sale</strong> restores the exact piece to stock.",
+      "<strong>Dashboards:</strong> by date, by vendor, and an <strong>employee leaderboard</strong> (🥇🥈🥉, monthly drill-down). <strong>Bonus %</strong> per member shows live.",
+      "Employees see only their own sales, not store totals."
+    ]},
+    { icon:"👤", title:"Clients", items:[
+      "<strong>Clients</strong> tab: keep client records with contact details.",
+      "Each client's <strong>purchase history</strong> groups multi-item sales; from there you open the sale and the item.",
+      "Sort (name, date) and a <strong>«season»</strong> filter for quick lookup."
+    ]},
+    { icon:"🧾", title:"Quotes & certificates", items:[
+      "<strong>Quote cart:</strong> add several pieces and print one A4 quote (with an optional photo).",
+      "The <strong>quote history</strong> is searchable.",
+      "You can generate a <strong>certificate</strong> for a piece."
+    ]},
+    { icon:"📤", title:"Sharing", items:[
+      "<strong>Catalog / Order sheet (PDF):</strong> select pieces → Share, with or without prices.",
+      "<strong>Promo image</strong> for Instagram/Facebook (logo + photo + description, no price; Story or Post).",
+      "<strong>Send to team</strong> and share a single piece or a whole group.",
+      "Similar pieces are collapsed automatically in the catalog (one per color, with the stock count)."
+    ]},
+    { icon:"🌐", title:"Online Showroom", items:[
+      "There's a public page where customers browse the current stock (photo, type, metal — <strong>no prices</strong>) and send an inquiry.",
+      "The showroom is protected by a <strong>password</strong> and shows only items that are <strong>In stock</strong>.",
+      "Hide a piece with 🙈 (e.g. shop-only items). Coins and metal never appear.",
+      "The showroom updates automatically from your stock and never exposes costs/vendors."
+    ]},
+    { icon:"👥", title:"Team management", items:[
+      "<strong>Sync</strong> tab → Team → <strong>+ Add Person</strong>: name (EL & EN), role (Employee/Manager), optional Bonus %.",
+      "Tap 📤 to send a <strong>personal install link</strong> — the employee opens it and the app sets itself up with their name/role.",
+      "<strong>New phone:</strong> they open the same link again and everything is restored.",
+      "<strong>Role/Deactivate:</strong> use ✏️ to change role; ⏸ blocks access without losing data."
+    ]},
+    { icon:"☁️", title:"Sync & identity", items:[
+      "All data syncs to the cloud (Firebase) across devices automatically.",
+      "<strong>Owner:</strong> in Sync you enter the connection and tap Save & Push.",
+      "<strong>PIN:</strong> set a PIN so employees can't enter Owner mode.",
+      "Changing phone? Open your link again and everything is restored."
+    ]},
+    { icon:"💾", title:"Backups", items:[
+      "The app keeps an <strong>automatic daily backup</strong> of all data in the cloud (private).",
+      "Settings → Backup: <strong>☁️ Back Up Now</strong> and <strong>↩️ Restore</strong> from an earlier snapshot (it takes a safe snapshot before restoring).",
+      "There's also a <strong>JSON export</strong> for a local backup.",
+      "Tip: before big changes, keep a backup."
+    ]},
+    { icon:"⚙️", title:"Settings", items:[
+      "<strong>VAT %</strong>, <strong>default margin %</strong>, <strong>currency symbol</strong>.",
+      "<strong>Weight tiers:</strong> a different margin per weight (e.g. over 10g → 70%).",
+      "<strong>Manual spot price</strong> for when there's no internet.",
+      "<strong>Coin markup</strong> (gold/silver) and <strong>refining loss %</strong> for scrap.",
+      "Manage the stone-price cache and «My coins»."
+    ]},
+    { icon:"📱", title:"Install & offline", items:[
+      "Install the app to your home screen: Android/Chrome → menu → «Add to Home screen»; iPhone/Safari → Share → «Add to Home Screen».",
+      "It opens like a real app, with no browser bar.",
+      "It works <strong>offline</strong> with the last saved prices; sync happens once the network returns.",
+      "After an update, a green «New version» bar appears — tap Refresh."
+    ]},
+    { icon:"🆘", title:"Tips & troubleshooting", items:[
+      "<strong>«Cannot fetch gold price»:</strong> the app retries by itself; if it persists, enter a manual price in Settings.",
+      "<strong>QR won't scan?</strong> Try the text scan of the reference code (e.g. <code>PE0142</code>) or scan a photo.",
+      "<strong>«Code not found»:</strong> check the item exists in stock and that you scanned the right code.",
+      "<strong>Lost data?</strong> Use Settings → Recovery/Restore from a backup.",
+      "For technical support, contact the developer from the Support section."
+    ]}
+  ]
+};
+let lang = localStorage.getItem('jpro_lang') || 'el';
+const T = {
+  el:{ title:"Οδηγίες Χρήσης", sub:"Πλήρης οδηγός — JewelPrice Pro", back:"← Επιστροφή στην εφαρμογή", expand:"Άνοιγμα όλων", collapse:"Κλείσιμο όλων" },
+  en:{ title:"User Manual", sub:"Complete guide — JewelPrice Pro", back:"← Back to the app", expand:"Expand all", collapse:"Collapse all" }
+};
+function render(){
+  document.documentElement.lang = lang;
+  const t = T[lang];
+  document.getElementById('pageTitle').textContent = t.title;
+  document.getElementById('pageSub').textContent = t.sub;
+  document.getElementById('backLink').textContent = t.back;
+  document.getElementById('btnExpand').textContent = t.expand;
+  document.getElementById('btnCollapse').textContent = t.collapse;
+  document.getElementById('btnEl').classList.toggle('active', lang==='el');
+  document.getElementById('btnEn').classList.toggle('active', lang==='en');
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  MANUAL[lang].forEach((s, i) => {
+    const sec = document.createElement('div');
+    sec.className = 'sec' + (i===0 ? ' open' : '');
+    const head = document.createElement('div');
+    head.className = 'sec-head';
+    head.onclick = () => sec.classList.toggle('open');
+    const title = document.createElement('div');
+    title.className = 'sec-title';
+    title.textContent = s.icon + '  ' + s.title;
+    const chev = document.createElement('span');
+    chev.className = 'sec-chev'; chev.textContent = '▼';
+    head.appendChild(title); head.appendChild(chev);
+    const body = document.createElement('div');
+    body.className = 'sec-body';
+    const ul = document.createElement('ul');
+    s.items.forEach(it => { const li = document.createElement('li'); li.innerHTML = it; ul.appendChild(li); });
+    body.appendChild(ul);
+    sec.appendChild(head); sec.appendChild(body);
+    list.appendChild(sec);
+  });
+}
+function setAll(open){ document.querySelectorAll('.sec').forEach(s => s.classList.toggle('open', open)); }
+function setLang(l){ lang=l; try{localStorage.setItem('jpro_lang',l);}catch(e){} render(); }
+render();
+</script>
+</body>
+</html>

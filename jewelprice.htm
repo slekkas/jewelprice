@@ -1791,13 +1791,12 @@
       </div>
     </div>
 
-    <!-- Instructions Manual -->
+    <!-- Instructions Manual (full manual lives in manual.htm) -->
     <div class="about-card">
-      <button class="about-section-btn" onclick="toggleSection('manualBody')">
+      <button class="about-section-btn" onclick="window.open('manual.htm','_blank','noopener')">
         <span data-i18n="manualTitle">📖 Οδηγίες Χρήσης</span>
-        <span class="about-chevron" id="manualChevron">▼</span>
+        <span class="about-chevron" style="transform:rotate(-90deg)">▼</span>
       </button>
-      <div id="manualBody" class="about-section-body" style="display:none" id="manualContent"></div>
     </div>
 
     <!-- Changelog -->
@@ -16515,62 +16514,9 @@ const ABOUT = {
       '🌐 Δίγλωσσα ονόματα — Ελληνικά & Αγγλικά στις προσφορές ανάλογα με τη γλώσσα',
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
-    manual: [
-      { heading: '🧮 Υπολογισμός Τιμής', items: [
-        '1. Εισάγετε τον κωδικό ετικέτας (π.χ. ΚΑΛ18Σ2.1) ή σαρώστε το QR.',
-        '2. Εναλλακτικά επιλέξτε χειροκίνητα: μέταλλο, βάρος, καράτι, προμηθευτή, κατηγορία εργασίας.',
-        '3. Προσθέστε έκπτωση % αν χρειάζεται.',
-        '4. Πατήστε Υπολογισμός — η τελική τιμή εμφανίζεται στο κάτω μέρος.',
-        '5. Δείξτε την οθόνη στον πελάτη — μόνο η τελική τιμή είναι ορατή.'
-      ]},
-      { heading: '🏪 Διαχείριση Προμηθευτών', items: [
-        '1. Πηγαίνετε στην καρτέλα Προμ.',
-        '2. Πατήστε + Προσθήκη Κατηγορίας για κάθε τύπο κοσμήματος.',
-        '3. Κάθε κατηγορία έχει: όνομα, καράτι, τιμή εργασίας/γρ. και προαιρετικό περιθώριο κέρδους.',
-        '4. Οι κωδικοί ετικετών δημιουργούνται αυτόματα (Ελληνικά & Λατινικά).',
-        '5. Πατήστε Εκτύπωση Κάρτας Αναφοράς για λίστα όλων των κωδικών.'
-      ]},
-      { heading: '⚙️ Ρυθμίσεις', items: [
-        '<strong>ΦΠΑ:</strong> Εισάγετε τον συντελεστή ΦΠΑ (π.χ. 24).',
-        '<strong>Περιθώριο Κέρδους:</strong> Το κύριο περιθώριο για όλα τα κοσμήματα.',
-        '<strong>Επίπεδα Βάρους:</strong> Διαφορετικό περιθώριο ανά βάρος (π.χ. άνω των 10γρ. → 70%).',
-        '<strong>Χειροκίνητη Τιμή Spot:</strong> Εισάγετε τιμή χρυσού/ασημιού αν δεν υπάρχει internet.'
-      ]},
-      { heading: '☁️ Συγχρονισμός Cloud', items: [
-        '<strong>Ιδιοκτήτης:</strong> Εισάγετε Firebase URL και πατήστε Αποθήκευση & Ανέβασμα.',
-        '<strong>Υπάλληλος:</strong> Ανοίξτε τον σύνδεσμο που σας έστειλε ο ιδιοκτήτης — η εφαρμογή συνδέεται αυτόματα.',
-        '<strong>PIN:</strong> Ορίστε PIN για να αποτρέψετε τους υπαλλήλους από την πρόσβαση στη λειτουργία Ιδιοκτήτη.'
-      ]},
-      { heading: '👥 Διαχείριση Ομάδας', items: [
-        '<strong>Προσθήκη μέλους:</strong> Καρτέλα Συγχρ. → Ομάδα → + Πρόσθεσε. Εισάγετε πλήρες όνομα (Ελληνικά & Αγγλικά), επιλέξτε ρόλο (Υπάλληλος / Διευθυντής) και προαιρετικό Bonus %.',
-        '<strong>Αποστολή link:</strong> Πατήστε 📤 δίπλα στο μέλος — αποστέλλεται προσωπικό link μέσω WhatsApp/Viber. Ο υπάλληλος το ανοίγει, η εφαρμογή εγκαθίσταται αυτόματα με το όνομα και τον ρόλο του.',
-        '<strong>Νέο τηλέφωνο:</strong> Ο υπάλληλος ανοίγει ξανά το ίδιο link — η ταυτότητά του αποκαθίσταται πλήρως από το Firebase.',
-        '<strong>Αλλαγή ρόλου:</strong> Πατήστε ✏️ → αλλάξτε ρόλο → Αποθήκευση. Την επόμενη φορά που θα ανοίξει την εφαρμογή ο υπάλληλος, ο νέος ρόλος εφαρμόζεται αυτόματα.',
-        '<strong>Απενεργοποίηση:</strong> Πατήστε ⏸ για να μπλοκάρετε την πρόσβαση. Τα δεδομένα παραμένουν. Πατήστε ▶ για επανενεργοποίηση.',
-        '<strong>Bonus:</strong> Ορίστε % bonus ανά μέλος. Εμφανίζεται ζωντανά κατά την καταχώριση πώλησης και στη μηνιαία ανάλυση.'
-      ]},
-      { heading: '📊 Πωλήσεις & Leaderboard', items: [
-        '<strong>Καταχώριση πώλησης:</strong> Πατήστε "Πωλήθηκε" στη μπάρα τιμής — επιβεβαιώστε ποσό, σημείωση, ημερομηνία.',
-        '<strong>Ανά Ημερομηνία:</strong> Ετήσιο γράφημα → tap μήνα → ημέρες → λίστα πωλήσεων.',
-        '<strong>Ανά Προμηθευτή:</strong> Κατάταξη προμηθευτών → tap για μηνιαία ανάλυση.',
-        '<strong>Ανά Υπάλληλο:</strong> Leaderboard με 🥇🥈🥉 → tap υπαλλήλου → ετήσιο γράφημα → tap μήνα → πωλήσεις.',
-        '<strong>Υπάλληλοι:</strong> Βλέπουν μόνο την καρτέλα "Ανά Υπάλληλο" — χωρίς πρόσβαση σε σύνολα καταστήματος.',
-        '<strong>Bonus:</strong> Εμφανίζεται 🎁 δίπλα στο ποσό κάθε πώλησης. Σύνολο bonus στη μηνιαία ανάλυση.'
-      ]},
-      { heading: '🏷️ Ετικέτες & QR Codes', items: [
-        'Κάθε κατηγορία έχει δύο κωδικούς: έναν ελληνικό (ΚΑΛ18Σ) και έναν λατινικό (KAL18S).',
-        'Χρησιμοποιήστε τον λατινικό κωδικό για το QR στο BarTender (αποφυγή προβλημάτων κωδικοποίησης).',
-        'Βασική μορφή QR: KAL18S2.1 (κωδικός + βάρος χωρίς κενό). Σάρωση → αυτόματη συμπλήρωση & υπολογισμός.',
-        '<strong>Μορφή QR με διαμάντι:</strong> KAL18S2.1-.30VS2H — ο διαχωριστής <code>-</code> ορίζει πού τελειώνει το βάρος. Μετά: καράτια (.30 = 0.30ct, 1.00 = 1.00ct), καθαρότητα (VS2), χρώμα (H).',
-        '<strong>Παραδείγματα διαμαντιών:</strong> KAL18S2.1-.30VS2H · KAL18S3.5-1.00VVS1D · KAL18S1.8-.05SI1G',
-        '<strong>Χρωματιστές πέτρες</strong> — συντομογραφίες: SAP, RUB, EME, ALE, AQU, AME, CIT, GAR, MOR, OPA, PEA, PER, SPI, TAN, TOP, TOU, TUR. Παράδειγμα: KAL18S2.1-.50SAP',
-        '<strong>2 πέτρες (halo/πλευρικά διαμάντια):</strong> Διαχωριστής <code>+</code> για δεύτερη πέτρα. Π.χ. APO18DD12.5-8.00SAP+.80SI2G',
-        'Σάρωση QR με πέτρα/πέτρες → αυτόματη συμπλήρωση + εκτίμηση AI + υπολογισμός τελικής τιμής.'
-      ]}
-    ],
     changelog: [
-      { version: 'v10.67', date: 'Ιούλιος 2026', items: [
-        '🔍 Βελτιώσεις στη μεγεθυσμένη τιμή (η οθόνη προς τον πελάτη): (1) τώρα που προστέθηκε η φωτογραφία, η οθόνη χωράει ολόκληρη χωρίς κύλιση — η φωτογραφία προσαρμόζεται αυτόματα στον διαθέσιμο χώρο σε κάθε συσκευή. (2) Αν αλλάξετε καρτέλα ενώ είναι ανοιχτή, κλείνει αυτόματα — δεν «ξεπροβάλλει» πια στο φόντο.'
+      { version: 'v10.68', date: 'Ιούλιος 2026', items: [
+        '📖 Ανανεωμένες & πλήρεις Οδηγίες Χρήσης σε ξεχωριστή σελίδα: οι παλιές οδηγίες ήταν ξεπερασμένες. Τώρα η καρτέλα «Πληροφορίες» → «📖 Οδηγίες Χρήσης» ανοίγει έναν πλήρη, δίγλωσσο οδηγό (21 ενότητες: τιμολόγηση, σάρωση, απόθεμα, όμοια είδη, νομίσματα, μέταλλο, πωλήσεις, πελάτες, online βιτρίνα, αντίγραφα ασφαλείας κ.ά.). Έτσι η εφαρμογή παραμένει ελαφριά.'
       ]},
           ]
   },
@@ -16600,62 +16546,9 @@ const ABOUT = {
       '🌐 Bilingual names — Greek & English shown on quotes per language',
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
-    manual: [
-      { heading: '🧮 Price Calculation', items: [
-        '1. Enter the label code (e.g. KAL18S2.1) or scan the QR code.',
-        '2. Alternatively select manually: metal, weight, karat, vendor, labor category.',
-        '3. Add a discount % if needed.',
-        '4. Tap Calculate — the final price appears at the bottom.',
-        '5. Show the screen to the customer — only the final price is visible.'
-      ]},
-      { heading: '🏪 Vendor Management', items: [
-        '1. Go to the Vendors tab.',
-        '2. Tap + Add Category for each jewelry type.',
-        '3. Each category has: name, karat, labor price/g and optional profit margin.',
-        '4. Label codes are generated automatically (Greek & Latin).',
-        '5. Tap Print Reference Card for a list of all codes.'
-      ]},
-      { heading: '⚙️ Settings', items: [
-        '<strong>VAT:</strong> Enter the VAT rate (e.g. 24).',
-        '<strong>Profit Margin:</strong> The main margin for all jewelry.',
-        '<strong>Weight Tiers:</strong> Different margin per weight (e.g. over 10g → 70%).',
-        '<strong>Manual Spot Price:</strong> Enter gold/silver price if there is no internet.'
-      ]},
-      { heading: '☁️ Cloud Sync', items: [
-        '<strong>Owner:</strong> Enter Firebase URL and tap Save & Push. All changes upload automatically.',
-        '<strong>Employee:</strong> Open the link sent by the owner — the app connects automatically.',
-        '<strong>PIN:</strong> Set a PIN to prevent employees from accessing Owner mode.'
-      ]},
-      { heading: '👥 Team Management', items: [
-        '<strong>Adding a member:</strong> Sync tab → Team → + Add Person. Enter full name (Greek & English), choose role (Employee / Manager) and optional Bonus %.',
-        '<strong>Sending the link:</strong> Tap 📤 next to the member — a personalised link is sent via WhatsApp/Viber. They open it, the app installs automatically with their name and role.',
-        '<strong>New phone:</strong> The employee opens the same link again — their identity is fully restored from Firebase.',
-        '<strong>Changing role:</strong> Tap ✏️ → change role → Save. Next time they open the app, the new role applies automatically.',
-        '<strong>Deactivating:</strong> Tap ⏸ to block access. Data is preserved. Tap ▶ to reactivate.',
-        '<strong>Bonus:</strong> Set a bonus % per member. Shown live when recording a sale and in the monthly breakdown.'
-      ]},
-      { heading: '📊 Sales & Leaderboard', items: [
-        '<strong>Recording a sale:</strong> Tap "Sold" on the price bar — confirm amount, note, date.',
-        '<strong>By Date:</strong> Yearly chart → tap a month → days → sales list.',
-        '<strong>By Vendor:</strong> Vendor ranking → tap for monthly breakdown.',
-        '<strong>By Employee:</strong> Leaderboard with 🥇🥈🥉 → tap employee → yearly chart → tap month → sales list.',
-        '<strong>Employees:</strong> Only see the "By Employee" tab — no access to store totals.',
-        '<strong>Bonus:</strong> 🎁 shown next to each sale amount. Total bonus shown in the monthly breakdown.'
-      ]},
-      { heading: '🏷️ Labels & QR Codes', items: [
-        'Each category has two codes: a Greek one (ΚΑΛ18Σ) and a Latin one (KAL18S).',
-        'Use the Latin code for QR in BarTender (avoids encoding issues).',
-        'Basic QR format: KAL18S2.1 (code + weight, no space). Scan → automatic fill & calculation.',
-        '<strong>QR format with diamond:</strong> KAL18S2.1-.30VS2H — the <code>-</code> separator marks where the weight ends. After it: carats (.30 = 0.30ct, 1.00 = 1.00ct), clarity (VS2), color (H).',
-        '<strong>Diamond examples:</strong> KAL18S2.1-.30VS2H · KAL18S3.5-1.00VVS1D · KAL18S1.8-.05SI1G',
-        '<strong>Colored stones</strong> — abbreviations: SAP, RUB, EME, ALE, AQU, AME, CIT, GAR, MOR, OPA, PEA, PER, SPI, TAN, TOP, TOU, TUR. Example: KAL18S2.1-.50SAP',
-        '<strong>2 stones (halo / side diamonds):</strong> Use <code>+</code> separator for the second stone. E.g. APO18DD12.5-8.00SAP+.80SI2G',
-        'Scanning a QR with stone(s) → auto-fills fields + AI estimate for all stones + final price — all in one scan.'
-      ]}
-    ],
     changelog: [
-      { version: 'v10.67', date: 'Jul 2026', items: [
-        '🔍 Enlarged price view fixes (the customer-facing screen): (1) now that the photo was added, the screen fits without scrolling — the photo scales automatically to the available space on any device. (2) It closes automatically when you switch tabs — no more peeking through in the background.'
+      { version: 'v10.68', date: 'Jul 2026', items: [
+        '📖 Refreshed & complete User Manual on its own page: the old manual was out of date. The Info tab → «📖 User Manual» now opens a full, bilingual guide (21 sections: pricing, scanning, stock, similar items, coins, metal, sales, clients, online showroom, backups, and more). This keeps the app itself lightweight.'
       ]},
           ]
   }
@@ -16675,14 +16568,8 @@ function renderAbout() {
   // Features
   const fl = document.getElementById('featuresList');
   if (fl) fl.innerHTML = a.features.map(f => `<li>${f}</li>`).join('');
-  // Manual
-  const mb = document.getElementById('manualBody');
-  if (mb) mb.innerHTML = a.manual.map(s =>
-    `<div class="manual-section">
-      <div class="manual-heading">${s.heading}</div>
-      ${s.items.map(i => `<p>${i}</p>`).join('')}
-    </div>`
-  ).join('');
+  // Manual — full bilingual manual now lives in the standalone manual.htm page,
+  // opened from the Info-tab "User Manual" button (no inline content to render).
   // Changelog — only the current version is kept inline (drives the update banner);
   // the full history lives in changelog.htm, linked below.
   const cb = document.getElementById('changelogBody');
@@ -19551,7 +19438,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.67';
+const APP_VERSION = '10.68';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
