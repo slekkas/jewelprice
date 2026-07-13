@@ -10262,34 +10262,56 @@ function _invPureGrams(item) {
   return 0;
 }
 
-function openInvExportSheet() {
+// Export options are held in this state object (the sheet uses tappable pills, not
+// native checkboxes — the global `input{-webkit-appearance:none;width:100%}` rule
+// turns real checkboxes into unusable full-width empty boxes on the phones).
+let _ieOpts = { status: 'in_stock', types: new Set(), cols: new Set(['cost', 'retail', 'pure']), group: true };
+function _ieStatus(v, btn) { _ieOpts.status = v; const box = btn.parentElement; box.querySelectorAll('.inv-fs-pill').forEach(p => p.classList.remove('sel')); btn.classList.add('sel'); }
+function _iePill(group, val, btn) { const set = _ieOpts[group]; if (set.has(val)) { set.delete(val); btn.classList.remove('sel'); } else { set.add(val); btn.classList.add('sel'); } }
+function _ieGroup(btn) { _ieOpts.group = !_ieOpts.group; btn.classList.toggle('sel', _ieOpts.group); }
+
+async function openInvExportSheet() {
   if (!isOwnerOrManager()) return;
   const sheet = document.getElementById('invExportSheet');
   if (!sheet) return;
   const isEl = lang === 'el';
-  // Only offer type checkboxes for types actually present in the inventory.
+  sheet.style.display = 'block';
+  const content = document.getElementById('invExportContent');
+  // The sheet can open without the Stock tab ever running, so load the inventory
+  // cache now — otherwise "Types included" is empty and totals can't be computed.
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    content.innerHTML = `<div style="padding:34px 0;text-align:center;color:var(--text-muted);font-family:var(--font-body);font-size:13px">${isEl ? 'Φόρτωση αποθέματος…' : 'Loading inventory…'}</div>`;
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
   const present = new Set();
   Object.values(_inventoryCache || {}).forEach(it => { if (it && it.jewelryType) present.add(it.jewelryType); });
-  const chk = 'display:flex;align-items:center;gap:8px;padding:7px 0;font-family:var(--font-body);font-size:13px;color:var(--text);cursor:pointer';
-  const lbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px';
-  const secStyle = 'padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06)';
-  const dateInput = 'width:100%;padding:8px;background:var(--dark);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px';
-  const typeRows = INV_JEWELRY_TYPES.filter(jt => present.has(jt.key)).map(jt => {
-    const off = (jt.key === 'coin' || jt.key === 'metal'); // coins & scrap excluded by default
-    return `<label style="${chk}"><input type="checkbox" class="ie-type" value="${jt.key}"${off ? '' : ' checked'}> ${isEl ? jt.el : jt.en}</label>`;
-  }).join('') || '—';
-  document.getElementById('invExportContent').innerHTML = `
+  const presentTypes = INV_JEWELRY_TYPES.filter(jt => present.has(jt.key));
+  // Reset options each open. Types default to everything present EXCEPT coins & scrap.
+  _ieOpts = { status: 'in_stock', types: new Set(), cols: new Set(['cost', 'retail', 'pure']), group: true };
+  presentTypes.forEach(jt => { if (jt.key !== 'coin' && jt.key !== 'metal') _ieOpts.types.add(jt.key); });
+  const sel = on => on ? ' sel' : '';
+  const lbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px';
+  const secStyle = 'padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.06)';
+  const dateInput = 'width:100%;box-sizing:border-box;padding:10px;background:var(--dark);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:14px';
+  const typePills = presentTypes.map(jt => `<button class="inv-fs-pill${sel(_ieOpts.types.has(jt.key))}" onclick="_iePill('types','${jt.key}',this)">${isEl ? jt.el : jt.en}</button>`).join('') || '—';
+  content.innerHTML = `
     <div style="${secStyle}"><div style="${lbl}">${t('exportStatusLabel')}</div>
-      <label style="${chk}"><input type="radio" name="ieStatus" value="in_stock" checked> ${t('exportStInstock')}</label>
-      <label style="${chk}"><input type="radio" name="ieStatus" value="all"> ${t('exportStAll')}</label>
+      <div class="inv-fs-pills">
+        <button class="inv-fs-pill sel" onclick="_ieStatus('in_stock',this)">${t('exportStInstock')}</button>
+        <button class="inv-fs-pill" onclick="_ieStatus('all',this)">${t('exportStAll')}</button>
+      </div>
     </div>
-    <div style="${secStyle}"><div style="${lbl}">${t('exportTypesLabel')}</div>${typeRows}</div>
+    <div style="${secStyle}"><div style="${lbl}">${t('exportTypesLabel')}</div><div class="inv-fs-pills">${typePills}</div></div>
     <div style="${secStyle}"><div style="${lbl}">${t('exportColsLabel')}</div>
-      <label style="${chk}"><input type="checkbox" id="ieColCost" checked> ${t('exportColCost')}</label>
-      <label style="${chk}"><input type="checkbox" id="ieColRetail" checked> ${t('exportColRetail')}</label>
-      <label style="${chk}"><input type="checkbox" id="ieColPure" checked> ${t('exportColPure')}</label>
+      <div class="inv-fs-pills">
+        <button class="inv-fs-pill sel" onclick="_iePill('cols','cost',this)">${t('exportColCost')}</button>
+        <button class="inv-fs-pill sel" onclick="_iePill('cols','retail',this)">${t('exportColRetail')}</button>
+        <button class="inv-fs-pill sel" onclick="_iePill('cols','pure',this)">${t('exportColPure')}</button>
+      </div>
     </div>
-    <div style="${secStyle}"><label style="${chk}"><input type="checkbox" id="ieGroup" checked> ${t('exportGroupBy')}</label></div>
+    <div style="${secStyle}"><div style="${lbl}">${t('exportGroupBy')}</div>
+      <div class="inv-fs-pills"><button class="inv-fs-pill sel" onclick="_ieGroup(this)">${isEl ? 'Ναι — σύνολα ανά τύπο' : 'Yes — subtotals per type'}</button></div>
+    </div>
     <div style="${secStyle}"><div style="${lbl}">${t('exportDateLabel')}</div>
       <div id="ieSeasonChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px"></div>
       <div style="display:flex;gap:8px">
@@ -10300,7 +10322,6 @@ function openInvExportSheet() {
     <div style="font-size:10px;color:var(--text-muted);margin-top:10px;line-height:1.5">${t('exportFmtNote')}</div>`;
   _invExportSeasonChips();
   const st = document.getElementById('invExportStatus'); if (st) { st.textContent = ''; st.className = 'status-bar'; }
-  sheet.style.display = 'block';
 }
 
 function closeInvExportSheet() {
@@ -10331,12 +10352,12 @@ function pickInvExportSeason(y) {
 
 function runInvExport() {
   const isEl = lang === 'el';
-  const status = document.querySelector('input[name="ieStatus"]:checked')?.value || 'in_stock';
-  const typeSet = new Set([...document.querySelectorAll('.ie-type:checked')].map(c => c.value));
-  const incCost = !!document.getElementById('ieColCost')?.checked;
-  const incRetail = !!document.getElementById('ieColRetail')?.checked;
-  const incPure = !!document.getElementById('ieColPure')?.checked;
-  const groupBy = !!document.getElementById('ieGroup')?.checked;
+  const status = _ieOpts.status || 'in_stock';
+  const typeSet = new Set(_ieOpts.types);
+  const incCost = _ieOpts.cols.has('cost');
+  const incRetail = _ieOpts.cols.has('retail');
+  const incPure = _ieOpts.cols.has('pure');
+  const groupBy = !!_ieOpts.group;
   const fromV = document.getElementById('ieDateFrom')?.value || '', toV = document.getElementById('ieDateTo')?.value || '';
   const fromTs = fromV ? new Date(fromV + 'T00:00:00').getTime() : null;
   const toTs = toV ? new Date(toV + 'T23:59:59.999').getTime() : null;
@@ -17316,8 +17337,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.73', date: 'Ιούλιος 2026', items: [
-        '🔁 Έλεγχος απογραφής: αν σαρώσετε είδος που έχει ήδη σαρωθεί, εμφανίζεται αμέσως προειδοποίηση «Ήδη σαρωμένο» (με μικρή δόνηση) και δεν μετριέται δεύτερη φορά. Για ομάδες όμοιων ειδών ή νομίσματα που μοιράζονται τον ίδιο κωδικό, οι επαναλαμβανόμενες σαρώσεις επιτρέπονται μέχρι τον αριθμό των κομματιών στο απόθεμα (εμφανίζεται π.χ. «2/5»).'
+      { version: 'v10.74', date: 'Ιούλιος 2026', items: [
+        '🔧 Διόρθωση εξαγωγής CSV: τα κουμπιά επιλογών (κατάσταση, τύποι, στήλες) δεν λειτουργούσαν σε ορισμένα κινητά και η λίστα «Τύποι» ήταν κενή αν δεν είχατε ανοίξει πρώτα το «Απόθεμα». Τώρα οι επιλογές είναι κανονικά κουμπιά που πατιούνται, και το απόθεμα φορτώνει αυτόματα μόλις ανοίξει η εξαγωγή.'
       ]},
           ]
   },
@@ -17348,8 +17369,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.73', date: 'Jul 2026', items: [
-        '🔁 Inventory check: scanning an item that\'s already been counted now shows an immediate «Already scanned» warning (with a short buzz) and isn\'t counted twice. For groups of identical items or coins that share the same code, repeat scans are allowed up to the number of pieces in stock (shown e.g. «2/5»).'
+      { version: 'v10.74', date: 'Jul 2026', items: [
+        '🔧 CSV export fix: the option buttons (status, types, columns) didn\'t respond on some phones, and the «Types» list was empty unless you\'d opened the Stock tab first. The options are now proper tappable buttons, and your inventory loads automatically when the export opens.'
       ]},
           ]
   }
@@ -20239,7 +20260,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.73';
+const APP_VERSION = '10.74';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
