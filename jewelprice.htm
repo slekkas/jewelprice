@@ -1636,6 +1636,36 @@
         </div>
       </div>
 
+      <!-- INVENTORY CSV EXPORT (accountant / end-of-season) -->
+      <div class="settings-section" id="exportSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="exportTitle">📊 Εξαγωγή Απογραφής (CSV)</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="exportDesc">Εξαγωγή του αποθέματος σε αρχείο CSV για τον λογιστή — με σύνολα ανά τύπο, εύρος ημερομηνιών και επιλογή τι περιλαμβάνεται.</p>
+        <button onclick="openInvExportSheet()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="exportBtn">📊 Εξαγωγή σε CSV</button>
+      </div>
+
+      <!-- INVENTORY CHECK (stocktake) -->
+      <div class="settings-section" id="stocktakeSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stkTitle">🔍 Έλεγχος Απογραφής</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="stkDesc">Στο κλείσιμο της σεζόν: πατήστε «Έναρξη» και όλοι σαρώνουν τα QR των ειδών. Όταν τελειώσετε, «Ολοκλήρωση & Σύγκριση» ελέγχει τι σαρώθηκε έναντι του αποθέματος και δείχνει τι λείπει. Τα νομίσματα & το μέταλλο δεν σαρώνονται.</p>
+        <div id="stkSettingsIdle">
+          <button onclick="stkStart()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="stkStartBtn">▶️ Έναρξη Ελέγχου</button>
+        </div>
+        <div id="stkSettingsActive" style="display:none">
+          <div style="background:rgba(76,175,132,0.1);border:1px solid rgba(76,175,132,0.35);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#4caf84;flex-shrink:0"></span>
+              <span id="stkActiveInfo" style="font-family:var(--font-body);font-size:11px;color:var(--gold-light)"></span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="stkOpenScanner()" style="flex:1;min-width:120px;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkOpenBtn">📷 Σάρωση</button>
+            <button onclick="stkFinishCompare()" style="flex:1;min-width:120px;padding:11px;background:rgba(76,175,132,0.14);border:1px solid rgba(76,175,132,0.4);color:#7fd6b0;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkFinishShort">✅ Ολοκλήρωση</button>
+          </div>
+          <button onclick="stkCancel()" style="width:100%;margin-top:8px;padding:9px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkCancelBtn">✕ Ακύρωση Ελέγχου</button>
+        </div>
+        <div class="status-bar" id="stkStatusBar"></div>
+      </div>
+
       <!-- STONE PRICE AUDIT (temporary — remove once cleanup is done, see v10.19) -->
       <div class="settings-section" id="stoneAuditSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stoneAuditTitle">💎 Έλεγχος Τιμών Πετρών</h4>
@@ -2564,6 +2594,77 @@
   </div>
 </div>
 
+<!-- INVENTORY CSV EXPORT SHEET -->
+<div id="invExportSheet" style="display:none;position:fixed;inset:0;z-index:99996">
+  <div onclick="closeInvExportSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);z-index:0"></div>
+  <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;z-index:1;display:flex;flex-direction:column">
+    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:8px 20px 10px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 10px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="exportSheetTitle">📊 Εξαγωγή Απογραφής</div>
+        <button onclick="closeInvExportSheet()" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div style="padding:16px 20px 0;flex:1">
+      <div id="invExportContent"></div>
+      <button onclick="runInvExport()" style="width:100%;margin-top:20px;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="exportRun">⬇️ Εξαγωγή CSV</button>
+      <div class="status-bar" id="invExportStatus" style="margin-bottom:40px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- INVENTORY CHECK (stocktake) — floating banner shown to everyone while a session is active -->
+<div id="stkBanner" onclick="stkOpenScanner()" style="display:none;position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:50002;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;padding:11px 20px;border-radius:24px;box-shadow:0 6px 20px rgba(0,0,0,0.45);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;align-items:center;gap:8px;white-space:nowrap">
+  📋 <span data-i18n="stkBannerLabel">Απογραφή σε εξέλιξη — Σάρωση</span>
+</div>
+
+<!-- INVENTORY CHECK — scan overlay -->
+<div id="stkOverlay" style="display:none;position:fixed;inset:0;z-index:99997;background:var(--dark);flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--card-border);flex-shrink:0">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)" data-i18n="stkScanTitle">📋 Απογραφή — Σάρωση</div>
+    <button onclick="stkCloseScanner()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:7px 16px;color:var(--text);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer" data-i18n="stkDone">Τέλος</button>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+    <div id="stkVideoWrap" style="position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:1;background:#000;border-radius:14px;overflow:hidden;border:2px solid var(--card-border)">
+      <video id="stkVideo" playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+      <div style="position:absolute;inset:22%;border:2px solid rgba(255,255,255,0.6);border-radius:10px;pointer-events:none"></div>
+    </div>
+    <div id="stkStatus" style="text-align:center;font-family:var(--font-body);font-size:13px;color:var(--text-muted);min-height:18px"></div>
+    <div id="stkFeedback" style="text-align:center;font-family:var(--font-body);font-size:14px;font-weight:700;min-height:20px;color:var(--gold-light)"></div>
+    <div style="display:flex;gap:10px;justify-content:center;text-align:center">
+      <div style="flex:1;background:var(--dark-2);border:1px solid var(--card-border);border-radius:10px;padding:10px">
+        <div style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)" data-i18n="stkYouScanned">Εσύ σάρωσες</div>
+        <div id="stkMyCount" style="font-family:var(--font-heading);font-size:26px;color:var(--gold-light)">0</div>
+      </div>
+      <div style="flex:1;background:var(--dark-2);border:1px solid var(--card-border);border-radius:10px;padding:10px">
+        <div style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)" data-i18n="stkTotalScanned">Σύνολο (όλοι)</div>
+        <div id="stkTotalCount" style="font-family:var(--font-heading);font-size:26px;color:var(--text)">0</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px" data-i18n="stkManualLabel">Ή πληκτρολογήστε τον κωδικό</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="stkManualInput" autocomplete="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')stkManualSubmit()" placeholder="π.χ. RG0142" style="flex:1;padding:11px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;text-transform:uppercase">
+        <button onclick="stkManualSubmit()" style="padding:11px 18px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-size:16px;cursor:pointer">➕</button>
+      </div>
+    </div>
+  </div>
+  <div id="stkOwnerFooter" style="flex-shrink:0;padding:12px 18px;border-top:1px solid var(--card-border);display:none">
+    <button onclick="stkFinishCompare()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer" data-i18n="stkFinishBtn">✅ Ολοκλήρωση & Σύγκριση</button>
+  </div>
+</div>
+
+<!-- INVENTORY CHECK — comparison report -->
+<div id="stkReport" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.75)">
+  <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;display:flex;flex-direction:column">
+    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="stkReportTitle">📋 Αποτέλεσμα Απογραφής</div>
+      <button onclick="stkCloseReport()" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer" aria-label="Close">&times;</button>
+    </div>
+    <div id="stkReportContent" style="padding:16px 20px 40px"></div>
+  </div>
+</div>
+
 <!-- SALES PANEL -->
 <div id="panel-sales" class="panel">
   <div class="sales-panel-inner">
@@ -3052,6 +3153,41 @@ const T = {
     autoBackupDesc:'Η εφαρμογή κρατά αυτόματα ένα αντίγραφο όλων των δεδομένων μία φορά την ημέρα (τελευταία 30). Ιδιωτικά — δεν εμφανίζονται πουθενά δημόσια.',
     backupNowBtn:'☁️ Αντίγραφο Τώρα',
     restoreBackupBtn:'↩️ Επαναφορά',
+    exportTitle:'📊 Εξαγωγή Απογραφής (CSV)',
+    exportDesc:'Εξαγωγή του αποθέματος σε αρχείο CSV για τον λογιστή — με σύνολα ανά τύπο, εύρος ημερομηνιών και επιλογή τι περιλαμβάνεται. Ανοίγει καθαρά στο Excel.',
+    exportBtn:'📊 Εξαγωγή σε CSV',
+    exportSheetTitle:'📊 Εξαγωγή Απογραφής',
+    exportStatusLabel:'Κατάσταση',
+    exportStInstock:'Μόνο απόθεμα',
+    exportStAll:'Απόθεμα + Πουλημένα',
+    exportTypesLabel:'Τύποι που περιλαμβάνονται',
+    exportColsLabel:'Στήλες αξίας',
+    exportColCost:'Κόστος',
+    exportColRetail:'Λιανική',
+    exportColPure:'Καθαρό μέταλλο (γρ)',
+    exportGroupBy:'Ομαδοποίηση ανά τύπο με υποσύνολα',
+    exportDateLabel:'Εύρος ημερομηνίας (προσθήκης)',
+    exportSeasons:'Σεζόν',
+    exportFrom:'Από',
+    exportTo:'Έως',
+    exportRun:'⬇️ Εξαγωγή CSV',
+    exportNoItems:'Κανένα είδος δεν ταιριάζει στα φίλτρα.',
+    exportDone:'✓ Το αρχείο κατέβηκε',
+    exportFmtNote:'Μορφή: Ελληνικό Excel (διαχωριστικό «;», υποδιαστολή κόμμα, UTF-8).',
+    stkBannerLabel:'Απογραφή σε εξέλιξη — Σάρωση',
+    stkTitle:'🔍 Έλεγχος Απογραφής',
+    stkDesc:'Στο κλείσιμο της σεζόν: πατήστε «Έναρξη» και όλοι σαρώνουν τα QR των ειδών. Όταν τελειώσετε, «Ολοκλήρωση & Σύγκριση» ελέγχει τι σαρώθηκε έναντι του αποθέματος και δείχνει τι λείπει. Τα νομίσματα & το μέταλλο δεν σαρώνονται.',
+    stkStartBtn:'▶️ Έναρξη Ελέγχου',
+    stkOpenBtn:'📷 Σάρωση',
+    stkFinishShort:'✅ Ολοκλήρωση',
+    stkCancelBtn:'✕ Ακύρωση Ελέγχου',
+    stkScanTitle:'📋 Απογραφή — Σάρωση',
+    stkDone:'Τέλος',
+    stkYouScanned:'Εσύ σάρωσες',
+    stkTotalScanned:'Σύνολο (όλοι)',
+    stkManualLabel:'Ή πληκτρολογήστε τον κωδικό',
+    stkFinishBtn:'✅ Ολοκλήρωση & Σύγκριση',
+    stkReportTitle:'📋 Αποτέλεσμα Απογραφής',
     navInventory:'Απόθ.',
     invTitle:'📦 Απόθεμα',
     invScanBtn:'📷 Σάρωση QR',
@@ -3424,6 +3560,41 @@ const T = {
     autoBackupDesc:'The app automatically keeps a snapshot of all your data once a day (last 30 kept). Private — never shown anywhere public.',
     backupNowBtn:'☁️ Back Up Now',
     restoreBackupBtn:'↩️ Restore',
+    exportTitle:'📊 Export Inventory (CSV)',
+    exportDesc:'Export your stock to a CSV file for your accountant — with totals per type, a date range and control over what\'s included. Opens cleanly in Excel.',
+    exportBtn:'📊 Export to CSV',
+    exportSheetTitle:'📊 Export Inventory',
+    exportStatusLabel:'Status',
+    exportStInstock:'In stock only',
+    exportStAll:'In stock + Sold',
+    exportTypesLabel:'Types included',
+    exportColsLabel:'Value columns',
+    exportColCost:'Cost',
+    exportColRetail:'Retail',
+    exportColPure:'Pure metal (g)',
+    exportGroupBy:'Group by type with subtotals',
+    exportDateLabel:'Date range (added)',
+    exportSeasons:'Seasons',
+    exportFrom:'From',
+    exportTo:'To',
+    exportRun:'⬇️ Export CSV',
+    exportNoItems:'No items match the filters.',
+    exportDone:'✓ File downloaded',
+    exportFmtNote:'Format: standard CSV (comma-separated, UTF-8).',
+    stkBannerLabel:'Inventory check in progress — Scan',
+    stkTitle:'🔍 Inventory Check',
+    stkDesc:'At season close: tap «Start» and everyone scans the items\' QR codes. When you\'re done, «Finish & Compare» checks what was scanned against your stock and shows what\'s missing. Coins & scrap metal are not scanned.',
+    stkStartBtn:'▶️ Start Check',
+    stkOpenBtn:'📷 Scan',
+    stkFinishShort:'✅ Finish',
+    stkCancelBtn:'✕ Cancel Check',
+    stkScanTitle:'📋 Inventory Check — Scan',
+    stkDone:'Done',
+    stkYouScanned:'You scanned',
+    stkTotalScanned:'Total (all)',
+    stkManualLabel:'Or type the code',
+    stkFinishBtn:'✅ Finish & Compare',
+    stkReportTitle:'📋 Inventory Check Result',
     navInventory:'Stock',
     invTitle:'📦 Inventory',
     invScanBtn:'📷 Scan QR',
@@ -3784,6 +3955,8 @@ async function autoSync() {
   }
   // Automatic daily backup (owner/manager devices only) — fire-and-forget.
   autoBackupIfDue();
+  // Reflect any active end-of-season inventory-check session (banner for all roles).
+  stkRefreshBanner();
 }
 
 function setSyncStatus(type, msg) {
@@ -4002,6 +4175,9 @@ function applyRoleUI() {
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
   const _ss = document.getElementById('salesSection'); if (_ss) _ss.style.display = isOwnerMgr ? '' : 'none';
   const _bs = document.getElementById('backupSection'); if (_bs) _bs.style.display = isOwnerMgr ? '' : 'none';
+  const _es = document.getElementById('exportSection'); if (_es) _es.style.display = isOwnerMgr ? '' : 'none';
+  const _stk = document.getElementById('stocktakeSection'); if (_stk) _stk.style.display = isOwnerMgr ? '' : 'none';
+  const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
   const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -4410,7 +4586,7 @@ function _jpInitBackGuard() {
   ['pointerdown', 'touchstart', 'keydown', 'click'].forEach(ev =>
     window.addEventListener(ev, _jpEstablishGuard, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') _jpResumeRearm();
+    if (document.visibilityState === 'visible') { _jpResumeRearm(); if (typeof stkRefreshBanner === 'function' && creds.binId) stkRefreshBanner(); }
   });
   window.addEventListener('pageshow', _jpResumeRearm);
   window.addEventListener('focus', _jpResumeRearm);
@@ -10039,6 +10215,560 @@ async function exportBackup() {
   } catch(e) {
     showStatus('backupStatus', t('backupFail'), 'error');
   }
+}
+
+// ─── INVENTORY CSV EXPORT (accountant / end-of-season) ────────────────────────
+// Read-only. Builds a CSV of the current inventory for the owner's accountant:
+// grouped by type with per-type subtotals + a grand total, a pure-metal-by-karat
+// summary, and a valuation stamp (date + the gold/silver spot used, since retail
+// floats with the metal price). Greek UI → Greek-Excel-safe file (UTF-8 BOM,
+// ';' delimiter, decimal comma); English UI → plain comma CSV. Owner/manager only.
+
+// Best-effort add-date (ms) for an item: stored dateAdded, else the timestamp
+// baked into its inv_<ms>_… id, else 0.
+function _invItemDate(id, item) {
+  if (item && item.dateAdded) return Number(item.dateAdded) || 0;
+  const m = /^inv_(?:bulk_)?(\d{13})/.exec(id || '');
+  return m ? Number(m[1]) : 0;
+}
+
+// Pure precious-metal grams in one item (exact for coins/scrap, weight×purity else).
+function _invPureGrams(item) {
+  if (!item) return 0;
+  if (item.isCoin) return parseFloat(item.coinPure) || 0;
+  if (item.isMetal) return parseFloat(item.metalPure) || 0;
+  if (!item.weight || !item.karat) return 0;
+  if (item.metal === 'gold')   return parseFloat(item.weight) * (karatPurity[parseInt(item.karat)] || 0);
+  if (item.metal === 'silver') return parseFloat(item.weight) * (silverPurityMap[parseInt(item.karat)] || 0);
+  return 0;
+}
+
+function openInvExportSheet() {
+  if (!isOwnerOrManager()) return;
+  const sheet = document.getElementById('invExportSheet');
+  if (!sheet) return;
+  const isEl = lang === 'el';
+  // Only offer type checkboxes for types actually present in the inventory.
+  const present = new Set();
+  Object.values(_inventoryCache || {}).forEach(it => { if (it && it.jewelryType) present.add(it.jewelryType); });
+  const chk = 'display:flex;align-items:center;gap:8px;padding:7px 0;font-family:var(--font-body);font-size:13px;color:var(--text);cursor:pointer';
+  const lbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px';
+  const secStyle = 'padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06)';
+  const dateInput = 'width:100%;padding:8px;background:var(--dark);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px';
+  const typeRows = INV_JEWELRY_TYPES.filter(jt => present.has(jt.key)).map(jt => {
+    const off = (jt.key === 'coin' || jt.key === 'metal'); // coins & scrap excluded by default
+    return `<label style="${chk}"><input type="checkbox" class="ie-type" value="${jt.key}"${off ? '' : ' checked'}> ${isEl ? jt.el : jt.en}</label>`;
+  }).join('') || '—';
+  document.getElementById('invExportContent').innerHTML = `
+    <div style="${secStyle}"><div style="${lbl}">${t('exportStatusLabel')}</div>
+      <label style="${chk}"><input type="radio" name="ieStatus" value="in_stock" checked> ${t('exportStInstock')}</label>
+      <label style="${chk}"><input type="radio" name="ieStatus" value="all"> ${t('exportStAll')}</label>
+    </div>
+    <div style="${secStyle}"><div style="${lbl}">${t('exportTypesLabel')}</div>${typeRows}</div>
+    <div style="${secStyle}"><div style="${lbl}">${t('exportColsLabel')}</div>
+      <label style="${chk}"><input type="checkbox" id="ieColCost" checked> ${t('exportColCost')}</label>
+      <label style="${chk}"><input type="checkbox" id="ieColRetail" checked> ${t('exportColRetail')}</label>
+      <label style="${chk}"><input type="checkbox" id="ieColPure" checked> ${t('exportColPure')}</label>
+    </div>
+    <div style="${secStyle}"><label style="${chk}"><input type="checkbox" id="ieGroup" checked> ${t('exportGroupBy')}</label></div>
+    <div style="${secStyle}"><div style="${lbl}">${t('exportDateLabel')}</div>
+      <div id="ieSeasonChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">${t('exportFrom')}</div><input type="date" id="ieDateFrom" onchange="_invExportSeasonChips()" style="${dateInput}"></div>
+        <div style="flex:1"><div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">${t('exportTo')}</div><input type="date" id="ieDateTo" onchange="_invExportSeasonChips()" style="${dateInput}"></div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:10px;line-height:1.5">${t('exportFmtNote')}</div>`;
+  _invExportSeasonChips();
+  const st = document.getElementById('invExportStatus'); if (st) { st.textContent = ''; st.className = 'status-bar'; }
+  sheet.style.display = 'block';
+}
+
+function closeInvExportSheet() {
+  const s = document.getElementById('invExportSheet'); if (s) s.style.display = 'none';
+}
+
+// Season chips for the export date range (store operating window Apr 1 – Nov 30).
+function _invExportSeasonChips() {
+  const box = document.getElementById('ieSeasonChips'); if (!box) return;
+  const years = new Set();
+  Object.entries(_inventoryCache || {}).forEach(([id, it]) => { const d = _invItemDate(id, it); if (d) years.add(new Date(d).getFullYear()); });
+  years.add(new Date().getFullYear());
+  const fromV = document.getElementById('ieDateFrom')?.value || '', toV = document.getElementById('ieDateTo')?.value || '';
+  box.innerHTML = [...years].sort((a, b) => b - a).map(y => {
+    const active = fromV === `${y}-04-01` && toV === `${y}-11-30`;
+    return `<button onclick="pickInvExportSeason(${y})" style="background:${active ? 'var(--gold)' : 'rgba(201,168,76,0.1)'};border:1px solid ${active ? 'var(--gold)' : 'rgba(201,168,76,0.3)'};color:${active ? '#0F0D09' : 'var(--gold-light)'};border-radius:14px;padding:5px 12px;font-family:'DM Mono',monospace;font-size:11px;font-weight:${active ? '700' : '400'};cursor:pointer">${y}</button>`;
+  }).join('');
+}
+
+function pickInvExportSeason(y) {
+  const from = document.getElementById('ieDateFrom'), to = document.getElementById('ieDateTo');
+  if (!from || !to) return;
+  const f = `${y}-04-01`, tt = `${y}-11-30`;
+  if (from.value === f && to.value === tt) { from.value = ''; to.value = ''; } // toggle off
+  else { from.value = f; to.value = tt; }
+  _invExportSeasonChips();
+}
+
+function runInvExport() {
+  const isEl = lang === 'el';
+  const status = document.querySelector('input[name="ieStatus"]:checked')?.value || 'in_stock';
+  const typeSet = new Set([...document.querySelectorAll('.ie-type:checked')].map(c => c.value));
+  const incCost = !!document.getElementById('ieColCost')?.checked;
+  const incRetail = !!document.getElementById('ieColRetail')?.checked;
+  const incPure = !!document.getElementById('ieColPure')?.checked;
+  const groupBy = !!document.getElementById('ieGroup')?.checked;
+  const fromV = document.getElementById('ieDateFrom')?.value || '', toV = document.getElementById('ieDateTo')?.value || '';
+  const fromTs = fromV ? new Date(fromV + 'T00:00:00').getTime() : null;
+  const toTs = toV ? new Date(toV + 'T23:59:59.999').getTime() : null;
+
+  let rows = Object.entries(_inventoryCache || {}).filter(([id, it]) => {
+    if (!it) return false;
+    if (status === 'in_stock' && it.status === 'sold') return false;
+    if (!typeSet.has(it.jewelryType || '')) return false;
+    if (fromTs || toTs) { const d = _invItemDate(id, it); if (!d) return false; if (fromTs && d < fromTs) return false; if (toTs && d > toTs) return false; }
+    return true;
+  }).map(([id, it]) => ({ id, it }));
+
+  if (!rows.length) { showStatus('invExportStatus', t('exportNoItems'), 'error'); return; }
+
+  const typeOrder = k => { const i = INV_JEWELRY_TYPES.findIndex(t2 => t2.key === k); return i < 0 ? 99 : i; };
+  rows.sort((a, b) => typeOrder(a.it.jewelryType) - typeOrder(b.it.jewelryType) ||
+    (itemRefCode(a.it) || '').localeCompare(itemRefCode(b.it) || ''));
+
+  const DELIM = isEl ? ';' : ',';
+  const NL = '\r\n';
+  const num = n => { const s = (Math.round((n || 0) * 100) / 100).toFixed(2); return isEl ? s.replace('.', ',') : s; };
+  const g3  = n => { const s = (Math.round((n || 0) * 1000) / 1000).toFixed(3); return isEl ? s.replace('.', ',') : s; };
+  const esc = v => { let s = (v == null ? '' : String(v)); if (/["\n\r;,]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
+  const metalLbl = m => m === 'gold' ? (isEl ? 'Χρυσός' : 'Gold') : m === 'silver' ? (isEl ? 'Ασήμι' : 'Silver') : (isEl ? 'Άλλο' : 'Other');
+  const nameOf = it => isEl ? (it.descEl || it.descEn || it.description || '') : (it.descEn || it.descEl || it.description || '');
+
+  // Column layout (numeric columns are never quoted so Excel parses them as numbers).
+  const cols = [isEl ? 'Κωδικός' : 'Ref', isEl ? 'Τύπος' : 'Type', isEl ? 'Περιγραφή' : 'Description',
+    isEl ? 'Μέταλλο' : 'Metal', isEl ? 'Καράτια' : 'Karat', isEl ? 'Χρώμα' : 'Color', isEl ? 'Βάρος (γρ)' : 'Weight (g)'];
+  const idxWeight = 6;
+  let k = 7; const idxPure = incPure ? k++ : -1; const idxCost = incCost ? k++ : -1; const idxRetail = incRetail ? k++ : -1;
+  if (incPure)   cols.push(isEl ? 'Καθαρό (γρ)' : 'Pure (g)');
+  if (incCost)   cols.push(isEl ? 'Κόστος (€)' : 'Cost (€)');
+  if (incRetail) cols.push(isEl ? 'Λιανική (€)' : 'Retail (€)');
+  cols.push(isEl ? 'Ημ. προσθήκης' : 'Date added', isEl ? 'Κατάσταση' : 'Status');
+  const nCols = cols.length;
+
+  const lines = [];
+  lines.push(esc('JewelPrice — ' + (isEl ? 'Εξαγωγή Απογραφής' : 'Inventory Export')));
+  const nowStr = fmtDate(new Date()) + ' ' + new Date().toLocaleTimeString(isEl ? 'el' : undefined, { hour: '2-digit', minute: '2-digit' });
+  lines.push(esc(isEl ? 'Ημ/νία αποτίμησης' : 'Valuation date') + DELIM + esc(nowStr));
+  lines.push(esc(isEl ? 'Τιμή χρυσού (€/oz)' : 'Gold price (€/oz)') + DELIM + num(getGoldPrice()));
+  lines.push(esc(isEl ? 'Τιμή ασημιού (€/oz)' : 'Silver price (€/oz)') + DELIM + num(getSilverPrice()));
+  if (fromV || toV) lines.push(esc(isEl ? 'Εύρος ημ/νίας' : 'Date range') + DELIM + esc((fromV || '…') + ' → ' + (toV || '…')));
+  lines.push(esc(isEl ? 'Κατάσταση' : 'Status') + DELIM + esc(status === 'all' ? (isEl ? 'Απόθεμα + Πουλημένα' : 'In stock + Sold') : (isEl ? 'Μόνο απόθεμα' : 'In stock only')));
+  lines.push('');
+  lines.push(cols.map(esc).join(DELIM));
+
+  const grand = { count: 0, weight: 0, pure: 0, cost: 0, retail: 0 };
+  const pureByKarat = {}; // "gold|18" → grams
+  let curType = null, sub = null;
+  const flushSub = () => {
+    if (!groupBy || !sub) return;
+    const cells = new Array(nCols).fill('');
+    cells[2] = esc((isEl ? 'Σύνολο ' : 'Subtotal ') + invTypeLabel(curType) + ' (' + sub.count + ')');
+    cells[idxWeight] = num(sub.weight);
+    if (idxPure >= 0) cells[idxPure] = g3(sub.pure);
+    if (idxCost >= 0) cells[idxCost] = num(sub.cost);
+    if (idxRetail >= 0) cells[idxRetail] = num(sub.retail);
+    lines.push(cells.join(DELIM));
+  };
+
+  rows.forEach(({ id, it }) => {
+    const p = calcInvItemPrice(it) || {};
+    const retail = p.retail || 0;
+    const cost = (parseFloat(it.purchaseCost) > 0) ? parseFloat(it.purchaseCost) : (p.baseCost || 0);
+    const pure = _invPureGrams(it);
+    const w = parseFloat(it.weight) || 0;
+    if (groupBy && it.jewelryType !== curType) { flushSub(); curType = it.jewelryType; sub = { count: 0, weight: 0, pure: 0, cost: 0, retail: 0 }; }
+    const karatStr = it.karat ? (it.metal === 'gold' ? it.karat + 'K' : String(it.karat)) : '';
+    const d = _invItemDate(id, it);
+    const cells = [];
+    cells.push(esc(itemRefCode(it)));
+    cells.push(esc(invTypeLabel(it.jewelryType)));
+    cells.push(esc(nameOf(it)));
+    cells.push(esc(metalLbl(it.metal)));
+    cells.push(esc(karatStr));
+    cells.push(esc(it.color ? itemColorLabel(it.color) : ''));
+    cells.push(num(w));
+    if (incPure)   cells.push(g3(pure));
+    if (incCost)   cells.push(num(cost));
+    if (incRetail) cells.push(num(retail));
+    cells.push(esc(d ? fmtDate(new Date(d)) : ''));
+    cells.push(esc(it.status === 'sold' ? (isEl ? 'Πουλημένο' : 'Sold') : (isEl ? 'Απόθεμα' : 'In stock')));
+    lines.push(cells.join(DELIM));
+    grand.count++; grand.weight += w; grand.pure += pure; grand.cost += cost; grand.retail += retail;
+    if (sub) { sub.count++; sub.weight += w; sub.pure += pure; sub.cost += cost; sub.retail += retail; }
+    if (pure > 0 && (it.metal === 'gold' || it.metal === 'silver')) {
+      const key = it.metal + '|' + (it.karat || '?'); pureByKarat[key] = (pureByKarat[key] || 0) + pure;
+    }
+  });
+  flushSub();
+
+  // Grand total row
+  const gCells = new Array(nCols).fill('');
+  gCells[2] = esc((isEl ? 'ΓΕΝΙΚΟ ΣΥΝΟΛΟ (' : 'GRAND TOTAL (') + grand.count + ')');
+  gCells[idxWeight] = num(grand.weight);
+  if (idxPure >= 0) gCells[idxPure] = g3(grand.pure);
+  if (idxCost >= 0) gCells[idxCost] = num(grand.cost);
+  if (idxRetail >= 0) gCells[idxRetail] = num(grand.retail);
+  lines.push(gCells.join(DELIM));
+
+  // Summary block
+  lines.push('');
+  lines.push(esc(isEl ? 'ΣΥΝΟΨΗ' : 'SUMMARY'));
+  Object.keys(pureByKarat).sort().forEach(key => {
+    const [m, kt] = key.split('|');
+    const label = (m === 'gold' ? (isEl ? 'Χρυσός' : 'Gold') : (isEl ? 'Ασήμι' : 'Silver')) + ' ' + (m === 'gold' ? kt + 'K' : kt);
+    lines.push(esc(label) + DELIM + g3(pureByKarat[key]) + DELIM + esc(isEl ? 'γρ καθαρό' : 'g pure'));
+  });
+  let pg = 0, ps = 0;
+  Object.entries(pureByKarat).forEach(([key, v]) => { if (key.charAt(0) === 'g') pg += v; else ps += v; });
+  if (pg > 0) lines.push(esc(isEl ? 'Σύνολο καθαρού χρυσού' : 'Total pure gold') + DELIM + g3(pg) + DELIM + esc(isEl ? 'γρ' : 'g'));
+  if (ps > 0) lines.push(esc(isEl ? 'Σύνολο καθαρού ασημιού' : 'Total pure silver') + DELIM + g3(ps) + DELIM + esc(isEl ? 'γρ' : 'g'));
+  if (incCost)   lines.push(esc(isEl ? 'Συνολικό κόστος' : 'Total cost') + DELIM + num(grand.cost) + DELIM + esc('€'));
+  if (incRetail) lines.push(esc(isEl ? 'Συνολική λιανική' : 'Total retail') + DELIM + num(grand.retail) + DELIM + esc('€'));
+  lines.push(esc(isEl ? 'Σύνολο τεμαχίων' : 'Total pieces') + DELIM + grand.count);
+
+  // UTF-8 BOM (U+FEFF) so Greek renders in Excel; \r\n line endings for Excel.
+  const BOM = String.fromCharCode(0xFEFF);
+  const csv = BOM + lines.join(NL) + NL;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'jewelprice-inventory-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus('invExportStatus', t('exportDone'), 'ok');
+}
+
+// ─── INVENTORY CHECK / STOCKTAKE (end-of-season) ──────────────────────────────
+// Owner-activated mode. Owner presses Start → a private Firebase session opens and
+// every device shows a "Scan" banner; each device scans in-stock QR tags and the
+// scans stream to /jewelprice_stocktake/scans. Owner presses Finish → the app
+// compares scanned COUNTS-per-QR against the live in-stock tagged items (grouped/
+// coin pieces legitimately share a QR, so count matters) and reports missing /
+// unexpected pieces. Coins & raw-metal are excluded (owner's rule — no scanned
+// tag). Read-only: the comparison never mutates inventory; it's a report to act on.
+const STK_PATH = '/jewelprice_stocktake';
+let _stkActive = false;
+const _stk = { scanning: false, paused: false, interval: null, stream: null, myCount: 0 };
+
+async function stkGetSession() {
+  try { const res = await fetch(fbUrl(STK_PATH + '.json'), { cache: 'no-store' }); return res.ok ? await res.json() : null; }
+  catch (e) { return null; }
+}
+
+// Sync the floating banner + Settings controls to the live session state.
+async function stkRefreshBanner() {
+  const sess = await stkGetSession();
+  _stkActive = !!(sess && sess.active);
+  const banner = document.getElementById('stkBanner');
+  if (banner) banner.style.display = _stkActive ? 'flex' : 'none';
+  const idle = document.getElementById('stkSettingsIdle');
+  const active = document.getElementById('stkSettingsActive');
+  if (idle && active) {
+    idle.style.display = _stkActive ? 'none' : '';
+    active.style.display = _stkActive ? '' : 'none';
+    if (_stkActive) {
+      const info = document.getElementById('stkActiveInfo');
+      if (info) {
+        const cnt = sess && sess.scans ? Object.keys(sess.scans).length : 0;
+        info.textContent = (lang === 'el' ? `Ενεργός έλεγχος — ${cnt} σαρώσεις` : `Check active — ${cnt} scans`) + (sess.startedBy ? ` (${sess.startedBy})` : '');
+      }
+    }
+  }
+  const footer = document.getElementById('stkOwnerFooter');
+  if (footer) footer.style.display = (isOwnerOrManager() && _stkActive) ? 'block' : 'none';
+}
+
+async function stkStart() {
+  showConfirm(lang === 'el'
+    ? 'Έναρξη ελέγχου απογραφής; Όλες οι συσκευές θα μπορούν να σαρώνουν. Μην πουλάτε είδη όσο τρέχει ο έλεγχος.'
+    : 'Start the inventory check? Every device will be able to scan. Don\'t sell items while the check runs.',
+    async () => {
+      const body = { active: true, startedAt: Date.now(), startedBy: creds.displayName || creds.userName || '?' };
+      try {
+        const res = await fetch(fbUrl(STK_PATH + '.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error();
+        _stk.myCount = 0;
+        await stkRefreshBanner();
+        showStatus('stkStatusBar', lang === 'el' ? '✓ Ο έλεγχος ξεκίνησε' : '✓ Check started', 'ok');
+        stkOpenScanner();
+      } catch (e) { showStatus('stkStatusBar', lang === 'el' ? 'Αποτυχία έναρξης' : 'Failed to start', 'error'); }
+    });
+}
+
+async function stkCancel() {
+  showConfirm(lang === 'el'
+    ? 'Ακύρωση του ελέγχου; Οι σαρώσεις θα διαγραφούν χωρίς σύγκριση.'
+    : 'Cancel the check? All scans will be discarded without comparing.',
+    async () => {
+      try { await fetch(fbUrl(STK_PATH + '.json'), { method: 'DELETE' }); } catch (e) {}
+      _stk.myCount = 0;
+      await stkRefreshBanner();
+      showStatus('stkStatusBar', lang === 'el' ? 'Ο έλεγχος ακυρώθηκε' : 'Check cancelled', '');
+    }, null, { danger: true });
+}
+
+function stkOpenScanner() {
+  const overlay = document.getElementById('stkOverlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  const myEl = document.getElementById('stkMyCount'); if (myEl) myEl.textContent = _stk.myCount;
+  const fb = document.getElementById('stkFeedback'); if (fb) fb.textContent = '';
+  const footer = document.getElementById('stkOwnerFooter'); if (footer) footer.style.display = isOwnerOrManager() ? 'block' : 'none';
+  stkRefreshTotal();
+  const status = document.getElementById('stkStatus');
+  const video = document.getElementById('stkVideo');
+  const wrap = document.getElementById('stkVideoWrap');
+  if (canDecodeQr()) {
+    if (wrap) wrap.style.display = '';
+    status.textContent = lang === 'el' ? 'Στρέψτε την κάμερα στο QR' : 'Point the camera at a QR';
+    stkStartCamera(video, status);
+  } else {
+    // iOS/Safari can't decode QR → manual entry only.
+    if (wrap) wrap.style.display = 'none';
+    status.textContent = lang === 'el' ? 'Πληκτρολογήστε τους κωδικούς παρακάτω' : 'Type the codes below';
+    setTimeout(() => { const mi = document.getElementById('stkManualInput'); if (mi) mi.focus(); }, 200);
+  }
+}
+
+async function stkStartCamera(video, status) {
+  const hires = !('BarcodeDetector' in window);
+  try {
+    _stk.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: hires ? 1920 : 1280 }, height: { ideal: hires ? 1080 : 720 } } });
+    video.srcObject = _stk.stream;
+    await video.play();
+    if (hires) { try { const track = _stk.stream.getVideoTracks()[0]; const caps = track.getCapabilities ? track.getCapabilities() : {}; if (caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {} }
+    stkDecodeLoop(video);
+  } catch (e) {
+    status.textContent = lang === 'el' ? 'Δεν επιτρέπεται η κάμερα — πληκτρολογήστε κωδικούς' : 'Camera denied — type codes instead';
+  }
+}
+
+function stkDecodeLoop(video) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  _stk.scanning = true; _stk.paused = false;
+  clearInterval(_stk.interval);
+  _stk.interval = setInterval(async () => {
+    if (!_stk.scanning || _stk.paused) return;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
+    _stk.paused = true;
+    try {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const raw = await decodeQrFromCanvas(canvas);
+      if (raw) {
+        stkOnScan(raw, false);
+        // Cooldown so the same frame / same code isn't counted repeatedly; the user
+        // re-presents the next piece (even an identical grouped/coin twin) after it.
+        setTimeout(() => { _stk.paused = false; }, 1300);
+      } else { _stk.paused = false; }
+    } catch (e) { _stk.paused = false; }
+  }, 250);
+}
+
+function stkCloseScanner() {
+  _stk.scanning = false;
+  clearInterval(_stk.interval); _stk.interval = null;
+  if (_stk.stream) { _stk.stream.getTracks().forEach(t => t.stop()); _stk.stream = null; }
+  const v = document.getElementById('stkVideo'); if (v) v.srcObject = null;
+  const overlay = document.getElementById('stkOverlay'); if (overlay) overlay.style.display = 'none';
+}
+
+// Resolve a scanned raw value to an inventory item (by qrCode, else printed ref code).
+function stkResolve(raw) {
+  let code = (raw || '').trim();
+  try { const u = new URL(raw); const p = u.searchParams.get('qr') || u.searchParams.get('code'); if (p) code = p; } catch (e) {}
+  const up = code.trim().toUpperCase();
+  const vals = Object.values(_inventoryCache || {});
+  let item = vals.find(it => it.qrCode && it.qrCode.trim().toUpperCase() === up && it.status !== 'sold')
+          || vals.find(it => it.qrCode && it.qrCode.trim().toUpperCase() === up);
+  if (!item) {
+    item = vals.find(it => (itemRefCode(it) || '').toUpperCase() === up && it.status !== 'sold')
+        || vals.find(it => (itemRefCode(it) || '').toUpperCase() === up);
+  }
+  const qr = item ? ((item.qrCode || '').trim().toUpperCase() || up) : up;
+  return { qr, item, code: up };
+}
+
+async function stkOnScan(raw, viaManual) {
+  const r = stkResolve(raw);
+  const fb = document.getElementById('stkFeedback');
+  let msg, color;
+  if (!r.item) { msg = (lang === 'el' ? '⚠️ Άγνωστος κωδικός: ' : '⚠️ Unknown code: ') + r.code; color = '#e0a85a'; }
+  else if (r.item.isCoin || r.item.isMetal) { msg = (lang === 'el' ? 'ℹ️ Νόμισμα/μέταλλο — δεν μετρά' : 'ℹ️ Coin/metal — not counted'); color = '#9aa'; }
+  else {
+    const nm = (lang === 'el' ? (r.item.descEl || r.item.descEn) : (r.item.descEn || r.item.descEl)) || invTypeLabel(r.item.jewelryType);
+    const tag = r.item.status === 'sold' ? (lang === 'el' ? ' [πουλημένο!]' : ' [sold!]') : '';
+    msg = '✓ ' + (itemRefCode(r.item) || '') + ' · ' + nm + tag;
+    color = r.item.status === 'sold' ? '#e0a85a' : '#7fd6b0';
+  }
+  if (fb) { fb.textContent = msg; fb.style.color = color; }
+  _stk.myCount++;
+  const myEl = document.getElementById('stkMyCount'); if (myEl) myEl.textContent = _stk.myCount;
+  const rec = { qr: r.qr, ref: r.item ? itemRefCode(r.item) : '', by: creds.displayName || creds.userName || '?', at: Date.now(), manual: !!viaManual };
+  try { await fetch(fbUrl(STK_PATH + '/scans.json'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) }); } catch (e) {}
+  stkRefreshTotal();
+}
+
+function stkManualSubmit() {
+  const input = document.getElementById('stkManualInput');
+  const v = (input.value || '').trim();
+  if (!v) return;
+  stkOnScan(v, true);
+  input.value = '';
+  input.focus();
+}
+
+async function stkRefreshTotal() {
+  try {
+    const res = await fetch(fbUrl(STK_PATH + '/scans.json?shallow=true'), { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const el = document.getElementById('stkTotalCount'); if (el) el.textContent = data ? Object.keys(data).length : 0;
+  } catch (e) {}
+}
+
+async function stkFinishCompare() {
+  let scans = {};
+  try { const res = await fetch(fbUrl(STK_PATH + '/scans.json'), { cache: 'no-store' }); if (res.ok) scans = (await res.json()) || {}; } catch (e) {}
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) { try { _inventoryCache = await loadInventory(); } catch (e) {} }
+  const rep = stkBuildReport(scans);
+  // End the session (stop everyone scanning). Scans are kept until the next Start
+  // (which overwrites) or Cancel — so the owner can Resume if a drawer was missed.
+  try { await fetch(fbUrl(STK_PATH + '/active.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: 'false' }); } catch (e) {}
+  _stkActive = false;
+  stkSaveHistory(rep);
+  stkCloseScanner();
+  await stkRefreshBanner();
+  stkShowReport(rep);
+}
+
+// Compare scanned counts-per-QR against the live in-stock tagged items.
+function stkBuildReport(scans) {
+  const scanArr = Object.values(scans || {});
+  const scannedByQr = {};
+  scanArr.forEach(s => { const q = (s.qr || '').trim().toUpperCase(); if (!q) return; scannedByQr[q] = (scannedByQr[q] || 0) + 1; });
+  const itemsByQr = {};
+  Object.values(_inventoryCache || {}).forEach(it => {
+    if (!it || it.status === 'sold' || it.isCoin || it.isMetal) return;
+    const q = (it.qrCode || '').trim().toUpperCase(); if (!q) return;
+    (itemsByQr[q] = itemsByQr[q] || []).push(it);
+  });
+  const nameOf = it => (lang === 'el' ? (it.descEl || it.descEn) : (it.descEn || it.descEl)) || invTypeLabel(it.jewelryType);
+  let accounted = 0, missingValue = 0;
+  const missing = [], over = [];
+  Object.keys(itemsByQr).forEach(q => {
+    const items = itemsByQr[q];
+    const E = items.length, S = scannedByQr[q] || 0;
+    accounted += Math.min(E, S);
+    if (S < E) {
+      items.slice(S).forEach(it => { const p = calcInvItemPrice(it); const val = p ? p.retail : 0; missingValue += val; missing.push({ ref: itemRefCode(it), name: nameOf(it), value: val }); });
+    } else if (S > E) {
+      over.push({ ref: items[0] ? itemRefCode(items[0]) : q, extra: S - E, name: items[0] ? nameOf(items[0]) : q });
+    }
+  });
+  const soldOnShelf = [], unknown = [], skipped = [];
+  Object.keys(scannedByQr).forEach(q => {
+    if (itemsByQr[q]) return;
+    const S = scannedByQr[q];
+    const it = Object.values(_inventoryCache || {}).find(x => x.qrCode && x.qrCode.trim().toUpperCase() === q);
+    if (it && (it.isCoin || it.isMetal)) skipped.push({ ref: itemRefCode(it) || q, count: S });
+    else if (it && it.status === 'sold') soldOnShelf.push({ ref: itemRefCode(it) || q, count: S, name: nameOf(it) });
+    else unknown.push({ qr: q, count: S });
+  });
+  const expectedTotal = Object.values(itemsByQr).reduce((a, arr) => a + arr.length, 0);
+  return { expectedTotal, scannedTotal: scanArr.length, accounted, missing, missingValue, over, soldOnShelf, unknown, skipped, at: Date.now() };
+}
+
+function stkShowReport(rep) {
+  const cur = state.currency || '€';
+  const isEl = lang === 'el';
+  const esc = s => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const tile = (label, val, color) => `<div style="flex:1;min-width:66px;background:var(--dark);border:1px solid var(--card-border);border-radius:10px;padding:9px;text-align:center"><div style="font-size:8px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted)">${label}</div><div style="font-family:var(--font-heading);font-size:21px;color:${color || 'var(--text)'}">${val}</div></div>`;
+  let html = `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
+    ${tile(isEl ? 'Αναμενόμενα' : 'Expected', rep.expectedTotal)}
+    ${tile(isEl ? 'Σαρώθηκαν' : 'Scanned', rep.scannedTotal)}
+    ${tile(isEl ? 'Βρέθηκαν' : 'Accounted', rep.accounted, '#7fd6b0')}
+    ${tile(isEl ? 'Λείπουν' : 'Missing', rep.missing.length, rep.missing.length ? '#e05a5a' : '#7fd6b0')}
+  </div>`;
+  if (rep.missing.length) html += `<div style="text-align:center;color:#e05a5a;font-family:var(--font-body);font-size:13px;margin-bottom:12px">${isEl ? 'Αξία λιανικής που λείπει' : 'Missing retail value'}: ${cur}${rep.missingValue.toFixed(2)}</div>`;
+  else html += `<div style="text-align:center;color:#7fd6b0;font-family:var(--font-body);font-size:14px;margin-bottom:12px">✅ ${isEl ? 'Όλα τα είδη βρέθηκαν!' : 'Everything accounted for!'}</div>`;
+  if (rep.missing.length) {
+    html += `<div style="font-family:var(--font-heading);font-size:14px;color:#e05a5a;margin:10px 0 6px">🔴 ${isEl ? 'Λείπουν' : 'Missing'} (${rep.missing.length})</div>`;
+    html += rep.missing.map(m => `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 10px;background:var(--dark);border:1px solid rgba(224,90,90,0.2);border-radius:8px;margin-bottom:5px"><div style="min-width:0"><span style="font-family:'DM Mono',monospace;color:var(--gold-light);font-size:12px">${esc(m.ref) || '—'}</span> <span style="color:var(--text);font-size:12px">${esc(m.name)}</span></div><div style="color:var(--text-muted);font-size:12px;white-space:nowrap">${cur}${m.value.toFixed(0)}</div></div>`).join('');
+  }
+  const issues = rep.over.length + rep.soldOnShelf.length + rep.unknown.length;
+  if (issues) {
+    html += `<div style="font-family:var(--font-heading);font-size:14px;color:#e0a85a;margin:14px 0 6px">🟡 ${isEl ? 'Για έλεγχο' : 'To review'} (${issues})</div>`;
+    rep.soldOnShelf.forEach(o => html += `<div style="padding:7px 10px;background:var(--dark);border:1px solid rgba(224,168,90,0.2);border-radius:8px;margin-bottom:5px;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--gold-light)">${esc(o.ref)}</span> — ${isEl ? 'σαρώθηκε αλλά είναι πουλημένο' : 'scanned but marked sold'}${o.count > 1 ? ` ×${o.count}` : ''}</div>`);
+    rep.over.forEach(o => html += `<div style="padding:7px 10px;background:var(--dark);border:1px solid rgba(224,168,90,0.2);border-radius:8px;margin-bottom:5px;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--gold-light)">${esc(o.ref)}</span> — ${isEl ? 'σαρώθηκε παραπάνω φορές' : 'scanned more than expected'} (+${o.extra})</div>`);
+    rep.unknown.forEach(o => html += `<div style="padding:7px 10px;background:var(--dark);border:1px solid rgba(224,168,90,0.2);border-radius:8px;margin-bottom:5px;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--text-muted)">${esc(o.qr)}</span> — ${isEl ? 'άγνωστος κωδικός' : 'unknown code'}${o.count > 1 ? ` ×${o.count}` : ''}</div>`);
+  }
+  html += `<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+    <button onclick="stkExportReport()" style="flex:1;min-width:130px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">📊 ${isEl ? 'Εξαγωγή CSV' : 'Export CSV'}</button>
+    <button onclick="stkResume()" style="flex:1;min-width:130px;padding:12px;background:rgba(76,175,132,0.12);border:1px solid rgba(76,175,132,0.4);color:#7fd6b0;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">▶️ ${isEl ? 'Συνέχεια σάρωσης' : 'Resume scanning'}</button>
+  </div>
+  <button onclick="stkCloseReport()" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>`;
+  document.getElementById('stkReportContent').innerHTML = html;
+  window._stkLastReport = rep;
+  document.getElementById('stkReport').style.display = 'block';
+}
+
+function stkExportReport() {
+  const rep = window._stkLastReport; if (!rep) return;
+  const isEl = lang === 'el';
+  const DELIM = isEl ? ';' : ',', NL = '\r\n';
+  const num = n => { const s = (Math.round((n || 0) * 100) / 100).toFixed(2); return isEl ? s.replace('.', ',') : s; };
+  const esc = v => { let s = (v == null ? '' : String(v)); if (/["\n\r;,]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
+  const lines = [];
+  lines.push(esc('JewelPrice — ' + (isEl ? 'Έλεγχος Απογραφής' : 'Inventory Check')));
+  lines.push(esc(isEl ? 'Ημερομηνία' : 'Date') + DELIM + esc(fmtDate(new Date(rep.at))));
+  lines.push(esc(isEl ? 'Αναμενόμενα' : 'Expected') + DELIM + rep.expectedTotal);
+  lines.push(esc(isEl ? 'Σαρώθηκαν' : 'Scanned') + DELIM + rep.scannedTotal);
+  lines.push(esc(isEl ? 'Βρέθηκαν' : 'Accounted') + DELIM + rep.accounted);
+  lines.push(esc(isEl ? 'Λείπουν' : 'Missing') + DELIM + rep.missing.length);
+  lines.push(esc(isEl ? 'Αξία που λείπει' : 'Missing value') + DELIM + num(rep.missingValue));
+  lines.push('');
+  lines.push([esc(isEl ? 'Κατηγορία' : 'Category'), esc(isEl ? 'Κωδικός' : 'Ref'), esc(isEl ? 'Περιγραφή' : 'Description'), esc(isEl ? 'Αξία' : 'Value')].join(DELIM));
+  rep.missing.forEach(m => lines.push([esc(isEl ? 'Λείπει' : 'Missing'), esc(m.ref), esc(m.name), num(m.value)].join(DELIM)));
+  rep.soldOnShelf.forEach(o => lines.push([esc(isEl ? 'Πουλημένο στο ράφι' : 'Sold on shelf'), esc(o.ref), esc(o.name || ''), ''].join(DELIM)));
+  rep.over.forEach(o => lines.push([esc(isEl ? 'Παραπάνω' : 'Over-count'), esc(o.ref), esc((o.name || '') + ' (+' + o.extra + ')'), ''].join(DELIM)));
+  rep.unknown.forEach(o => lines.push([esc(isEl ? 'Άγνωστο' : 'Unknown'), esc(o.qr), esc('×' + o.count), ''].join(DELIM)));
+  const csv = String.fromCharCode(0xFEFF) + lines.join(NL) + NL;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'jewelprice-inventory-check-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+async function stkResume() {
+  try { await fetch(fbUrl(STK_PATH + '/active.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: 'true' }); } catch (e) {}
+  _stkActive = true;
+  document.getElementById('stkReport').style.display = 'none';
+  await stkRefreshBanner();
+  stkOpenScanner();
+}
+
+function stkCloseReport() { const r = document.getElementById('stkReport'); if (r) r.style.display = 'none'; }
+
+// Lightweight year-over-year history snapshot (summary + missing ref codes only).
+async function stkSaveHistory(rep) {
+  try {
+    const snap = { at: rep.at, by: creds.displayName || creds.userName || '?', expected: rep.expectedTotal, scanned: rep.scannedTotal, accounted: rep.accounted, missingCount: rep.missing.length, missingValue: rep.missingValue, missingRefs: rep.missing.map(m => m.ref).slice(0, 300), over: rep.over.length, sold: rep.soldOnShelf.length, unknown: rep.unknown.length };
+    await fetch(fbUrl('/jewelprice_stocktake_history/' + rep.at + '.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snap) });
+  } catch (e) {}
 }
 
 // ─── AUTOMATIC CLOUD BACKUPS ──────────────────────────────────────────────────
@@ -16515,8 +17245,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.68', date: 'Ιούλιος 2026', items: [
-        '📖 Ανανεωμένες & πλήρεις Οδηγίες Χρήσης σε ξεχωριστή σελίδα: οι παλιές οδηγίες ήταν ξεπερασμένες. Τώρα η καρτέλα «Πληροφορίες» → «📖 Οδηγίες Χρήσης» ανοίγει έναν πλήρη, δίγλωσσο οδηγό (21 ενότητες: τιμολόγηση, σάρωση, απόθεμα, όμοια είδη, νομίσματα, μέταλλο, πωλήσεις, πελάτες, online βιτρίνα, αντίγραφα ασφαλείας κ.ά.). Έτσι η εφαρμογή παραμένει ελαφριά.'
+      { version: 'v10.70', date: 'Ιούλιος 2026', items: [
+        '🔍 Έλεγχος απογραφής τέλους σεζόν: Ρυθμίσεις → «Έλεγχος Απογραφής» → «Έναρξη». Εμφανίζεται κουμπί «Σάρωση» σε ΟΛΕΣ τις συσκευές — εσείς κι οι υπάλληλοι σαρώνετε τα QR όλων των ειδών (τα νομίσματα & το μέταλλο δεν μετρούν). Βλέπετε ζωντανά πόσα σαρώθηκαν συνολικά. Όταν τελειώσετε, «Ολοκλήρωση & Σύγκριση»: η εφαρμογή συγκρίνει ό,τι σαρώθηκε με το απόθεμα και δείχνει τι λείπει (με αξία), τι σαρώθηκε ενώ είναι πουλημένο, και άγνωστους κωδικούς. Εξαγωγή αποτελέσματος σε CSV. Λειτουργεί και με πληκτρολόγηση κωδικού (π.χ. σε iPhone).'
       ]},
           ]
   },
@@ -16547,8 +17277,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.68', date: 'Jul 2026', items: [
-        '📖 Refreshed & complete User Manual on its own page: the old manual was out of date. The Info tab → «📖 User Manual» now opens a full, bilingual guide (21 sections: pricing, scanning, stock, similar items, coins, metal, sales, clients, online showroom, backups, and more). This keeps the app itself lightweight.'
+      { version: 'v10.70', date: 'Jul 2026', items: [
+        '🔍 End-of-season inventory check: Settings → «Inventory Check» → «Start». A «Scan» button appears on EVERY device — you and your staff scan every item\'s QR (coins & scrap metal don\'t count). You see the running total scanned across all phones live. When done, «Finish & Compare»: the app checks what was scanned against your stock and shows what\'s missing (with value), what was scanned but marked sold, and any unknown codes. Export the result to CSV. Also works by typing a code (e.g. on iPhone).'
       ]},
           ]
   }
@@ -19438,7 +20168,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.68';
+const APP_VERSION = '10.70';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
