@@ -16565,37 +16565,8 @@ const ABOUT = {
       ]}
     ],
     changelog: [
-      { version: 'v10.65', date: 'Ιούλιος 2026', items: [
-        '🖼️ Ολόκληρη η φωτογραφία και στις υπόλοιπες μικρές προεπισκοπήσεις: στη δημιουργία ετικέτας (καρτέλα Αριθμομηχανή), στο σκανάρισμα προς απόθεμα και στην Επεξεργασία είδους, η μικρή φωτογραφία κοβόταν — τώρα δείχνει ολόκληρο το κόσμημα σε λευκό φόντο.',
-        '🔍 Φωτογραφία στη μεγεθυσμένη τιμή: όταν πατάτε την τελική τιμή για να μεγαλώσει (η οθόνη προς τον πελάτη), εμφανίζεται πλέον και η φωτογραφία του κομματιού κάτω από τα στοιχεία — ώστε ο πελάτης να βλέπει και το κόσμημα, όχι μόνο την τιμή. (Αν το κομμάτι δεν έχει φωτογραφία, απλώς δεν εμφανίζεται τίποτα.)'
-      ]},
-      { version: 'v10.64', date: 'Ιούλιος 2026', items: [
-        '🖼️ Πλήρης εικόνα στις μικρογραφίες: οι μικρές φωτογραφίες κοβόντουσαν (π.χ. σε ψηλές φωτογραφίες κολιέ έβλεπες μόνο τη μέση της αλυσίδας, όχι το μοτίφ), οπότε δεν καταλάβαινες ποιο κομμάτι είναι χωρίς να τη μεγεθύνεις. Τώρα δείχνουν ολόκληρη τη φωτογραφία σε λευκό φόντο — στις κάρτες του αποθέματος, στο πλαίσιο τιμής της αριθμομηχανής όταν σκανάρετε ένα κομμάτι, και στην προειδοποίηση διπλού κωδικού QR. (Ίδιο σε κινητό και υπολογιστή.)'
-      ]},
-      { version: 'v10.63', date: 'Ιούλιος 2026', items: [
-        '🔤 Διόρθωση τόνων στα κεφαλαία: στα ελληνικά, οι λέξεις γραμμένες ΟΛΕΣ ΜΕ ΚΕΦΑΛΑΙΑ δεν παίρνουν τόνο. Σε ορισμένα σημεία (π.χ. στη βιτρίνα ο τύπος «ΑΛΥΣΙΔΑ» και το μέταλλο «ΧΡΥΣΟΣ», καθώς και οι τίτλοι «ΚΑΤΑΛΟΓΟΣ» / «ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ» στα PDF και το κουμπί «ΠΡΟΣΘΗΚΗ») εμφανιζόταν λανθασμένα ο τόνος. Αφαιρέθηκε παντού. Τα διαλυτικά (¨) διατηρούνται κανονικά.'
-      ]},
-      { version: 'v10.62', date: 'Ιούλιος 2026', items: [
-        '📈 Ποσοστό ανατίμησης στα σύνολα του αποθέματος: κάτω από τη «Συνολική Αξία Λιανική» και την «Αξία Μετάλλου» εμφανίζεται πλέον (μόνο για ιδιοκτήτη/διαχειριστή) το ποσοστό αύξησης/μείωσης — πράσινο για άνοδο, κόκκινο για πτώση — όπως ήδη βλέπετε σε κάθε κομμάτι. Είναι ανεξάρτητο από ποσότητα: όταν προσθέτετε ή πουλάτε ένα κομμάτι το ποσοστό ΔΕΝ αλλάζει — μόνο η πραγματική κίνηση της τιμής χρυσού/ασημιού το μετακινεί. Η Λιανική μετριέται από την τιμή που καταχωρήσατε κάθε κομμάτι· η Αξία Μετάλλου για τα υπάρχοντα κομμάτια μετριέται από την τιμή μετάλλου της 20ής Μαΐου 2025, ενώ ό,τι προσθέτετε από εδώ και πέρα ξεκινά από τη δική του τρέχουσα τιμή.'
-      ]},
-      { version: 'v10.61', date: 'Ιούλιος 2026', items: [
-        '🔧 Αφαιρέθηκε το κουμπί «Έλεγχος Διπλότυπων QR» από τις Ρυθμίσεις: το είχαμε φτιάξει παλιά για μια έκτακτη διόρθωση της βάσης. Πλέον χρησιμοποιούμε σκόπιμα ίδιους κωδικούς QR (στα νομίσματα και στα όμοια/επαναλαμβανόμενα είδη), οπότε το κουμπί έδειχνε δεκάδες «διπλότυπα» που είναι κανονικά — και το κουμπί «Διόρθωση» δίπλα τους θα άλλαζε το βάρος (άρα και την τιμή) ενός κομματιού. Η εφαρμογή ήδη σας προειδοποιεί μόνη της αν προσπαθήσετε να αποθηκεύσετε κατά λάθος ίδιο κωδικό, οπότε το εργαλείο δεν χρειάζεται πια.'
-      ]},
-      { version: 'v10.60', date: 'Ιούλιος 2026', items: [
-        '📡 Διόρθωση «Δεν είναι δυνατή η λήψη τιμής χρυσού» στον υπολογιστή: όταν η εφαρμογή έμενε ανοιχτή για ώρα (και μετά από αδράνεια/ύπνο της οθόνης), εμφανιζόταν το κόκκινο μήνυμα και έπρεπε να την κλείσετε και να την ξανανοίξετε. Τώρα: (1) η τελευταία τιμή χρυσού/ασημιού αποθηκεύεται και επαναφέρεται, οπότε μια στιγμιαία διακοπή δικτύου δεν σβήνει την τιμή· (2) κάθε αίτημα έχει όριο χρόνου 12 δευτ. ώστε να μην «κολλάει»· (3) το προειδοποιητικό μήνυμα εμφανίζεται μόνο αν η τιμή είναι πραγματικά παλιά (καμία επιτυχής λήψη για ~30 λεπτά), όχι σε μία αποτυχημένη ανανέωση· (4) η εφαρμογή ξαναδοκιμάζει αυτόματα μέσα σε ένα λεπτό και μόλις επανέλθει το δίκτυο ή ξαναεστιάσετε το παράθυρο — χωρίς να χρειάζεται επανεκκίνηση.'
-      ]},
-      { version: 'v10.59', date: 'Ιούλιος 2026', items: [
-        '↩️ Σωστή επαναφορά όταν διαγράφετε πώληση όμοιου/πανομοιότυπου κομματιού: αν είχατε π.χ. ομάδα με 5 ίδια κομμάτια (ή νομίσματα με τον ίδιο κωδικό), πουλούσατε ένα και μετά ο πελάτης το επέστρεφε, η διαγραφή της πώλησης μπορούσε να ΜΗΝ ξαναβάλει το κομμάτι στο απόθεμα (η ομάδα έμενε στα 4 αντί να γυρίσει στα 5), γιατί όλα τα ίδια κομμάτια έχουν τον ίδιο κωδικό QR. Τώρα κάθε πώληση θυμάται το ΑΚΡΙΒΕΣ κομμάτι που πουλήθηκε, οπότε η διαγραφή το επαναφέρει σωστά και η ομάδα ξαναγίνεται 5. (Ισχύει και για τις παλιές πωλήσεις — η επαναφορά ψάχνει πλέον πουλημένο κομμάτι.)'
-      ]},
-      { version: 'v10.58', date: 'Ιούλιος 2026', items: [
-        '📈 Ποσοστό μεταβολής και στις κάρτες ομάδας: κάτω από την τιμή μιας ομάδας όμοιων ειδών (π.χ. σκουλαρίκια, βραχιόλια) εμφανίζεται πλέον η «Αρχική αξία ομάδας» με το ποσοστό αύξησης/μείωσης — όπως στα μεμονωμένα κομμάτια. Ο υπολογισμός γίνεται μόνο πάνω στα κομμάτια που υπάρχουν αυτή τη στιγμή στην ομάδα: αν πουλήσετε ένα, το σύνολο μικραίνει αλλά το ποσοστό ΔΕΝ το μετράει ως πτώση τιμής — αφαιρείται μαζί και η αρχική του αξία, οπότε το ποσοστό δείχνει μόνο την πραγματική κίνηση της τιμής του χρυσού/ασημιού.'
-      ]},
-      { version: 'v10.57', date: 'Ιούλιος 2026', items: [
-        '🔗 Νέο φίλτρο «Ομαδοποιημένα»: στα φίλτρα, στην ενότητα Κατάσταση (ανάμεσα σε «Πουλήθηκε» και «Κρυφά») προστέθηκε επιλογή «🔗 Ομαδοποιημένα» — δείχνει μόνο τα είδη που ανήκουν σε ομάδα όμοιων. Συνδυάζεται με τα άλλα φίλτρα: π.χ. «Δαχτυλίδια + Ομαδοποιημένα + Προμηθευτής» για να βρείτε γρήγορα μια υπάρχουσα ομάδα δαχτυλιδιών, χωρίς να ψάχνετε ανάμεσα στα μεμονωμένα.'
-      ]},
-      { version: 'v10.56', date: 'Ιούλιος 2026', items: [
-        '🖥️ Ομοιόμορφες κάρτες στον υπολογιστή: στην προβολή 2/3 στηλών, η κάρτα ομαδοποιημένων («όμοιων») ειδών ήταν πιο κοντή από τις υπόλοιπες και φαινόταν άσχημα — τώρα όλες οι κάρτες σε μια σειρά έχουν το ίδιο ύψος και τα κουμπιά ευθυγραμμίζονται κάτω. (Στο κινητό δεν αλλάζει τίποτα.)',
-        '✋ Το σήμα «χειροποίητο» εμφανίζεται πλέον και στις κάρτες ομαδοποιημένων ειδών, όταν κάποιο από τα κομμάτια της ομάδας είναι χειροποίητο.'
+      { version: 'v10.66', date: 'Ιούλιος 2026', items: [
+        '📜 Πλήρες ιστορικό εκδόσεων σε ξεχωριστή σελίδα: μέχρι τώρα κρατούσαμε μόνο τις 10 τελευταίες εκδόσεις για να μη «φουσκώνει» η εφαρμογή. Πλέον στην καρτέλα «Πληροφορίες» εμφανίζεται μόνο η τρέχουσα έκδοση, με ένα κουμπί «📜 Ολόκληρο το ιστορικό εκδόσεων» που ανοίγει ΟΛΕΣ τις εκδόσεις από την αρχή (v9.29 έως σήμερα), δίγλωσσα. Έτσι δεν χάνεται πια τίποτα από το ιστορικό.'
       ]},
           ]
   },
@@ -16679,37 +16650,8 @@ const ABOUT = {
       ]}
     ],
     changelog: [
-      { version: 'v10.65', date: 'Jul 2026', items: [
-        '🖼️ Whole photo in the remaining small previews too: in label creation (Calc tab), scan-to-inventory and Edit item, the small photo was cropped — it now shows the whole piece on a white background.',
-        '🔍 Photo in the enlarged price view: when you tap the final price to enlarge it (the customer-facing screen), the piece\'s photo now appears under the details — so the customer sees the jewelry, not just the price. (If the piece has no photo, nothing is shown.)'
-      ]},
-      { version: 'v10.64', date: 'Jul 2026', items: [
-        '🖼️ Full image in thumbnails: the small photos were being cropped (e.g. on tall necklace photos you only saw the middle of the chain, not the motif), so you couldn\'t tell which piece it was without enlarging it. They now show the whole photo on a white background — on the inventory cards, in the Calc price bar when you scan a piece, and in the duplicate-QR warning. (Same on mobile and desktop.)'
-      ]},
-      { version: 'v10.63', date: 'Jul 2026', items: [
-        '🔤 Uppercase accent fix: in Greek, words written in ALL CAPS do not take an accent. In a few places (e.g. the showroom type "ΑΛΥΣΙΔΑ" and metal "ΧΡΥΣΟΣ", plus the "ΚΑΤΑΛΟΓΟΣ" / "ΦΥΛΛΟ ΠΑΡΑΓΓΕΛΙΑΣ" PDF titles and the "ΠΡΟΣΘΗΚΗ" button) the accent was showing incorrectly. Removed everywhere. The dialytika (¨) is kept as normal.'
-      ]},
-      { version: 'v10.62', date: 'Jul 2026', items: [
-        '📈 Appreciation % on the inventory totals: under "Total Retail Value" and "Metal Value" you (owner/manager only) now see the rise/drop percentage — green for up, red for down — the same as on every item card. It is count-independent: adding or selling a piece does NOT move the %, only real gold/silver price movement does. Retail is measured from the price you entered each piece at; Metal Value for your existing stock is measured from the metal price on 20 May 2025, while anything you add from now on starts from its own current price.'
-      ]},
-      { version: 'v10.61', date: 'Jul 2026', items: [
-        '🔧 Removed the "Duplicate QR Check" button from Settings: we built it long ago for a one-off database fix. We now deliberately use the same QR code in several places (coins, and identical/restocked "similar items"), so the button flagged dozens of perfectly normal "duplicates" — and its "Fix" button next to them would have changed a piece\'s weight (and therefore its price). The app already warns you by itself if you ever try to save a duplicate code by accident, so the tool is no longer needed.'
-      ]},
-      { version: 'v10.60', date: 'Jul 2026', items: [
-        '📡 Fixed "Cannot fetch live gold price" on desktop: when the app was left open for a while (and after the screen went idle/asleep) the red warning would appear and you had to close and reopen the app. Now: (1) the last good gold/silver price is saved and restored, so a brief network drop never blanks the price; (2) each request has a 12-second timeout so it can no longer hang; (3) the warning only appears when the price is genuinely stale (no successful fetch for ~30 minutes), not on a single failed refresh; (4) the app automatically retries within a minute and refetches the moment the network returns or you refocus the window — no restart needed.'
-      ]},
-      { version: 'v10.59', date: 'Jul 2026', items: [
-        '↩️ Correct restore when deleting the sale of an identical/grouped piece: if you had e.g. a group of 5 identical pieces (or coins sharing one code), sold one, and then the customer returned it, deleting the sale could FAIL to put the piece back in stock (the group stayed at 4 instead of returning to 5) — because all identical pieces share the same QR code. Now every sale remembers the EXACT piece that was sold, so deleting it restores that piece correctly and the group goes back to 5. (Also improved for older sales — the restore now looks for a sold piece.)'
-      ]},
-      { version: 'v10.58', date: 'Jul 2026', items: [
-        '📈 Percentage change on group cards: under the price of a similar-items group (e.g. earrings, bracelets) there is now a "Group initial value" line with the rise/drop percentage — just like on individual pieces. It is calculated only over the pieces currently in the group: if you sell one, the total shrinks but the percentage does NOT read it as a price drop — that piece\'s original value is removed too, so the percentage reflects only real gold/silver price movement.'
-      ]},
-      { version: 'v10.57', date: 'Jul 2026', items: [
-        '🔗 New "Grouped" filter: under Status (between "Sold" and "Hidden") there is now a "🔗 Grouped" option — it shows only items that belong to a similar-items group. Combine it with the other filters, e.g. "Rings + Grouped + Vendor", to quickly find an existing ring group instead of hunting through the individual pieces.'
-      ]},
-      { version: 'v10.56', date: 'Jul 2026', items: [
-        '🖥️ Even cards on desktop: in the 2/3-column view the grouped ("similar items") card was shorter than the rest and looked awkward — now every card in a row shares the same height and the buttons line up along the bottom. (Nothing changes on mobile.)',
-        '✋ The handmade mark now also shows on grouped-item cards when any piece in the group is handmade.'
+      { version: 'v10.66', date: 'Jul 2026', items: [
+        '📜 Full version history on its own page: until now we only kept the last 10 versions so the app wouldn\'t get bloated. The Info tab now shows only the current version, with a "📜 View the full changelog" button that opens EVERY version since the beginning (v9.29 to today), in both languages. Nothing from the history is lost anymore.'
       ]},
           ]
   }
@@ -16737,14 +16679,16 @@ function renderAbout() {
       ${s.items.map(i => `<p>${i}</p>`).join('')}
     </div>`
   ).join('');
-  // Changelog
+  // Changelog — only the current version is kept inline (drives the update banner);
+  // the full history lives in changelog.htm, linked below.
   const cb = document.getElementById('changelogBody');
   if (cb) cb.innerHTML = a.changelog.map(e =>
     `<div class="changelog-entry">
       <div class="changelog-version">${e.version} <span>${e.date}</span></div>
       <ul class="about-list">${e.items.map(i => `<li>${i}</li>`).join('')}</ul>
     </div>`
-  ).join('');
+  ).join('') +
+    `<a href="changelog.htm" target="_blank" rel="noopener" style="display:block;margin-top:14px;text-align:center;padding:12px;border:1px solid rgba(212,175,55,0.4);border-radius:8px;color:var(--gold-light);font-family:var(--font-body);font-size:13px;font-weight:600;text-decoration:none;letter-spacing:0.02em">${lang==='el'?'📜 Ολόκληρο το ιστορικό εκδόσεων →':'📜 View the full changelog →'}</a>`;
 }
 
 // ─── ABOUT ────────────────────────────────────────────────────────────────────
@@ -19603,7 +19547,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.65';
+const APP_VERSION = '10.66';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
