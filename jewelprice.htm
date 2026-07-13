@@ -16688,8 +16688,8 @@ function invAddSimilar(sourceId) {
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">${summary}</div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:14px">${refStr ? refStr + ' · ' : ''}${lang==='el'?'ίδιος κωδικός σε όλα, μοναδικό QR ανά βάρος':'same ref code on all, unique QR per weight'}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}</div>
-      <input id="invAddSimWeight" type="number" step="0.01" min="0" inputmode="decimal"
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}${(parseFloat(source.weight)>0)?` <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδιο με ομάδα':'blank = same as group'}</span>`:''}</div>
+      <input id="invAddSimWeight" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${(parseFloat(source.weight)>0)?((lang==='el'?'ίδιο με ομάδα (':'same as group (')+parseFloat(source.weight)+'g)'):''}"
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Ποσότητα (ίδιο βάρος)':'Quantity (same weight)'}</div>
       <input id="invAddSimQty" type="number" step="1" min="1" max="50" value="1" inputmode="numeric"
@@ -16710,30 +16710,27 @@ function invAddSimilar(sourceId) {
   const wEl = () => document.getElementById('invAddSimWeight');
   const previewEl = document.getElementById('invAddSimPreview');
   const counterEl = document.getElementById('invAddSimCounter');
-  function updatePreview() {
+  // Effective weight for a new piece: the typed value, or — when the box is left
+  // blank — the group's own weight (so identical pieces just need a quantity).
+  const _effWeight = () => {
     const w = parseFloat(wEl().value);
-    if (!isNaN(w) && w > 0) {
-      previewEl.textContent = buildQR(w);
-      previewEl.style.color = 'var(--gold)';
-    } else {
-      // Empty weight: show a hint, NOT the source code — otherwise it looks like an
-      // empty box will reuse the source item's weight (it won't; a weight is required).
-      previewEl.textContent = (lang === 'el' ? '— βάλτε βάρος —' : '— enter a weight —');
-      previewEl.style.color = 'var(--text-dim)';
-    }
+    return (!isNaN(w) && w > 0) ? w : parseFloat(source.weight);
+  };
+  function updatePreview() {
+    const w = _effWeight();
+    previewEl.textContent = (!isNaN(w) && w > 0) ? buildQR(w) : (_existingQR || '—');
+    previewEl.style.color = 'var(--gold)';
   }
   wEl().addEventListener('input', updatePreview);
-  updatePreview(); // start on the "enter a weight" hint, not the source code
+  updatePreview();
 
   // Add a batch of N identical pieces (same weight/colour). They share one QR (weight-encoded),
   // so a print prints N copies of the same label in a single job.
   async function addBatch(doPrint) {
-    const w = parseFloat(wEl().value);
-    if (isNaN(w) || w <= 0) {
-      const _st = document.getElementById('invAddSimStatus');
-      if (_st) { _st.textContent = lang==='el'?'⚠️ Βάλτε πρώτα ένα βάρος':'⚠️ Enter a weight first'; _st.style.color = '#e0a85a'; }
-      showToast(lang==='el'?'⚠️ Βάλτε βάρος':'⚠️ Enter a weight'); wEl().focus(); return;
-    }
+    // Blank weight → use the group's weight (the common case: identical pieces). Only
+    // block if neither the box nor the source has a usable weight.
+    const w = _effWeight();
+    if (isNaN(w) || w <= 0) { showToast(lang==='el'?'⚠️ Βάλτε βάρος':'⚠️ Enter a weight'); wEl().focus(); return; }
     let qty = parseInt(document.getElementById('invAddSimQty').value) || 1;
     qty = Math.max(1, Math.min(50, qty));
     const colorVal = document.getElementById('invAddSimColor').value || null;
@@ -17410,9 +17407,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.78', date: 'Ιούλιος 2026', items: [
-        '♻️ Επαναχρησιμοποίηση κωδικών αναφοράς: όταν διαγράφετε ένα είδος, ο αριθμός του κωδικού (π.χ. CR0300) έμενε αχρησιμοποίητος για πάντα. Πλέον η επόμενη νέα ετικέτα χρησιμοποιεί αυτόματα τον χαμηλότερο ελεύθερο αριθμό, ώστε να μη χάνονται κωδικοί. (Οι αριθμοί είναι κοινοί για όλους τους τύπους — τα γράμματα δείχνουν απλώς τον τύπο. Τα πουλημένα είδη κρατούν τον αριθμό τους.)',
-        '🔗 Προσθήκη όμοιων ειδών: αν αφήσετε το πεδίο βάρους κενό, η προεπισκόπηση δείχνει τώρα «βάλτε βάρος» αντί για τον κωδικό του υπάρχοντος είδους — ώστε να μη φαίνεται ότι θα χρησιμοποιήσει το βάρος του. (Χρειάζεται πάντα βάρος.)'
+      { version: 'v10.79', date: 'Ιούλιος 2026', items: [
+        '🔗 Προσθήκη όμοιων ειδών: αν αφήσετε το βάρος κενό, χρησιμοποιείται αυτόματα το ίδιο βάρος με τα υπόλοιπα είδη της ομάδας — έτσι για πανομοιότυπα κομμάτια βάζετε μόνο την ποσότητα. (Αντικαθιστά την προηγούμενη αλλαγή που ζητούσε βάρος.)'
       ]},
           ]
   },
@@ -17443,9 +17439,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.78', date: 'Jul 2026', items: [
-        '♻️ Reuse reference codes: when you delete an item, its code number (e.g. CR0300) used to be lost forever. New tags now automatically reuse the lowest freed number, so codes aren\'t wasted. (Numbers are shared across all types — the letters just show the type. Sold items keep their number.)',
-        '🔗 Add similar items: if you leave the weight box empty, the preview now says «enter a weight» instead of showing the existing item\'s code — so it no longer looks like it will reuse that item\'s weight. (A weight is always required.)'
+      { version: 'v10.79', date: 'Jul 2026', items: [
+        '🔗 Add similar items: leaving the weight blank now automatically uses the same weight as the rest of the group — so for identical pieces you just set the quantity. (Replaces the earlier version that asked for a weight.)'
       ]},
           ]
   }
@@ -20335,7 +20330,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.78';
+const APP_VERSION = '10.79';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
