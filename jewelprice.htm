@@ -10480,7 +10480,7 @@ function runInvExport() {
 // tag). Read-only: the comparison never mutates inventory; it's a report to act on.
 const STK_PATH = '/jewelprice_stocktake';
 let _stkActive = false;
-const _stk = { scanning: false, paused: false, interval: null, stream: null, myCount: 0 };
+const _stk = { scanning: false, paused: false, interval: null, stream: null, myCount: 0, expected: {}, counts: {} };
 
 async function stkGetSession() {
   try { const res = await fetch(fbUrl(STK_PATH + '.json'), { cache: 'no-store' }); return res.ok ? await res.json() : null; }
@@ -10554,6 +10554,22 @@ async function stkOpenScanner() {
     if (status) status.textContent = lang === 'el' ? 'Φόρτωση αποθέματος…' : 'Loading inventory…';
     try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
+  // Per-QR expected counts (in-stock, non-coin/metal) drive the live duplicate guard:
+  // a QR may legitimately repeat up to the number of identical pieces in stock (grouped
+  // items / coin batches share a QR), so only a scan BEYOND that count is a duplicate.
+  _stk.expected = {};
+  Object.values(_inventoryCache || {}).forEach(it => {
+    if (!it || it.status === 'sold' || it.isCoin || it.isMetal) return;
+    const q = (it.qrCode || '').trim().toUpperCase(); if (!q) return;
+    _stk.expected[q] = (_stk.expected[q] || 0) + 1;
+  });
+  // Seed accepted-counts from scans already recorded this session (so reopening the
+  // scanner, or scans another device already made, are respected by the guard).
+  _stk.counts = {};
+  try {
+    const res = await fetch(fbUrl(STK_PATH + '/scans.json'), { cache: 'no-store' });
+    if (res.ok) { const sc = (await res.json()) || {}; Object.values(sc).forEach(s => { const q = (s.qr || '').trim().toUpperCase(); if (q) _stk.counts[q] = (_stk.counts[q] || 0) + 1; }); }
+  } catch (e) {}
   stkRefreshTotal();
   const video = document.getElementById('stkVideo');
   const wrap = document.getElementById('stkVideoWrap');
@@ -10632,19 +10648,46 @@ function stkResolve(raw) {
 async function stkOnScan(raw, viaManual) {
   const r = stkResolve(raw);
   const fb = document.getElementById('stkFeedback');
+  const isEl = lang === 'el';
+  const item = r.item;
+  // "Countable" = a real in-stock piece that participates in the duplicate guard.
+  const countable = !!(item && item.status !== 'sold' && !item.isCoin && !item.isMetal && item.qrCode);
+
+  // Live duplicate warning: a QR may repeat up to the number of identical pieces in
+  // stock; a scan BEYOND that is a re-scan of an already-counted piece → warn now and
+  // DON'T record it (so it can't inflate the count or produce a false over-count).
+  if (countable) {
+    const expectedN = _stk.expected[r.qr] || 1;
+    const currentN = _stk.counts[r.qr] || 0;
+    if (currentN >= expectedN) {
+      if (fb) {
+        fb.textContent = (isEl ? '⚠️ Ήδη σαρωμένο' : '⚠️ Already scanned') + ' · ' + (itemRefCode(item) || '')
+          + (expectedN > 1 ? (isEl ? ` (και τα ${expectedN})` : ` (all ${expectedN})`) : '');
+        fb.style.color = '#e0a85a';
+      }
+      try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) {}
+      return; // no record, no count bump
+    }
+  }
+
   let msg, color;
-  if (!r.item) { msg = (lang === 'el' ? '⚠️ Άγνωστος κωδικός: ' : '⚠️ Unknown code: ') + r.code; color = '#e0a85a'; }
-  else if (r.item.isCoin || r.item.isMetal) { msg = (lang === 'el' ? 'ℹ️ Νόμισμα/μέταλλο — δεν μετρά' : 'ℹ️ Coin/metal — not counted'); color = '#9aa'; }
+  if (!item) { msg = (isEl ? '⚠️ Άγνωστος κωδικός: ' : '⚠️ Unknown code: ') + r.code; color = '#e0a85a'; }
+  else if (item.isCoin || item.isMetal) { msg = (isEl ? 'ℹ️ Νόμισμα/μέταλλο — δεν μετρά' : 'ℹ️ Coin/metal — not counted'); color = '#9aa'; }
   else {
-    const nm = (lang === 'el' ? (r.item.descEl || r.item.descEn) : (r.item.descEn || r.item.descEl)) || invTypeLabel(r.item.jewelryType);
-    const tag = r.item.status === 'sold' ? (lang === 'el' ? ' [πουλημένο!]' : ' [sold!]') : '';
-    msg = '✓ ' + (itemRefCode(r.item) || '') + ' · ' + nm + tag;
-    color = r.item.status === 'sold' ? '#e0a85a' : '#7fd6b0';
+    const nm = (isEl ? (item.descEl || item.descEn) : (item.descEn || item.descEl)) || invTypeLabel(item.jewelryType);
+    const tag = item.status === 'sold' ? (isEl ? ' [πουλημένο!]' : ' [sold!]') : '';
+    const expectedN = _stk.expected[r.qr] || 1;
+    const nextN = (_stk.counts[r.qr] || 0) + 1;
+    const prog = (countable && expectedN > 1) ? ` (${nextN}/${expectedN})` : ''; // show progress for grouped/coin twins
+    msg = '✓ ' + (itemRefCode(item) || '') + ' · ' + nm + tag + prog;
+    color = item.status === 'sold' ? '#e0a85a' : '#7fd6b0';
   }
   if (fb) { fb.textContent = msg; fb.style.color = color; }
+  if (countable) _stk.counts[r.qr] = (_stk.counts[r.qr] || 0) + 1;
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
   _stk.myCount++;
   const myEl = document.getElementById('stkMyCount'); if (myEl) myEl.textContent = _stk.myCount;
-  const rec = { qr: r.qr, ref: r.item ? itemRefCode(r.item) : '', by: creds.displayName || creds.userName || '?', at: Date.now(), manual: !!viaManual };
+  const rec = { qr: r.qr, ref: item ? itemRefCode(item) : '', by: creds.displayName || creds.userName || '?', at: Date.now(), manual: !!viaManual };
   try { await fetch(fbUrl(STK_PATH + '/scans.json'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) }); } catch (e) {}
   stkRefreshTotal();
 }
@@ -17273,8 +17316,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.72', date: 'Ιούλιος 2026', items: [
-        '🔧 Διόρθωση ελέγχου απογραφής: η σάρωση έδειχνε «Άγνωστος κωδικός» για κανονικά είδη, όταν ανοίγατε τη σάρωση χωρίς να έχετε επισκεφθεί πρώτα την καρτέλα «Απόθεμα». Τώρα φορτώνει το απόθεμα αυτόματα μόλις ανοίξει η σάρωση, ώστε κάθε κωδικός να αναγνωρίζεται σωστά.'
+      { version: 'v10.73', date: 'Ιούλιος 2026', items: [
+        '🔁 Έλεγχος απογραφής: αν σαρώσετε είδος που έχει ήδη σαρωθεί, εμφανίζεται αμέσως προειδοποίηση «Ήδη σαρωμένο» (με μικρή δόνηση) και δεν μετριέται δεύτερη φορά. Για ομάδες όμοιων ειδών ή νομίσματα που μοιράζονται τον ίδιο κωδικό, οι επαναλαμβανόμενες σαρώσεις επιτρέπονται μέχρι τον αριθμό των κομματιών στο απόθεμα (εμφανίζεται π.χ. «2/5»).'
       ]},
           ]
   },
@@ -17305,8 +17348,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.72', date: 'Jul 2026', items: [
-        '🔧 Inventory-check fix: scanning showed «Unknown code» for normal items when you opened the scanner without first visiting the Stock tab. It now loads your inventory automatically as the scanner opens, so every code is recognised correctly.'
+      { version: 'v10.73', date: 'Jul 2026', items: [
+        '🔁 Inventory check: scanning an item that\'s already been counted now shows an immediate «Already scanned» warning (with a short buzz) and isn\'t counted twice. For groups of identical items or coins that share the same code, repeat scans are allowed up to the number of pieces in stock (shown e.g. «2/5»).'
       ]},
           ]
   }
@@ -20196,7 +20239,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.72';
+const APP_VERSION = '10.73';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
