@@ -3315,7 +3315,7 @@ const T = {
     invDateModeAdded:'Ημ. Προσθήκης', invDateModeSold:'Ημ. Πώλησης', invDateMode:'Φίλτρο βάσει',
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
-    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά',
+    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterReserved:'🔒 Κρατημένα', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά',
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
@@ -3730,7 +3730,7 @@ const T = {
     invDateModeAdded:'Date Added', invDateModeSold:'Date Sold', invDateMode:'Filter by',
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
-    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden',
+    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterReserved:'🔒 Reserved', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden',
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
     invSearchPh:'Search description, code, ref...',
@@ -4016,6 +4016,8 @@ async function autoSync() {
   try { await pullClientsFromCloud(); } catch(e) { /* silent */ }
   // Pull reservations from cloud (all roles — everyone at the counter sees holds)
   try { await pullReservationsFromCloud(); } catch(e) { /* silent */ }
+  // Release any reservations whose "hold until" date has passed (items back to showroom).
+  try { await _resCheckExpiry(); } catch(e) { /* silent */ }
   // Pull sales from cloud (all roles — employees see leaderboard)
   if (creds.binId) {
     try { await pullSalesFromCloud(); } catch(e) { /* silent */ }
@@ -4703,11 +4705,12 @@ function openReservationDetail(id) {
       <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">${isEl ? 'Πληρωμές' : 'Payments'}</div>${payHtml}
     </div>
     ${active ? `<div style="display:flex;gap:8px;margin-top:10px">
-      <input id="resPayAmt" type="number" step="0.01" inputmode="decimal" placeholder="€" style="flex:1;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px">
-      <select id="resPayMethod" style="padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
-      <button onclick="_resAddPayment('${r.id}')" style="padding:10px 15px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-size:16px;cursor:pointer">＋</button>
+      <input id="resPayAmt" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? '€ πληρωμή' : '€ payment'}" style="flex:1;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px">
+      <select id="resPayMethod" style="flex:0 0 auto;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
+      <button onclick="_resAddPayment('${r.id}')" style="flex:0 0 auto;width:auto;padding:10px 15px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-size:16px;cursor:pointer">＋</button>
     </div>
-    <button onclick="_resCancel('${r.id}')" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">✕ ${isEl ? 'Ακύρωση κράτησης' : 'Cancel reservation'}</button>`
+    <button onclick="_resComplete('${r.id}')" style="width:100%;margin-top:12px;padding:14px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">✅ ${isEl ? 'Ολοκλήρωση & Πώληση' : 'Complete & sell'}</button>
+    <button onclick="_resCancel('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">✕ ${isEl ? 'Ακύρωση κράτησης' : 'Cancel reservation'}</button>`
     : `<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:6px">${r.status === 'completed' ? (isEl ? 'Ολοκληρώθηκε' : 'Completed') : (isEl ? 'Ακυρώθηκε' : 'Cancelled')}${r.dateCompleted ? ' · ' + fmtDate(new Date(r.dateCompleted)) : ''}</div>`}
   </div>`;
   document.body.appendChild(ov);
@@ -4736,6 +4739,63 @@ function _resCancel(id) {
     if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
     showToast(lang === 'el' ? 'Ακυρώθηκε' : 'Cancelled');
   }, null, { danger: true });
+}
+
+// Complete a reservation → hand the items into the NORMAL sale flow at the agreed
+// prices. Bulk-chain portions deduct grams from the batch. When the sale confirms,
+// `confirmSale` calls `_resFinalizeComplete` (via window._completingReservationId).
+async function _resComplete(id) {
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { _inventoryCache = await loadInventory(); } catch (e) {} }
+  const saleItems = [];
+  for (const it of (r.items || [])) {
+    if (it.isBulk) {
+      const batch = _inventoryCache[it.bulkInvId];
+      if (!batch || !batch.isBulk) continue;
+      saleItems.push({ id: it.bulkInvId, item: batch, price: parseFloat(it.price) || 0, isBulk: true, soldWeight: parseFloat(it.soldWeight) || 0, cost: (it.cost != null ? it.cost : null) });
+    } else {
+      const item = _inventoryCache[it.invId];
+      if (!item || item.status !== 'in_stock') continue; // already sold/removed
+      saleItems.push({ id: it.invId, item, price: parseFloat(it.price) || 0 });
+    }
+  }
+  if (!saleItems.length) { showToast(lang === 'el' ? '⚠️ Δεν υπάρχουν διαθέσιμα είδη' : '⚠️ No items available to sell'); return; }
+  window._completingReservationId = id;
+  window._cartSaleItems = saleItems;
+  document.getElementById('reservationDetailOverlay')?.remove();
+  openMultiSaleModal(saleItems);
+  // Carry the customer + a note about the reservation / deposit into the sale modal.
+  setTimeout(() => {
+    const nm = document.getElementById('saleCustomerName'); if (nm && r.clientName) nm.value = r.clientName;
+    const paid = resPaid(r);
+    if (paid > 0) { const note = document.getElementById('saleNoteInput'); if (note) note.value = (note.value ? note.value + ' · ' : '') + resNoFmt(r) + ' (' + (lang === 'el' ? 'προκαταβολή' : 'deposit') + ' ' + (state.currency || '€') + paid.toFixed(2) + ')'; }
+  }, 60);
+}
+
+// Auto-expiry: any active reservation past its "hold until" date releases its items
+// (back to stock & the showroom) and is marked expired. Run on app open (autoSync).
+async function _resCheckExpiry() {
+  const list = getReservations(); if (!list.length) return;
+  const today = todayStr(); let changed = false;
+  for (const r of list) {
+    if (r.status === 'active' && r.holdUntil && r.holdUntil < today) {
+      r.status = 'expired'; r.dateCompleted = Date.now(); changed = true;
+      try { await _resMarkItems(r.itemIds || [], null); } catch (e) {}
+    }
+  }
+  if (changed) {
+    saveReservationsLocal(list); pushReservationsToCloud(list);
+    if (document.getElementById('panel-desk')?.classList.contains('active')) renderReservations();
+  }
+}
+
+// Called from confirmSale after the sale is recorded, when a reservation was being completed.
+async function _resFinalizeComplete(rid) {
+  const list = getReservations(); const r = list.find(x => x.id === rid); if (!r) return;
+  r.status = 'completed'; r.dateCompleted = Date.now();
+  saveReservationsLocal(list); pushReservationsToCloud(list);
+  try { await _resMarkItems(r.itemIds || [], null); } catch (e) {} // clear stale reserved flags (items now sold)
+  if (document.getElementById('panel-desk')?.classList.contains('active')) renderReservations();
 }
 
 function adjustCalcPadding() {
@@ -7114,6 +7174,12 @@ async function confirmSale() {
     btn.style.background = 'rgba(39,174,96,0.4)';
     btn.style.borderColor = '#27AE60';
     setTimeout(() => { btn.style.background = 'rgba(39,174,96,0.15)'; btn.style.borderColor = 'rgba(39,174,96,0.5)'; }, 2000);
+  }
+
+  // If this sale completed a reservation, close the reservation out.
+  if (window._completingReservationId) {
+    const _rid = window._completingReservationId; window._completingReservationId = null;
+    try { await _resFinalizeComplete(_rid); } catch (e) {}
   }
 }
 
@@ -12678,7 +12744,7 @@ function updateInvFilterBadge() {
     if (_invFilters.types.length) parts.push(_invFilters.types.map(k => k === '__notype__' ? (lang==='el'?'Χωρίς τύπο':'No type') : invTypeLabel(k)).join(', '));
     if (_invFilters.vendors.length) parts.push(_invFilters.vendors.join(', '));
     if (_invFilters.stones.length) parts.push('💎 ' + _invFilters.stones.map(s => stoneLabel(s)).join(', '));
-    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : s === 'grouped' ? t('invFilterGrouped') : s === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')).join(', '));
+    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : s === 'grouped' ? t('invFilterGrouped') : s === 'hidden' ? t('invFilterHidden') : s === 'reserved' ? t('invFilterReserved') : t('invFilterInStock')).join(', '));
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
@@ -12728,7 +12794,7 @@ function openInvFilterSheet() {
   });
   const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
   const stoneTypes = [...STONE_PRIORITY.filter(s => stoneTypeSet.has(s)), ...[...stoneTypeSet].filter(s => !STONE_PRIORITY.includes(s)).sort()];
-  const statuses = ['in_stock','sold','grouped','hidden'];
+  const statuses = ['in_stock','sold','reserved','grouped','hidden'];
 
   // Pills for small fixed sets (metal, karat, status)
   function pillGroup(labelKey, vals, selectedArr, groupKey, labelFn) {
@@ -12929,7 +12995,7 @@ function openInvFilterSheet() {
         <div class="inv-fs-picker-list" id="invPickerList_stones">${listHtml}</div>
       </div>`;
     })() +
-    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : v === 'grouped' ? t('invFilterGrouped') : v === 'hidden' ? t('invFilterHidden') : t('invFilterInStock')) +
+    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : v === 'grouped' ? t('invFilterGrouped') : v === 'hidden' ? t('invFilterHidden') : v === 'reserved' ? t('invFilterReserved') : t('invFilterInStock')) +
     goldColorGroup +
     colorGroup +
     genderGroup +
@@ -13410,7 +13476,8 @@ function renderInvList() {
     // pills still apply (so "Rings + Grouped" narrows to in-stock ring groups).
     if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
     if (f.status.includes('grouped') && !(item.groupId && !item.isMetal)) return false;
-    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped');
+    if (f.status.includes('reserved') && !item.reservationId) return false;
+    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped' && s !== 'reserved');
     if (_realStatus.length) {
       const st = isSoldItem ? 'sold' : 'in_stock';
       if (!_realStatus.includes(st)) return false;
@@ -16098,6 +16165,20 @@ async function confirmBulkRestock(id) {
 }
 
 async function invMarkSold(id) {
+  // Guard: if this piece is reserved for a customer, steer to completing the
+  // reservation (so the deposit/hold is settled) rather than a stray sale.
+  const _it = (_inventoryCache || {})[id];
+  if (_it && _it.reservationId) {
+    const _r = getReservations().find(x => x.id === _it.reservationId);
+    const _who = _r ? _r.clientName : '';
+    showConfirm(
+      (lang === 'el' ? `Αυτό το είδος είναι κρατημένο${_who ? ' για ' + _who : ''}. Άνοιγμα κράτησης για ολοκλήρωση;` : `This item is reserved${_who ? ' for ' + _who : ''}. Open the reservation to complete it?`),
+      () => { if (_r) openReservationDetail(_r.id); },
+      () => openSaleModalFromInventory(id),
+      { okLabel: (lang === 'el' ? 'Άνοιγμα κράτησης' : 'Open reservation'), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
+    );
+    return;
+  }
   // Open the Record Sale modal pre-filled with this inventory item's data
   openSaleModalFromInventory(id);
 }
@@ -17798,8 +17879,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.81', date: 'Ιούλιος 2026', items: [
-        '🔒 Κρατήσεις μέσα από τη ροή πώλησης: για ένα είδος πατήστε «Κράτηση» δίπλα στο «Πωλήθηκε» στην μπάρα τιμής· για πολλά, από το καλάθι· ή απευθείας από την κάρτα ενός είδους στο Απόθεμα (εικονίδιο 🔒). Ανοίγει διάλογος για πελάτη (όνομα/τηλέφωνο/email), προκαταβολή και ημερομηνία «κράτηση έως». Η συμφωνημένη τιμή (με εκπτώσεις/στρογγυλοποίηση) κλειδώνει, τα είδη σημειώνονται ως κρατημένα και κρύβονται από την online βιτρίνα. (Ολοκλήρωση/παράδοση, αυτόματη λήξη και εκτυπώσιμη φόρμα έρχονται στη συνέχεια.)'
+      { version: 'v10.82', date: 'Ιούλιος 2026', items: [
+        '🔒 Κρατήσεις — ολοκλήρωση & παράδοση: κάθε κράτηση έχει τώρα κουμπί «Ολοκλήρωση & Πώληση» που ανοίγει την κανονική πώληση με τη συμφωνημένη τιμή (ένα ή πολλά είδη· οι χύδην αλυσίδες αφαιρούν τα γραμμάρια), καταχωρεί την πώληση και κλείνει την κράτηση. Νέο φίλτρο «🔒 Κρατημένα» στην κατάσταση αποθέματος. Αν πουλήσετε κρατημένο είδος, σας κατευθύνει στην κράτηση. Αυτόματη λήξη: μετά την ημερομηνία «κράτηση έως» τα είδη επιστρέφουν στη βιτρίνα. Διορθώθηκε το πεδίο ποσού προκαταβολής/πληρωμής.',
+        '🗓 Οι ημερομηνίες σε PDF και ειδοποιήσεις ακολουθούν πλέον τη «Μορφή Ημερομηνίας» των Ρυθμίσεων (όπως όλες οι υπόλοιπες).'
       ]},
           ]
   },
@@ -17830,8 +17912,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.81', date: 'Jul 2026', items: [
-        '🔒 Reservations from within the sale flow: for one item, tap «Reserve» next to «Sold» on the price bar; for several, from the cart; or straight from an item card in Stock (🔒 icon). A dialog captures the customer (name/phone/email), a deposit and a «hold until» date. The agreed price (with discounts/rounding) is locked in, items are marked reserved and hidden from the online showroom. (Completion/handover, auto-expiry and a printable form come next.)'
+      { version: 'v10.82', date: 'Jul 2026', items: [
+        '🔒 Reservations — completion & handover: every reservation now has a «Complete & sell» button that opens the normal sale at the agreed price (single or multiple items; bulk chains deduct their grams), records the sale and closes the reservation. New «🔒 Reserved» filter in Stock status. Selling a reserved item steers you to its reservation. Auto-expiry: after the «hold until» date items return to the showroom. Fixed the deposit/payment amount box.',
+        '🗓 Dates in PDFs and notifications now follow the Settings «Date Format» (like every other date).'
       ]},
           ]
   }
@@ -20721,7 +20804,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.81';
+const APP_VERSION = '10.82';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -21180,7 +21263,7 @@ function openNotifPanel() {
   const rows = entries.length === 0
     ? `<div style="text-align:center;color:var(--text-muted);font-family:var(--font-body);font-size:13px;padding:24px 0">${t('notifNone')}</div>`
     : entries.map(([id, n]) => {
-        const dt = n.sentAt ? new Date(n.sentAt).toLocaleString(lang==='el'?'el-GR':'en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+        const dt = n.sentAt ? new Date(n.sentAt).toLocaleString(state.dateLocale||'el-GR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
         return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
             <div>
@@ -22397,7 +22480,7 @@ async function buildSharePDF(items, includePrice, mode) {
   hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`;
   hctx.fillStyle = '#888888';
   hctx.textAlign = 'right';
-  const today = new Date().toLocaleDateString(isEl ? 'el-GR' : 'en-GB');
+  const today = fmtDate(new Date()); // honour the Settings date format
   hctx.fillText(today, W - px(1), px(3));
   hctx.textAlign = 'left';
 
