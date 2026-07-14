@@ -1782,11 +1782,24 @@ function navToggleFacet(kind, value) {
 }
 
 function _navFacetResultCount(typeKey) {
-  return allItems.filter(i =>
+  const matched = allItems.filter(i =>
     i.jewelryType === typeKey &&
     (_navDraftMetals.length === 0 || _navDraftMetals.includes(i.metal)) &&
     genderMatches(_navDraftGenders, i)
-  ).length;
+  );
+  // Collapse similar pieces (same groupId + colour) into ONE, exactly like the grid does,
+  // so the facet count matches the number of cards the customer will actually see.
+  const seen = new Set();
+  let count = 0;
+  matched.forEach(i => {
+    if (i.groupId) {
+      const key = i.groupId + '|' + (i.color || '');
+      if (seen.has(key)) return;
+      seen.add(key);
+    }
+    count++;
+  });
+  return count;
 }
 
 function navApplyFacets(typeKey) {

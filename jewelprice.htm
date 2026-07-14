@@ -2541,6 +2541,7 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><polyline points="5.5 6.5 6.5 7.5 8.5 5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><line x1="14" y1="6.5" x2="21" y2="6.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>
         <span id="invSelectToggleLabel" data-i18n="invSelectBtn">Επιλογή</span>
       </button>
+      <button id="invStaleBtn" onclick="openStaleReport()" style="display:none;align-items:center;gap:5px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0"><span data-i18n="staleReportBtn">🕰️ Στάσιμο απόθεμα</span></button>
       <div id="invFilterSummary" style="font-size:11px;color:var(--text-muted);font-family:var(--font-body);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
       <!-- Stock density picker — desktop only (CSS shows #invColsWrap at >=1000px) -->
       <div id="invColsWrap" style="display:none;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
@@ -2578,6 +2579,10 @@
         <button id="invGroupBtn" onclick="invGroupSelected()" title="Group similar items" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);border-radius:11px;padding:11px 6px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.02em;cursor:pointer">
           <span style="font-size:18px;line-height:1">🔗</span>
           <span data-i18n="invSelGroup">Ομάδα</span>
+        </button>
+        <button onclick="invReserveSelected()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);border-radius:11px;padding:11px 6px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.02em;cursor:pointer">
+          <span style="font-size:18px;line-height:1">🔒</span>
+          <span data-i18n="invSelReserve">Κράτηση</span>
         </button>
         <button onclick="invMarkSelectedSold()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(61,170,106,0.16);border:1px solid rgba(61,170,106,0.4);border-radius:11px;padding:11px 6px;color:#3daa6a;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.02em;cursor:pointer">
           <span style="font-size:18px;line-height:1">💰</span>
@@ -3307,7 +3312,7 @@ const T = {
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
     selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
     invSelectBtn:'Επιλογή', invSelectDone:'Τέλος', invShareBtn:'Κοινοποίηση',
-    invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση',
+    invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση', invSelReserve:'Κράτηση',
     hideShowroomLabel:'Απόκρυψη από βιτρίνα', hideShowroomHint:'Δεν θα εμφανίζεται στο online showroom',
     invColsList:'Λίστα', invCols2:'2 στήλες', invCols3:'3 στήλες',
     invShareSelected:'Κοινοποίηση Επιλεγμένων', invShareIncludePrice:'Εμφάνιση τιμής στην κοινοποίηση;',
@@ -3340,6 +3345,12 @@ const T = {
     invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterReserved:'🔒 Κρατημένα', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά',
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
+    invFilterAge:'Χρόνος στο απόθεμα', invSeasonWord:'σεζόν',
+    staleReportBtn:'🕰️ Στάσιμο απόθεμα', staleTitle:'🕰️ Στάσιμο απόθεμα',
+    staleHint:'Κομμάτια που κάθονται καιρό — δείτε το περιθώριο έκπτωσης.', staleThreshold:'Ελάχιστες σεζόν',
+    staleNone:'Κανένα κομμάτι πάνω από το όριο. Το απόθεμα είναι φρέσκο 👍',
+    staleColRetail:'Λιανική', staleColFloor:'Αξία μετάλλου', staleColRoom:'Περιθώριο', staleColAge:'Στο απόθεμα',
+    staleSince:'από', staleSeasons:'σεζόν', staleOpen:'Άνοιγμα', staleShare:'Κοινοποίηση', staleExport:'📊 Εξαγωγή CSV', staleShow:'👁 Στο showroom',
     invSearchPh:'Αναζήτηση περιγραφής, κωδικού, ref...',
     vendorCodeLabel:'Κωδικός Προμηθευτή', vendorCodePh:'π.χ. SK02001',
     invEmpty:'Δεν υπάρχουν αντικείμενα στο απόθεμα. Σαρώστε ένα QR για να ξεκινήσετε.',
@@ -3730,7 +3741,7 @@ const T = {
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
     selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
     invSelectBtn:'Select', invSelectDone:'Done', invShareBtn:'Share',
-    invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell',
+    invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell', invSelReserve:'Reserve',
     hideShowroomLabel:'Hide from showroom', hideShowroomHint:'Won\'t appear in the online showroom',
     invColsList:'List', invCols2:'2 columns', invCols3:'3 columns',
     invShareSelected:'Share Selected', invShareIncludePrice:'Include price in share?',
@@ -3763,6 +3774,12 @@ const T = {
     invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterReserved:'🔒 Reserved', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden',
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
+    invFilterAge:'Time in Stock', invSeasonWord:'seasons',
+    staleReportBtn:'🕰️ Stale Stock', staleTitle:'🕰️ Stale Stock',
+    staleHint:'Pieces sitting a long time — see the room you have to discount.', staleThreshold:'Min. seasons',
+    staleNone:'No pieces past the threshold. Your stock is fresh 👍',
+    staleColRetail:'Retail', staleColFloor:'Metal floor', staleColRoom:'Room', staleColAge:'In stock',
+    staleSince:'since', staleSeasons:'seasons', staleOpen:'Open', staleShare:'Share', staleExport:'📊 Export CSV', staleShow:'👁 To showroom',
     invSearchPh:'Search description, code, ref...',
     vendorCodeLabel:'Vendor Code', vendorCodePh:'e.g. SK02001',
     invEmpty:'No items in inventory. Scan a QR code to get started.',
@@ -4282,6 +4299,7 @@ function applyRoleUI() {
   const _stk = document.getElementById('stocktakeSection'); if (_stk) _stk.style.display = isOwnerMgr ? '' : 'none';
   const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
   const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
+  const _staleBtn = document.getElementById('invStaleBtn'); if (_staleBtn) _staleBtn.style.display = isOwnerMgr ? 'flex' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
   if (isEmployee && (activePanel === 'panel-settings' || activePanel === 'panel-sync')) {
@@ -4765,6 +4783,15 @@ async function invReserve(id) {
   const item = _resItemFromInv(id);
   if (!item) { showToast(lang === 'el' ? '⚠️ Δεν μπορεί να κρατηθεί' : '⚠️ Cannot be reserved'); return; }
   openReserveDialog([item], 'stock');
+}
+// Reserve every selected in-stock piece at once (Stock select-mode → 🔒).
+async function invReserveSelected() {
+  if (_invSelected.size === 0) { showToast(lang === 'el' ? '⚠️ Δεν επιλέξατε αντικείμενα' : '⚠️ No items selected'); return; }
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
+  const items = [..._invSelected].map(id => _resItemFromInv(id)).filter(Boolean);
+  if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν μπορούν να κρατηθούν' : '⚠️ Cannot be reserved'); return; }
+  toggleInvSelectMode(); // exit select mode
+  openReserveDialog(items, 'stock-multi');
 }
 // Card lock icon: if the piece is already reserved, open its reservation; else reserve it.
 function invReserveOrView(id) {
@@ -11506,6 +11533,134 @@ function _invItemDate(id, item) {
   return m ? Number(m[1]) : 0;
 }
 
+// Seasons a piece has been in stock. The store runs one season a year (Apr 1 – Nov 30),
+// so "seasons in stock" = calendar years elapsed since it was added (added this year = 0).
+function _invSeasonsInStock(id, item) {
+  const d = _invItemDate(id, item);
+  if (!d) return 0;
+  return Math.max(0, new Date().getFullYear() - new Date(d).getFullYear());
+}
+
+// ── STALE STOCK REPORT (owner/manager) ────────────────────────────────────────
+// Long-sitting pieces + the room to discount them: retail, today's metal-value floor,
+// and negotiation room (retail − floor). Discount-first; melting stays an option.
+let _staleThreshold = 2;
+function _staleCollect(threshold) {
+  const rows = [];
+  Object.entries(_inventoryCache || {}).forEach(([id, item]) => {
+    if (!item || item.status !== 'in_stock') return;
+    if (item.isCoin || item.isMetal) return;
+    if (_invSeasonsInStock(id, item) < threshold) return;
+    const p = calcInvItemPrice(item);
+    if (!p) return;
+    const retail = parseFloat(p.retail) || 0;
+    const floor = parseFloat(p.metalValue) || 0;
+    rows.push({ id, item, retail, floor, room: Math.max(0, retail - floor),
+      gain: invGainPct(item), date: _invItemDate(id, item), seasons: _invSeasonsInStock(id, item) });
+  });
+  rows.sort((a, b) => a.date - b.date); // oldest first
+  return rows;
+}
+function openStaleReport() {
+  if (!isOwnerOrManager()) return;
+  document.getElementById('staleOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'staleOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.9);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:14px';
+  const isEl = lang === 'el';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:16px;width:100%;max-width:520px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${t('staleTitle')}</div>
+      <button onclick="document.getElementById('staleOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:10px">${t('staleHint')}</div>
+    <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px">${t('staleThreshold')}</div>
+    <div id="stalePills" style="display:flex;gap:6px;margin-bottom:12px">
+      ${[1,2,3,5].map(v => `<button onclick="_staleSetThreshold(${v})" class="inv-fs-pill${_staleThreshold===v?' sel':''}" data-sv="${v}" style="flex:1">${v}+ ${t('invSeasonWord')}</button>`).join('')}
+    </div>
+    <div id="staleSummary" style="font-size:12px;color:var(--text);margin-bottom:10px"></div>
+    <div id="staleList"></div>
+    <button onclick="_staleExport()" id="staleExportBtn" style="width:100%;margin-top:12px;padding:11px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">${t('staleExport')}</button>
+  </div>`;
+  document.body.appendChild(ov);
+  _staleRenderList();
+}
+function _staleSetThreshold(v) {
+  _staleThreshold = v;
+  document.querySelectorAll('#stalePills .inv-fs-pill').forEach(p => p.classList.toggle('sel', Number(p.dataset.sv) === v));
+  _staleRenderList();
+}
+function _staleRenderList() {
+  const list = document.getElementById('staleList'); if (!list) return;
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const rows = _staleCollect(_staleThreshold);
+  const sum = document.getElementById('staleSummary');
+  const exportBtn = document.getElementById('staleExportBtn');
+  if (!rows.length) {
+    list.innerHTML = `<div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:13px;line-height:1.6">${t('staleNone')}</div>`;
+    if (sum) sum.textContent = '';
+    if (exportBtn) exportBtn.style.display = 'none';
+    return;
+  }
+  if (exportBtn) exportBtn.style.display = '';
+  const totRetail = rows.reduce((s, r) => s + r.retail, 0);
+  const totRoom = rows.reduce((s, r) => s + r.room, 0);
+  if (sum) sum.innerHTML = `<strong>${rows.length}</strong> ${isEl ? 'κομμάτια' : 'pieces'} · ${t('staleColRetail')} ${cur}${totRetail.toFixed(0)} · ${t('staleColRoom')} ${cur}${totRoom.toFixed(0)}`;
+  list.innerHTML = rows.map(r => {
+    const it = r.item;
+    const thumb = it.photoUrl
+      ? `<img src="${it.photoUrl}" style="width:46px;height:46px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">`
+      : `<div style="width:46px;height:46px;border-radius:6px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💎</div>`;
+    const yr = r.date ? new Date(r.date).getFullYear() : '';
+    const gainStr = (r.gain != null) ? `<span style="color:${r.gain >= 0 ? '#7fd6b0' : '#e0a85a'}">${r.gain >= 0 ? '+' : ''}${r.gain.toFixed(1)}%</span>` : '';
+    return `<div style="display:flex;gap:9px;align-items:center;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px;margin-bottom:7px">
+      ${thumb}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${itemRefCode(it)}</span><span style="font-size:10px;color:var(--text-dim)">${yr ? t('staleSince') + ' ' + yr + ' · ' : ''}${r.seasons} ${t('staleSeasons')}</span></div>
+        <div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0">${_resEsc(_resItemName(it))}</div>
+        <div style="display:flex;gap:12px;font-size:10.5px;color:var(--text-muted);flex-wrap:wrap">
+          <span>${t('staleColRetail')} <span style="color:var(--text)">${cur}${r.retail.toFixed(0)}</span></span>
+          <span>${t('staleColFloor')} <span style="color:var(--text)">${cur}${r.floor.toFixed(0)}</span></span>
+          <span>${t('staleColRoom')} <span style="color:var(--gold-light)">${cur}${r.room.toFixed(0)}</span></span>
+          ${gainStr ? `<span>${gainStr}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button onclick="_staleOpen('${r.id}')" style="flex:1;padding:6px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light);border-radius:6px;font-size:11px;cursor:pointer">✏️ ${t('staleOpen')}</button>
+          <button onclick="_staleShare('${r.id}')" style="flex:1;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:6px;font-size:11px;cursor:pointer">📤 ${t('staleShare')}</button>
+          ${it.hideFromShowroom ? `<button onclick="_staleShow('${r.id}')" style="flex:1;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:6px;font-size:11px;cursor:pointer">${t('staleShow')}</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function _staleOpen(id) { document.getElementById('staleOverlay')?.remove(); invEdit(id); }
+function _staleShare(id) { invShareSingle(id); }
+async function _staleShow(id) {
+  const it = (_inventoryCache || {})[id]; if (!it) return;
+  delete it.hideFromShowroom; _inventoryCache[id] = it;
+  try { await saveInventoryItem(id, it); } catch (e) {}
+  try { syncPublicItem(id, it); } catch (e) {}
+  showToast(lang === 'el' ? '👁 Εμφανίζεται στο showroom' : '👁 Now in the showroom');
+  _staleRenderList();
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+}
+function _staleExport() {
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const rows = _staleCollect(_staleThreshold);
+  if (!rows.length) return;
+  const esc = s => { s = String(s == null ? '' : s); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = ['Ref', isEl ? 'Περιγραφή' : 'Description', isEl ? 'Σεζόν' : 'Seasons', isEl ? 'Ημ. προσθήκης' : 'Date added', 'Retail', 'Metal floor', 'Room', 'Gain %'];
+  const lines = [head.join(',')];
+  rows.forEach(r => {
+    lines.push([esc(itemRefCode(r.item)), esc(_resItemName(r.item)), r.seasons, esc(fmtDate(new Date(r.date))),
+      r.retail.toFixed(2), r.floor.toFixed(2), r.room.toFixed(2), (r.gain != null ? r.gain.toFixed(1) : '')].join(','));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'stale-stock.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
 // Real cost of an "Other"-type item. Other items don't store a plain purchaseCost;
 // the gross purchase price is encoded as the QR code's last numeric segment and the
 // supplier (vendor) discount is applied on top — this reproduces the exact "Cost
@@ -13420,7 +13575,7 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 
 // Gain % of an item versus its recorded initial price (owner metric — same value
 // shown on the inventory card's "Initial price (+x%)" line). Returns null when it
@@ -13547,7 +13702,7 @@ let _invSelected = new Set();
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.colors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.colors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -13570,6 +13725,7 @@ function updateInvFilterBadge() {
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
+    if (_invFilters.seasonMin) parts.push('🕰️ ' + _invFilters.seasonMin + '+ ' + t('invSeasonWord'));
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
     summary.textContent = parts.join(' · ');
   }
@@ -13745,6 +13901,12 @@ function openInvFilterSheet() {
     [3, 5, 10].map(v => `<button class="inv-fs-pill${_invFilters.gainMin===v?' sel':''}" data-group="gain" data-val="${v}">&gt; +${v}%</button>`).join('') +
     `</div></div>`;
 
+  // Time in stock (owner/manager only) — spot long-sitting pieces to discount.
+  const seasonGroup = (creds.role === 'employee') ? '' :
+    `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterAge')}</div><div class="inv-fs-pills">` +
+    [1, 2, 3, 5].map(v => `<button class="inv-fs-pill${_invFilters.seasonMin===v?' sel':''}" data-group="season" data-val="${v}">${v}+ ${t('invSeasonWord')}</button>`).join('') +
+    `</div></div>`;
+
   content.innerHTML =
     pillGroup('invFilterMetal',  metals,   _invFilters.metals,  'metals',  v => v === 'gold' ? t('gold') : v === 'silver' ? t('silver') : t('invFilterOther')) +
     pillGroup('invFilterKarat',  karats,   _invFilters.karats,  'karats',  v => { if(v==='—') return lang==='el'?'Άλλο':'Other'; const n=parseInt(v); return (v.endsWith('s')||n>=800) ? v.replace('s','') : v+'K'; }) +
@@ -13821,6 +13983,7 @@ function openInvFilterSheet() {
     genderGroup +
     mixedMetalGroup +
     gainGroup +
+    seasonGroup +
     dateSection;
 
   // Pills — click toggling
@@ -13836,6 +13999,14 @@ function openInvFilterSheet() {
       const wasActive = _invFilters.gainMin === v;
       _invFilters.gainMin = wasActive ? 0 : v;
       content.querySelectorAll('.inv-fs-pill[data-group="gain"]').forEach(p => p.classList.remove('sel'));
+      if (!wasActive) btn.classList.add('sel');
+      return;
+    }
+    if (grp === 'season') {
+      const v = Number(val);
+      const wasActive = _invFilters.seasonMin === v;
+      _invFilters.seasonMin = wasActive ? 0 : v;
+      content.querySelectorAll('.inv-fs-pill[data-group="season"]').forEach(p => p.classList.remove('sel'));
       if (!wasActive) btn.classList.add('sel');
       return;
     }
@@ -13971,7 +14142,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -14293,6 +14464,10 @@ function renderInvList() {
       const g = _gn(item);
       if (g === null || g < f.gainMin) return false;
     }
+    // Time-in-stock filter — show only pieces sitting at least N seasons (stale stock).
+    if (f.seasonMin > 0) {
+      if (_invSeasonsInStock(id, item) < f.seasonMin) return false;
+    }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
     // 'hidden' and 'grouped' are cross-cutting flags, not real statuses; when selected the
@@ -14503,6 +14678,7 @@ function renderInvList() {
     }
     const handmadeBadge = _isHandmade ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
     const _hiddenBadge = item.hideFromShowroom ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
+    const _reservedBadge = item.reservationId ? `<span class="inv-card-badge" title="${lang==='el'?'Κρατημένο':'Reserved'}" style="background:rgba(212,175,55,0.22);border:1px solid var(--gold);color:var(--gold-light);font-weight:700;letter-spacing:0.02em">🔒 ${lang==='el'?'Κρατημένο':'Reserved'}</span>` : '';
     const _genderBadge = (function() {
       const g = item.gender;
       const gMap = { women: '♀️', men: '♂️', children: '👶' };
@@ -14637,7 +14813,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${_reservedBadge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -18709,10 +18885,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.98', date: 'Ιούλιος 2026', items: [
-        '🔧 Τα δελτία Επισκευής και Παραγγελίας ξεχωρίζουν πλέον καθαρά με χρωματιστό σήμα (✨ Παραγγελία / 🔧 Επισκευή).',
-        '🇬🇷 Τα κουμπιά «Προσθήκη Νομίσματος/Μετάλλου/Χύδην Αλυσίδες» στο Απόθεμα δεν ξεχειλίζουν πλέον στα Ελληνικά — μπαίνουν σε δική τους σειρά και χωράνε σωστά.',
-        '⚖️ Στην πώληση αλυσίδας «με το γραμμάριο»: αδειάζοντας το πεδίο στρογγυλοποίησης, η έκπτωση μηδενίζεται σωστά (πριν κρατούσε παλιά τιμή και έβγαζε ~99% έκπτωση).'
+      { version: 'v10.99', date: 'Ιούλιος 2026', items: [
+        '🕰️ Νέο «Στάσιμο απόθεμα» (μόνο ιδιοκτήτης): φίλτρο «Χρόνος στο απόθεμα» (1+/2+/3+/5+ σεζόν) + αναφορά που δείχνει λιανική, αξία μετάλλου και περιθώριο έκπτωσης για κομμάτια που κάθονται καιρό — με εξαγωγή CSV.',
+        '🔒 Στο Απόθεμα, στην «Επιλογή» πολλών κομματιών προστέθηκε κουμπί «Κράτηση» για κράτηση πολλών μαζί. Τα κρατημένα κομμάτια έχουν πλέον ευδιάκριτο σήμα «🔒 Κρατημένο».',
+        '🛍️ Βιτρίνα: οι μετρήσεις κατηγοριών μετράνε πλέον τις κάρτες (ομαδοποιημένα ίδια κομμάτια) όπως εμφανίζονται, όχι κάθε τεμάχιο ξεχωριστά.'
       ]},
           ]
   },
@@ -18743,10 +18919,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.98', date: 'Jul 2026', items: [
-        '🔧 Repair vs Custom-order tickets now stand apart clearly with a coloured badge (✨ Custom order / 🔧 Repair).',
-        '🇬🇷 The Add Coin / Add Metal / Bulk Chains buttons in Stock no longer overflow in Greek — they sit on their own row and fit.',
-        '⚖️ By-the-gram chain sale: clearing the round-price field now resets the discount to zero (it used to keep a stale value, showing a ~99% discount).'
+      { version: 'v10.99', date: 'Jul 2026', items: [
+        '🕰️ New "Stale Stock" (owner only): a "Time in Stock" filter (1+/2+/3+/5+ seasons) + a report showing retail, metal-value floor and discount room for long-sitting pieces — with CSV export.',
+        '🔒 In Stock select-mode, a new "Reserve" button holds several selected pieces at once. Reserved pieces now carry a clear "🔒 Reserved" badge.',
+        '🛍️ Showroom: category counts now count the cards you actually see (grouped identical pieces collapse to one), not every individual piece.'
       ]},
           ]
   }
@@ -21730,7 +21906,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.98';
+const APP_VERSION = '10.99';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
