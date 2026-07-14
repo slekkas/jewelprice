@@ -42,6 +42,15 @@
     font-size: 9px; letter-spacing: 0.2em;
     color: var(--text-muted); text-transform: uppercase;
   }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .lang-toggle { display: flex; gap: 4px; }
+  .lang-toggle button {
+    background: none; border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text-muted);
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+    padding: 4px 8px; cursor: pointer; transition: all 0.18s;
+  }
+  .lang-toggle button.active { border-color: var(--gold); color: var(--gold); }
 
   .container {
     max-width: 480px;
@@ -248,16 +257,22 @@
     <text x="84" y="66" font-family="'Courier New',monospace" font-size="10" letter-spacing="7" fill="#8C7E60">JEWELRY</text>
     <line x1="82" y1="57" x2="304" y2="57" stroke="#C9A84C" stroke-width="0.5" opacity="0.4"/>
   </svg>
-  <span class="header-sub">Item Details</span>
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button id="langEl" onclick="setLang('el')">ΕΛ</button>
+      <button id="langEn" onclick="setLang('en')">EN</button>
+    </div>
+    <span class="header-sub" id="hdrSub">Item Details</span>
+  </div>
 </header>
 
 <div class="container">
   <div id="content">
-    <div class="state"><div class="spinner"></div>Loading…</div>
+    <div class="state"><div class="spinner"></div><span id="loadingMsg">Loading…</span></div>
   </div>
 </div>
 
-<footer>Lekkas Jewelry · Karpathos, Greece · +30 694 789 1151</footer>
+<footer id="footer">Lekkas Jewelry · Karpathos, Greece · +30 694 789 1151</footer>
 
 <script>
 const FIREBASE_URL = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
@@ -270,8 +285,55 @@ function fbUrl(path) {
   return FIREBASE_URL + path + '.json';
 }
 
-const metalLabel  = { gold: 'Gold', silver: 'Silver', other: 'Other' };
-const genderLabel = { women: 'Women', men: 'Men', children: 'Children', unisex: 'Unisex' };
+// ── Bilingual (EL/EN) — mirrors jewelprice.htm / showroom.htm ──
+const T = {
+  el: {
+    itemDetails:'Στοιχεία Κοσμήματος', loading:'Φόρτωση…',
+    noCode:'Δεν δόθηκε κωδικός κοσμήματος.', notFound:'Το κόσμημα δεν βρέθηκε.',
+    loadFail:'Αποτυχία φόρτωσης. Ελέγξτε τη σύνδεσή σας.',
+    kType:'Τύπος', kMetal:'Μέταλλο', kFor:'Για', kStones:'Πέτρες', kRef:'Κωδ.',
+    handmade:'Χειροποίητο',
+    scanToOpen:'Σαρώστε για άνοιγμα στο JewelPrice Pro',
+    downloadQr:'⬇ Λήψη QR', copy:'Αντιγραφή', copied:'✓ Αντιγράφηκε',
+    scanHint:'Σαρώστε με τον USB σαρωτή ή τον σαρωτή QR στην εφαρμογή',
+    openApp:'Άνοιγμα JewelPrice Pro',
+    footer:'Lekkas Jewelry · Κάρπαθος, Ελλάδα · +30 694 789 1151'
+  },
+  en: {
+    itemDetails:'Item Details', loading:'Loading…',
+    noCode:'No item code provided.', notFound:'Item not found.',
+    loadFail:'Failed to load. Check your connection.',
+    kType:'Type', kMetal:'Metal', kFor:'For', kStones:'Stones', kRef:'Ref.',
+    handmade:'Handmade',
+    scanToOpen:'Scan to open in JewelPrice Pro',
+    downloadQr:'⬇ Download QR', copy:'Copy', copied:'✓ Copied',
+    scanHint:'Scan with your USB scanner or the QR scanner in the app',
+    openApp:'Open JewelPrice Pro',
+    footer:'Lekkas Jewelry · Karpathos, Greece · +30 694 789 1151'
+  }
+};
+const METAL_L = { el:{gold:'Χρυσός',silver:'Ασήμι',other:'Άλλο'}, en:{gold:'Gold',silver:'Silver',other:'Other'} };
+const GENDER_L = { el:{women:'Γυναίκες',men:'Άνδρες',children:'Παιδιά',unisex:'Unisex'}, en:{women:'Women',men:'Men',children:'Children',unisex:'Unisex'} };
+const TYPE_L = {
+  el:{ring:'Δαχτυλίδι',bracelet:'Βραχιόλι',necklace:'Κολιέ',earrings:'Σκουλαρίκια',cross:'Σταυρός',pendant:'Μενταγιόν',brooch:'Καρφίτσα',chain:'Αλυσίδα',watch:'Ρολόι',cufflinks:'Μανικετόκουμπα',coin:'Νόμισμα',metal:'Μέταλλο',other:'Άλλο'},
+  en:{ring:'Ring',bracelet:'Bracelet',necklace:'Necklace',earrings:'Earrings',cross:'Cross',pendant:'Pendant',brooch:'Brooch',chain:'Chain',watch:'Watch',cufflinks:'Cufflinks',coin:'Coin',metal:'Metal',other:'Other'}
+};
+let LANG = localStorage.getItem('jpro_lang') || ((navigator.language || '').toLowerCase().startsWith('el') ? 'el' : 'en');
+let _item = null, _qr = '';
+function tr(k) { return (T[LANG] || T.en)[k] || (T.en[k] || k); }
+function metalLabelFor(m) { return (METAL_L[LANG] || METAL_L.en)[m] || m; }
+function genderLabelFor(g) { return (GENDER_L[LANG] || GENDER_L.en)[g] || g; }
+function typeLabelFor(t) { return (TYPE_L[LANG] || TYPE_L.en)[t] || t; }
+function setLang(l) {
+  LANG = l; localStorage.setItem('jpro_lang', l);
+  document.documentElement.lang = l;
+  document.getElementById('langEl').classList.toggle('active', l === 'el');
+  document.getElementById('langEn').classList.toggle('active', l === 'en');
+  document.getElementById('hdrSub').textContent = tr('itemDetails');
+  document.getElementById('footer').textContent = tr('footer');
+  const lm = document.getElementById('loadingMsg'); if (lm) lm.textContent = tr('loading');
+  if (_item) render(_item, _qr); // re-render the loaded item in the new language
+}
 const JEWELRY_TYPE_PREFIX = {
   ring:'RG', bracelet:'BR', necklace:'NK', earrings:'ER',
   cross:'CR', pendant:'PE', brooch:'BO', chain:'CH',
@@ -294,9 +356,9 @@ function copyQr() {
   const code = document.getElementById('qrText').textContent;
   const btn  = document.getElementById('copyBtn');
   navigator.clipboard.writeText(code).then(() => {
-    btn.textContent = '✓ Copied';
+    btn.textContent = tr('copied');
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    setTimeout(() => { btn.textContent = tr('copy'); btn.classList.remove('copied'); }, 2000);
   }).catch(() => {
     // fallback
     const ta = document.createElement('textarea');
@@ -304,8 +366,8 @@ function copyQr() {
     document.body.appendChild(ta); ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    btn.textContent = '✓ Copied'; btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    btn.textContent = tr('copied'); btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = tr('copy'); btn.classList.remove('copied'); }, 2000);
   });
 }
 
@@ -314,7 +376,7 @@ async function loadItem() {
   const qr  = decodeURIComponent(raw).trim();
 
   if (!qr) {
-    show('<div class="state" style="color:#c0392b">No item code provided.</div>');
+    show(`<div class="state" style="color:#c0392b">${tr('noCode')}</div>`);
     return;
   }
 
@@ -328,39 +390,40 @@ async function loadItem() {
     );
 
     if (!entry) {
-      show(`<div class="state" style="color:#c0392b">Item not found.<br><small style="font-size:11px;color:#5A5240;margin-top:8px;display:block">${qr}</small></div>`);
+      show(`<div class="state" style="color:#c0392b">${tr('notFound')}<br><small style="font-size:11px;color:#5A5240;margin-top:8px;display:block">${qr}</small></div>`);
       return;
     }
 
-    const item = entry[1];
-    render(item, qr);
+    _item = entry[1]; _qr = qr;
+    render(_item, qr);
 
   } catch(e) {
-    show('<div class="state" style="color:#c0392b">Failed to load. Check your connection.</div>');
+    show(`<div class="state" style="color:#c0392b">${tr('loadFail')}</div>`);
   }
 }
 
 function render(item, qr) {
-  const typeEn     = item.jewelryType || '';
-  const handmade   = item.handmade ? ' Handmade' : '';
-  const descEn     = (item.descEn || item.description || '').trim();
-  const name       = (typeEn + handmade + (descEn ? ' ' + descEn : '')) || qr;
+  const typeKey    = item.jewelryType || '';
+  const typeLbl    = typeKey ? typeLabelFor(typeKey) : '';
+  const handmade   = item.handmade ? ' ' + tr('handmade') : '';
+  const desc       = (LANG === 'el' ? (item.descEl || item.descEn) : (item.descEn || item.descEl)) || item.description || '';
+  const name       = ((typeLbl + handmade + (desc.trim() ? ' ' + desc.trim() : '')).trim()) || qr;
 
   const karat      = item.karat ? item.karat.replace(/s$/, '') : '';
   const metalStr   = item.metal && item.metal !== 'other'
-    ? (metalLabel[item.metal] || item.metal) + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '')
+    ? metalLabelFor(item.metal) + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '')
     : '';
 
   let rows = '';
-  if (typeEn)          rows += row('Type', typeEn + handmade);
-  if (metalStr)        rows += row('Metal', metalStr);
-  if (item.gender)     rows += row('For', genderLabel[item.gender] || item.gender);
+  if (typeLbl)         rows += row(tr('kType'), typeLbl + handmade);
+  if (metalStr)        rows += row(tr('kMetal'), metalStr);
+  if (item.gender)     rows += row(tr('kFor'), genderLabelFor(item.gender));
   // Hide the internal "melee" prefix from public visitors — show plain stone names
   const stonesPublic = item.stonesDesc
     ? item.stonesDesc.split(' · ').map(s => s.trim().replace(/^melee\s+/i, '')).join(' · ')
     : '';
-  if (stonesPublic)    rows += row('Stones', stonesPublic);
-  if (item.seqId)      rows += row('Ref.', itemRefCode(item));
+  if (stonesPublic)    rows += row(tr('kStones'), stonesPublic);
+  if (item.seqId)      rows += row(tr('kRef'), itemRefCode(item));
 
   const qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qr);
 
@@ -374,18 +437,18 @@ function render(item, qr) {
     ${rows}
     <div class="divider"></div>
     <div class="qr-section">
-      <div class="qr-label">Scan to open in JewelPrice Pro</div>
+      <div class="qr-label">${tr('scanToOpen')}</div>
       <img class="qr-img" src="${qrImgUrl}" alt="${qr}" id="qrImg">
       <div class="qr-actions">
-        <a class="qr-download" href="${qrImgUrl}&format=png" download="${qr}.png">⬇ Download QR</a>
+        <a class="qr-download" href="${qrImgUrl}&format=png" download="${qr}.png">${tr('downloadQr')}</a>
       </div>
       <div class="copy-row">
         <span class="copy-code" id="qrText">${qr}</span>
-        <button class="copy-btn" onclick="copyQr()" id="copyBtn">Copy</button>
+        <button class="copy-btn" onclick="copyQr()" id="copyBtn">${tr('copy')}</button>
       </div>
-      <div class="qr-hint" style="margin-top:12px">Scan with your USB scanner or the QR scanner in the app</div>
+      <div class="qr-hint" style="margin-top:12px">${tr('scanHint')}</div>
     </div>
-    <a class="open-btn" href="${APP_URL}">Open JewelPrice Pro</a>
+    <a class="open-btn" href="${APP_URL}">${tr('openApp')}</a>
   `);
 }
 
@@ -397,6 +460,7 @@ function show(html) {
   document.getElementById('content').innerHTML = html;
 }
 
+setLang(LANG);
 loadItem();
 </script>
 </body>

@@ -122,13 +122,38 @@
 </div>
 
 <script>
+// Bilingual viewer chrome. The quote CONTENT is already in the language it was
+// created in (baked HTML from the app); this only translates the surrounding UI.
+const QT = {
+  el: { loading:'Φόρτωση προσφοράς…', notFoundTitle:'Η προσφορά δεν βρέθηκε',
+        notFoundMsg:'Αυτός ο σύνδεσμος ίσως δεν ισχύει ή η προσφορά διαγράφηκε.',
+        missing:'Λείπει το ID προσφοράς ή η διεύθυνση βάσης.',
+        stillSaving:'Η προσφορά δεν βρέθηκε. Ίσως αποθηκεύεται ακόμη — δοκιμάστε ξανά σε λίγο.',
+        loadErr:'Αδύνατη η φόρτωση: ', share:'↗ Κοινοποίηση', savePdf:'⬇ Αποθήκευση PDF', copied:'✓ Αντιγράφηκε' },
+  en: { loading:'Loading quote…', notFoundTitle:'Quote not found',
+        notFoundMsg:'This link may be invalid or the quote was deleted.',
+        missing:'Missing quote ID or database URL.',
+        stillSaving:'Quote not found. It may still be saving — please try again in a moment.',
+        loadErr:'Could not load quote: ', share:'↗ Share', savePdf:'⬇ Save PDF', copied:'✓ Copied' }
+};
+const QLANG = localStorage.getItem('jpro_lang') || ((navigator.language || '').toLowerCase().startsWith('el') ? 'el' : 'en');
+function qt(k) { return (QT[QLANG] || QT.en)[k] || QT.en[k] || k; }
+(function _applyQuoteChrome() {
+  document.documentElement.lang = QLANG;
+  const lt = document.querySelector('.loading-text'); if (lt) lt.textContent = qt('loading');
+  const et = document.querySelector('#error strong'); if (et) et.textContent = qt('notFoundTitle');
+  const em = document.getElementById('error-msg'); if (em) em.textContent = qt('notFoundMsg');
+  const bs = document.getElementById('btn-share'); if (bs) bs.textContent = qt('share');
+  const bp = document.getElementById('btn-pdf'); if (bp) bp.textContent = qt('savePdf');
+})();
+
 (async function() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
   const db = params.get('db');
   const secret = params.get('secret') || '';
 
-  if (!id || !db) { showError('Missing quote ID or database URL.'); return; }
+  if (!id || !db) { showError(qt('missing')); return; }
 
   const base = db.replace(/\/+$/, '');
 
@@ -169,7 +194,7 @@
     // Try dedicated record first (fast), then fall back to array
     let data = await fetchHtmlRecord();
     if (!data) data = await fetchFromArray();
-    if (!data) { showError('Quote not found. It may still be saving — please try again in a moment.'); return; }
+    if (!data) { showError(qt('stillSaving')); return; }
 
     document.title = (data.title || 'Quote') + ' — Lekkas Jewelry';
 
@@ -193,7 +218,7 @@
     document.getElementById('quote-wrap').style.display = 'block';
 
   } catch(e) {
-    showError('Could not load quote: ' + e.message);
+    showError(qt('loadErr') + e.message);
   }
 })();
 
@@ -228,8 +253,8 @@ function shareQuote() {
   } else {
     navigator.clipboard && navigator.clipboard.writeText(window.location.href).then(function() {
       const btn = document.getElementById('btn-share');
-      btn.textContent = '✓ Copied';
-      setTimeout(function() { btn.textContent = '↗ Share'; }, 2000);
+      btn.textContent = qt('copied');
+      setTimeout(function() { btn.textContent = qt('share'); }, 2000);
     });
   }
 }
