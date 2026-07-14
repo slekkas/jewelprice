@@ -13809,7 +13809,7 @@ function renderInvList() {
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${item.qrCode || item.code || '—'}</div>
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
-            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'rgba(255,255,255,0.2)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:13px">🔒</button>` : ''}
+            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'rgba(255,255,255,0.2)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
@@ -17879,9 +17879,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.82', date: 'Ιούλιος 2026', items: [
-        '🔒 Κρατήσεις — ολοκλήρωση & παράδοση: κάθε κράτηση έχει τώρα κουμπί «Ολοκλήρωση & Πώληση» που ανοίγει την κανονική πώληση με τη συμφωνημένη τιμή (ένα ή πολλά είδη· οι χύδην αλυσίδες αφαιρούν τα γραμμάρια), καταχωρεί την πώληση και κλείνει την κράτηση. Νέο φίλτρο «🔒 Κρατημένα» στην κατάσταση αποθέματος. Αν πουλήσετε κρατημένο είδος, σας κατευθύνει στην κράτηση. Αυτόματη λήξη: μετά την ημερομηνία «κράτηση έως» τα είδη επιστρέφουν στη βιτρίνα. Διορθώθηκε το πεδίο ποσού προκαταβολής/πληρωμής.',
-        '🗓 Οι ημερομηνίες σε PDF και ειδοποιήσεις ακολουθούν πλέον τη «Μορφή Ημερομηνίας» των Ρυθμίσεων (όπως όλες οι υπόλοιπες).'
+      { version: 'v10.83', date: 'Ιούλιος 2026', items: [
+        '🔧 Διόρθωση: το εικονίδιο κράτησης (λουκέτο) στην κάρτα αποθέματος φαινόταν χρυσό (σαν κρατημένο) σε όλα τα είδη. Τώρα είναι γκρι όταν το είδος είναι διαθέσιμο και χρυσό μόνο όταν είναι πράγματι κρατημένο.'
       ]},
           ]
   },
@@ -17912,9 +17911,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.82', date: 'Jul 2026', items: [
-        '🔒 Reservations — completion & handover: every reservation now has a «Complete & sell» button that opens the normal sale at the agreed price (single or multiple items; bulk chains deduct their grams), records the sale and closes the reservation. New «🔒 Reserved» filter in Stock status. Selling a reserved item steers you to its reservation. Auto-expiry: after the «hold until» date items return to the showroom. Fixed the deposit/payment amount box.',
-        '🗓 Dates in PDFs and notifications now follow the Settings «Date Format» (like every other date).'
+      { version: 'v10.83', date: 'Jul 2026', items: [
+        '🔧 Fix: the reserve icon (padlock) on the Stock card looked gold (as if reserved) on every item. It\'s now grey when the item is available and gold only when it\'s actually reserved.'
       ]},
           ]
   }
@@ -20804,7 +20802,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.82';
+const APP_VERSION = '10.83';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
