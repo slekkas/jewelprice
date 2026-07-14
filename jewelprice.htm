@@ -2221,9 +2221,12 @@
     </div>
     <div style="margin-bottom:14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleCustomerPhone">Τηλέφωνο Πελάτη (προαιρετικό)</label>
-      <input type="tel" id="saleCustomerPhone" autocomplete="off"
-        style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px"
-        data-i18n-ph="saleCustomerPhonePh">
+      <div style="display:flex;gap:6px">
+        <select id="saleCustomerPhoneCode" style="flex:0 0 auto;width:auto;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:0 4px"></select>
+        <input type="tel" id="saleCustomerPhone" autocomplete="off"
+          style="flex:1;width:auto;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px"
+          data-i18n-ph="saleCustomerPhonePh">
+      </div>
     </div>
     <div style="margin-bottom:14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleCustomerEmail">Email Πελάτη (προαιρετικό)</label>
@@ -2378,9 +2381,9 @@
     </div>
     <div class="field" style="margin-bottom:12px">
       <label data-i18n="clientPhone">Κινητό Τηλέφωνο</label>
-      <div style="display:flex;gap:8px;align-items:stretch">
+      <div style="display:flex;gap:6px">
+        <select id="clientEditPhoneCode" style="flex:0 0 auto;width:auto;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:0 4px"></select>
         <input type="tel" id="clientEditPhone" autocomplete="off" style="flex:1;width:auto">
-        <button type="button" onclick="_callPhone(document.getElementById('clientEditPhone').value)" title="${''}" style="flex:0 0 auto;width:46px;background:rgba(39,174,96,0.14);border:1px solid rgba(39,174,96,0.45);border-radius:6px;color:#3daa6a;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px">📞</button>
       </div>
     </div>
     <div class="field" style="margin-bottom:16px">
@@ -4615,8 +4618,11 @@ function openReserveDialog(items, source) {
     <div style="${_resLbl}">${isEl ? 'Είδη' : 'Items'} (${items.length})</div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
     <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
-    <input id="resCustName" autocomplete="off" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
-    <input id="resCustPhone" type="tel" autocomplete="off" style="${_resInp}" placeholder="${isEl ? 'Τηλέφωνο' : 'Phone'}">
+    <div style="position:relative;margin-bottom:10px">
+      <input id="resCustName" autocomplete="off" oninput="_resClientAutocomplete(this.value)" onblur="setTimeout(_resHideClientSug,200)" style="${_resInp.replace('margin-bottom:10px','margin-bottom:0')}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+      <div id="resClientSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;z-index:6;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+    </div>
+    <div style="margin-bottom:10px">${_phoneFieldHtml('resCustPhoneCode', 'resCustPhone', '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
     <input id="resCustEmail" type="email" autocomplete="off" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
     <div style="${_resLbl}">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'} (€)</div>
     <input id="resAgreedTotal" type="number" step="0.01" inputmode="decimal" value="${sum.toFixed(2)}" style="${_resInp}">
@@ -4640,7 +4646,7 @@ function openReserveDialog(items, source) {
 async function _resDialogSave() {
   const name = (document.getElementById('resCustName').value || '').trim();
   if (!name) { _resDlgStatus(lang === 'el' ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
-  const phone = (document.getElementById('resCustPhone').value || '').trim();
+  const phone = _readPhoneField('resCustPhoneCode', 'resCustPhone');
   const email = (document.getElementById('resCustEmail').value || '').trim();
   const agreed = parseFloat(document.getElementById('resAgreedTotal').value) || _resDlgItems.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
   const dep = parseFloat(document.getElementById('resDeposit').value) || 0;
@@ -4663,6 +4669,25 @@ async function _resDialogSave() {
   if (typeof renderReservations === 'function') renderReservations();
   if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
 }
+
+// Customer name autocomplete in the reserve dialog (fills name + phone + email).
+function _resClientAutocomplete(val) {
+  const box = document.getElementById('resClientSug'); if (!box) return;
+  const q = (val || '').trim().toLowerCase();
+  if (q.length < 1) { box.style.display = 'none'; return; }
+  const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(c => `<div onclick="_resSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_resEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_resEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.style.display = 'block';
+}
+function _resSelectClient(id) {
+  const c = getClients().find(cl => cl.id === id); if (!c) return;
+  const nm = document.getElementById('resCustName'); if (nm) nm.value = c.name || '';
+  _setPhoneField('resCustPhoneCode', 'resCustPhone', c.phone || '');
+  const em = document.getElementById('resCustEmail'); if (em) em.value = c.email || '';
+  _resHideClientSug();
+}
+function _resHideClientSug() { const b = document.getElementById('resClientSug'); if (b) b.style.display = 'none'; }
 
 // ── Reserve entry points ──
 function reserveSingleFromCalc() {
@@ -4707,7 +4732,7 @@ function openReservationDetail(id) {
   const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:#7fd6b0">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="_callPhone('${(r.clientPhone||'').replace(/[^0-9+]/g,'')}')" style="color:#3daa6a;cursor:pointer">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
+      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="_callPhone('${(r.clientPhone||'').replace(/[^0-9+]/g,'')}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
       <button onclick="document.getElementById('reservationDetailOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0">&times;</button>
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
@@ -4795,7 +4820,7 @@ async function _resComplete(id) {
   // Carry the customer + a deposit note into the sale modal. Set AFTER the call —
   // openMultiSaleModal clears these fields synchronously, so this must run after it.
   const _nm = document.getElementById('saleCustomerName'); if (_nm) _nm.value = r.clientName || '';
-  const _ph = document.getElementById('saleCustomerPhone'); if (_ph) _ph.value = r.clientPhone || '';
+  _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', r.clientPhone || '');
   const _em = document.getElementById('saleCustomerEmail'); if (_em) _em.value = r.clientEmail || '';
   const paid = resPaid(r);
   if (paid > 0) { const note = document.getElementById('saleNoteInput'); if (note) note.value = (note.value ? note.value + ' · ' : '') + resNoFmt(r) + ' (' + (lang === 'el' ? 'προκαταβολή' : 'deposit') + ' ' + (state.currency || '€') + paid.toFixed(2) + ')'; }
@@ -6393,7 +6418,7 @@ function _openSingleSaleModal() {
   const qEmail = document.getElementById('quoteCustomerEmail');
   document.getElementById('saleCustomerName').value = qName ? qName.value.trim() : '';
   document.getElementById('saleCustomerEmail').value = qEmail ? qEmail.value.trim() : '';
-  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
+  _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', '');
   // Pre-fill vendor from last calculation
   const vSel = document.getElementById('vendorSelect');
   const vendorName = (vSel && vSel.options[vSel.selectedIndex]) ? vSel.options[vSel.selectedIndex].text : '';
@@ -6527,7 +6552,7 @@ function openSaleModalFromQuote(id) {
     document.getElementById('saleDateDisplayText').textContent = fmtDate(todayStr());
     document.getElementById('saleCustomerName').value = e.customer || '';
     document.getElementById('saleCustomerEmail').value = '';
-    { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
+    _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', '');
     document.getElementById('saleVendorName').value = e.vendor || '';
     hideSaleClientSuggestions();
     document.getElementById('saleModal').style.display = 'flex';
@@ -6993,7 +7018,7 @@ async function confirmSale() {
   const date = document.getElementById('saleDateInput').value || todayStr();
   const saleCustomer = document.getElementById('saleCustomerName').value.trim();
   const saleEmail = document.getElementById('saleCustomerEmail').value.trim();
-  const salePhone = (document.getElementById('saleCustomerPhone')?.value || '').trim();
+  const salePhone = _readPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone');
   // Save the customer to the Clients list (or fill in a missing phone/email).
   if (saleCustomer) upsertClientFromSale(saleCustomer, salePhone, saleEmail);
   const saleVendor = document.getElementById('saleVendorName').value.trim();
@@ -16233,7 +16258,7 @@ function openSaleModalFromInventory(id) {
   document.getElementById('saleDateDisplayText').textContent = fmtDate(todayStr());
   document.getElementById('saleCustomerName').value = '';
   document.getElementById('saleCustomerEmail').value = '';
-  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
+  _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', '');
   document.getElementById('saleVendorName').value = item.vendorName || '';
   hideSaleClientSuggestions();
   window._saleFromInvId = id;  // remembered in confirmSale
@@ -17916,10 +17941,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.86', date: 'Ιούλιος 2026', items: [
-        '🗓 Στη φόρμα κράτησης, η ημερομηνία «Κράτηση έως» εμφανίζεται πλέον στη μορφή των Ρυθμίσεων (π.χ. ΗΗ/ΜΜ/ΕΕΕΕ) και όχι στη μορφή του κινητού.',
-        '📞 Κουμπί κλήσης δίπλα στο τηλέφωνο πελάτη (καρτέλα πελάτη & κράτηση) — ανοίγει τον τηλεφωνητή του κινητού.',
-        '🗑 Οι ακυρωμένες/ληγμένες κρατήσεις μπορούν πλέον να διαγραφούν οριστικά από τη λίστα.'
+      { version: 'v10.87', date: 'Ιούλιος 2026', items: [
+        '📞 Επιλογέας κωδικού χώρας μπροστά από κάθε πεδίο τηλεφώνου (κράτηση, πελάτης, πώληση) — π.χ. για Δανό πελάτη επιλέγετε Δανία (+45) και γράφετε μόνο τον αριθμό.',
+        '⌨️ Στη νέα κράτηση, το όνομα πελάτη έχει τώρα αυτόματη συμπλήρωση — επιλέγοντας υπάρχοντα πελάτη γεμίζουν όνομα/τηλέφωνο/email.',
+        '📞 Το τηλέφωνο στην καρτέλα πελάτη είναι πλέον κουμπί κλήσης (πιο φωτεινό) που ανοίγει τον τηλεφωνητή.'
       ]},
           ]
   },
@@ -17950,10 +17975,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.86', date: 'Jul 2026', items: [
-        '🗓 In the reserve form, the «Hold until» date now shows in your Settings date format (e.g. DD/MM/YYYY) rather than the phone\'s format.',
-        '📞 Call button next to the customer phone (client card & reservation) — opens the phone\'s dialer.',
-        '🗑 Cancelled/expired reservations can now be permanently deleted from the list.'
+      { version: 'v10.87', date: 'Jul 2026', items: [
+        '📞 Country-code picker in front of every phone field (reservation, client, sale) — e.g. for a Danish customer pick Denmark (+45) and just type the number.',
+        '⌨️ In a new reservation, the customer name now autocompletes — picking an existing customer fills in name/phone/email.',
+        '📞 The phone on the client card is now a (brighter) tap-to-call button that opens the dialer.'
       ]},
           ]
   }
@@ -18190,7 +18215,7 @@ function openMultiSaleModal(items) {
   document.getElementById('saleDateDisplayText').textContent = fmtDate(todayStr());
   document.getElementById('saleCustomerName').value = '';
   document.getElementById('saleCustomerEmail').value = '';
-  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
+  _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', '');
   document.getElementById('saleVendorName').value = '';
   hideSaleClientSuggestions();
   _pendingSalePhoto = null;
@@ -19819,6 +19844,63 @@ function _callPhone(num) {
   window.location.href = 'tel:' + num.replace(/[^0-9+]/g, '');
 }
 
+// ── COUNTRY DIAL CODES (phone fields) ─────────────────────────────────────────
+// Greece default; broad enough for a tourist island (EU + common visitor origins).
+const COUNTRY_DIAL = [
+  {d:'+30',n:'Greece',f:'🇬🇷'},{d:'+357',n:'Cyprus',f:'🇨🇾'},{d:'+44',n:'UK',f:'🇬🇧'},
+  {d:'+49',n:'Germany',f:'🇩🇪'},{d:'+33',n:'France',f:'🇫🇷'},{d:'+39',n:'Italy',f:'🇮🇹'},
+  {d:'+31',n:'Netherlands',f:'🇳🇱'},{d:'+32',n:'Belgium',f:'🇧🇪'},{d:'+45',n:'Denmark',f:'🇩🇰'},
+  {d:'+46',n:'Sweden',f:'🇸🇪'},{d:'+47',n:'Norway',f:'🇳🇴'},{d:'+358',n:'Finland',f:'🇫🇮'},
+  {d:'+48',n:'Poland',f:'🇵🇱'},{d:'+43',n:'Austria',f:'🇦🇹'},{d:'+41',n:'Switzerland',f:'🇨🇭'},
+  {d:'+34',n:'Spain',f:'🇪🇸'},{d:'+351',n:'Portugal',f:'🇵🇹'},{d:'+353',n:'Ireland',f:'🇮🇪'},
+  {d:'+420',n:'Czechia',f:'🇨🇿'},{d:'+36',n:'Hungary',f:'🇭🇺'},{d:'+40',n:'Romania',f:'🇷🇴'},
+  {d:'+359',n:'Bulgaria',f:'🇧🇬'},{d:'+385',n:'Croatia',f:'🇭🇷'},{d:'+386',n:'Slovenia',f:'🇸🇮'},
+  {d:'+421',n:'Slovakia',f:'🇸🇰'},{d:'+372',n:'Estonia',f:'🇪🇪'},{d:'+371',n:'Latvia',f:'🇱🇻'},
+  {d:'+370',n:'Lithuania',f:'🇱🇹'},{d:'+352',n:'Luxembourg',f:'🇱🇺'},{d:'+356',n:'Malta',f:'🇲🇹'},
+  {d:'+354',n:'Iceland',f:'🇮🇸'},{d:'+1',n:'USA/Canada',f:'🇺🇸'},{d:'+61',n:'Australia',f:'🇦🇺'},
+  {d:'+64',n:'New Zealand',f:'🇳🇿'},{d:'+972',n:'Israel',f:'🇮🇱'},{d:'+7',n:'Russia',f:'🇷🇺'},
+  {d:'+380',n:'Ukraine',f:'🇺🇦'},{d:'+90',n:'Turkey',f:'🇹🇷'},{d:'+381',n:'Serbia',f:'🇷🇸'},
+  {d:'+355',n:'Albania',f:'🇦🇱'},{d:'+389',n:'N.Macedonia',f:'🇲🇰'},{d:'+20',n:'Egypt',f:'🇪🇬'},
+  {d:'+971',n:'UAE',f:'🇦🇪'},{d:'+966',n:'Saudi Arabia',f:'🇸🇦'},{d:'+81',n:'Japan',f:'🇯🇵'},
+  {d:'+86',n:'China',f:'🇨🇳'},{d:'+82',n:'South Korea',f:'🇰🇷'},{d:'+91',n:'India',f:'🇮🇳'},
+  {d:'+55',n:'Brazil',f:'🇧🇷'},{d:'+27',n:'South Africa',f:'🇿🇦'}
+];
+function _countryOptions(selDial) {
+  return COUNTRY_DIAL.map(c => `<option value="${c.d}"${c.d === (selDial||'+30') ? ' selected' : ''}>${c.f} ${c.d}</option>`).join('');
+}
+// Split a stored phone ("+45 12345678" or "6977…") into {dial, rest}.
+function _splitPhone(stored) {
+  stored = (stored || '').trim();
+  if (stored.startsWith('+')) {
+    const dials = COUNTRY_DIAL.map(c => c.d).sort((a, b) => b.length - a.length);
+    for (const d of dials) { if (stored.startsWith(d)) return { dial: d, rest: stored.slice(d.length).trim() }; }
+    return { dial: '+30', rest: stored };
+  }
+  return { dial: '+30', rest: stored };
+}
+// Country-select + number-input pair. codeId/numId are the two element ids.
+function _phoneFieldHtml(codeId, numId, stored, ph) {
+  const s = _splitPhone(stored);
+  return `<div style="display:flex;gap:6px">
+    <select id="${codeId}" style="flex:0 0 auto;width:auto;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:0 4px">${_countryOptions(s.dial)}</select>
+    <input id="${numId}" type="tel" autocomplete="off" value="${s.rest.replace(/"/g, '&quot;')}" placeholder="${ph || ''}" style="flex:1;width:auto;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:10px 12px">
+  </div>`;
+}
+// Read the combined phone ("+30 6977…") from a code+number pair; '' if no number.
+function _readPhoneField(codeId, numId) {
+  const dial = document.getElementById(codeId)?.value || '';
+  const num = (document.getElementById(numId)?.value || '').trim();
+  return num ? (dial + ' ' + num).trim() : '';
+}
+// Populate a code+number pair from a stored phone (fills the select's options first
+// time if it's a static, empty <select>).
+function _setPhoneField(codeId, numId, stored) {
+  const s = _splitPhone(stored);
+  const c = document.getElementById(codeId);
+  if (c) { if (!c.options || !c.options.length) c.innerHTML = _countryOptions(s.dial); c.value = s.dial; }
+  const n = document.getElementById(numId); if (n) n.value = s.rest;
+}
+
 // Add a customer to the Clients list from a sale / reservation, or fill in a
 // missing phone/email on an existing client (matched by name). Fire-and-forget.
 async function upsertClientFromSale(name, phone, email) {
@@ -19957,7 +20039,7 @@ function renderClients(filter) {
           </div>
         </div>
         ${c.email?`<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:2px">✉ ${c.email}</div>`:''}
-        ${c.phone?`<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:2px">📞 ${c.phone}</div>`:''}
+        ${c.phone?`<div onclick="event.stopPropagation();_callPhone('${(c.phone||'').replace(/[^0-9+]/g,'')}')" title="${lang==='el'?'Κλήση':'Call'}" style="font-family:var(--font-mono);font-size:12px;color:#4bd07f;margin-bottom:3px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600">📞 ${c.phone}</div>`:''}
         ${addedStr?`<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:3px">🗓 ${lang==='el'?'Προστέθηκε':'Added'} ${addedStr}</div>`:''}
         ${c.notes?`<div style="font-family:var(--font-body);font-size:11px;color:var(--text-dim);font-style:italic;margin-top:5px;line-height:1.4">${c.notes}</div>`:''}
       </div>
@@ -19970,7 +20052,7 @@ function openClientEditModal(id) {
   document.getElementById('clientEditId').value = id || '';
   document.getElementById('clientEditName').value = client?.name || '';
   document.getElementById('clientEditEmail').value = client?.email || '';
-  document.getElementById('clientEditPhone').value = client?.phone || '';
+  _setPhoneField('clientEditPhoneCode', 'clientEditPhone', client?.phone || '');
   document.getElementById('clientEditNotes').value = client?.notes || '';
   document.getElementById('clientEditTitle').textContent = client ? t('clientEditTitleStr') : t('clientNewTitle');
   document.getElementById('clientEditModal').style.display = 'flex';
@@ -19989,7 +20071,7 @@ async function saveClientEdit() {
   const client = {
     id, name,
     email: document.getElementById('clientEditEmail').value.trim(),
-    phone: document.getElementById('clientEditPhone').value.trim(),
+    phone: _readPhoneField('clientEditPhoneCode', 'clientEditPhone'),
     notes: document.getElementById('clientEditNotes').value.trim()
   };
   await saveClient(client);
@@ -20056,7 +20138,7 @@ function selectSaleClientSuggestion(id) {
   if (!c) return;
   document.getElementById('saleCustomerName').value = c.name || '';
   document.getElementById('saleCustomerEmail').value = c.email || '';
-  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = c.phone || ''; }
+  _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', c.phone || '');
   hideSaleClientSuggestions();
 }
 
@@ -20873,7 +20955,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.86';
+const APP_VERSION = '10.87';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
