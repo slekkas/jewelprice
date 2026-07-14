@@ -2378,7 +2378,10 @@
     </div>
     <div class="field" style="margin-bottom:12px">
       <label data-i18n="clientPhone">Κινητό Τηλέφωνο</label>
-      <input type="tel" id="clientEditPhone" autocomplete="off">
+      <div style="display:flex;gap:8px;align-items:stretch">
+        <input type="tel" id="clientEditPhone" autocomplete="off" style="flex:1;width:auto">
+        <button type="button" onclick="_callPhone(document.getElementById('clientEditPhone').value)" title="${''}" style="flex:0 0 auto;width:46px;background:rgba(39,174,96,0.14);border:1px solid rgba(39,174,96,0.45);border-radius:6px;color:#3daa6a;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px">📞</button>
+      </div>
     </div>
     <div class="field" style="margin-bottom:16px">
       <label data-i18n="clientNotes">Σημειώσεις</label>
@@ -4623,7 +4626,10 @@ function openReserveDialog(items, source) {
       <select id="resDepositMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
     </div>
     <div style="${_resLbl}">${isEl ? 'Κράτηση έως' : 'Hold until'}</div>
-    <input id="resHoldUntil" type="date" value="${dflt}" style="${_resInp}">
+    <div style="position:relative;margin-bottom:10px">
+      <div id="resHoldUntilDisp" style="${_resInp.replace('margin-bottom:10px','margin-bottom:0')}">${fmtDate(dflt)}</div>
+      <input id="resHoldUntil" type="date" value="${dflt}" onchange="var _d=document.getElementById('resHoldUntilDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
     <div id="resDlgStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px"></div>
     <button onclick="_resDialogSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔒 ${isEl ? 'Κράτηση' : 'Reserve'}</button>
   </div>`;
@@ -4701,7 +4707,7 @@ function openReservationDetail(id) {
   const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:#7fd6b0">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ' · ' + _resEsc(r.clientPhone) : ''}</div></div>
+      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="_callPhone('${(r.clientPhone||'').replace(/[^0-9+]/g,'')}')" style="color:#3daa6a;cursor:pointer">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
       <button onclick="document.getElementById('reservationDetailOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0">&times;</button>
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
@@ -4720,7 +4726,8 @@ function openReservationDetail(id) {
     </div>
     <button onclick="_resComplete('${r.id}')" style="width:100%;margin-top:12px;padding:14px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">✅ ${isEl ? 'Ολοκλήρωση & Πώληση' : 'Complete & sell'}</button>
     <button onclick="_resCancel('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">✕ ${isEl ? 'Ακύρωση κράτησης' : 'Cancel reservation'}</button>`
-    : `<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:6px">${r.status === 'completed' ? (isEl ? 'Ολοκληρώθηκε' : 'Completed') : (isEl ? 'Ακυρώθηκε' : 'Cancelled')}${r.dateCompleted ? ' · ' + fmtDate(new Date(r.dateCompleted)) : ''}</div>`}
+    : `<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:6px">${r.status === 'completed' ? (isEl ? 'Ολοκληρώθηκε' : 'Completed') : r.status === 'expired' ? (isEl ? 'Έληξε' : 'Expired') : (isEl ? 'Ακυρώθηκε' : 'Cancelled')}${r.dateCompleted ? ' · ' + fmtDate(new Date(r.dateCompleted)) : ''}</div>
+    ${(r.status === 'cancelled' || r.status === 'expired') ? `<button onclick="_resDelete('${r.id}')" style="width:100%;margin-top:12px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.35);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}`}
   </div>`;
   document.body.appendChild(ov);
 }
@@ -4734,6 +4741,18 @@ async function _resAddPayment(id) {
   r.payments.push({ amount: parseFloat(amt.toFixed(2)), date: todayStr(), method, by: creds.displayName || creds.userName || '', note: '' });
   saveReservationsLocal(list); pushReservationsToCloud(list);
   openReservationDetail(id); renderReservations();
+}
+
+// Permanently remove a cancelled/expired reservation from the list (owner/manager).
+function _resDelete(id) {
+  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτής της κράτησης;' : 'Permanently delete this reservation?', async () => {
+    const list = getReservations().filter(x => x.id !== id);
+    saveReservationsLocal(list); pushReservationsToCloud(list);
+    document.getElementById('reservationDetailOverlay')?.remove();
+    renderReservations();
+    showToast(lang === 'el' ? 'Διαγράφηκε' : 'Deleted');
+  }, null, { danger: true });
 }
 
 function _resCancel(id) {
@@ -17897,8 +17916,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.85', date: 'Ιούλιος 2026', items: [
-        '👤 Οι πελάτες αποθηκεύονται αυτόματα: όταν κάνετε κράτηση ή πώληση με όνομα πελάτη, ο πελάτης (με τηλέφωνο/email) προστίθεται στη λίστα Πελατών — ή συμπληρώνεται τηλέφωνο/email που έλειπε. Προστέθηκε πεδίο τηλεφώνου στη φόρμα πώλησης. Στην «Ολοκλήρωση» κράτησης, όνομα/τηλέφωνο/email του πελάτη συμπληρώνονται αυτόματα.'
+      { version: 'v10.86', date: 'Ιούλιος 2026', items: [
+        '🗓 Στη φόρμα κράτησης, η ημερομηνία «Κράτηση έως» εμφανίζεται πλέον στη μορφή των Ρυθμίσεων (π.χ. ΗΗ/ΜΜ/ΕΕΕΕ) και όχι στη μορφή του κινητού.',
+        '📞 Κουμπί κλήσης δίπλα στο τηλέφωνο πελάτη (καρτέλα πελάτη & κράτηση) — ανοίγει τον τηλεφωνητή του κινητού.',
+        '🗑 Οι ακυρωμένες/ληγμένες κρατήσεις μπορούν πλέον να διαγραφούν οριστικά από τη λίστα.'
       ]},
           ]
   },
@@ -17929,8 +17950,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.85', date: 'Jul 2026', items: [
-        '👤 Customers are saved automatically: making a reservation or a sale with a customer name now adds them (with phone/email) to the Clients list — or fills in a missing phone/email. Added a phone field to the sale form. On reservation «Complete», the customer\'s name/phone/email are pre-filled.'
+      { version: 'v10.86', date: 'Jul 2026', items: [
+        '🗓 In the reserve form, the «Hold until» date now shows in your Settings date format (e.g. DD/MM/YYYY) rather than the phone\'s format.',
+        '📞 Call button next to the customer phone (client card & reservation) — opens the phone\'s dialer.',
+        '🗑 Cancelled/expired reservations can now be permanently deleted from the list.'
       ]},
           ]
   }
@@ -19789,6 +19812,13 @@ async function deleteClient(id) {
   await pushClientsToCloud(list);
 }
 
+// Open the phone dialer for a number (tel: link). Keeps digits, + and leading spaces.
+function _callPhone(num) {
+  num = (num || '').trim();
+  if (!num) { showToast(lang === 'el' ? 'Χωρίς αριθμό' : 'No number'); return; }
+  window.location.href = 'tel:' + num.replace(/[^0-9+]/g, '');
+}
+
 // Add a customer to the Clients list from a sale / reservation, or fill in a
 // missing phone/email on an existing client (matched by name). Fire-and-forget.
 async function upsertClientFromSale(name, phone, email) {
@@ -20843,7 +20873,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.85';
+const APP_VERSION = '10.86';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
