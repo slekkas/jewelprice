@@ -1465,11 +1465,15 @@
       </button>
     </div>
 
-    <!-- ROW 2: SOLD full-width + minimise -->
+    <!-- ROW 2: SOLD | RESERVE + minimise -->
     <div style="display:flex;gap:8px;align-items:center">
       <button id="soldBtn" onclick="openSaleModal()" class="cpb-btn cpb-btn-green" style="flex:1">
         <span class="cpb-btn-icon">✅</span>
         <span data-i18n="soldBtn">Πωλήθηκε</span>
+      </button>
+      <button id="reserveBtn" onclick="reserveSingleFromCalc()" class="cpb-btn" style="flex:1;color:var(--gold-light);border-color:rgba(212,175,55,0.4)">
+        <span class="cpb-btn-icon">🔒</span>
+        <span data-i18n="reserveBtn">Κράτηση</span>
       </button>
       <button onclick="togglePriceBar()" title="Hide price bar" style="flex:0 0 44px;height:44px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.22);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s" onmouseenter="this.style.background='rgba(212,175,55,0.18)'" onmouseleave="this.style.background='rgba(212,175,55,0.08)'">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="3,5 8,11 13,5" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1964,7 +1968,10 @@
       <span id="cartSubtotalAmt" style="font-family:'DM Mono',monospace;font-size:15px;color:var(--gold-light)">€0.00</span>
     </div>
     <button onclick="clearQuoteCart()" style="width:100%;padding:7px;background:transparent;border:1px solid rgba(192,57,43,0.3);color:var(--danger);border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="clearCart">🗑 Εκκαθάριση Καλαθιού</button>
-    <button onclick="markCartAsSold()" style="width:100%;margin-top:7px;padding:10px;background:rgba(61,170,106,0.12);border:1px solid rgba(61,170,106,0.4);color:#3daa6a;border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase">✅ <span data-i18n="markAllSold">Πώληση Όλων</span></button>
+    <div style="display:flex;gap:7px;margin-top:7px">
+      <button onclick="markCartAsSold()" style="flex:1;padding:10px;background:rgba(61,170,106,0.12);border:1px solid rgba(61,170,106,0.4);color:#3daa6a;border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">✅ <span data-i18n="markAllSold">Πώληση Όλων</span></button>
+      <button onclick="reserveCartItems()" style="flex:1;padding:10px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">🔒 <span data-i18n="reserveBtn">Κράτηση</span></button>
+    </div>
   </div>
 </div>
 
@@ -2908,7 +2915,7 @@
 
     <!-- RESERVATIONS VIEW -->
     <div id="deskReservationsView">
-      <button onclick="openReservationCreate()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;margin-bottom:12px">＋ <span data-i18n="resNew">Νέα κράτηση</span></button>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:12px;padding:9px 12px;background:rgba(212,175,55,0.05);border:1px solid rgba(212,175,55,0.15);border-radius:8px" data-i18n="resHint">🔒 Για νέα κράτηση: υπολογίστε ή σαρώστε ένα είδος και πατήστε «Κράτηση» (ή από το καλάθι / την κάρτα στο Απόθεμα).</div>
       <input type="search" id="resSearchInput" oninput="renderReservations()" data-i18n-ph="resSearchPh" placeholder="Αναζήτηση — πελάτης, είδος…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
       <div id="reservationsList"></div>
     </div>
@@ -3235,6 +3242,8 @@ const T = {
     deskRepairs:'Επισκευές',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     resNew:'Νέα κράτηση',
+    reserveBtn:'Κράτηση',
+    resHint:'🔒 Για νέα κράτηση: υπολογίστε ή σαρώστε ένα είδος και πατήστε «Κράτηση» — ή από το καλάθι (πολλά είδη) ή την κάρτα στο Απόθεμα.',
     resSearchPh:'Αναζήτηση — πελάτης, είδος…',
     navInventory:'Απόθ.',
     invTitle:'📦 Απόθεμα',
@@ -3648,6 +3657,8 @@ const T = {
     deskRepairs:'Repairs',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     resNew:'New reservation',
+    reserveBtn:'Reserve',
+    resHint:'🔒 To make a reservation: price or scan an item and tap «Reserve» — or from the cart (multiple items) or an item card in Stock.',
     resSearchPh:'Search — customer, item…',
     navInventory:'Stock',
     invTitle:'📦 Inventory',
@@ -4504,15 +4515,17 @@ function renderReservations() {
   const rank = s => s === 'active' ? 0 : (s === 'completed' ? 1 : 2);
   list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || resNoFmt(r).toLowerCase().includes(q) ||
-    (r.itemsSnapshot || []).some(it => ((it.ref || '') + ' ' + (it.desc || '')).toLowerCase().includes(q)));
+    (r.items || r.itemsSnapshot || []).some(it => ((it.ref || '') + ' ' + (it.desc || '')).toLowerCase().includes(q)));
   if (!list.length) { box.innerHTML = `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία κράτηση ακόμη' : 'No reservations yet'}</div>`; return; }
   box.innerHTML = list.map(r => {
     const bal = resBalance(r);
     const chip = r.status === 'active' ? (bal <= 0 ? `<span style="color:#7fd6b0">${isEl ? 'Πληρωμένη' : 'Paid'}</span>` : `<span style="color:#e0a85a">${isEl ? 'Ενεργή' : 'Active'}</span>`)
       : r.status === 'completed' ? `<span style="color:#7fd6b0">${isEl ? 'Ολοκληρώθηκε' : 'Completed'}</span>`
+      : r.status === 'expired' ? `<span style="color:#e0a85a">${isEl ? 'Έληξε' : 'Expired'}</span>`
       : `<span style="color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</span>`;
-    const n = (r.itemsSnapshot || []).length;
-    const itemsLine = n === 1 ? ((r.itemsSnapshot[0].desc) || r.itemsSnapshot[0].ref || '') : (isEl ? `${n} είδη` : `${n} items`);
+    const its = r.items || r.itemsSnapshot || [];
+    const n = its.length;
+    const itemsLine = n === 1 ? ((its[0].desc) || its[0].ref || '') : (isEl ? `${n} είδη` : `${n} items`);
     const balLine = r.status === 'active' ? `<span style="color:${bal > 0 ? '#e0a85a' : '#7fd6b0'}">${isEl ? 'Υπόλοιπο' : 'Balance'}: ${cur}${bal.toFixed(2)}</span>` : '<span></span>';
     return `<div onclick="openReservationDetail('${r.id}')" style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:9px;cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
@@ -4527,103 +4540,143 @@ function renderReservations() {
 
 const _resInp = 'width:100%;box-sizing:border-box;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:10px';
 const _resLbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px';
-function _resStatus(msg) { const el = document.getElementById('resCreateStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+let _resDlgItems = [];
+function _resDlgStatus(msg) { const el = document.getElementById('resDlgStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
 
-function openReservationCreate(preIds) {
+// Resolve a calc/cart result (lastCalcResult or a quoteCart entry) to a reservation
+// item. The AGREED price (result.finalPrice, incl. discounts/rounding) is locked in.
+function _resItemFromResult(name, result) {
+  const r = result || {};
+  const price = parseFloat(r.finalPrice || 0) || 0;
+  if (r.isBulkChain && r.bulkInvId) {
+    const batch = (_inventoryCache || {})[r.bulkInvId];
+    return { invId: null, isBulk: true, bulkInvId: r.bulkInvId, soldWeight: parseFloat(r.bulkSoldWeight) || 0,
+      cost: (r.baseCost != null ? parseFloat(r.baseCost) : null),
+      qr: (batch && (batch.qrCode || batch.code)) || '', ref: '', desc: name || (batch ? _resItemName(batch) : ''),
+      photoUrl: (batch && batch.photoUrl) || '', price };
+  }
+  const qr = (r.labelCode || '').trim().toUpperCase();
+  let invId = null, item = null;
+  if (qr && _inventoryCache) {
+    const found = Object.entries(_inventoryCache).find(([, it]) => it.status === 'in_stock' && !it.isBulk && (
+      ((it.qrCode || it.code || '').trim().toUpperCase() === qr) || (r.seqRef && it.seqId && itemRefCode(it) === r.seqRef)));
+    if (found) { invId = found[0]; item = found[1]; }
+  }
+  return { invId, isBulk: false, qr: item ? (item.qrCode || '') : (r.labelCode || ''), ref: item ? itemRefCode(item) : (r.seqRef || ''),
+    desc: name || (item ? _resItemName(item) : ''), photoUrl: (item && item.photoUrl) || '', price,
+    cost: (r.baseCost != null ? parseFloat(r.baseCost) : null) };
+}
+// Resolve an inventory id (Stock-card reserve) to a reservation item at its current retail.
+function _resItemFromInv(id) {
+  const it = (_inventoryCache || {})[id]; if (!it || it.status !== 'in_stock' || it.isBulk) return null;
+  const p = calcInvItemPrice(it);
+  return { invId: id, isBulk: false, qr: it.qrCode || '', ref: itemRefCode(it), desc: _resItemName(it),
+    photoUrl: it.photoUrl || '', price: p ? parseFloat((p.retail || 0).toFixed(2)) : 0, cost: p ? (p.baseCost != null ? p.baseCost : null) : null };
+}
+
+// Shared Reserve dialog. `items` = resolved reservation items (from calc / cart / stock).
+function openReserveDialog(items, source) {
   if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
-  document.getElementById('reservationCreateOverlay')?.remove();
-  _resDraftItems = [];
-  (preIds || []).forEach(id => { const it = (_inventoryCache || {})[id]; if (it && !it.reservationId) _resDraftItems.push(_resItemSnap(id, it)); });
-  const isEl = lang === 'el';
+  items = (items || []).filter(Boolean);
+  if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock'); return; }
+  if (items.some(i => i.invId && (_inventoryCache || {})[i.invId] && _inventoryCache[i.invId].reservationId)) {
+    showToast(lang === 'el' ? '⚠️ Κάποιο είδος είναι ήδη κρατημένο' : '⚠️ An item is already reserved'); return;
+  }
+  _resDlgItems = items;
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const sum = items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
+  const dflt = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10); // default hold ~2 weeks
+  document.getElementById('reserveDialogOverlay')?.remove();
+  const itemsHtml = items.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 10px;margin-bottom:5px">
+    <div style="min-width:0"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div>
+    <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">${cur}${(parseFloat(i.price) || 0).toFixed(2)}</span>
+  </div>`).join('');
   const ov = document.createElement('div');
-  ov.id = 'reservationCreateOverlay';
+  ov.id = 'reserveDialogOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🔒 ${isEl ? 'Νέα κράτηση' : 'New reservation'}</div>
-      <button onclick="document.getElementById('reservationCreateOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🔒 ${isEl ? 'Κράτηση' : 'Reserve'}</div>
+      <button onclick="document.getElementById('reserveDialogOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
     </div>
+    <div style="${_resLbl}">${isEl ? 'Είδη' : 'Items'} (${items.length})</div>
+    <div style="margin-bottom:10px">${itemsHtml}</div>
     <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
-    <input id="resCustName" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
-    <input id="resCustPhone" type="tel" style="${_resInp}" placeholder="${isEl ? 'Τηλέφωνο (προαιρετικό)' : 'Phone (optional)'}">
-    <div style="${_resLbl}">${isEl ? 'Είδη' : 'Items'}</div>
-    <div style="position:relative;margin-bottom:6px">
-      <input id="resItemSearch" oninput="_resItemSearch(this.value)" style="${_resInp};margin-bottom:0" placeholder="${isEl ? 'Αναζήτηση κωδικού / περιγραφής…' : 'Search ref / description…'}">
-      <div id="resItemResults" style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;z-index:5;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
-    </div>
-    <div id="resChosenItems" style="margin-bottom:10px"></div>
+    <input id="resCustName" autocomplete="off" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+    <input id="resCustPhone" type="tel" autocomplete="off" style="${_resInp}" placeholder="${isEl ? 'Τηλέφωνο' : 'Phone'}">
+    <input id="resCustEmail" type="email" autocomplete="off" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
     <div style="${_resLbl}">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'} (€)</div>
-    <input id="resAgreedTotal" type="number" step="0.01" inputmode="decimal" oninput="this.dataset.touched='1'" style="${_resInp}">
+    <input id="resAgreedTotal" type="number" step="0.01" inputmode="decimal" value="${sum.toFixed(2)}" style="${_resInp}">
     <div style="${_resLbl}">${isEl ? 'Προκαταβολή (προαιρετικό)' : 'Deposit (optional)'}</div>
-    <div style="display:flex;gap:8px;margin-bottom:6px">
-      <input id="resDeposit" type="number" step="0.01" inputmode="decimal" placeholder="€" style="${_resInp};margin-bottom:0;flex:1">
-      <select id="resDepositMethod" style="padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="resDeposit" type="number" step="0.01" inputmode="decimal" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+      <select id="resDepositMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
     </div>
-    <div id="resCreateStatus" style="font-size:12px;min-height:16px;text-align:center;margin:6px 0"></div>
-    <button onclick="_resCreateSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
+    <div style="${_resLbl}">${isEl ? 'Κράτηση έως' : 'Hold until'}</div>
+    <input id="resHoldUntil" type="date" value="${dflt}" style="${_resInp}">
+    <div id="resDlgStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px"></div>
+    <button onclick="_resDialogSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔒 ${isEl ? 'Κράτηση' : 'Reserve'}</button>
   </div>`;
   document.body.appendChild(ov);
-  _resRenderChosen();
+  setTimeout(() => document.getElementById('resCustName')?.focus(), 100);
 }
 
-function _resItemSearch(q) {
-  const box = document.getElementById('resItemResults'); if (!box) return;
-  q = (q || '').trim().toLowerCase();
-  if (!q) { box.style.display = 'none'; box.innerHTML = ''; return; }
-  const chosen = new Set(_resDraftItems.map(i => i.id));
-  const matches = Object.entries(_inventoryCache || {}).filter(([id, it]) => {
-    if (!it || it.status === 'sold' || it.isCoin || it.isMetal || it.reservationId) return false;
-    if (chosen.has(id)) return false;
-    const hay = ((itemRefCode(it) || '') + ' ' + (it.qrCode || '') + ' ' + _resItemName(it)).toLowerCase();
-    return hay.includes(q);
-  }).slice(0, 8);
-  box.innerHTML = matches.length ? matches.map(([id, it]) =>
-    `<div onclick="_resAddItem('${id}')" style="padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--gold-light)">${itemRefCode(it) || it.qrCode || ''}</span> <span style="color:var(--text)">${_resEsc(_resItemName(it))}</span></div>`
-  ).join('') : `<div style="padding:9px 12px;color:var(--text-muted);font-size:12px">—</div>`;
-  box.style.display = 'block';
-}
-function _resAddItem(id) {
-  const it = (_inventoryCache || {})[id]; if (!it) return;
-  if (!_resDraftItems.some(i => i.id === id)) _resDraftItems.push(_resItemSnap(id, it));
-  const s = document.getElementById('resItemSearch'); if (s) s.value = '';
-  const rb = document.getElementById('resItemResults'); if (rb) { rb.style.display = 'none'; rb.innerHTML = ''; }
-  _resRenderChosen();
-}
-function _resRemoveItem(id) { _resDraftItems = _resDraftItems.filter(i => i.id !== id); _resRenderChosen(); }
-function _resRenderChosen() {
-  const box = document.getElementById('resChosenItems'); if (!box) return;
-  const cur = state.currency || '€';
-  box.innerHTML = _resDraftItems.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 10px;margin-bottom:5px">
-    <div style="min-width:0"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div>
-    <div style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span style="font-size:12px;color:var(--text-muted)">${cur}${i.retail.toFixed(0)}</span><button onclick="_resRemoveItem('${i.id}')" style="background:none;border:none;color:#e05a5a;font-size:16px;cursor:pointer">×</button></div>
-  </div>`).join('');
-  const at = document.getElementById('resAgreedTotal');
-  if (at && !at.dataset.touched) at.value = _resDraftItems.reduce((s, i) => s + i.retail, 0).toFixed(2);
-}
-
-async function _resCreateSave() {
+async function _resDialogSave() {
   const name = (document.getElementById('resCustName').value || '').trim();
+  if (!name) { _resDlgStatus(lang === 'el' ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
   const phone = (document.getElementById('resCustPhone').value || '').trim();
-  if (!name) { _resStatus(lang === 'el' ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
-  if (!_resDraftItems.length) { _resStatus(lang === 'el' ? '⚠️ Προσθέστε τουλάχιστον ένα είδος' : '⚠️ Add at least one item'); return; }
-  const agreed = parseFloat(document.getElementById('resAgreedTotal').value) || _resDraftItems.reduce((s, i) => s + i.retail, 0);
+  const email = (document.getElementById('resCustEmail').value || '').trim();
+  const agreed = parseFloat(document.getElementById('resAgreedTotal').value) || _resDlgItems.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
   const dep = parseFloat(document.getElementById('resDeposit').value) || 0;
   const depMethod = document.getElementById('resDepositMethod').value || 'cash';
+  const holdUntil = document.getElementById('resHoldUntil').value || '';
   const no = await getNextReservationNo();
   const now = Date.now();
   const res = {
-    id: 'res_' + now, reservationNo: no, clientName: name, clientPhone: phone, clientId: null,
-    itemIds: _resDraftItems.map(i => i.id), itemsSnapshot: _resDraftItems.slice(),
+    id: 'res_' + now, reservationNo: no, clientName: name, clientPhone: phone, clientEmail: email,
+    items: _resDlgItems.slice(), itemIds: _resDlgItems.filter(i => i.invId).map(i => i.invId),
     agreedTotal: parseFloat(agreed.toFixed(2)),
     payments: dep > 0 ? [{ amount: parseFloat(dep.toFixed(2)), date: todayStr(), method: depMethod, by: creds.displayName || creds.userName || '', note: (lang === 'el' ? 'Προκαταβολή' : 'Deposit') }] : [],
-    status: 'active', itemGivenEarly: false, holdUntil: null, notes: '', dateCreated: now, dateCompleted: null, createdBy: creds.displayName || creds.userName || ''
+    holdUntil, status: 'active', itemGivenEarly: false, notes: '', dateCreated: now, dateCompleted: null, createdBy: creds.displayName || creds.userName || ''
   };
   const list = getReservations(); list.push(res); saveReservationsLocal(list); pushReservationsToCloud(list);
   await _resMarkItems(res.itemIds, res.id);
-  document.getElementById('reservationCreateOverlay')?.remove();
+  document.getElementById('reserveDialogOverlay')?.remove();
   showToast(lang === 'el' ? '✓ Η κράτηση δημιουργήθηκε' : '✓ Reservation created');
-  renderReservations();
+  if (typeof renderReservations === 'function') renderReservations();
   if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+}
+
+// ── Reserve entry points ──
+function reserveSingleFromCalc() {
+  if (!lastCalcResult) { showToast(lang === 'el' ? 'Υπολογίστε πρώτα' : 'Calculate first'); return; }
+  const name = (lang === 'el' ? (lastCalcResult.descEl || lastCalcResult.descEn) : (lastCalcResult.descEn || lastCalcResult.descEl)) || lastCalcResult.metalLabel || (lang === 'el' ? 'Κόσμημα' : 'Item');
+  const item = _resItemFromResult(name, lastCalcResult);
+  if (!item.invId && !item.isBulk) { showToast(lang === 'el' ? '⚠️ Το είδος δεν είναι στο απόθεμα' : '⚠️ Item is not in stock'); return; }
+  openReserveDialog([item], 'calc');
+}
+async function reserveCartItems() {
+  if (!quoteCart.length) return;
+  showToast(lang === 'el' ? '⏳ Φόρτωση...' : '⏳ Loading...');
+  _inventoryCache = await loadInventory();
+  const items = quoteCart.map(ci => _resItemFromResult(ci.name, ci.result)).filter(it => it && (it.invId || it.isBulk));
+  if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock'); return; }
+  const cp = document.getElementById('cartPanel'); if (cp) cp.style.display = 'none';
+  openReserveDialog(items, 'cart');
+}
+async function invReserve(id) {
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
+  const it = _inventoryCache[id]; if (!it) return;
+  if (it.reservationId) { showToast(lang === 'el' ? 'Ήδη κρατημένο' : 'Already reserved'); return; }
+  const item = _resItemFromInv(id);
+  if (!item) { showToast(lang === 'el' ? '⚠️ Δεν μπορεί να κρατηθεί' : '⚠️ Cannot be reserved'); return; }
+  openReserveDialog([item], 'stock');
+}
+// Card lock icon: if the piece is already reserved, open its reservation; else reserve it.
+function invReserveOrView(id) {
+  const it = (_inventoryCache || {})[id];
+  if (it && it.reservationId) { openReservationDetail(it.reservationId); return; }
+  invReserve(id);
 }
 
 function openReservationDetail(id) {
@@ -4633,7 +4686,7 @@ function openReservationDetail(id) {
   document.getElementById('reservationDetailOverlay')?.remove();
   const ov = document.createElement('div'); ov.id = 'reservationDetailOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
-  const itemsHtml = (r.itemsSnapshot || []).map(i => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">${i.photoUrl ? `<img src="${i.photoUrl}" style="width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}<div style="min-width:0;flex:1"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div><span style="font-size:12px;color:var(--text-muted)">${cur}${(i.retail || 0).toFixed(0)}</span></div>`).join('');
+  const itemsHtml = (r.items || r.itemsSnapshot || []).map(i => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">${i.photoUrl ? `<img src="${i.photoUrl}" style="width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}<div style="min-width:0;flex:1"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div><span style="font-size:12px;color:var(--text-muted)">${cur}${(i.price != null ? i.price : (i.retail || 0)).toFixed(0)}</span></div>`).join('');
   const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:#7fd6b0">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
@@ -4644,6 +4697,8 @@ function openReservationDetail(id) {
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.agreedTotal) || 0).toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Πληρωμένα' : 'Paid'}</span><span style="color:#7fd6b0">${cur}${paid.toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 0"><span style="color:var(--text)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span><span style="color:${bal > 0 ? '#e0a85a' : '#7fd6b0'}">${cur}${bal.toFixed(2)}</span></div>
+    ${r.holdUntil ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Κράτηση έως' : 'Hold until'}</span><span style="color:var(--text-muted)">${fmtDate(r.holdUntil)}</span></div>` : ''}
+    ${r.clientEmail ? `<div style="font-size:11px;color:var(--text-dim);margin:2px 0">${_resEsc(r.clientEmail)}</div>` : ''}
     <div style="border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;padding-top:10px">
       <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">${isEl ? 'Πληρωμές' : 'Payments'}</div>${payHtml}
     </div>
@@ -13687,6 +13742,7 @@ function renderInvList() {
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${item.qrCode || item.code || '—'}</div>
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'rgba(255,255,255,0.2)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:13px">🔒</button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
@@ -17742,9 +17798,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.80', date: 'Ιούλιος 2026', items: [
-        '🧭 Νέα, καθαρότερη πλοήγηση: το κάτω μενού έχει τώρα 5 βασικές καρτέλες (Υπολ. · Απόθεμα · Πωλήσεις · Πελάτες · Πάγκος) και τα Προμηθευτές/Συγχρονισμός/Ρυθμίσεις/Πληροφορίες μετακόμισαν στο μενού «☰» πάνω δεξιά.',
-        '🔒 Κρατήσεις (νέα καρτέλα «Πάγκος»): κρατήστε είδη για έναν πελάτη, με προαιρετική προκαταβολή και παρακολούθηση δόσεων & υπολοίπου. Τα κρατημένα είδη κρύβονται αυτόματα από την online βιτρίνα. (Ολοκλήρωση/παράδοση, εκτυπώσιμη υπογεγραμμένη φόρμα και οι Επισκευές έρχονται αμέσως μετά.)'
+      { version: 'v10.81', date: 'Ιούλιος 2026', items: [
+        '🔒 Κρατήσεις μέσα από τη ροή πώλησης: για ένα είδος πατήστε «Κράτηση» δίπλα στο «Πωλήθηκε» στην μπάρα τιμής· για πολλά, από το καλάθι· ή απευθείας από την κάρτα ενός είδους στο Απόθεμα (εικονίδιο 🔒). Ανοίγει διάλογος για πελάτη (όνομα/τηλέφωνο/email), προκαταβολή και ημερομηνία «κράτηση έως». Η συμφωνημένη τιμή (με εκπτώσεις/στρογγυλοποίηση) κλειδώνει, τα είδη σημειώνονται ως κρατημένα και κρύβονται από την online βιτρίνα. (Ολοκλήρωση/παράδοση, αυτόματη λήξη και εκτυπώσιμη φόρμα έρχονται στη συνέχεια.)'
       ]},
           ]
   },
@@ -17775,9 +17830,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.80', date: 'Jul 2026', items: [
-        '🧭 New, cleaner navigation: the bottom bar now has 5 core tabs (Calc · Stock · Sales · Clients · Desk) and Vendors/Sync/Settings/Info moved into the «☰» menu top-right.',
-        '🔒 Reservations (new «Desk» tab): hold items for a customer, with an optional deposit and installment & balance tracking. Reserved items are automatically hidden from the online showroom. (Completion/handover, a printable signed form, and Repairs are coming right after.)'
+      { version: 'v10.81', date: 'Jul 2026', items: [
+        '🔒 Reservations from within the sale flow: for one item, tap «Reserve» next to «Sold» on the price bar; for several, from the cart; or straight from an item card in Stock (🔒 icon). A dialog captures the customer (name/phone/email), a deposit and a «hold until» date. The agreed price (with discounts/rounding) is locked in, items are marked reserved and hidden from the online showroom. (Completion/handover, auto-expiry and a printable form come next.)'
       ]},
           ]
   }
@@ -20667,7 +20721,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.80';
+const APP_VERSION = '10.81';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
