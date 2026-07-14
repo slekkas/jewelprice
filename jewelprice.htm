@@ -4750,7 +4750,10 @@ function openReservationDetail(id) {
     <div style="border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;padding-top:10px">
       <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">${isEl ? 'Πληρωμές' : 'Payments'}</div>${payHtml}
     </div>
-    <button onclick="shareReservationForm('${r.id}')" style="width:100%;margin-top:4px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Φόρμα κράτησης (εκτύπωση / αποστολή)' : 'Reservation form (print / share)'}</button>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="printReservationForm('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">🖨 ${isEl ? 'Εκτύπωση' : 'Print'}</button>
+      <button onclick="shareReservationForm('${r.id}')" style="flex:1;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📤 ${isEl ? 'Αποστολή' : 'Share'}</button>
+    </div>
     ${active ? `<div style="display:flex;gap:8px;margin-top:10px">
       <input id="resPayAmt" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? '€ πληρωμή' : '€ payment'}" style="flex:1;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px">
       <select id="resPayMethod" style="flex:0 0 auto;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
@@ -4859,114 +4862,135 @@ async function _resFinalizeComplete(rid) {
   if (document.getElementById('panel-desk')?.classList.contains('active')) renderReservations();
 }
 
-// ── RESERVATION FORM (branded A4 PDF — signature + stamp box) ──────────────────
-// Reuses the same LEKKAS JEWELRY header as the share/catalog PDFs.
-async function buildReservationPDF(r) {
-  if (!window.jspdf) throw new Error('PDF library not loaded yet. Please try again.');
-  const { jsPDF } = window.jspdf;
+// ── RESERVATION FORM — built as A4 HTML in the SAME style as the printed quote
+// (branded header, item photos, gold totals, signature + stamp box). Print opens
+// the browser print dialog directly; Share renders it to a PDF (html2canvas).
+function buildReservationHTML(r) {
   const isEl = lang === 'el';
   const cur = state.currency || '€';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = 210, MARGIN = 16;
+  const date = fmtDate(new Date(r.dateCreated || Date.now()));
+  const address = isEl ? 'Αποδήμων Καρπαθίων<br>Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion<br>Pigadia, Karpathos 857 00';
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=' + encodeURIComponent('https://maps.app.goo.gl/aqePd3XmXfnpG5h87?g_st=ac');
+  const paid = resPaid(r), bal = resBalance(r), agreed = parseFloat(r.agreedTotal) || 0;
+  const esc = _resEsc;
+  const items = r.items || r.itemsSnapshot || [];
+  const itemsHtml = items.map((it, i) => `<div class="item-block">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="flex:1">
+        <div class="item-name">${i + 1}. ${esc(it.desc || (isEl ? 'Κόσμημα' : 'Item'))}</div>
+        ${it.ref ? `<div style="font-family:'DM Mono',monospace;font-size:8pt;color:#C9A84C;letter-spacing:0.08em;margin-top:3px">Ref. <strong>${esc(it.ref)}</strong></div>` : ''}
+        ${it.photoUrl ? `<img src="${it.photoUrl}" style="max-width:82px;max-height:82px;width:auto;height:auto;border-radius:4px;border:1px solid #ddd;margin-top:5px;display:block">` : ''}
+      </div>
+      <div class="item-price-line" style="border:none;padding:0;margin:0"><span class="val">${cur}${(parseFloat(it.price) || 0).toFixed(2)}</span></div>
+    </div>
+  </div>`).join('');
 
-  async function fetchFontB64(fn) { try { const buf = await fetch('./fonts/' + fn).then(x => x.arrayBuffer()); let bin = ''; new Uint8Array(buf).forEach(b => bin += String.fromCharCode(b)); return btoa(bin); } catch (e) { return null; } }
-  const [regB64, boldB64] = await Promise.all([fetchFontB64('NotoSans-Regular.ttf'), fetchFontB64('NotoSans-Bold.ttf')]);
-  if (regB64) { doc.addFileToVFS('NotoSans-Regular.ttf', regB64); doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal'); }
-  if (boldB64) { doc.addFileToVFS('NotoSans-Bold.ttf', boldB64); doc.addFont('NotoSans-Bold.ttf', 'NotoSans', 'bold'); }
-  const setReg = (s, r2 = 40, g = 30, b = 20) => { doc.setFont('NotoSans', 'normal'); doc.setFontSize(s); doc.setTextColor(r2, g, b); };
-  const setBold = (s, r2 = 30, g = 20, b = 10) => { doc.setFont('NotoSans', 'bold'); doc.setFontSize(s); doc.setTextColor(r2, g, b); };
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${isEl ? 'Κράτηση' : 'Reservation'} — ${resNoFmt(r)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Mono:wght@300;400&display=swap');
+  @page { size: A4 portrait; margin: 10mm 18mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'DM Mono',monospace; background:#fff; color:#1a1a1a; padding:10mm 18mm; max-width:210mm; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; padding-bottom:8px; border-bottom:2px solid #C9A84C; }
+  .store-name { font-family:'Cormorant Garamond',serif; font-size:24pt; color:#0E0C08; letter-spacing:3px; }
+  .store-name span { color:#C9A84C; }
+  .store-sub { font-size:7pt; letter-spacing:5px; color:#999; text-transform:uppercase; margin-top:2px; }
+  .store-contact { font-size:7.5pt; color:#666; line-height:1.8; margin-top:6px; }
+  .header-right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .doc-meta { text-align:right; font-size:8pt; color:#888; line-height:1.7; }
+  .maps-wrap { display:flex; align-items:center; gap:6px; }
+  .maps-label { font-size:7pt; color:#aaa; text-align:right; line-height:1.4; }
+  .doc-title { font-family:'Cormorant Garamond',serif; font-size:11pt; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:#C9A84C; text-align:center; margin:12px 0 4px; }
+  .cust-line { font-family:'Cormorant Garamond',serif; font-size:13pt; color:#555; margin:8px 0 2px; }
+  .cust-sub { font-size:8.5pt; color:#888; margin-bottom:6px; }
+  .section-title { font-family:'Cormorant Garamond',serif; font-size:14pt; color:#0E0C08; margin:12px 0 8px; border-bottom:1px solid #e8e8e8; padding-bottom:4px; }
+  .item-block { margin-bottom:10px; padding:10px 12px; background:#fafafa; border:1px solid #eee; border-radius:4px; }
+  .item-name { font-family:'Cormorant Garamond',serif; font-size:13pt; color:#0E0C08; }
+  .item-price-line .val { font-family:'Cormorant Garamond',serif; font-size:14pt; color:#C9A84C; white-space:nowrap }
+  .totals-section { margin-top:10px; border:1px solid #eee; border-radius:4px; padding:10px 12px; background:#fafafa; }
+  .total-row { display:flex; justify-content:space-between; padding:5px 0; font-size:9.5pt; border-bottom:1px solid #f0f0f0; }
+  .total-row:last-child { border-bottom:none; }
+  .total-row .plabel { color:#666; }
+  .total-row .pvalue { color:#1a1a1a; }
+  .total-row.grand { border-top:2px solid #C9A84C; border-bottom:none; margin-top:8px; padding-top:10px; }
+  .total-row.grand .plabel { font-size:12pt; color:#0E0C08; font-weight:500; }
+  .total-row.grand .pvalue { font-family:'Cormorant Garamond',serif; font-size:22pt; color:#C9A84C; }
+  .hold-line { text-align:center; font-size:9pt; color:#8a7040; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.25); border-radius:4px; padding:7px 12px; margin:10px 0 4px; }
+  .terms { font-size:7.5pt; color:#aaa; margin-top:10px; font-style:italic; line-height:1.6; text-align:center; }
+  .sign-section { margin-top:22px; display:flex; justify-content:space-between; align-items:flex-end; page-break-inside:avoid; break-inside:avoid; }
+  .sign-line { width:62%; }
+  .sign-line .ln { border-bottom:1px solid #ccc; height:34px; }
+  .sign-line .lbl { font-size:8pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
+  .stamp-box { width:5cm; height:3cm; border:2px dashed #C9A84C; border-radius:4px; display:flex; align-items:center; justify-content:center; }
+  .stamp-box span { font-size:7.5pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
+  .footer { margin-top:14px; padding-top:8px; border-top:1px solid #eee; display:flex; justify-content:space-between; font-size:7pt; color:#bbb; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="store-name">LEKKAS <span>JEWELRY</span></div>
+    <div class="store-sub">Fine Jewelry · Karpathos</div>
+    <div class="store-contact">📍 ${address}<br>📞 +30 694 789 1151</div>
+  </div>
+  <div class="header-right">
+    <div class="doc-meta">
+      <div><strong>${resNoFmt(r)}</strong></div>
+      <div>${date}</div>
+    </div>
+    <div class="maps-wrap">
+      <div class="maps-label">${isEl ? 'Βρείτε μας<br>στον χάρτη' : 'Find us<br>on the map'}</div>
+      <img src="${qrUrl}" width="64" height="64" style="border:3px solid #C9A84C;border-radius:4px">
+    </div>
+  </div>
+</div>
 
-  // ── Branded header (canvas — same as buildSharePDF) ──
-  const HEADER_H_MM = 36;
-  const hc = document.createElement('canvas'); const DPI = 3;
-  hc.width = Math.round(pageW * DPI * 3.78); hc.height = Math.round(HEADER_H_MM * DPI * 3.78);
-  const hctx = hc.getContext('2d'); const W = hc.width, H = hc.height; const px = v => Math.round(v * DPI * 3.78);
-  hctx.fillStyle = '#ffffff'; hctx.fillRect(0, 0, W, H);
-  hctx.font = `bold ${px(7)}px 'Cormorant Garamond', Georgia, serif`; hctx.fillStyle = '#0E0C08'; hctx.textBaseline = 'top'; hctx.letterSpacing = `${px(0.8)}px`;
-  hctx.fillText('LEKKAS ', px(0), px(3)); const lw = hctx.measureText('LEKKAS ').width; hctx.fillStyle = '#C9A84C'; hctx.fillText('JEWELRY', px(0) + lw, px(3)); hctx.letterSpacing = '0px';
-  hctx.font = `${px(2.5)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#999999'; hctx.letterSpacing = `${px(0.5)}px`; hctx.fillText('FINE JEWELRY  ·  KARPATHOS', px(0), px(12)); hctx.letterSpacing = '0px';
-  hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#666666';
-  hctx.fillText('📍 ' + (isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00'), px(0), px(18));
-  hctx.fillText('📞 +30 694 789 1151', px(0), px(23));
-  hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#888888'; hctx.textAlign = 'right'; hctx.fillText(fmtDate(new Date()), W - px(1), px(3)); hctx.textAlign = 'left';
-  hctx.fillStyle = '#C9A84C'; hctx.fillRect(0, H - px(0.5), W, px(0.5));
-  await new Promise(res => {
-    const qr = new Image(); qr.crossOrigin = 'anonymous';
-    qr.onload = () => { const qs = px(16), qx = W - px(2) - qs, qy = px(4); hctx.fillStyle = '#C9A84C'; hctx.fillRect(qx - px(0.6), qy - px(0.6), qs + px(1.2), qs + px(1.2)); hctx.drawImage(qr, qx, qy, qs, qs); res(); };
-    qr.onerror = () => res();
-    qr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent('https://maps.app.goo.gl/aqePd3XmXfnpG5h87?g_st=ac');
-  });
-  doc.addImage(hc.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, HEADER_H_MM);
+<div class="doc-title">✦ ${isEl ? 'Απόδειξη Κράτησης' : 'Reservation'} ✦</div>
+<div class="cust-line">${isEl ? 'Για' : 'For'}: <strong>${esc(r.clientName || '—')}</strong></div>
+<div class="cust-sub">${[r.clientPhone ? (isEl ? 'Τηλ. ' : 'Tel. ') + esc(r.clientPhone) : '', r.clientEmail ? esc(r.clientEmail) : ''].filter(Boolean).join(' · ')}</div>
 
-  // ── Title + reservation no/date ──
-  doc.setFont('NotoSans', 'bold'); doc.setFontSize(8); doc.setTextColor(150, 130, 80); doc.setCharSpace(1.4);
-  doc.text(isEl ? 'ΑΠΟΔΕΙΞΗ ΚΡΑΤΗΣΗΣ' : 'RESERVATION', MARGIN, HEADER_H_MM + 5); doc.setCharSpace(0);
-  setReg(9, 90, 90, 90); doc.text(resNoFmt(r) + '  ·  ' + fmtDate(new Date(r.dateCreated || Date.now())), pageW - MARGIN, HEADER_H_MM + 5, { align: 'right' });
-  let y = HEADER_H_MM + 14;
+<div class="section-title">${isEl ? 'Κρατημένα είδη' : 'Reserved items'}</div>
+${itemsHtml}
 
-  // ── Customer ──
-  setBold(9, 150, 130, 80); doc.text((isEl ? 'ΠΕΛΑΤΗΣ' : 'CUSTOMER'), MARGIN, y); y += 5.5;
-  setBold(11); doc.text(r.clientName || '—', MARGIN, y); y += 5;
-  setReg(9, 90, 90, 90);
-  if (r.clientPhone) { doc.text((isEl ? 'Τηλέφωνο: ' : 'Phone: ') + r.clientPhone, MARGIN, y); y += 4.5; }
-  if (r.clientEmail) { doc.text('Email: ' + r.clientEmail, MARGIN, y); y += 4.5; }
-  y += 4;
+<div class="totals-section">
+  <div class="total-row"><span class="plabel">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span class="pvalue">${cur}${agreed.toFixed(2)}</span></div>
+  ${paid > 0 ? `<div class="total-row"><span class="plabel">${isEl ? 'Προκαταβολή' : 'Deposit paid'}</span><span class="pvalue" style="color:#2e8b57">-${cur}${paid.toFixed(2)}</span></div>` : ''}
+  <div class="total-row grand"><span class="plabel">${isEl ? 'Υπόλοιπο' : 'Balance due'}</span><span class="pvalue">${cur}${bal.toFixed(2)}</span></div>
+</div>
 
-  // ── Items ──
-  setBold(9, 150, 130, 80); doc.text((isEl ? 'ΕΙΔΗ' : 'ITEMS'), MARGIN, y); y += 2.5;
-  doc.setDrawColor(201, 168, 76); doc.setLineWidth(0.3); doc.line(MARGIN, y, pageW - MARGIN, y); y += 6;
-  (r.items || []).forEach(it => {
-    setReg(10, 55, 45, 35);
-    const label = (it.ref ? it.ref + '   ' : '') + (it.desc || '');
-    doc.text(doc.splitTextToSize(label, pageW - 2 * MARGIN - 30)[0], MARGIN, y);
-    doc.text(cur + (parseFloat(it.price) || 0).toFixed(2), pageW - MARGIN, y, { align: 'right' });
-    y += 7;
-  });
-  doc.setDrawColor(220, 210, 190); doc.line(MARGIN, y - 3, pageW - MARGIN, y - 3); y += 3;
+${r.holdUntil ? `<div class="hold-line">${isEl ? 'Κράτηση έως' : 'Held until'}: <strong>${fmtDate(r.holdUntil)}</strong></div>` : ''}
 
-  // ── Totals ──
-  const paid = resPaid(r), bal = resBalance(r);
-  const totRow = (label, val, bold) => { const c = bold ? 30 : 90; (bold ? setBold : setReg)(bold ? 11 : 10, c, bold ? 20 : 90, bold ? 10 : 90); doc.text(label, pageW - MARGIN - 60, y); doc.text(cur + val.toFixed(2), pageW - MARGIN, y, { align: 'right' }); y += 6.5; };
-  totRow(isEl ? 'Συμφωνημένη τιμή' : 'Agreed price', parseFloat(r.agreedTotal) || 0, false);
-  if (paid > 0) totRow(isEl ? 'Προκαταβολή' : 'Deposit paid', paid, false);
-  totRow(isEl ? 'Υπόλοιπο' : 'Balance due', bal, true);
-  y += 3;
-  if (r.holdUntil) { setReg(9, 90, 90, 90); doc.text((isEl ? 'Κράτηση έως: ' : 'Held until: ') + fmtDate(r.holdUntil), MARGIN, y); y += 7; }
-
-  // ── Terms ──
-  setReg(7.5, 130, 130, 130);
-  const terms = isEl
+<div class="terms">${isEl
     ? 'Τα ανωτέρω είδη κρατούνται για τον πελάτη έως την ημερομηνία λήξης. Τυχόν προκαταβολή πιστώνεται στην τελική αξία. Μετά τη λήξη, η κράτηση παύει να ισχύει.'
-    : 'The items above are reserved for the customer until the hold-until date. Any deposit is credited toward the final price. After the hold date the reservation lapses.';
-  const tl = doc.splitTextToSize(terms, pageW - 2 * MARGIN); doc.text(tl, MARGIN, y); y += tl.length * 4 + 6;
+    : 'The items above are reserved for the customer until the hold-until date. Any deposit is credited toward the final price. After the hold date the reservation lapses.'}</div>
 
-  // ── Signature + stamp box ──
-  const sigY = Math.max(y + 14, 262);
-  doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.3);
-  doc.line(MARGIN, sigY, MARGIN + 68, sigY);
-  setReg(8, 120, 120, 120); doc.text(isEl ? 'Υπογραφή πελάτη' : 'Customer signature', MARGIN, sigY + 4.5);
-  const sw = 52, sh = 30, sx = pageW - MARGIN - sw, sy = sigY - 24;
-  doc.setDrawColor(185, 185, 185); doc.rect(sx, sy, sw, sh);
-  setReg(7.5, 175, 175, 175); doc.text(isEl ? 'Σφραγίδα' : 'Stamp', sx + sw / 2, sy + sh / 2 + 1, { align: 'center' });
+<div class="sign-section">
+  <div class="sign-line"><div class="ln"></div><div class="lbl">${isEl ? 'Υπογραφή πελάτη' : 'Customer signature'}</div></div>
+  <div class="stamp-box"><span>${isEl ? 'Σφραγίδα' : 'Stamp'}</span></div>
+</div>
 
-  return doc.output('blob');
+<div class="footer">
+  <span>Lekkas Jewelry · JewelPrice Pro${r.createdBy ? ' · ' + (isEl ? 'Εξυπηρέτησε' : 'Served by') + ': ' + esc(r.createdBy) : ''}</span>
+  <span>${date}</span>
+</div>
+</body>
+</html>`;
 }
 
-async function shareReservationForm(id) {
+// Print → opens the branded reservation form and goes straight to the print dialog.
+function printReservationForm(id) {
   const r = getReservations().find(x => x.id === id); if (!r) return;
-  showToast(lang === 'el' ? '⏳ Δημιουργία φόρμας…' : '⏳ Generating form…');
-  try {
-    const blob = await buildReservationPDF(r);
-    const fname = 'reservation-' + resNoFmt(r) + '.pdf';
-    const file = new File([blob], fname, { type: 'application/pdf' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file] });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
-    }
-  } catch (e) { if (e.name !== 'AbortError') showToast('⚠️ ' + (e.message || 'Failed')); }
+  openQuoteWindow(buildReservationHTML(r), false, null);
+}
+// Share → renders the same form to a PDF and opens the share sheet (WhatsApp/email…).
+function shareReservationForm(id) {
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  const title = (lang === 'el' ? 'Κράτηση' : 'Reservation') + ' — ' + resNoFmt(r);
+  shareQuoteAsPDF(buildReservationHTML(r), title, false, 'reservation-' + resNoFmt(r) + '.pdf');
 }
 
 // ═══ REPAIRS & CUSTOM ORDERS ═════════════════════════════════════════════════
@@ -18549,10 +18573,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.89', date: 'Ιούλιος 2026', items: [
-        '🔧 Νέο: Επισκευές & Παραγγελίες στην καρτέλα «Εργασίες». Ανοίξτε δελτίο για επισκευή (με φωτογραφία του κοσμήματος του πελάτη και υποχρεωτική εκτίμηση κόστους) ή για παραγγελία κατασκευής (με υποχρεωτική προκαταβολή).',
-        '📄 Κάθε δελτίο εκτυπώνεται/μοιράζεται ως επώνυμο PDF με φωτογραφία, εκτίμηση, προκαταβολή, χώρο υπογραφής και σφραγίδα.',
-        '📱 Κουμπί «Ειδοποίηση πελάτη» (WhatsApp/SMS/Email) όταν το κόσμημα είναι έτοιμο. Στην παραλαβή μπορείτε να καταγράψετε την τελική τιμή στα έσοδα της ημέρας.'
+      { version: 'v10.90', date: 'Ιούλιος 2026', items: [
+        '📄 Η φόρμα κράτησης ξαναφτιάχτηκε στο ίδιο κομψό στυλ με την προσφορά — με φωτογραφίες των ειδών, επώνυμη κεφαλίδα και χρυσά σύνολα.',
+        '🖨 Ξεχωριστά κουμπιά «Εκτύπωση» (πάει κατευθείαν στην εκτύπωση) και «Αποστολή» (στέλνει PDF σε WhatsApp/email) στη φόρμα κράτησης.'
       ]},
           ]
   },
@@ -18583,10 +18606,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.89', date: 'Jul 2026', items: [
-        '🔧 New: Repairs & Custom Orders in the Desk tab. Open a ticket for a repair (with a photo of the customer\'s item and a required cost estimate) or a custom piece to make (with a required deposit).',
-        '📄 Every ticket prints/shares as a branded PDF with photo, estimate, deposit, a signature line and a stamp box.',
-        '📱 A "Notify customer" button (WhatsApp/SMS/Email) when the piece is ready. On collection you can log the final price into the day\'s income.'
+      { version: 'v10.90', date: 'Jul 2026', items: [
+        '📄 The reservation form was rebuilt in the same elegant style as the quote — with item photos, a branded header and gold totals.',
+        '🖨 Separate "Print" (goes straight to the print dialog) and "Share" (sends a PDF to WhatsApp/email) buttons on the reservation form.'
       ]},
           ]
   }
@@ -20834,7 +20856,7 @@ function copyGreetingText() {
 }
 
 // ─── SHARE QUOTE AS PDF (html2canvas → jsPDF) ───────────────────────────────
-async function shareQuoteAsPDF(html, shareTitle, isCert) {
+async function shareQuoteAsPDF(html, shareTitle, isCert, fileName) {
   if (!window.jspdf) { showToast('⚠️ PDF library not ready'); return; }
   const { jsPDF } = window.jspdf;
   showToast(lang === 'el' ? 'Δημιουργία PDF...' : 'Generating PDF...');
@@ -20917,15 +20939,15 @@ async function shareQuoteAsPDF(html, shareTitle, isCert) {
     }
 
     const blob = doc.output('blob');
-    const _qpdfName = isCert ? 'lekkas-certificate.pdf' : 'lekkas-quote.pdf';
+    const _qpdfName = fileName || (isCert ? 'lekkas-certificate.pdf' : 'lekkas-quote.pdf');
     const file = new File([blob], _qpdfName, { type: 'application/pdf' });
 
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       navigator.share({ files: [file], title: shareTitle }).catch(e => {
-        if (e.name !== 'AbortError') downloadQuotePDF(blob, isCert);
+        if (e.name !== 'AbortError') downloadQuotePDF(blob, isCert, _qpdfName);
       });
     } else {
-      downloadQuotePDF(blob, isCert);
+      downloadQuotePDF(blob, isCert, _qpdfName);
     }
   } catch(e) {
     console.error('Quote PDF error:', e);
@@ -20933,10 +20955,10 @@ async function shareQuoteAsPDF(html, shareTitle, isCert) {
   }
 }
 
-function downloadQuotePDF(blob, isCert) {
+function downloadQuotePDF(blob, isCert, fileName) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = isCert ? 'lekkas-certificate.pdf' : 'lekkas-quote.pdf'; a.click();
+  a.href = url; a.download = fileName || (isCert ? 'lekkas-certificate.pdf' : 'lekkas-quote.pdf'); a.click();
   setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
@@ -21563,7 +21585,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.89';
+const APP_VERSION = '10.90';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
