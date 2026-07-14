@@ -5141,9 +5141,9 @@ function openRepairModal() {
     <textarea id="repDesc" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. Συγκόλληση αλυσίδας, αλλαγή κουμπώματος…' : 'e.g. Solder chain, replace clasp…'}"></textarea>
     <div style="${_resLbl}">${isEl ? 'Εκτίμηση κόστους (απαιτείται)' : 'Estimate (required)'}</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-      <input id="repEstLow" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1;width:auto">
-      <span style="color:var(--text-muted)">–</span>
-      <input id="repEstHigh" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'έως € (προαιρ.)' : 'to € (opt.)'}" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+      <input id="repEstLow" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
+      <span style="color:var(--text-muted);flex:0 0 auto">–</span>
+      <input id="repEstHigh" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'έως € (προαιρ.)' : 'to € (opt.)'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
     </div>
     <div id="repDepositBlock" style="display:none">
       <div style="${_resLbl}">${isEl ? 'Προκαταβολή (απαιτείται για παραγγελία)' : 'Deposit (required for custom)'}</div>
@@ -5269,7 +5269,9 @@ function openRepairDetail(id) {
       <div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Εκτίμηση' : 'Estimate'}</span><span style="color:var(--text)">${repEstText(r)}</span></div>
       ${r.deposit ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Προκαταβολή' : 'Deposit'}</span><span style="color:#7fd6b0">${cur}${(parseFloat(r.deposit) || 0).toFixed(2)}</span></div>` : ''}
       ${r.datePromised ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Έτοιμο έως' : 'Ready by'}</span><span style="color:var(--text)">${fmtDate(r.datePromised)}</span></div>` : ''}
-      ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)}</span></div>` : ''}
+      ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)} ${r.cashSale ? '💵' : '🧾'}</span></div>` : ''}
+      ${r.finalCost != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κόστος' : 'Cost'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.finalCost) || 0).toFixed(2)}</span></div>` : ''}
+      ${(r.finalPrice != null && isOwnerOrManager()) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${((r.cashSale ? (parseFloat(r.finalPrice) || 0) : (parseFloat(r.finalPrice) || 0) / (1 + (parseFloat(state.vat) || 0) / 100)) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
     ${notifyRow}
     <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)'}</button>
@@ -5314,10 +5316,11 @@ function _repairNotify(id, channel) {
   if (!r.notifiedAt) { r.notifiedAt = Date.now(); saveRepairsLocal(list); pushRepairsToCloud(list); setTimeout(() => { if (document.getElementById('repairDetailOverlay')) openRepairDetail(id); }, 400); }
 }
 
-// Collect: enter a final price, optionally log it as income, mark collected.
+// Collect: enter final price + the cost it took you, choose receipt/cash (affects
+// profit like a sale), optionally log as income, mark collected.
 function _repairCollectOpen(id) {
   const r = getRepairs().find(x => x.id === id); if (!r) return;
-  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const isEl = lang === 'el';
   const suggested = (parseFloat(r.estHigh) || parseFloat(r.estLow) || 0);
   document.getElementById('repCollectOverlay')?.remove();
   const ov = document.createElement('div');
@@ -5325,48 +5328,83 @@ function _repairCollectOpen(id) {
   ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px">
     <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:12px">💰 ${isEl ? 'Παραλαβή' : 'Collect'} · ${repNoFmt(r)}</div>
-    <div style="${_resLbl}">${isEl ? 'Τελική τιμή' : 'Final price'} (€)</div>
-    <input id="repFinalPrice" type="number" step="0.01" inputmode="decimal" value="${suggested > 0 ? suggested.toFixed(2) : ''}" style="${_resInp}">
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <select id="repFinalMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
-      <label style="flex:1;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="repLogIncome" checked style="width:auto;flex:0 0 auto">${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</label>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1 1 0;min-width:0">
+        <div style="${_resLbl}">${isEl ? 'Τελική τιμή' : 'Final price'} (€)</div>
+        <input id="repFinalPrice" type="number" step="0.01" inputmode="decimal" value="${suggested > 0 ? suggested.toFixed(2) : ''}" style="${_resInp}">
+      </div>
+      <div style="flex:1 1 0;min-width:0">
+        <div style="${_resLbl}">${isEl ? 'Κόστος' : 'Cost'} (€)</div>
+        <input id="repFinalCost" type="number" step="0.01" inputmode="decimal" value="${r.finalCost != null ? parseFloat(r.finalCost).toFixed(2) : ''}" placeholder="${isEl ? 'π.χ. 10' : 'e.g. 10'}" style="${_resInp}">
+      </div>
     </div>
+    <div style="${_resLbl}">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction type'}</div>
+    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:12px">
+      <button type="button" id="repColReceipt" class="desk-seg active" onclick="_repCollectSetPay('receipt')">🧾 ${isEl ? 'Απόδειξη' : 'Receipt'}</button>
+      <button type="button" id="repColCash" class="desk-seg" onclick="_repCollectSetPay('cash')">💵 ${isEl ? 'Μετρητά' : 'Cash'}</button>
+    </div>
+    <button type="button" id="repLogBtn" onclick="_repCollectToggleLog()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(76,175,132,0.18);border:1px solid rgba(76,175,132,0.5);color:#7fd6b0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✓ ${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</button>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('repCollectOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
       <button onclick="_repairCollectConfirm('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Παραλαβή' : 'Collect'}</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
+  ov.dataset.cash = '0'; // default receipt (with VAT), like a normal sale
+  ov.dataset.log = '1';  // default: log as income
+}
+function _repCollectSetPay(which) {
+  const ov = document.getElementById('repCollectOverlay'); if (ov) ov.dataset.cash = which === 'cash' ? '1' : '0';
+  document.getElementById('repColReceipt')?.classList.toggle('active', which !== 'cash');
+  document.getElementById('repColCash')?.classList.toggle('active', which === 'cash');
+}
+function _repCollectToggleLog() {
+  const ov = document.getElementById('repCollectOverlay'); if (!ov) return;
+  const on = ov.dataset.log !== '1'; ov.dataset.log = on ? '1' : '0';
+  const btn = document.getElementById('repLogBtn'); if (!btn) return;
+  const isEl = lang === 'el'; const label = isEl ? 'Καταγραφή στα έσοδα' : 'Log as income';
+  if (on) { btn.style.background = 'rgba(76,175,132,0.18)'; btn.style.borderColor = 'rgba(76,175,132,0.5)'; btn.style.color = '#7fd6b0'; btn.textContent = '✓ ' + label; }
+  else { btn.style.background = 'transparent'; btn.style.borderColor = 'var(--card-border)'; btn.style.color = 'var(--text-muted)'; btn.textContent = '○ ' + label; }
+  btn.style.border = '1px solid ' + btn.style.borderColor;
 }
 async function _repairCollectConfirm(id) {
   const isEl = lang === 'el';
   const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  const ov = document.getElementById('repCollectOverlay');
   const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
-  const method = document.getElementById('repFinalMethod')?.value || 'cash';
-  const logIt = !!document.getElementById('repLogIncome')?.checked;
+  const cost = parseFloat(document.getElementById('repFinalCost')?.value) || 0;
+  const cashSale = ov?.dataset.cash === '1';
+  const logIt = ov?.dataset.log === '1';
   r.status = 'collected'; r.dateCollected = Date.now();
   r.finalPrice = price > 0 ? parseFloat(price.toFixed(2)) : null;
+  r.finalCost = cost > 0 ? parseFloat(cost.toFixed(2)) : null;
+  r.cashSale = cashSale;
   saveRepairsLocal(list); pushRepairsToCloud(list);
-  document.getElementById('repCollectOverlay')?.remove();
+  ov?.remove();
   if (logIt && price > 0) {
     const note = (r.type === 'custom' ? (isEl ? 'Παραγγελία' : 'Custom order') : (isEl ? 'Επισκευή' : 'Repair')) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
-    try { await _recordRepairIncome(price, method, note); } catch (e) {}
+    try { await _recordRepairIncome(price, cost, cashSale, note); } catch (e) {}
   }
   openRepairDetail(id); renderRepairs();
   showToast(isEl ? '✓ Παραλήφθηκε' : '✓ Collected');
 }
 
-// Book a repair/custom-order collection as a normal income record (day revenue + profit).
-async function _recordRepairIncome(amount, method, note) {
+// Book a repair/custom-order collection as a normal income record. Profit mirrors a
+// sale: cash → full ex-VAT amount kept; receipt → VAT extracted first; minus the cost.
+async function _recordRepairIncome(amount, cost, cashSale, note) {
   const sales = await getSales();
   const g = parseFloat(amount.toFixed(2));
+  const c = parseFloat((cost || 0).toFixed(2));
+  const vat = parseFloat(state.vat) || 0;
+  const exVat = cashSale ? g : g / (1 + vat / 100);
+  const profit = parseFloat((exVat - c).toFixed(2));
   const rec = {
     id: Date.now(),
     amount: g, note: note || '', date: todayStr(), ts: Date.now(),
     vendor: '', customer: '', email: '',
     employee: creds.userName || '', employeeName: creds.displayName || '',
     bonusAmt: 0, bonusPct: 0, invQr: '',
-    cost: null, profit: g, cashSale: method !== 'card',
+    cost: c > 0 ? c : null, profit, cashSale: !!cashSale,
     salePhotoUrl: '', salePhotoName: '', seqRef: '', repairIncome: true
   };
   sales.push(rec);
@@ -18607,9 +18645,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.91', date: 'Ιούλιος 2026', items: [
-        '🧾 Στη δημιουργία κράτησης επιλέγετε πλέον «Απόδειξη» ή «Μετρητά» — όπως στις πωλήσεις. Η επιλογή κλειδώνει στην κράτηση και μεταφέρεται αυτόματα στην πώληση κατά την ολοκλήρωση.',
-        '📄 Η φόρμα κράτησης δείχνει τώρα την αρχική τιμή, την έκπτωση, τον τρόπο συναλλαγής και (για απόδειξη) την ανάλυση ΦΠΑ.'
+      { version: 'v10.92', date: 'Ιούλιος 2026', items: [
+        '💶 Στην παραλαβή επισκευής/παραγγελίας προστέθηκε πεδίο «Κόστος» — αν χρεώσατε 30€ αλλά η επισκευή σας κόστισε 10€, το κέρδος υπολογίζεται σωστά (20€).',
+        '🧾 Επιλογή «Απόδειξη / Μετρητά» στην παραλαβή — τα μαύρα (μετρητά) υπολογίζονται στο κέρδος όπως ακριβώς στις πωλήσεις.',
+        '🔧 Διορθώσεις: τα δύο πεδία εκτίμησης (από–έως) έχουν πλέον ίσο μέγεθος, και το κουμπί «Καταγραφή στα έσοδα» φαίνεται καθαρά.'
       ]},
           ]
   },
@@ -18640,9 +18679,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.91', date: 'Jul 2026', items: [
-        '🧾 When creating a reservation you now choose "Receipt" or "Cash" — just like on a sale. The choice is locked into the reservation and carried into the sale automatically on completion.',
-        '📄 The reservation form now shows the initial price, the discount, the transaction type and (for receipts) the VAT breakdown.'
+      { version: 'v10.92', date: 'Jul 2026', items: [
+        '💶 A "Cost" field was added when collecting a repair/custom order — if you charged €30 but the repair cost you €10, the profit is now calculated correctly (€20).',
+        '🧾 A "Receipt / Cash" choice on collection — cash (off-the-books) is treated in the profit exactly like it is on a sale.',
+        '🔧 Fixes: the two estimate fields (from–to) are now equal in size, and the "Log as income" button is clearly visible.'
       ]},
           ]
   }
@@ -21619,7 +21659,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.91';
+const APP_VERSION = '10.92';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
