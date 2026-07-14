@@ -4744,6 +4744,7 @@ function openReservationDetail(id) {
     <div style="border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;padding-top:10px">
       <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">${isEl ? 'Πληρωμές' : 'Payments'}</div>${payHtml}
     </div>
+    <button onclick="shareReservationForm('${r.id}')" style="width:100%;margin-top:4px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Φόρμα κράτησης (εκτύπωση / αποστολή)' : 'Reservation form (print / share)'}</button>
     ${active ? `<div style="display:flex;gap:8px;margin-top:10px">
       <input id="resPayAmt" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? '€ πληρωμή' : '€ payment'}" style="flex:1;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px">
       <select id="resPayMethod" style="flex:0 0 auto;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
@@ -4850,6 +4851,116 @@ async function _resFinalizeComplete(rid) {
   saveReservationsLocal(list); pushReservationsToCloud(list);
   try { await _resMarkItems(r.itemIds || [], null); } catch (e) {} // clear stale reserved flags (items now sold)
   if (document.getElementById('panel-desk')?.classList.contains('active')) renderReservations();
+}
+
+// ── RESERVATION FORM (branded A4 PDF — signature + stamp box) ──────────────────
+// Reuses the same LEKKAS JEWELRY header as the share/catalog PDFs.
+async function buildReservationPDF(r) {
+  if (!window.jspdf) throw new Error('PDF library not loaded yet. Please try again.');
+  const { jsPDF } = window.jspdf;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210, MARGIN = 16;
+
+  async function fetchFontB64(fn) { try { const buf = await fetch('./fonts/' + fn).then(x => x.arrayBuffer()); let bin = ''; new Uint8Array(buf).forEach(b => bin += String.fromCharCode(b)); return btoa(bin); } catch (e) { return null; } }
+  const [regB64, boldB64] = await Promise.all([fetchFontB64('NotoSans-Regular.ttf'), fetchFontB64('NotoSans-Bold.ttf')]);
+  if (regB64) { doc.addFileToVFS('NotoSans-Regular.ttf', regB64); doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal'); }
+  if (boldB64) { doc.addFileToVFS('NotoSans-Bold.ttf', boldB64); doc.addFont('NotoSans-Bold.ttf', 'NotoSans', 'bold'); }
+  const setReg = (s, r2 = 40, g = 30, b = 20) => { doc.setFont('NotoSans', 'normal'); doc.setFontSize(s); doc.setTextColor(r2, g, b); };
+  const setBold = (s, r2 = 30, g = 20, b = 10) => { doc.setFont('NotoSans', 'bold'); doc.setFontSize(s); doc.setTextColor(r2, g, b); };
+
+  // ── Branded header (canvas — same as buildSharePDF) ──
+  const HEADER_H_MM = 36;
+  const hc = document.createElement('canvas'); const DPI = 3;
+  hc.width = Math.round(pageW * DPI * 3.78); hc.height = Math.round(HEADER_H_MM * DPI * 3.78);
+  const hctx = hc.getContext('2d'); const W = hc.width, H = hc.height; const px = v => Math.round(v * DPI * 3.78);
+  hctx.fillStyle = '#ffffff'; hctx.fillRect(0, 0, W, H);
+  hctx.font = `bold ${px(7)}px 'Cormorant Garamond', Georgia, serif`; hctx.fillStyle = '#0E0C08'; hctx.textBaseline = 'top'; hctx.letterSpacing = `${px(0.8)}px`;
+  hctx.fillText('LEKKAS ', px(0), px(3)); const lw = hctx.measureText('LEKKAS ').width; hctx.fillStyle = '#C9A84C'; hctx.fillText('JEWELRY', px(0) + lw, px(3)); hctx.letterSpacing = '0px';
+  hctx.font = `${px(2.5)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#999999'; hctx.letterSpacing = `${px(0.5)}px`; hctx.fillText('FINE JEWELRY  ·  KARPATHOS', px(0), px(12)); hctx.letterSpacing = '0px';
+  hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#666666';
+  hctx.fillText('📍 ' + (isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00'), px(0), px(18));
+  hctx.fillText('📞 +30 694 789 1151', px(0), px(23));
+  hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#888888'; hctx.textAlign = 'right'; hctx.fillText(fmtDate(new Date()), W - px(1), px(3)); hctx.textAlign = 'left';
+  hctx.fillStyle = '#C9A84C'; hctx.fillRect(0, H - px(0.5), W, px(0.5));
+  await new Promise(res => {
+    const qr = new Image(); qr.crossOrigin = 'anonymous';
+    qr.onload = () => { const qs = px(16), qx = W - px(2) - qs, qy = px(4); hctx.fillStyle = '#C9A84C'; hctx.fillRect(qx - px(0.6), qy - px(0.6), qs + px(1.2), qs + px(1.2)); hctx.drawImage(qr, qx, qy, qs, qs); res(); };
+    qr.onerror = () => res();
+    qr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent('https://maps.app.goo.gl/aqePd3XmXfnpG5h87?g_st=ac');
+  });
+  doc.addImage(hc.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, HEADER_H_MM);
+
+  // ── Title + reservation no/date ──
+  doc.setFont('NotoSans', 'bold'); doc.setFontSize(8); doc.setTextColor(150, 130, 80); doc.setCharSpace(1.4);
+  doc.text(isEl ? 'ΑΠΟΔΕΙΞΗ ΚΡΑΤΗΣΗΣ' : 'RESERVATION', MARGIN, HEADER_H_MM + 5); doc.setCharSpace(0);
+  setReg(9, 90, 90, 90); doc.text(resNoFmt(r) + '  ·  ' + fmtDate(new Date(r.dateCreated || Date.now())), pageW - MARGIN, HEADER_H_MM + 5, { align: 'right' });
+  let y = HEADER_H_MM + 14;
+
+  // ── Customer ──
+  setBold(9, 150, 130, 80); doc.text((isEl ? 'ΠΕΛΑΤΗΣ' : 'CUSTOMER'), MARGIN, y); y += 5.5;
+  setBold(11); doc.text(r.clientName || '—', MARGIN, y); y += 5;
+  setReg(9, 90, 90, 90);
+  if (r.clientPhone) { doc.text((isEl ? 'Τηλέφωνο: ' : 'Phone: ') + r.clientPhone, MARGIN, y); y += 4.5; }
+  if (r.clientEmail) { doc.text('Email: ' + r.clientEmail, MARGIN, y); y += 4.5; }
+  y += 4;
+
+  // ── Items ──
+  setBold(9, 150, 130, 80); doc.text((isEl ? 'ΕΙΔΗ' : 'ITEMS'), MARGIN, y); y += 2.5;
+  doc.setDrawColor(201, 168, 76); doc.setLineWidth(0.3); doc.line(MARGIN, y, pageW - MARGIN, y); y += 6;
+  (r.items || []).forEach(it => {
+    setReg(10, 55, 45, 35);
+    const label = (it.ref ? it.ref + '   ' : '') + (it.desc || '');
+    doc.text(doc.splitTextToSize(label, pageW - 2 * MARGIN - 30)[0], MARGIN, y);
+    doc.text(cur + (parseFloat(it.price) || 0).toFixed(2), pageW - MARGIN, y, { align: 'right' });
+    y += 7;
+  });
+  doc.setDrawColor(220, 210, 190); doc.line(MARGIN, y - 3, pageW - MARGIN, y - 3); y += 3;
+
+  // ── Totals ──
+  const paid = resPaid(r), bal = resBalance(r);
+  const totRow = (label, val, bold) => { const c = bold ? 30 : 90; (bold ? setBold : setReg)(bold ? 11 : 10, c, bold ? 20 : 90, bold ? 10 : 90); doc.text(label, pageW - MARGIN - 60, y); doc.text(cur + val.toFixed(2), pageW - MARGIN, y, { align: 'right' }); y += 6.5; };
+  totRow(isEl ? 'Συμφωνημένη τιμή' : 'Agreed price', parseFloat(r.agreedTotal) || 0, false);
+  if (paid > 0) totRow(isEl ? 'Προκαταβολή' : 'Deposit paid', paid, false);
+  totRow(isEl ? 'Υπόλοιπο' : 'Balance due', bal, true);
+  y += 3;
+  if (r.holdUntil) { setReg(9, 90, 90, 90); doc.text((isEl ? 'Κράτηση έως: ' : 'Held until: ') + fmtDate(r.holdUntil), MARGIN, y); y += 7; }
+
+  // ── Terms ──
+  setReg(7.5, 130, 130, 130);
+  const terms = isEl
+    ? 'Τα ανωτέρω είδη κρατούνται για τον πελάτη έως την ημερομηνία λήξης. Τυχόν προκαταβολή πιστώνεται στην τελική αξία. Μετά τη λήξη, η κράτηση παύει να ισχύει.'
+    : 'The items above are reserved for the customer until the hold-until date. Any deposit is credited toward the final price. After the hold date the reservation lapses.';
+  const tl = doc.splitTextToSize(terms, pageW - 2 * MARGIN); doc.text(tl, MARGIN, y); y += tl.length * 4 + 6;
+
+  // ── Signature + stamp box ──
+  const sigY = Math.max(y + 14, 262);
+  doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.3);
+  doc.line(MARGIN, sigY, MARGIN + 68, sigY);
+  setReg(8, 120, 120, 120); doc.text(isEl ? 'Υπογραφή πελάτη' : 'Customer signature', MARGIN, sigY + 4.5);
+  const sw = 52, sh = 30, sx = pageW - MARGIN - sw, sy = sigY - 24;
+  doc.setDrawColor(185, 185, 185); doc.rect(sx, sy, sw, sh);
+  setReg(7.5, 175, 175, 175); doc.text(isEl ? 'Σφραγίδα' : 'Stamp', sx + sw / 2, sy + sh / 2 + 1, { align: 'center' });
+
+  return doc.output('blob');
+}
+
+async function shareReservationForm(id) {
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  showToast(lang === 'el' ? '⏳ Δημιουργία φόρμας…' : '⏳ Generating form…');
+  try {
+    const blob = await buildReservationPDF(r);
+    const fname = 'reservation-' + resNoFmt(r) + '.pdf';
+    const file = new File([blob], fname, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }
+  } catch (e) { if (e.name !== 'AbortError') showToast('⚠️ ' + (e.message || 'Failed')); }
 }
 
 function adjustCalcPadding() {
@@ -17941,10 +18052,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.87', date: 'Ιούλιος 2026', items: [
-        '📞 Επιλογέας κωδικού χώρας μπροστά από κάθε πεδίο τηλεφώνου (κράτηση, πελάτης, πώληση) — π.χ. για Δανό πελάτη επιλέγετε Δανία (+45) και γράφετε μόνο τον αριθμό.',
-        '⌨️ Στη νέα κράτηση, το όνομα πελάτη έχει τώρα αυτόματη συμπλήρωση — επιλέγοντας υπάρχοντα πελάτη γεμίζουν όνομα/τηλέφωνο/email.',
-        '📞 Το τηλέφωνο στην καρτέλα πελάτη είναι πλέον κουμπί κλήσης (πιο φωτεινό) που ανοίγει τον τηλεφωνητή.'
+      { version: 'v10.88', date: 'Ιούλιος 2026', items: [
+        '📄 Έντυπη φόρμα κράτησης: από τα στοιχεία μιας κράτησης μπορείτε τώρα να δημιουργήσετε επώνυμη φόρμα PDF (λογότυπο, είδη, συμφωνημένη τιμή, προκαταβολή, υπόλοιπο, ημ. λήξης) με χώρο για υπογραφή πελάτη και σφραγίδα — για εκτύπωση ή αποστολή στον πελάτη.'
       ]},
           ]
   },
@@ -17975,10 +18084,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.87', date: 'Jul 2026', items: [
-        '📞 Country-code picker in front of every phone field (reservation, client, sale) — e.g. for a Danish customer pick Denmark (+45) and just type the number.',
-        '⌨️ In a new reservation, the customer name now autocompletes — picking an existing customer fills in name/phone/email.',
-        '📞 The phone on the client card is now a (brighter) tap-to-call button that opens the dialer.'
+      { version: 'v10.88', date: 'Jul 2026', items: [
+        '📄 Printable reservation form: from a reservation you can now generate a branded PDF (logo, items, agreed price, deposit, balance, hold-until date) with a customer-signature line and stamp box — for printing or sharing with the customer.'
       ]},
           ]
   }
@@ -20955,7 +21062,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.87';
+const APP_VERSION = '10.88';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
