@@ -2046,6 +2046,11 @@
         </div>
       </div>
     </div>
+    <!-- Receipt / Cash — cash (black money) hides the VAT breakdown on the printed quote/certificate -->
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button type="button" id="quotePayReceipt" onclick="_setQuoteCash(false)" style="flex:1;padding:9px;background:rgba(201,168,76,0.22);border:1px solid rgba(201,168,76,0.7);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer">🧾 <span data-i18n="quotePayReceipt">Απόδειξη</span></button>
+      <button type="button" id="quotePayCash" onclick="_setQuoteCash(true)" style="flex:1;padding:9px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer">💵 <span data-i18n="quotePayCash">Μετρητά</span></button>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <button onclick="printQuote()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="printQuoteConfirm">🖨 Εκτύπωση</button>
       <button onclick="shareQuote()" style="flex:1;padding:12px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="shareQuoteBtn">📤 Αποστολή</button>
@@ -3198,6 +3203,7 @@ const T = {
     emailsCopied:'Emails αντιγράφηκαν ✓',
     quoteCustomerEmail:'Email Πελάτη (προαιρετικό)', quoteCustomerEmailPh:'π.χ. giorgos@example.com',
     shareQuoteBtn:'📤 Αποστολή',
+    quotePayReceipt:'Απόδειξη', quotePayCash:'Μετρητά',
     clientSyncOk:'Πελάτες αποθηκεύτηκαν ✓',
     clientSyncFail:'Αποτυχία αποθήκευσης',
     stoneAuditTitle:'💎 Έλεγχος Τιμών Πετρών',
@@ -3616,6 +3622,7 @@ const T = {
     emailsCopied:'Emails copied ✓',
     quoteCustomerEmail:'Customer Email (optional)', quoteCustomerEmailPh:'e.g. george@example.com',
     shareQuoteBtn:'📤 Share',
+    quotePayReceipt:'Receipt', quotePayCash:'Cash',
     clientSyncOk:'Clients saved ✓',
     clientSyncFail:'Save failed',
     stoneAuditTitle:'💎 Stone Price Audit',
@@ -4586,7 +4593,7 @@ function _resItemFromResult(name, result) {
   }
   return { invId, isBulk: false, qr: item ? (item.qrCode || '') : (r.labelCode || ''), ref: item ? itemRefCode(item) : (r.seqRef || ''),
     desc: name || (item ? _resItemName(item) : ''), photoUrl: (item && item.photoUrl) || '', price,
-    listPrice: (parseFloat(r.retail) > 0 ? parseFloat(parseFloat(r.retail).toFixed(2)) : price),
+    listPrice: parseFloat((parseFloat(r.retail) > 0 ? parseFloat(r.retail) : (price + (parseFloat(r.discountAmt) || 0))).toFixed(2)),
     cost: (r.baseCost != null ? parseFloat(r.baseCost) : null) };
 }
 // Resolve an inventory id (Stock-card reserve) to a reservation item at its current retail.
@@ -4892,25 +4899,47 @@ function buildReservationHTML(r) {
   const paid = resPaid(r), bal = resBalance(r), agreed = parseFloat(r.agreedTotal) || 0;
   const esc = _resEsc;
   const items = r.items || r.itemsSnapshot || [];
-  const _lp = it => parseFloat(it.listPrice != null ? it.listPrice : it.price) || 0; // list/initial price
-  const initialTotal = items.reduce((s, it) => s + _lp(it), 0);
-  const discount = Math.round((initialTotal - agreed) * 100) / 100;
-  const showDisc = discount >= 0.5;
-  const discPct = initialTotal > 0 ? (discount / initialTotal * 100) : 0;
+  // List (actual) price of an item: stored listPrice, else the live inventory retail
+  // (for reservations made before list price was captured), else the agreed item price.
+  const _lp = it => {
+    if (it.listPrice != null && parseFloat(it.listPrice) > 0) return parseFloat(it.listPrice);
+    if (it.invId && _inventoryCache && _inventoryCache[it.invId]) {
+      try { const p = calcInvItemPrice(_inventoryCache[it.invId]); if (p && p.retail > 0) return parseFloat(p.retail.toFixed(2)); } catch (e) {}
+    }
+    return parseFloat(it.price) || 0;
+  };
+  const DISC_MIN = 5; // only show a discount breakdown at 5% or more
+  const finalTotal = items.reduce((s, it) => s + (parseFloat(it.price) || 0), 0); // Σ agreed item prices
+  const extraDisc = Math.round((finalTotal - agreed) * 100) / 100; // reservation-level extra discount
+  const extraPct = finalTotal > 0 ? (extraDisc / finalTotal * 100) : 0;
+  const showExtra = extraPct >= DISC_MIN;
   const vat = parseFloat(state.vat) || 0;
   const isCash = !!r.cashSale;
   const preVat = (!isCash && vat > 0) ? agreed / (1 + vat / 100) : 0;
   const vatAmt = (!isCash && vat > 0) ? agreed - preVat : 0;
-  const itemsHtml = items.map((it, i) => `<div class="item-block">
+  const itemsHtml = items.map((it, i) => {
+    const list = _lp(it), fin = parseFloat(it.price) || 0;
+    const dAmt = Math.round((list - fin) * 100) / 100;
+    const dPct = list > 0 ? (dAmt / list * 100) : 0;
+    const hasDisc = dPct >= DISC_MIN && dAmt > 0;
+    const priceCol = hasDisc
+      ? `<div style="text-align:right;white-space:nowrap">
+          <div style="font-size:9pt;color:#999;text-decoration:line-through">${cur}${list.toFixed(2)}</div>
+          <div style="font-size:8.5pt;color:#c0392b">-${dPct.toFixed(1)}% (-${cur}${dAmt.toFixed(2)})</div>
+          <div class="item-price-line" style="border:none;padding:0;margin:2px 0 0"><span class="val">${cur}${fin.toFixed(2)}</span></div>
+        </div>`
+      : `<div class="item-price-line" style="border:none;padding:0;margin:0"><span class="val">${cur}${fin.toFixed(2)}</span></div>`;
+    return `<div class="item-block">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <div style="flex:1">
         <div class="item-name">${i + 1}. ${esc(it.desc || (isEl ? 'Κόσμημα' : 'Item'))}</div>
         ${it.ref ? `<div style="font-family:'DM Mono',monospace;font-size:8pt;color:#C9A84C;letter-spacing:0.08em;margin-top:3px">Ref. <strong>${esc(it.ref)}</strong></div>` : ''}
         ${it.photoUrl ? `<img src="${it.photoUrl}" style="max-width:82px;max-height:82px;width:auto;height:auto;border-radius:4px;border:1px solid #ddd;margin-top:5px;display:block">` : ''}
       </div>
-      <div class="item-price-line" style="border:none;padding:0;margin:0"><span class="val">${cur}${_lp(it).toFixed(2)}</span></div>
+      ${priceCol}
     </div>
-  </div>`).join('');
+  </div>`;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -4984,9 +5013,9 @@ function buildReservationHTML(r) {
 ${itemsHtml}
 
 <div class="totals-section">
-  ${showDisc ? `
-  <div class="total-row"><span class="plabel">${isEl ? 'Αρχική τιμή' : 'Initial price'}</span><span class="pvalue">${cur}${initialTotal.toFixed(2)}</span></div>
-  <div class="total-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue" style="color:#c0392b">-${discPct.toFixed(1)}% (-${cur}${discount.toFixed(2)})</span></div>` : ''}
+  ${showExtra ? `
+  <div class="total-row"><span class="plabel">${isEl ? 'Υποσύνολο' : 'Subtotal'}</span><span class="pvalue">${cur}${finalTotal.toFixed(2)}</span></div>
+  <div class="total-row"><span class="plabel">${isEl ? 'Επιπλέον έκπτωση' : 'Extra discount'}</span><span class="pvalue" style="color:#c0392b">-${extraPct.toFixed(1)}% (-${cur}${extraDisc.toFixed(2)})</span></div>` : ''}
   <div class="total-row"><span class="plabel">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span class="pvalue">${cur}${agreed.toFixed(2)}</span></div>
   ${(!isCash && vat > 0) ? `
   <div class="total-row"><span class="plabel">${isEl ? 'Αξία χωρίς ΦΠΑ' : 'Price before VAT'}</span><span class="pvalue">${cur}${preVat.toFixed(2)}</span></div>
@@ -18645,10 +18674,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.92', date: 'Ιούλιος 2026', items: [
-        '💶 Στην παραλαβή επισκευής/παραγγελίας προστέθηκε πεδίο «Κόστος» — αν χρεώσατε 30€ αλλά η επισκευή σας κόστισε 10€, το κέρδος υπολογίζεται σωστά (20€).',
-        '🧾 Επιλογή «Απόδειξη / Μετρητά» στην παραλαβή — τα μαύρα (μετρητά) υπολογίζονται στο κέρδος όπως ακριβώς στις πωλήσεις.',
-        '🔧 Διορθώσεις: τα δύο πεδία εκτίμησης (από–έως) έχουν πλέον ίσο μέγεθος, και το κουμπί «Καταγραφή στα έσοδα» φαίνεται καθαρά.'
+      { version: 'v10.93', date: 'Ιούλιος 2026', items: [
+        '🏷️ Η φόρμα κράτησης δείχνει τώρα ανά είδος την αρχική τιμή, την έκπτωση (αν είναι ≥5%) και την τελική τιμή — π.χ. σταυρός 811,12€ → -19,9% → 650€.',
+        '🧾 Επιλογή «Απόδειξη / Μετρητά» προστέθηκε και στις προσφορές/πιστοποιητικά. Σε συναλλαγή με μετρητά (χωρίς απόδειξη) ο ΦΠΑ δεν εμφανίζεται πουθενά στο έντυπο.'
       ]},
           ]
   },
@@ -18679,10 +18707,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.92', date: 'Jul 2026', items: [
-        '💶 A "Cost" field was added when collecting a repair/custom order — if you charged €30 but the repair cost you €10, the profit is now calculated correctly (€20).',
-        '🧾 A "Receipt / Cash" choice on collection — cash (off-the-books) is treated in the profit exactly like it is on a sale.',
-        '🔧 Fixes: the two estimate fields (from–to) are now equal in size, and the "Log as income" button is clearly visible.'
+      { version: 'v10.93', date: 'Jul 2026', items: [
+        '🏷️ The reservation form now shows, per item, the initial price, the discount (if ≥5%) and the final price — e.g. a cross €811.12 → -19.9% → €650.',
+        '🧾 A "Receipt / Cash" choice was added to quotes & certificates too. For a cash (no-receipt) transaction, VAT is not shown anywhere on the printout.'
       ]},
           ]
   }
@@ -19255,6 +19282,7 @@ function openQuoteModal() {
   document.getElementById('quoteCustomerEmail').value = '';
   hideClientSuggestions();
   resetQuotePhotoUI();
+  _setQuoteCash(false); // default: receipt (VAT shown)
 
   // Pre-fill title: use bilingual description from inventory item (or lastCalcResult)
   (function _prefillQuoteTitle() {
@@ -19555,6 +19583,7 @@ ${r.stones && r.stones.length > 0 ? `
     <span class="pvalue">${cur}${parseFloat(r.retail || (parseFloat(r.finalPrice) + parseFloat(r.discountAmt))).toFixed(2)}</span>
   </div>
   <div class="price-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue discount-badge">-${parseFloat(r.discount).toFixed(2)}% (-${cur}${parseFloat(r.discountAmt).toFixed(2)})</span></div>` : ''}
+  ${!window._quoteIsCash ? `
   <div class="price-row">
     <span class="plabel">${isEl ? 'Τιμή χωρίς ΦΠΑ' : 'Price before VAT'}</span>
     <span class="pvalue">${cur}${parseFloat(r.preVat).toFixed(2)}</span>
@@ -19562,7 +19591,7 @@ ${r.stones && r.stones.length > 0 ? `
   <div class="price-row">
     <span class="plabel">${isEl ? 'ΦΠΑ ' + r.vat + '%' : 'VAT ' + r.vat + '%'}</span>
     <span class="pvalue">${cur}${parseFloat(r.vatAmount).toFixed(2)}</span>
-  </div>
+  </div>` : ''}
   <div class="price-row main">
     <span class="plabel">${isEl ? 'Τελική Τιμή' : 'Final Price'}</span>
     <span class="pvalue">${cur}${parseFloat(r.finalPrice).toFixed(2)}</span>
@@ -19707,6 +19736,7 @@ ${cartItems.map((ci, i) => {
   </div>
   <div class="total-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue discount-badge">-${totalDiscPct.toFixed(1)}% (-${cur}${extraDiscAmt.toFixed(2)})</span></div>
   ` : ''}
+  ${!window._quoteIsCash ? `
   <div class="total-row">
     <span class="plabel">${isEl ? 'Τιμή χωρίς ΦΠΑ' : 'Price before VAT'}</span>
     <span class="pvalue">${cur}${preVatTotal.toFixed(2)}</span>
@@ -19714,7 +19744,7 @@ ${cartItems.map((ci, i) => {
   <div class="total-row">
     <span class="plabel">${isEl ? 'ΦΠΑ ' + vatRate + '%' : 'VAT ' + vatRate + '%'}</span>
     <span class="pvalue">${cur}${vatAmt.toFixed(2)}</span>
-  </div>
+  </div>` : ''}
   <div class="total-row grand">
     <span class="plabel">${isCert ? (isEl ? 'Αξία Κοσμημάτων' : 'Jewelry Value') : (isEl ? 'Τελική Τιμή' : 'Final Price')}</span>
     <span class="pvalue">${cur}${grandTotal.toFixed(2)}</span>
@@ -19760,6 +19790,15 @@ function autoSaveClientFromQuote(name, email) {
     const newClient = { id: String(Date.now()), name, email: email || '', phone: '', notes: '', addedBy: creds.userName || '', addedByName: creds.displayName || '' };
     saveClient(newClient); // fire-and-forget
   }
+}
+
+// Receipt / Cash toggle in the quote modal. Cash (black money) hides the VAT
+// breakdown on the printed/shared quote & certificate. Read by the HTML builders.
+function _setQuoteCash(isCash) {
+  window._quoteIsCash = !!isCash;
+  const rc = document.getElementById('quotePayReceipt'), cs = document.getElementById('quotePayCash');
+  if (rc) { rc.style.background = isCash ? 'rgba(201,168,76,0.06)' : 'rgba(201,168,76,0.22)'; rc.style.borderColor = isCash ? 'rgba(201,168,76,0.3)' : 'rgba(201,168,76,0.7)'; rc.style.color = isCash ? 'var(--text-muted)' : 'var(--gold-light)'; }
+  if (cs) { cs.style.background = isCash ? 'rgba(201,168,76,0.22)' : 'rgba(201,168,76,0.06)'; cs.style.borderColor = isCash ? 'rgba(201,168,76,0.7)' : 'rgba(201,168,76,0.3)'; cs.style.color = isCash ? 'var(--gold-light)' : 'var(--text-muted)'; }
 }
 
 async function printQuote() {
@@ -20344,6 +20383,7 @@ function renderHistory(search) {
 }
 
 function reprintQuote(id) {
+  window._quoteIsCash = false; // reprints from history default to receipt (VAT shown)
   try {
     const raw = localStorage.getItem('jpro_quotes') || '[]';
     const quotes = JSON.parse(raw);
@@ -21659,7 +21699,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.92';
+const APP_VERSION = '10.93';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
