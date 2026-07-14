@@ -944,13 +944,18 @@
     #invScrollTopBtn, #invNotifBtn { right: max(16px, calc(50vw - 544px)) !important; }
   }
   .inv-inner { padding:16px 16px 32px; }
-  .inv-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .inv-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; }
   .inv-title { font-family:var(--font-heading); font-size:19px; color:var(--gold-light); font-weight:700; letter-spacing:0.02em; }
+  /* Add-coin / add-metal / bulk-chains sit in their own full-width row that shrinks to
+     fit longer (Greek) labels — each button flexes equally and its text wraps. */
+  .inv-actions { display:flex; gap:6px; flex:1 1 100%; }
   .inv-scan-btn {
-    padding:9px 16px; background:linear-gradient(135deg,rgba(212,175,55,0.18),rgba(212,175,55,0.06));
+    flex:1; min-width:0;
+    padding:8px 6px; background:linear-gradient(135deg,rgba(212,175,55,0.18),rgba(212,175,55,0.06));
     border:1px solid rgba(212,175,55,0.5); color:var(--gold-light); border-radius:var(--radius-sm);
-    font-family:var(--font-body); font-size:12px; font-weight:600; letter-spacing:0.08em;
+    font-family:var(--font-body); font-size:11px; font-weight:600; letter-spacing:0.04em;
     text-transform:uppercase; cursor:pointer; transition:all 0.2s;
+    white-space:normal; line-height:1.25; text-align:center;
   }
   .inv-scan-btn:active { background:rgba(212,175,55,0.25); }
   .inv-summary {
@@ -2471,10 +2476,11 @@
   <div class="inv-inner">
     <div class="inv-header">
       <div class="inv-title" data-i18n="invTitle">📦 Απόθεμα</div>
-      <button class="inv-scan-btn" id="invAddCoinBtn" onclick="openAddCoinModal()" data-i18n="invAddCoinBtn">🪙 Προσθήκη νομίσματος</button>
-      <button class="inv-scan-btn" id="invAddMetalBtn" onclick="openMetalModal('add')" data-i18n="invAddMetalBtn" style="margin-left:6px">🧱 Προσθήκη μετάλλου</button>
-      <button class="inv-scan-btn" id="invAddBulkBtn" onclick="openAddBulkSheet()" data-i18n="invAddBulk" style="margin-left:6px">⛓️ Χύδην Αλυσίδες</button>
-
+      <div class="inv-actions">
+        <button class="inv-scan-btn" id="invAddCoinBtn" onclick="openAddCoinModal()" data-i18n="invAddCoinBtn">🪙 Προσθήκη νομίσματος</button>
+        <button class="inv-scan-btn" id="invAddMetalBtn" onclick="openMetalModal('add')" data-i18n="invAddMetalBtn">🧱 Προσθήκη μετάλλου</button>
+        <button class="inv-scan-btn" id="invAddBulkBtn" onclick="openAddBulkSheet()" data-i18n="invAddBulk">⛓️ Χύδην Αλυσίδες</button>
+      </div>
     </div>
 
     <!-- Summary cards -->
@@ -5146,15 +5152,18 @@ function renderRepairs() {
     const thumb = r.photoUrl
       ? `<img src="${r.photoUrl}" style="width:52px;height:52px;border-radius:8px;object-fit:contain;background:#fff;flex-shrink:0">`
       : `<div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.type === 'custom' ? '✨' : '🔧'}</div>`;
+    const typeChip = r.type === 'custom'
+      ? `<span style="background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">✨ ${isEl ? 'Παραγγελία' : 'Custom order'}</span>`
+      : `<span style="background:rgba(90,150,210,0.15);border:1px solid rgba(90,150,210,0.45);color:#7fb3e0;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">🔧 ${isEl ? 'Επισκευή' : 'Repair'}</span>`;
     return `<div onclick="openRepairDetail('${r.id}')" style="display:flex;gap:11px;align-items:center;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:11px 13px;margin-bottom:9px;cursor:pointer">
       ${thumb}
       <div style="flex:1;min-width:0">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-          <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light)">${_repEsc(r.clientName || '—')}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${repNoFmt(r)}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
+          <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_repEsc(r.clientName || '—')}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0">${repNoFmt(r)}</span>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_repEsc(r.description || repTypeLabel(r))}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--text-muted)">${repTypeLabel(r)} · ${repEstText(r)}</span><span>${statusChip}</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${typeChip}<span style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_repEsc(r.description || '')}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--text-muted)">${repEstText(r)}</span><span>${statusChip}</span></div>
       </div>
     </div>`;
   }).join('');
@@ -16704,7 +16713,10 @@ function updateBulkSellPriceFromRound() {
   if (!isNaN(roundVal) && roundVal > 0 && roundVal < base) {
     const effectiveDisc = ((base - roundVal) / base) * 100;
     document.getElementById('bulkSellDiscount').value = effectiveDisc.toFixed(2);
-  } else if (!isNaN(roundVal) && roundVal >= base) {
+  } else {
+    // Round field empty / zero / at-or-above the full price → no discount (full price).
+    // (Previously an empty field left the last derived discount in place, keeping a
+    //  stale ~99% discount and a near-zero price.)
     document.getElementById('bulkSellDiscount').value = '';
   }
   _bulkSellRender(_bulkSellCalc());
@@ -18697,8 +18709,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.97', date: 'Ιούλιος 2026', items: [
-        '🇬🇷 Διόρθωση μεταφράσεων: μερικές ετικέτες («Κοινό Αγοραστικό», «Χρώμα Χρυσού», φίλτρα «Φύλο»/«Μικτό Μέταλλο», κουμπί «OK») εμφανίζονταν στα Αγγλικά ενώ η εφαρμογή ήταν στα Ελληνικά — τώρα εμφανίζονται σωστά.'
+      { version: 'v10.98', date: 'Ιούλιος 2026', items: [
+        '🔧 Τα δελτία Επισκευής και Παραγγελίας ξεχωρίζουν πλέον καθαρά με χρωματιστό σήμα (✨ Παραγγελία / 🔧 Επισκευή).',
+        '🇬🇷 Τα κουμπιά «Προσθήκη Νομίσματος/Μετάλλου/Χύδην Αλυσίδες» στο Απόθεμα δεν ξεχειλίζουν πλέον στα Ελληνικά — μπαίνουν σε δική τους σειρά και χωράνε σωστά.',
+        '⚖️ Στην πώληση αλυσίδας «με το γραμμάριο»: αδειάζοντας το πεδίο στρογγυλοποίησης, η έκπτωση μηδενίζεται σωστά (πριν κρατούσε παλιά τιμή και έβγαζε ~99% έκπτωση).'
       ]},
           ]
   },
@@ -18729,8 +18743,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.97', date: 'Jul 2026', items: [
-        '🇬🇷 Translation fix: a few labels ("Target Audience", "Gold Color", the "Gender"/"Mixed Metal" filters, the "OK" button) showed in English while the app was set to Greek — they now display correctly.'
+      { version: 'v10.98', date: 'Jul 2026', items: [
+        '🔧 Repair vs Custom-order tickets now stand apart clearly with a coloured badge (✨ Custom order / 🔧 Repair).',
+        '🇬🇷 The Add Coin / Add Metal / Bulk Chains buttons in Stock no longer overflow in Greek — they sit on their own row and fit.',
+        '⚖️ By-the-gram chain sale: clearing the round-price field now resets the discount to zero (it used to keep a stale value, showing a ~99% discount).'
       ]},
           ]
   }
@@ -21714,7 +21730,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.97';
+const APP_VERSION = '10.98';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
