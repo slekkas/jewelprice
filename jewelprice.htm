@@ -3361,7 +3361,12 @@ const T = {
     invDescPh:'π.χ. Μονόπετρο δαχτυλίδι με ζαφείρι',
     invDescHint:'Αποθηκεύεται αυτόματα στο Απόθεμα μαζί με την ετικέτα.',
     handmadeLabel:'Χειροποίητο',
-    photoLabel:'Φωτογραφία Κοσμήματος'
+    photoLabel:'Φωτογραφία Κοσμήματος',
+    ok:'OK',
+    genderLabel:'Κοινό Αγοραστικό',
+    goldColorLabel:'Χρώμα Χρυσού',
+    invFilterGender:'Φύλο',
+    invFilterMixed:'Μικτό Μέταλλο'
   },
   en: {
     liveSpot:'Live Spot', gold:'Gold', silver:'Silver',
@@ -3780,6 +3785,7 @@ const T = {
     invDescHint:'Automatically saved to Inventory when the label is printed.',
     handmadeLabel:'Handmade',
     photoLabel:'Jewelry Photo',
+    ok:'OK',
     genderLabel:'Target Audience',
     genderWomen:'♀️ Women',
     genderMen:'♂️ Men',
@@ -18691,8 +18697,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.96', date: 'Ιούλιος 2026', items: [
-        '🔓 Διόρθωση: είδη που έμεναν «κρατημένα» ενώ η κράτηση είχε ακυρωθεί/διαγραφεί τώρα ξεκλειδώνουν αυτόματα. Το σύστημα αυτο-διορθώνεται όταν ανοίγετε το Απόθεμα, και η ακύρωση/διαγραφή κράτησης πλέον απελευθερώνει σωστά τα είδη ακόμη κι αν δεν έχει φορτωθεί η λίστα.'
+      { version: 'v10.97', date: 'Ιούλιος 2026', items: [
+        '🇬🇷 Διόρθωση μεταφράσεων: μερικές ετικέτες («Κοινό Αγοραστικό», «Χρώμα Χρυσού», φίλτρα «Φύλο»/«Μικτό Μέταλλο», κουμπί «OK») εμφανίζονταν στα Αγγλικά ενώ η εφαρμογή ήταν στα Ελληνικά — τώρα εμφανίζονται σωστά.'
       ]},
           ]
   },
@@ -18723,8 +18729,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.96', date: 'Jul 2026', items: [
-        '🔓 Fix: items that stayed "reserved" after their reservation was cancelled/deleted now unlock automatically. The app self-heals when you open Stock, and cancelling/deleting a reservation now releases its items correctly even if the stock list wasn\'t loaded.'
+      { version: 'v10.97', date: 'Jul 2026', items: [
+        '🇬🇷 Translation fix: a few labels ("Target Audience", "Gold Color", the "Gender"/"Mixed Metal" filters, the "OK" button) showed in English while the app was set to Greek — they now display correctly.'
       ]},
           ]
   }
@@ -21708,7 +21714,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.96';
+const APP_VERSION = '10.97';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
