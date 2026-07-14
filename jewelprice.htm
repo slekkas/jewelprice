@@ -2220,6 +2220,12 @@
       </div>
     </div>
     <div style="margin-bottom:14px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleCustomerPhone">Τηλέφωνο Πελάτη (προαιρετικό)</label>
+      <input type="tel" id="saleCustomerPhone" autocomplete="off"
+        style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px"
+        data-i18n-ph="saleCustomerPhonePh">
+    </div>
+    <div style="margin-bottom:14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleCustomerEmail">Email Πελάτη (προαιρετικό)</label>
       <input type="email" id="saleCustomerEmail" autocomplete="off"
         style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px"
@@ -3134,6 +3140,7 @@ const T = {
     salePhotoLabel:'Φωτογραφία (προαιρετικό)',
     saleCustomerName:'Όνομα Πελάτη (προαιρετικό)', saleCustomerNamePh:'π.χ. Γιώργος Παπαδόπουλος',
     saleCustomerEmail:'Email Πελάτη (προαιρετικό)', saleCustomerEmailPh:'π.χ. giorgos@example.com',
+    saleCustomerPhone:'Τηλέφωνο Πελάτη (προαιρετικό)', saleCustomerPhonePh:'π.χ. 6971234567',
     saleAmount:'Ποσό (€)', saleNote:'Σημείωση (προαιρετικό)', saleNotePh:'π.χ. Βέρα 14K, Μαίανδρος...', saleDate:'Ημερομηνία', saleConfirm:'✓ Καταχώριση',
     saleVendorLabel:'Προμηθευτής (αυτόματο)', saleVendorPh:'π.χ. Goldsmith Italia',
     saleEditTitle:'Επεξεργασία Πώλησης', saleEditHint:'Επεξεργαστείτε τα στοιχεία της πώλησης.', saleEditEmployee:'Πωλητής',
@@ -3509,6 +3516,7 @@ const T = {
     salePhotoLabel:'Photo (optional)',
     saleCustomerName:'Customer Name (optional)', saleCustomerNamePh:'e.g. George Papadopoulos',
     saleCustomerEmail:'Customer Email (optional)', saleCustomerEmailPh:'e.g. george@example.com',
+    saleCustomerPhone:'Customer Phone (optional)', saleCustomerPhonePh:'e.g. 6971234567',
     saleAmount:'Amount (€)', saleNote:'Note (optional)', saleNotePh:'e.g. Ring 14K, Maiandr...', saleDate:'Date', saleConfirm:'✓ Record',
     saleVendorLabel:'Vendor (auto-filled)', saleVendorPh:'e.g. Goldsmith Italia',
     saleEditTitle:'Edit Sale', saleEditHint:'Update the sale details.', saleEditEmployee:'Salesperson',
@@ -4643,6 +4651,7 @@ async function _resDialogSave() {
   };
   const list = getReservations(); list.push(res); saveReservationsLocal(list); pushReservationsToCloud(list);
   await _resMarkItems(res.itemIds, res.id);
+  upsertClientFromSale(name, phone, email); // also save the customer to the Clients list
   document.getElementById('reserveDialogOverlay')?.remove();
   showToast(lang === 'el' ? '✓ Η κράτηση δημιουργήθηκε' : '✓ Reservation created');
   if (typeof renderReservations === 'function') renderReservations();
@@ -4764,12 +4773,13 @@ async function _resComplete(id) {
   window._cartSaleItems = saleItems;
   document.getElementById('reservationDetailOverlay')?.remove();
   openMultiSaleModal(saleItems);
-  // Carry the customer + a note about the reservation / deposit into the sale modal.
-  setTimeout(() => {
-    const nm = document.getElementById('saleCustomerName'); if (nm && r.clientName) nm.value = r.clientName;
-    const paid = resPaid(r);
-    if (paid > 0) { const note = document.getElementById('saleNoteInput'); if (note) note.value = (note.value ? note.value + ' · ' : '') + resNoFmt(r) + ' (' + (lang === 'el' ? 'προκαταβολή' : 'deposit') + ' ' + (state.currency || '€') + paid.toFixed(2) + ')'; }
-  }, 60);
+  // Carry the customer + a deposit note into the sale modal. Set AFTER the call —
+  // openMultiSaleModal clears these fields synchronously, so this must run after it.
+  const _nm = document.getElementById('saleCustomerName'); if (_nm) _nm.value = r.clientName || '';
+  const _ph = document.getElementById('saleCustomerPhone'); if (_ph) _ph.value = r.clientPhone || '';
+  const _em = document.getElementById('saleCustomerEmail'); if (_em) _em.value = r.clientEmail || '';
+  const paid = resPaid(r);
+  if (paid > 0) { const note = document.getElementById('saleNoteInput'); if (note) note.value = (note.value ? note.value + ' · ' : '') + resNoFmt(r) + ' (' + (lang === 'el' ? 'προκαταβολή' : 'deposit') + ' ' + (state.currency || '€') + paid.toFixed(2) + ')'; }
 }
 
 // Auto-expiry: any active reservation past its "hold until" date releases its items
@@ -6364,6 +6374,7 @@ function _openSingleSaleModal() {
   const qEmail = document.getElementById('quoteCustomerEmail');
   document.getElementById('saleCustomerName').value = qName ? qName.value.trim() : '';
   document.getElementById('saleCustomerEmail').value = qEmail ? qEmail.value.trim() : '';
+  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
   // Pre-fill vendor from last calculation
   const vSel = document.getElementById('vendorSelect');
   const vendorName = (vSel && vSel.options[vSel.selectedIndex]) ? vSel.options[vSel.selectedIndex].text : '';
@@ -6497,6 +6508,7 @@ function openSaleModalFromQuote(id) {
     document.getElementById('saleDateDisplayText').textContent = fmtDate(todayStr());
     document.getElementById('saleCustomerName').value = e.customer || '';
     document.getElementById('saleCustomerEmail').value = '';
+    { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
     document.getElementById('saleVendorName').value = e.vendor || '';
     hideSaleClientSuggestions();
     document.getElementById('saleModal').style.display = 'flex';
@@ -6962,6 +6974,9 @@ async function confirmSale() {
   const date = document.getElementById('saleDateInput').value || todayStr();
   const saleCustomer = document.getElementById('saleCustomerName').value.trim();
   const saleEmail = document.getElementById('saleCustomerEmail').value.trim();
+  const salePhone = (document.getElementById('saleCustomerPhone')?.value || '').trim();
+  // Save the customer to the Clients list (or fill in a missing phone/email).
+  if (saleCustomer) upsertClientFromSale(saleCustomer, salePhone, saleEmail);
   const saleVendor = document.getElementById('saleVendorName').value.trim();
   const bonusAmt = _currentUserBonus > 0 ? parseFloat((_effectiveAmt * _currentUserBonus / 100).toFixed(2)) : 0;
   const invQr = window._saleFromInvQr || (lastCalcResult ? (lastCalcResult.labelCode || '') : '');
@@ -16199,6 +16214,7 @@ function openSaleModalFromInventory(id) {
   document.getElementById('saleDateDisplayText').textContent = fmtDate(todayStr());
   document.getElementById('saleCustomerName').value = '';
   document.getElementById('saleCustomerEmail').value = '';
+  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
   document.getElementById('saleVendorName').value = item.vendorName || '';
   hideSaleClientSuggestions();
   window._saleFromInvId = id;  // remembered in confirmSale
@@ -17881,8 +17897,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.84', date: 'Ιούλιος 2026', items: [
-        '🔒 Κράτηση και στα ομαδοποιημένα είδη: εικονίδιο λουκέτου στην ομαδική κάρτα (χρυσό αν κάποιο κομμάτι είναι κρατημένο) και κουμπί «Κράτηση» σε κάθε κομμάτι μέσα στη λίστα της ομάδας.'
+      { version: 'v10.85', date: 'Ιούλιος 2026', items: [
+        '👤 Οι πελάτες αποθηκεύονται αυτόματα: όταν κάνετε κράτηση ή πώληση με όνομα πελάτη, ο πελάτης (με τηλέφωνο/email) προστίθεται στη λίστα Πελατών — ή συμπληρώνεται τηλέφωνο/email που έλειπε. Προστέθηκε πεδίο τηλεφώνου στη φόρμα πώλησης. Στην «Ολοκλήρωση» κράτησης, όνομα/τηλέφωνο/email του πελάτη συμπληρώνονται αυτόματα.'
       ]},
           ]
   },
@@ -17913,8 +17929,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.84', date: 'Jul 2026', items: [
-        '🔒 Reserve on grouped items too: a padlock icon on the group card (gold if any piece is reserved) and a «Reserve» button on each piece inside the group\'s list.'
+      { version: 'v10.85', date: 'Jul 2026', items: [
+        '👤 Customers are saved automatically: making a reservation or a sale with a customer name now adds them (with phone/email) to the Clients list — or fills in a missing phone/email. Added a phone field to the sale form. On reservation «Complete», the customer\'s name/phone/email are pre-filled.'
       ]},
           ]
   }
@@ -18151,6 +18167,7 @@ function openMultiSaleModal(items) {
   document.getElementById('saleDateDisplayText').textContent = fmtDate(todayStr());
   document.getElementById('saleCustomerName').value = '';
   document.getElementById('saleCustomerEmail').value = '';
+  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = ''; }
   document.getElementById('saleVendorName').value = '';
   hideSaleClientSuggestions();
   _pendingSalePhoto = null;
@@ -19772,6 +19789,27 @@ async function deleteClient(id) {
   await pushClientsToCloud(list);
 }
 
+// Add a customer to the Clients list from a sale / reservation, or fill in a
+// missing phone/email on an existing client (matched by name). Fire-and-forget.
+async function upsertClientFromSale(name, phone, email) {
+  name = (name || '').trim(); phone = (phone || '').trim(); email = (email || '').trim();
+  if (!name) return;
+  const list = getClients();
+  const nlow = name.toLowerCase();
+  const existing = list.find(c => (c.name || '').trim().toLowerCase() === nlow);
+  if (existing) {
+    let changed = false;
+    if (phone && !existing.phone) { existing.phone = phone; changed = true; }
+    if (email && !existing.email) { existing.email = email; changed = true; }
+    if (!changed) return;
+    saveClientsLocal(list); pushClientsToCloud(list);
+  } else {
+    list.push({ id: String(Date.now()), name, phone, email, notes: '', dateAdded: Date.now() });
+    saveClientsLocal(list); pushClientsToCloud(list);
+    if (document.getElementById('panel-clients')?.classList.contains('active')) renderClients();
+  }
+}
+
 // A client's id is its creation time (String(Date.now())); use dateAdded if present, else the numeric id.
 function getClientDate(c) {
   if (c && c.dateAdded) return c.dateAdded;
@@ -19988,6 +20026,7 @@ function selectSaleClientSuggestion(id) {
   if (!c) return;
   document.getElementById('saleCustomerName').value = c.name || '';
   document.getElementById('saleCustomerEmail').value = c.email || '';
+  { const _sp = document.getElementById('saleCustomerPhone'); if (_sp) _sp.value = c.phone || ''; }
   hideSaleClientSuggestions();
 }
 
@@ -20804,7 +20843,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.84';
+const APP_VERSION = '10.85';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
