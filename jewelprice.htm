@@ -5161,6 +5161,16 @@ function repEstText(r) {
   return cur + (lo || hi).toFixed(2);
 }
 function repTypeLabel(r) { return r.type === 'custom' ? (lang === 'el' ? 'Παραγγελία' : 'Custom order') : (lang === 'el' ? 'Επισκευή' : 'Repair'); }
+// Contact for notifying: the ticket's own phone/email, else the matching client's
+// (by name) — so a number added later in the Clients tab enables WhatsApp/SMS here.
+function _repContact(r) {
+  let phone = (r.clientPhone || '').trim(), email = (r.clientEmail || '').trim();
+  if ((!phone || !email) && r.clientName) {
+    const c = getClients().find(cl => (cl.name || '').trim().toLowerCase() === r.clientName.trim().toLowerCase());
+    if (c) { if (!phone) phone = (c.phone || '').trim(); if (!email) email = (c.email || '').trim(); }
+  }
+  return { phone, email };
+}
 
 function renderRepairs() {
   const box = document.getElementById('repairsList'); if (!box) return;
@@ -5334,15 +5344,17 @@ function openRepairDetail(id) {
   ov.id = 'repairDetailOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
   const statusLabel = r.status === 'in_progress' ? (isEl ? 'Σε εξέλιξη' : 'In progress') : r.status === 'ready' ? (isEl ? 'Έτοιμο' : 'Ready') : r.status === 'collected' ? (isEl ? 'Παραλήφθηκε' : 'Collected') : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
-  const phoneBtn = r.clientPhone ? `<button onclick="_callPhone('${_repEsc(r.clientPhone)}')" style="background:none;border:none;color:#4bd07f;font-family:'DM Mono',monospace;font-size:13px;cursor:pointer;padding:0">📞 ${_repEsc(r.clientPhone)}</button>` : '';
-  // Notify buttons (ready or in-progress): WhatsApp / SMS / Email
-  const waNum = (r.clientPhone || '').replace(/[^0-9]/g, '');
-  const notifyRow = (r.status === 'in_progress' || r.status === 'ready') && (r.clientPhone || r.clientEmail) ? `
+  const _rc = _repContact(r);
+  const phoneBtn = _rc.phone ? `<button onclick="_callPhone('${_repEsc(_rc.phone)}')" style="background:none;border:none;color:#4bd07f;font-family:'DM Mono',monospace;font-size:13px;cursor:pointer;padding:0">📞 ${_repEsc(_rc.phone)}</button>` : '';
+  // Notify buttons (ready or in-progress): WhatsApp / SMS / Email — uses the ticket's
+  // contact or the linked client's (so a number added later in Clients works here too).
+  const waNum = (_rc.phone || '').replace(/[^0-9]/g, '');
+  const notifyRow = (r.status === 'in_progress' || r.status === 'ready') && (_rc.phone || _rc.email) ? `
     <div style="${_resLbl};margin-top:6px">${isEl ? 'Ειδοποίηση πελάτη' : 'Notify customer'}${r.notifiedAt ? ` · <span style="color:#7fd6b0;text-transform:none;letter-spacing:0">${isEl ? 'στάλθηκε' : 'sent'} ${fmtDate(new Date(r.notifiedAt))}</span>` : ''}</div>
     <div style="display:flex;gap:7px;margin-bottom:10px">
       ${waNum ? `<button onclick="_repairNotify('${r.id}','whatsapp')" style="flex:1;padding:9px;background:rgba(37,211,102,0.14);border:1px solid rgba(37,211,102,0.4);color:#25d366;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">WhatsApp</button>` : ''}
-      ${r.clientPhone ? `<button onclick="_repairNotify('${r.id}','sms')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">SMS</button>` : ''}
-      ${r.clientEmail ? `<button onclick="_repairNotify('${r.id}','email')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Email</button>` : ''}
+      ${_rc.phone ? `<button onclick="_repairNotify('${r.id}','sms')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">SMS</button>` : ''}
+      ${_rc.email ? `<button onclick="_repairNotify('${r.id}','email')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Email</button>` : ''}
     </div>` : '';
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -5387,18 +5399,19 @@ function _repairNotify(id, channel) {
     ? `Γεια σας ${r.clientName || ''}! Στο Lekkas Jewelry, ${what} (${repNoFmt(r)}) είναι έτοιμη για παραλαβή. 💍`
     : `Hello ${r.clientName || ''}! At Lekkas Jewelry, ${what} (${repNoFmt(r)}) is ready for pickup. 💍`;
   const enc = encodeURIComponent(msg);
+  const _rc = _repContact(r); // ticket's own contact, else the linked client's
   if (channel === 'whatsapp') {
-    const num = (r.clientPhone || '').replace(/[^0-9]/g, '');
+    const num = (_rc.phone || '').replace(/[^0-9]/g, '');
     if (!num) { showToast(isEl ? 'Χωρίς αριθμό' : 'No number'); return; }
     window.open('https://wa.me/' + num + '?text=' + enc, '_blank');
   } else if (channel === 'sms') {
-    const num = (r.clientPhone || '').replace(/[^0-9+]/g, '');
+    const num = (_rc.phone || '').replace(/[^0-9+]/g, '');
     if (!num) { showToast(isEl ? 'Χωρίς αριθμό' : 'No number'); return; }
     window.location.href = 'sms:' + num + '?&body=' + enc;
   } else if (channel === 'email') {
-    if (!r.clientEmail) { showToast(isEl ? 'Χωρίς email' : 'No email'); return; }
+    if (!_rc.email) { showToast(isEl ? 'Χωρίς email' : 'No email'); return; }
     const subj = encodeURIComponent(isEl ? 'Lekkas Jewelry — έτοιμο για παραλαβή' : 'Lekkas Jewelry — ready for pickup');
-    window.location.href = 'mailto:' + r.clientEmail + '?subject=' + subj + '&body=' + enc;
+    window.location.href = 'mailto:' + _rc.email + '?subject=' + subj + '&body=' + enc;
   }
   if (!r.notifiedAt) { r.notifiedAt = Date.now(); saveRepairsLocal(list); pushRepairsToCloud(list); setTimeout(() => { if (document.getElementById('repairDetailOverlay')) openRepairDetail(id); }, 400); }
 }
@@ -18885,10 +18898,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.99', date: 'Ιούλιος 2026', items: [
-        '🕰️ Νέο «Στάσιμο απόθεμα» (μόνο ιδιοκτήτης): φίλτρο «Χρόνος στο απόθεμα» (1+/2+/3+/5+ σεζόν) + αναφορά που δείχνει λιανική, αξία μετάλλου και περιθώριο έκπτωσης για κομμάτια που κάθονται καιρό — με εξαγωγή CSV.',
-        '🔒 Στο Απόθεμα, στην «Επιλογή» πολλών κομματιών προστέθηκε κουμπί «Κράτηση» για κράτηση πολλών μαζί. Τα κρατημένα κομμάτια έχουν πλέον ευδιάκριτο σήμα «🔒 Κρατημένο».',
-        '🛍️ Βιτρίνα: οι μετρήσεις κατηγοριών μετράνε πλέον τις κάρτες (ομαδοποιημένα ίδια κομμάτια) όπως εμφανίζονται, όχι κάθε τεμάχιο ξεχωριστά.'
+      { version: 'v11.0', date: 'Ιούλιος 2026', items: [
+        '📱 Στα δελτία Επισκευής/Παραγγελίας, τα κουμπιά ειδοποίησης (WhatsApp/SMS/Email) χρησιμοποιούν τώρα και το τηλέφωνο/email του πελάτη από την καρτέλα Πελατών — αν προσθέσετε τον αριθμό εκεί αργότερα, το WhatsApp εμφανίζεται αυτόματα στο δελτίο.'
       ]},
           ]
   },
@@ -18919,10 +18930,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.99', date: 'Jul 2026', items: [
-        '🕰️ New "Stale Stock" (owner only): a "Time in Stock" filter (1+/2+/3+/5+ seasons) + a report showing retail, metal-value floor and discount room for long-sitting pieces — with CSV export.',
-        '🔒 In Stock select-mode, a new "Reserve" button holds several selected pieces at once. Reserved pieces now carry a clear "🔒 Reserved" badge.',
-        '🛍️ Showroom: category counts now count the cards you actually see (grouped identical pieces collapse to one), not every individual piece.'
+      { version: 'v11.0', date: 'Jul 2026', items: [
+        '📱 On Repair/Custom-order tickets, the notify buttons (WhatsApp/SMS/Email) now also use the customer\'s phone/email from the Clients tab — so if you add the number there later, the WhatsApp button appears on the ticket automatically.'
       ]},
           ]
   }
@@ -21906,7 +21915,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.99';
+const APP_VERSION = '11.0';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
