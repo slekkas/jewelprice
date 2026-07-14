@@ -4575,7 +4575,7 @@ function _resItemFromResult(name, result) {
     return { invId: null, isBulk: true, bulkInvId: r.bulkInvId, soldWeight: parseFloat(r.bulkSoldWeight) || 0,
       cost: (r.baseCost != null ? parseFloat(r.baseCost) : null),
       qr: (batch && (batch.qrCode || batch.code)) || '', ref: '', desc: name || (batch ? _resItemName(batch) : ''),
-      photoUrl: (batch && batch.photoUrl) || '', price };
+      photoUrl: (batch && batch.photoUrl) || '', price, listPrice: price };
   }
   const qr = (r.labelCode || '').trim().toUpperCase();
   let invId = null, item = null;
@@ -4586,14 +4586,16 @@ function _resItemFromResult(name, result) {
   }
   return { invId, isBulk: false, qr: item ? (item.qrCode || '') : (r.labelCode || ''), ref: item ? itemRefCode(item) : (r.seqRef || ''),
     desc: name || (item ? _resItemName(item) : ''), photoUrl: (item && item.photoUrl) || '', price,
+    listPrice: (parseFloat(r.retail) > 0 ? parseFloat(parseFloat(r.retail).toFixed(2)) : price),
     cost: (r.baseCost != null ? parseFloat(r.baseCost) : null) };
 }
 // Resolve an inventory id (Stock-card reserve) to a reservation item at its current retail.
 function _resItemFromInv(id) {
   const it = (_inventoryCache || {})[id]; if (!it || it.status !== 'in_stock' || it.isBulk) return null;
   const p = calcInvItemPrice(it);
+  const _pr = p ? parseFloat((p.retail || 0).toFixed(2)) : 0;
   return { invId: id, isBulk: false, qr: it.qrCode || '', ref: itemRefCode(it), desc: _resItemName(it),
-    photoUrl: it.photoUrl || '', price: p ? parseFloat((p.retail || 0).toFixed(2)) : 0, cost: p ? (p.baseCost != null ? p.baseCost : null) : null };
+    photoUrl: it.photoUrl || '', price: _pr, listPrice: _pr, cost: p ? (p.baseCost != null ? p.baseCost : null) : null };
 }
 
 // Shared Reserve dialog. `items` = resolved reservation items (from calc / cart / stock).
@@ -4632,6 +4634,11 @@ function openReserveDialog(items, source) {
     <input id="resCustEmail" type="email" autocomplete="off" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
     <div style="${_resLbl}">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'} (€)</div>
     <input id="resAgreedTotal" type="number" step="0.01" inputmode="decimal" value="${sum.toFixed(2)}" style="${_resInp}">
+    <div style="${_resLbl}">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction type'}</div>
+    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:10px">
+      <button type="button" id="resPayReceipt" class="desk-seg active" onclick="_resSetPay('receipt')">🧾 ${isEl ? 'Απόδειξη' : 'Receipt'}</button>
+      <button type="button" id="resPayCash" class="desk-seg" onclick="_resSetPay('cash')">💵 ${isEl ? 'Μετρητά' : 'Cash'}</button>
+    </div>
     <div style="${_resLbl}">${isEl ? 'Προκαταβολή (προαιρετικό)' : 'Deposit (optional)'}</div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <input id="resDeposit" type="number" step="0.01" inputmode="decimal" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
@@ -4646,7 +4653,14 @@ function openReserveDialog(items, source) {
     <button onclick="_resDialogSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔒 ${isEl ? 'Κράτηση' : 'Reserve'}</button>
   </div>`;
   document.body.appendChild(ov);
+  ov.dataset.cash = '0'; // default: receipt (with VAT), matching a normal sale
   setTimeout(() => document.getElementById('resCustName')?.focus(), 100);
+}
+// Receipt / Cash segmented toggle in the reserve dialog.
+function _resSetPay(which) {
+  const ov = document.getElementById('reserveDialogOverlay'); if (ov) ov.dataset.cash = which === 'cash' ? '1' : '0';
+  document.getElementById('resPayReceipt')?.classList.toggle('active', which !== 'cash');
+  document.getElementById('resPayCash')?.classList.toggle('active', which === 'cash');
 }
 
 async function _resDialogSave() {
@@ -4658,12 +4672,13 @@ async function _resDialogSave() {
   const dep = parseFloat(document.getElementById('resDeposit').value) || 0;
   const depMethod = document.getElementById('resDepositMethod').value || 'cash';
   const holdUntil = document.getElementById('resHoldUntil').value || '';
+  const cashSale = document.getElementById('reserveDialogOverlay')?.dataset.cash === '1';
   const no = await getNextReservationNo();
   const now = Date.now();
   const res = {
     id: 'res_' + now, reservationNo: no, clientName: name, clientPhone: phone, clientEmail: email,
     items: _resDlgItems.slice(), itemIds: _resDlgItems.filter(i => i.invId).map(i => i.invId),
-    agreedTotal: parseFloat(agreed.toFixed(2)),
+    agreedTotal: parseFloat(agreed.toFixed(2)), cashSale,
     payments: dep > 0 ? [{ amount: parseFloat(dep.toFixed(2)), date: todayStr(), method: depMethod, by: creds.displayName || creds.userName || '', note: (lang === 'el' ? 'Προκαταβολή' : 'Deposit') }] : [],
     holdUntil, status: 'active', itemGivenEarly: false, notes: '', dateCreated: now, dateCompleted: null, createdBy: creds.displayName || creds.userName || ''
   };
@@ -4745,6 +4760,7 @@ function openReservationDetail(id) {
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.agreedTotal) || 0).toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Πληρωμένα' : 'Paid'}</span><span style="color:#7fd6b0">${cur}${paid.toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 0"><span style="color:var(--text)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span><span style="color:${bal > 0 ? '#e0a85a' : '#7fd6b0'}">${cur}${bal.toFixed(2)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction'}</span><span style="color:var(--text-muted)">${r.cashSale ? (isEl ? '💵 Μετρητά' : '💵 Cash') : (isEl ? '🧾 Με απόδειξη' : '🧾 With receipt')}</span></div>
     ${r.holdUntil ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Κράτηση έως' : 'Hold until'}</span><span style="color:var(--text-muted)">${fmtDate(r.holdUntil)}</span></div>` : ''}
     ${r.clientEmail ? `<div style="font-size:11px;color:var(--text-dim);margin:2px 0">${_resEsc(r.clientEmail)}</div>` : ''}
     <div style="border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;padding-top:10px">
@@ -4832,6 +4848,8 @@ async function _resComplete(id) {
   const _nm = document.getElementById('saleCustomerName'); if (_nm) _nm.value = r.clientName || '';
   _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', r.clientPhone || '');
   const _em = document.getElementById('saleCustomerEmail'); if (_em) _em.value = r.clientEmail || '';
+  // Carry the cash/receipt choice locked in when the reservation was made.
+  const _cb = document.getElementById('saleCashToggle'); if (_cb) _setCashBtnState(_cb, !!r.cashSale);
   const paid = resPaid(r);
   if (paid > 0) { const note = document.getElementById('saleNoteInput'); if (note) note.value = (note.value ? note.value + ' · ' : '') + resNoFmt(r) + ' (' + (lang === 'el' ? 'προκαταβολή' : 'deposit') + ' ' + (state.currency || '€') + paid.toFixed(2) + ')'; }
 }
@@ -4874,6 +4892,15 @@ function buildReservationHTML(r) {
   const paid = resPaid(r), bal = resBalance(r), agreed = parseFloat(r.agreedTotal) || 0;
   const esc = _resEsc;
   const items = r.items || r.itemsSnapshot || [];
+  const _lp = it => parseFloat(it.listPrice != null ? it.listPrice : it.price) || 0; // list/initial price
+  const initialTotal = items.reduce((s, it) => s + _lp(it), 0);
+  const discount = Math.round((initialTotal - agreed) * 100) / 100;
+  const showDisc = discount >= 0.5;
+  const discPct = initialTotal > 0 ? (discount / initialTotal * 100) : 0;
+  const vat = parseFloat(state.vat) || 0;
+  const isCash = !!r.cashSale;
+  const preVat = (!isCash && vat > 0) ? agreed / (1 + vat / 100) : 0;
+  const vatAmt = (!isCash && vat > 0) ? agreed - preVat : 0;
   const itemsHtml = items.map((it, i) => `<div class="item-block">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <div style="flex:1">
@@ -4881,7 +4908,7 @@ function buildReservationHTML(r) {
         ${it.ref ? `<div style="font-family:'DM Mono',monospace;font-size:8pt;color:#C9A84C;letter-spacing:0.08em;margin-top:3px">Ref. <strong>${esc(it.ref)}</strong></div>` : ''}
         ${it.photoUrl ? `<img src="${it.photoUrl}" style="max-width:82px;max-height:82px;width:auto;height:auto;border-radius:4px;border:1px solid #ddd;margin-top:5px;display:block">` : ''}
       </div>
-      <div class="item-price-line" style="border:none;padding:0;margin:0"><span class="val">${cur}${(parseFloat(it.price) || 0).toFixed(2)}</span></div>
+      <div class="item-price-line" style="border:none;padding:0;margin:0"><span class="val">${cur}${_lp(it).toFixed(2)}</span></div>
     </div>
   </div>`).join('');
 
@@ -4957,7 +4984,14 @@ function buildReservationHTML(r) {
 ${itemsHtml}
 
 <div class="totals-section">
+  ${showDisc ? `
+  <div class="total-row"><span class="plabel">${isEl ? 'Αρχική τιμή' : 'Initial price'}</span><span class="pvalue">${cur}${initialTotal.toFixed(2)}</span></div>
+  <div class="total-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue" style="color:#c0392b">-${discPct.toFixed(1)}% (-${cur}${discount.toFixed(2)})</span></div>` : ''}
   <div class="total-row"><span class="plabel">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span class="pvalue">${cur}${agreed.toFixed(2)}</span></div>
+  ${(!isCash && vat > 0) ? `
+  <div class="total-row"><span class="plabel">${isEl ? 'Αξία χωρίς ΦΠΑ' : 'Price before VAT'}</span><span class="pvalue">${cur}${preVat.toFixed(2)}</span></div>
+  <div class="total-row"><span class="plabel">${isEl ? 'ΦΠΑ ' + vat + '%' : 'VAT ' + vat + '%'}</span><span class="pvalue">${cur}${vatAmt.toFixed(2)}</span></div>` : ''}
+  <div class="total-row"><span class="plabel">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction'}</span><span class="pvalue">${isCash ? (isEl ? '💵 Μετρητά' : '💵 Cash') : (isEl ? '🧾 Με απόδειξη' : '🧾 With receipt')}</span></div>
   ${paid > 0 ? `<div class="total-row"><span class="plabel">${isEl ? 'Προκαταβολή' : 'Deposit paid'}</span><span class="pvalue" style="color:#2e8b57">-${cur}${paid.toFixed(2)}</span></div>` : ''}
   <div class="total-row grand"><span class="plabel">${isEl ? 'Υπόλοιπο' : 'Balance due'}</span><span class="pvalue">${cur}${bal.toFixed(2)}</span></div>
 </div>
@@ -18573,9 +18607,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.90', date: 'Ιούλιος 2026', items: [
-        '📄 Η φόρμα κράτησης ξαναφτιάχτηκε στο ίδιο κομψό στυλ με την προσφορά — με φωτογραφίες των ειδών, επώνυμη κεφαλίδα και χρυσά σύνολα.',
-        '🖨 Ξεχωριστά κουμπιά «Εκτύπωση» (πάει κατευθείαν στην εκτύπωση) και «Αποστολή» (στέλνει PDF σε WhatsApp/email) στη φόρμα κράτησης.'
+      { version: 'v10.91', date: 'Ιούλιος 2026', items: [
+        '🧾 Στη δημιουργία κράτησης επιλέγετε πλέον «Απόδειξη» ή «Μετρητά» — όπως στις πωλήσεις. Η επιλογή κλειδώνει στην κράτηση και μεταφέρεται αυτόματα στην πώληση κατά την ολοκλήρωση.',
+        '📄 Η φόρμα κράτησης δείχνει τώρα την αρχική τιμή, την έκπτωση, τον τρόπο συναλλαγής και (για απόδειξη) την ανάλυση ΦΠΑ.'
       ]},
           ]
   },
@@ -18606,9 +18640,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.90', date: 'Jul 2026', items: [
-        '📄 The reservation form was rebuilt in the same elegant style as the quote — with item photos, a branded header and gold totals.',
-        '🖨 Separate "Print" (goes straight to the print dialog) and "Share" (sends a PDF to WhatsApp/email) buttons on the reservation form.'
+      { version: 'v10.91', date: 'Jul 2026', items: [
+        '🧾 When creating a reservation you now choose "Receipt" or "Cash" — just like on a sale. The choice is locked into the reservation and carried into the sale automatically on completion.',
+        '📄 The reservation form now shows the initial price, the discount, the transaction type and (for receipts) the VAT breakdown.'
       ]},
           ]
   }
@@ -21585,7 +21619,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.90';
+const APP_VERSION = '10.91';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
