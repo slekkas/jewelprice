@@ -2046,11 +2046,8 @@
         </div>
       </div>
     </div>
-    <!-- Receipt / Cash — cash (black money) hides the VAT breakdown on the printed quote/certificate -->
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <button type="button" id="quotePayReceipt" onclick="_setQuoteCash(false)" style="flex:1;padding:9px;background:rgba(201,168,76,0.22);border:1px solid rgba(201,168,76,0.7);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer">🧾 <span data-i18n="quotePayReceipt">Απόδειξη</span></button>
-      <button type="button" id="quotePayCash" onclick="_setQuoteCash(true)" style="flex:1;padding:9px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer">💵 <span data-i18n="quotePayCash">Μετρητά</span></button>
-    </div>
+    <!-- Cash toggle — pressed = cash (black money), which hides VAT on the printed quote/certificate -->
+    <button type="button" id="quoteCashToggle" data-cash-btn="1" onclick="_toggleCashBtn('quoteCashToggle')" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap">💵 ΜΕΤΡΗΤΑ</button>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <button onclick="printQuote()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="printQuoteConfirm">🖨 Εκτύπωση</button>
       <button onclick="shareQuote()" style="flex:1;padding:12px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="shareQuoteBtn">📤 Αποστολή</button>
@@ -3203,7 +3200,6 @@ const T = {
     emailsCopied:'Emails αντιγράφηκαν ✓',
     quoteCustomerEmail:'Email Πελάτη (προαιρετικό)', quoteCustomerEmailPh:'π.χ. giorgos@example.com',
     shareQuoteBtn:'📤 Αποστολή',
-    quotePayReceipt:'Απόδειξη', quotePayCash:'Μετρητά',
     clientSyncOk:'Πελάτες αποθηκεύτηκαν ✓',
     clientSyncFail:'Αποτυχία αποθήκευσης',
     stoneAuditTitle:'💎 Έλεγχος Τιμών Πετρών',
@@ -3622,7 +3618,6 @@ const T = {
     emailsCopied:'Emails copied ✓',
     quoteCustomerEmail:'Customer Email (optional)', quoteCustomerEmailPh:'e.g. george@example.com',
     shareQuoteBtn:'📤 Share',
-    quotePayReceipt:'Receipt', quotePayCash:'Cash',
     clientSyncOk:'Clients saved ✓',
     clientSyncFail:'Save failed',
     stoneAuditTitle:'💎 Stone Price Audit',
@@ -4641,11 +4636,7 @@ function openReserveDialog(items, source) {
     <input id="resCustEmail" type="email" autocomplete="off" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
     <div style="${_resLbl}">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'} (€)</div>
     <input id="resAgreedTotal" type="number" step="0.01" inputmode="decimal" value="${sum.toFixed(2)}" style="${_resInp}">
-    <div style="${_resLbl}">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction type'}</div>
-    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:10px">
-      <button type="button" id="resPayReceipt" class="desk-seg active" onclick="_resSetPay('receipt')">🧾 ${isEl ? 'Απόδειξη' : 'Receipt'}</button>
-      <button type="button" id="resPayCash" class="desk-seg" onclick="_resSetPay('cash')">💵 ${isEl ? 'Μετρητά' : 'Cash'}</button>
-    </div>
+    <div style="margin-bottom:10px">${_cashToggleHtml('resCashToggle')}</div>
     <div style="${_resLbl}">${isEl ? 'Προκαταβολή (προαιρετικό)' : 'Deposit (optional)'}</div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <input id="resDeposit" type="number" step="0.01" inputmode="decimal" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
@@ -4660,14 +4651,7 @@ function openReserveDialog(items, source) {
     <button onclick="_resDialogSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔒 ${isEl ? 'Κράτηση' : 'Reserve'}</button>
   </div>`;
   document.body.appendChild(ov);
-  ov.dataset.cash = '0'; // default: receipt (with VAT), matching a normal sale
   setTimeout(() => document.getElementById('resCustName')?.focus(), 100);
-}
-// Receipt / Cash segmented toggle in the reserve dialog.
-function _resSetPay(which) {
-  const ov = document.getElementById('reserveDialogOverlay'); if (ov) ov.dataset.cash = which === 'cash' ? '1' : '0';
-  document.getElementById('resPayReceipt')?.classList.toggle('active', which !== 'cash');
-  document.getElementById('resPayCash')?.classList.toggle('active', which === 'cash');
 }
 
 async function _resDialogSave() {
@@ -4679,7 +4663,7 @@ async function _resDialogSave() {
   const dep = parseFloat(document.getElementById('resDeposit').value) || 0;
   const depMethod = document.getElementById('resDepositMethod').value || 'cash';
   const holdUntil = document.getElementById('resHoldUntil').value || '';
-  const cashSale = document.getElementById('reserveDialogOverlay')?.dataset.cash === '1';
+  const cashSale = _isCashBtn('resCashToggle');
   const no = await getNextReservationNo();
   const now = Date.now();
   const res = {
@@ -5367,11 +5351,7 @@ function _repairCollectOpen(id) {
         <input id="repFinalCost" type="number" step="0.01" inputmode="decimal" value="${r.finalCost != null ? parseFloat(r.finalCost).toFixed(2) : ''}" placeholder="${isEl ? 'π.χ. 10' : 'e.g. 10'}" style="${_resInp}">
       </div>
     </div>
-    <div style="${_resLbl}">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction type'}</div>
-    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:12px">
-      <button type="button" id="repColReceipt" class="desk-seg active" onclick="_repCollectSetPay('receipt')">🧾 ${isEl ? 'Απόδειξη' : 'Receipt'}</button>
-      <button type="button" id="repColCash" class="desk-seg" onclick="_repCollectSetPay('cash')">💵 ${isEl ? 'Μετρητά' : 'Cash'}</button>
-    </div>
+    <div style="margin-bottom:12px">${_cashToggleHtml('repCollectCashToggle')}</div>
     <button type="button" id="repLogBtn" onclick="_repCollectToggleLog()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(76,175,132,0.18);border:1px solid rgba(76,175,132,0.5);color:#7fd6b0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✓ ${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</button>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('repCollectOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
@@ -5379,13 +5359,7 @@ function _repairCollectOpen(id) {
     </div>
   </div>`;
   document.body.appendChild(ov);
-  ov.dataset.cash = '0'; // default receipt (with VAT), like a normal sale
   ov.dataset.log = '1';  // default: log as income
-}
-function _repCollectSetPay(which) {
-  const ov = document.getElementById('repCollectOverlay'); if (ov) ov.dataset.cash = which === 'cash' ? '1' : '0';
-  document.getElementById('repColReceipt')?.classList.toggle('active', which !== 'cash');
-  document.getElementById('repColCash')?.classList.toggle('active', which === 'cash');
 }
 function _repCollectToggleLog() {
   const ov = document.getElementById('repCollectOverlay'); if (!ov) return;
@@ -5402,7 +5376,7 @@ async function _repairCollectConfirm(id) {
   const ov = document.getElementById('repCollectOverlay');
   const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
   const cost = parseFloat(document.getElementById('repFinalCost')?.value) || 0;
-  const cashSale = ov?.dataset.cash === '1';
+  const cashSale = _isCashBtn('repCollectCashToggle');
   const logIt = ov?.dataset.log === '1';
   r.status = 'collected'; r.dateCollected = Date.now();
   r.finalPrice = price > 0 ? parseFloat(price.toFixed(2)) : null;
@@ -7165,6 +7139,13 @@ function _openSingleSaleModal() {
 }
 
 function _cashLabel(active) { return '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH') + (active ? ' ✓' : ''); }
+// Reusable SINGLE cash toggle (pressed = cash, unpressed = receipt) — the one pattern
+// used everywhere (sales, reservations, repairs, quotes). Keep it consistent.
+function _cashToggleHtml(id, extraStyle) {
+  return `<button type="button" id="${id}" data-cash-btn="1" onclick="_toggleCashBtn('${id}')" style="width:100%;padding:11px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:8px;color:var(--text-muted);font-size:13px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap;${extraStyle || ''}">${_cashLabel(false)}</button>`;
+}
+function _toggleCashBtn(id) { const b = document.getElementById(id); if (b) _setCashBtnState(b, !b.classList.contains('cash-active')); }
+function _isCashBtn(id) { return document.getElementById(id)?.classList.contains('cash-active') || false; }
 
 // Style a cash toggle button to reflect its active/inactive state (shared look with the
 // sale-modal cash toggle). Keeps the 'cash-active' class in sync so language re-translation
@@ -18674,9 +18655,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.93', date: 'Ιούλιος 2026', items: [
-        '🏷️ Η φόρμα κράτησης δείχνει τώρα ανά είδος την αρχική τιμή, την έκπτωση (αν είναι ≥5%) και την τελική τιμή — π.χ. σταυρός 811,12€ → -19,9% → 650€.',
-        '🧾 Επιλογή «Απόδειξη / Μετρητά» προστέθηκε και στις προσφορές/πιστοποιητικά. Σε συναλλαγή με μετρητά (χωρίς απόδειξη) ο ΦΠΑ δεν εμφανίζεται πουθενά στο έντυπο.'
+      { version: 'v10.94', date: 'Ιούλιος 2026', items: [
+        '💵 Ένα ενιαίο κουμπί «Μετρητά» παντού (κρατήσεις, επισκευές, προσφορές) — πατημένο = μετρητά, μη πατημένο = απόδειξη, ακριβώς όπως στις πωλήσεις. Πιο απλό και συνεπές.'
       ]},
           ]
   },
@@ -18707,9 +18687,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.93', date: 'Jul 2026', items: [
-        '🏷️ The reservation form now shows, per item, the initial price, the discount (if ≥5%) and the final price — e.g. a cross €811.12 → -19.9% → €650.',
-        '🧾 A "Receipt / Cash" choice was added to quotes & certificates too. For a cash (no-receipt) transaction, VAT is not shown anywhere on the printout.'
+      { version: 'v10.94', date: 'Jul 2026', items: [
+        '💵 A single "Cash" toggle everywhere (reservations, repairs, quotes) — pressed = cash, not pressed = receipt, exactly like on a sale. Simpler and consistent.'
       ]},
           ]
   }
@@ -19282,7 +19261,8 @@ function openQuoteModal() {
   document.getElementById('quoteCustomerEmail').value = '';
   hideClientSuggestions();
   resetQuotePhotoUI();
-  _setQuoteCash(false); // default: receipt (VAT shown)
+  const _qc = document.getElementById('quoteCashToggle'); if (_qc) _setCashBtnState(_qc, false); // default: receipt (VAT shown)
+  window._quoteIsCash = false;
 
   // Pre-fill title: use bilingual description from inventory item (or lastCalcResult)
   (function _prefillQuoteTitle() {
@@ -19792,17 +19772,9 @@ function autoSaveClientFromQuote(name, email) {
   }
 }
 
-// Receipt / Cash toggle in the quote modal. Cash (black money) hides the VAT
-// breakdown on the printed/shared quote & certificate. Read by the HTML builders.
-function _setQuoteCash(isCash) {
-  window._quoteIsCash = !!isCash;
-  const rc = document.getElementById('quotePayReceipt'), cs = document.getElementById('quotePayCash');
-  if (rc) { rc.style.background = isCash ? 'rgba(201,168,76,0.06)' : 'rgba(201,168,76,0.22)'; rc.style.borderColor = isCash ? 'rgba(201,168,76,0.3)' : 'rgba(201,168,76,0.7)'; rc.style.color = isCash ? 'var(--text-muted)' : 'var(--gold-light)'; }
-  if (cs) { cs.style.background = isCash ? 'rgba(201,168,76,0.22)' : 'rgba(201,168,76,0.06)'; cs.style.borderColor = isCash ? 'rgba(201,168,76,0.7)' : 'rgba(201,168,76,0.3)'; cs.style.color = isCash ? 'var(--gold-light)' : 'var(--text-muted)'; }
-}
-
 async function printQuote() {
   const _isCert = !!window._certMode;
+  window._quoteIsCash = _isCashBtn('quoteCashToggle'); // cash → hide VAT on the printout
   window._certMode = false;
   const isMulti = quoteCart.length >= 2;
   const customer = document.getElementById('quoteCustomerName').value.trim();
@@ -21170,6 +21142,7 @@ function openQuoteOverlay(html, share, viewerUrl) {
 async function shareQuote() {
   const _isCert = !!window._certMode;
   window._certMode = false;
+  window._quoteIsCash = _isCashBtn('quoteCashToggle'); // cash → hide VAT on the printout
   const isMulti = quoteCart.length >= 2;
   if (!isMulti && !lastCalcResult) return;
 
@@ -21699,7 +21672,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.93';
+const APP_VERSION = '10.94';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
