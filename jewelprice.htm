@@ -2932,12 +2932,11 @@
       <div id="reservationsList"></div>
     </div>
 
-    <!-- REPAIRS VIEW (built next feature) -->
+    <!-- REPAIRS VIEW -->
     <div id="deskRepairsView" style="display:none">
-      <div style="text-align:center;padding:44px 20px;color:var(--text-muted);font-family:var(--font-body);font-size:14px;line-height:1.7">
-        <div style="font-size:34px;margin-bottom:8px">🔧</div>
-        <span data-i18n="deskRepairsSoon">Επισκευές & παραγγελίες — έρχονται σύντομα</span>
-      </div>
+      <button onclick="openRepairModal()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="repNewTicket">Νέο δελτίο</span></button>
+      <input type="search" id="repSearchInput" oninput="renderRepairs()" data-i18n-ph="repSearchPh" placeholder="Αναζήτηση — πελάτης, δελτίο…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
+      <div id="repairsList"></div>
     </div>
   </div>
 </div>
@@ -3254,6 +3253,8 @@ const T = {
     deskReservations:'Κρατήσεις',
     deskRepairs:'Επισκευές',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
+    repNewTicket:'Νέο δελτίο',
+    repSearchPh:'Αναζήτηση — πελάτης, δελτίο…',
     resNew:'Νέα κράτηση',
     reserveBtn:'Κράτηση',
     resHint:'🔒 Για νέα κράτηση: υπολογίστε ή σαρώστε ένα είδος και πατήστε «Κράτηση» — ή από το καλάθι (πολλά είδη) ή την κάρτα στο Απόθεμα.',
@@ -3670,6 +3671,8 @@ const T = {
     deskReservations:'Reservations',
     deskRepairs:'Repairs',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
+    repNewTicket:'New ticket',
+    repSearchPh:'Search — customer, ticket…',
     resNew:'New reservation',
     reserveBtn:'Reserve',
     resHint:'🔒 To make a reservation: price or scan an item and tap «Reserve» — or from the cart (multiple items) or an item card in Stock.',
@@ -4032,6 +4035,8 @@ async function autoSync() {
   try { await pullReservationsFromCloud(); } catch(e) { /* silent */ }
   // Release any reservations whose "hold until" date has passed (items back to showroom).
   try { await _resCheckExpiry(); } catch(e) { /* silent */ }
+  // Pull repairs / custom orders from cloud (all roles — counter staff manage tickets).
+  try { await pullRepairsFromCloud(); } catch(e) { /* silent */ }
   // Pull sales from cloud (all roles — employees see leaderboard)
   if (creds.binId) {
     try { await pullSalesFromCloud(); } catch(e) { /* silent */ }
@@ -4463,6 +4468,7 @@ function deskShow(which) {
   document.getElementById('deskTabRes')?.classList.toggle('active', isRes);
   document.getElementById('deskTabRep')?.classList.toggle('active', !isRes);
   if (isRes && typeof renderReservations === 'function') renderReservations();
+  if (!isRes && typeof renderRepairs === 'function') renderRepairs();
 }
 
 // ═══ RESERVATIONS / LAYAWAY ══════════════════════════════════════════════════
@@ -4952,6 +4958,495 @@ async function shareReservationForm(id) {
   try {
     const blob = await buildReservationPDF(r);
     const fname = 'reservation-' + resNoFmt(r) + '.pdf';
+    const file = new File([blob], fname, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }
+  } catch (e) { if (e.name !== 'AbortError') showToast('⚠️ ' + (e.message || 'Failed')); }
+}
+
+// ═══ REPAIRS & CUSTOM ORDERS ═════════════════════════════════════════════════
+// Open a ticket for a customer's item (repair) or a custom piece to make. Repairs
+// carry a required estimate (no deposit — the jewel is the deposit); custom orders
+// require a deposit too. Status: in_progress → ready → collected. Private node
+// /jewelprice_repairs (never published). Photo + branded claim form + WhatsApp
+// "ready" notify. Cancel/delete = owner/manager only.
+let _repairs = null;
+let _repPendingPhoto = null, _repPendingPhotoHi = null; // captured in the modal, uploaded on save
+const _repEsc = _resEsc;
+
+function getRepairs() {
+  if (_repairs) return _repairs;
+  try { _repairs = JSON.parse(localStorage.getItem('jpro_repairs') || '[]'); } catch (e) { _repairs = []; }
+  if (!Array.isArray(_repairs)) _repairs = Object.values(_repairs || {});
+  return _repairs;
+}
+function saveRepairsLocal(list) { _repairs = list; localStorage.setItem('jpro_repairs', JSON.stringify(list)); }
+async function pushRepairsToCloud(list) {
+  if (!creds.binId) return;
+  try { await fetch(fbUrl('/jewelprice_repairs.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(list || getRepairs()) }); } catch (e) {}
+}
+async function pullRepairsFromCloud() {
+  if (!creds.binId) return;
+  try {
+    const r = await fetch(fbUrl('/jewelprice_repairs.json'), { cache: 'no-store' });
+    if (!r.ok) return;
+    const d = await r.json();
+    _repairs = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+    saveRepairsLocal(_repairs);
+  } catch (e) {}
+}
+async function getNextRepairNo() {
+  try {
+    const url = fbUrl('/jewelprice_repair_counter.json');
+    const res = await fetch(url, { cache: 'no-store' });
+    const cur = res.ok ? (await res.json() || 0) : 0;
+    const next = cur + 1;
+    await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+    return next;
+  } catch (e) { return Date.now() % 100000; }
+}
+function repNoFmt(r) { return 'R-' + String(r.ticketNo || 0).padStart(4, '0'); }
+function repEstText(r) {
+  const cur = state.currency || '€';
+  const lo = parseFloat(r.estLow) || 0, hi = parseFloat(r.estHigh) || 0;
+  if (lo <= 0 && hi <= 0) return '—';
+  if (hi > 0 && hi > lo) return cur + lo.toFixed(2) + ' – ' + cur + hi.toFixed(2);
+  return cur + (lo || hi).toFixed(2);
+}
+function repTypeLabel(r) { return r.type === 'custom' ? (lang === 'el' ? 'Παραγγελία' : 'Custom order') : (lang === 'el' ? 'Επισκευή' : 'Repair'); }
+
+function renderRepairs() {
+  const box = document.getElementById('repairsList'); if (!box) return;
+  const isEl = lang === 'el';
+  const q = (document.getElementById('repSearchInput')?.value || '').toLowerCase().trim();
+  let list = getRepairs().slice();
+  const rank = s => s === 'in_progress' ? 0 : (s === 'ready' ? 1 : (s === 'collected' ? 2 : 3));
+  list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
+  if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || repNoFmt(r).toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q));
+  if (!list.length) { box.innerHTML = `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Κανένα δελτίο ακόμη' : 'No tickets yet'}</div>`; return; }
+  box.innerHTML = list.map(r => {
+    const statusChip = r.status === 'in_progress' ? `<span style="color:#e0a85a">${isEl ? 'Σε εξέλιξη' : 'In progress'}</span>`
+      : r.status === 'ready' ? `<span style="color:#7fd6b0">${isEl ? 'Έτοιμο' : 'Ready'}</span>`
+      : r.status === 'collected' ? `<span style="color:var(--text-dim)">${isEl ? 'Παραλήφθηκε' : 'Collected'}</span>`
+      : `<span style="color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</span>`;
+    const thumb = r.photoUrl
+      ? `<img src="${r.photoUrl}" style="width:52px;height:52px;border-radius:8px;object-fit:contain;background:#fff;flex-shrink:0">`
+      : `<div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.type === 'custom' ? '✨' : '🔧'}</div>`;
+    return `<div onclick="openRepairDetail('${r.id}')" style="display:flex;gap:11px;align-items:center;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:11px 13px;margin-bottom:9px;cursor:pointer">
+      ${thumb}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+          <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light)">${_repEsc(r.clientName || '—')}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${repNoFmt(r)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_repEsc(r.description || repTypeLabel(r))}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--text-muted)">${repTypeLabel(r)} · ${repEstText(r)}</span><span>${statusChip}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── New / edit ticket modal ──
+function openRepairModal() {
+  if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
+  _repPendingPhoto = null; _repPendingPhotoHi = null;
+  const isEl = lang === 'el';
+  const dflt = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  document.getElementById('repairModalOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repairModalOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🔧 ${isEl ? 'Νέο δελτίο' : 'New ticket'}</div>
+      <button onclick="document.getElementById('repairModalOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+    </div>
+    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:12px">
+      <button id="repTypeRepair" class="desk-seg active" onclick="_repairSetType('repair')">🔧 ${isEl ? 'Επισκευή' : 'Repair'}</button>
+      <button id="repTypeCustom" class="desk-seg" onclick="_repairSetType('custom')">✨ ${isEl ? 'Παραγγελία' : 'Custom'}</button>
+    </div>
+    <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <input id="repCustName" autocomplete="off" oninput="_repClientAutocomplete(this.value)" onblur="setTimeout(_repHideClientSug,200)" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+      <div id="repClientSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;z-index:6;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+    </div>
+    <div style="margin-bottom:10px">${_phoneFieldHtml('repCustPhoneCode', 'repCustPhone', '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+    <input id="repCustEmail" type="email" autocomplete="off" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
+    <div style="${_resLbl}">${isEl ? 'Φωτογραφία (κόσμημα / σχέδιο)' : 'Photo (item / reference)'}</div>
+    <div id="repPhotoPicker" style="margin-bottom:10px"></div>
+    <div style="${_resLbl}">${isEl ? 'Περιγραφή' : 'Description'}</div>
+    <textarea id="repDesc" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. Συγκόλληση αλυσίδας, αλλαγή κουμπώματος…' : 'e.g. Solder chain, replace clasp…'}"></textarea>
+    <div style="${_resLbl}">${isEl ? 'Εκτίμηση κόστους (απαιτείται)' : 'Estimate (required)'}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <input id="repEstLow" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+      <span style="color:var(--text-muted)">–</span>
+      <input id="repEstHigh" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'έως € (προαιρ.)' : 'to € (opt.)'}" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+    </div>
+    <div id="repDepositBlock" style="display:none">
+      <div style="${_resLbl}">${isEl ? 'Προκαταβολή (απαιτείται για παραγγελία)' : 'Deposit (required for custom)'}</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="repDeposit" type="number" step="0.01" inputmode="decimal" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+        <select id="repDepositMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
+      </div>
+    </div>
+    <div style="${_resLbl}">${isEl ? 'Έτοιμο έως (προαιρετικό)' : 'Ready by (optional)'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="repPromisedDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${fmtDate(dflt)}</div>
+      <input id="repPromised" type="date" value="${dflt}" onchange="var _d=document.getElementById('repPromisedDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
+    <div id="repDlgStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:#e0a85a"></div>
+    <button onclick="_repairSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">💾 ${isEl ? 'Αποθήκευση' : 'Save ticket'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.dataset.type = 'repair';
+  const pk = document.getElementById('repPhotoPicker');
+  if (pk) renderPhotoPicker(pk, { previewId: 'repPhoto', onCapture: (u, hi) => { _repPendingPhoto = u; _repPendingPhotoHi = hi; } });
+  setTimeout(() => document.getElementById('repCustName')?.focus(), 100);
+}
+function _repairSetType(type) {
+  const ov = document.getElementById('repairModalOverlay'); if (ov) ov.dataset.type = type;
+  document.getElementById('repTypeRepair')?.classList.toggle('active', type === 'repair');
+  document.getElementById('repTypeCustom')?.classList.toggle('active', type === 'custom');
+  const dep = document.getElementById('repDepositBlock'); if (dep) dep.style.display = type === 'custom' ? '' : 'none';
+}
+function _repairDlgStatus(msg) { const el = document.getElementById('repDlgStatus'); if (el) el.textContent = msg || ''; }
+
+// Customer autocomplete (shared logic with the reserve dialog, own field ids).
+function _repClientAutocomplete(val) {
+  const box = document.getElementById('repClientSug'); if (!box) return;
+  const q = (val || '').trim().toLowerCase();
+  if (q.length < 1) { box.style.display = 'none'; return; }
+  const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(c => `<div onclick="_repSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_repEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_repEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.style.display = 'block';
+}
+function _repSelectClient(id) {
+  const c = getClients().find(cl => cl.id === id); if (!c) return;
+  const nm = document.getElementById('repCustName'); if (nm) nm.value = c.name || '';
+  _setPhoneField('repCustPhoneCode', 'repCustPhone', c.phone || '');
+  const em = document.getElementById('repCustEmail'); if (em) em.value = c.email || '';
+  _repHideClientSug();
+}
+function _repHideClientSug() { const b = document.getElementById('repClientSug'); if (b) b.style.display = 'none'; }
+
+async function _repairSave() {
+  const ov = document.getElementById('repairModalOverlay');
+  const type = (ov && ov.dataset.type) || 'repair';
+  const isEl = lang === 'el';
+  const name = (document.getElementById('repCustName').value || '').trim();
+  if (!name) { _repairDlgStatus(isEl ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
+  const estLow = parseFloat(document.getElementById('repEstLow').value) || 0;
+  const estHigh = parseFloat(document.getElementById('repEstHigh').value) || 0;
+  if (estLow <= 0 && estHigh <= 0) { _repairDlgStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
+  const dep = parseFloat(document.getElementById('repDeposit')?.value) || 0;
+  if (type === 'custom' && dep <= 0) { _repairDlgStatus(isEl ? '⚠️ Απαιτείται προκαταβολή για παραγγελία' : '⚠️ A deposit is required for a custom order'); return; }
+  const phone = _readPhoneField('repCustPhoneCode', 'repCustPhone');
+  const email = (document.getElementById('repCustEmail').value || '').trim();
+  const desc = (document.getElementById('repDesc').value || '').trim();
+  const promised = document.getElementById('repPromised').value || '';
+  const btn = ov?.querySelector('button[onclick="_repairSave()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  // Upload photo if one was captured
+  let photoUrl = '', photoUrlHi = '';
+  if (_repPendingPhoto) {
+    _repairDlgStatus(isEl ? '⏳ Μεταφόρτωση φωτογραφίας…' : '⏳ Uploading photo…');
+    try { const up = await uploadInventoryPhoto(_repPendingPhoto, _repPendingPhotoHi, 'repair'); if (up) { photoUrl = up.url; photoUrlHi = up.hiUrl || up.url; } } catch (e) {}
+  }
+  const no = await getNextRepairNo();
+  const now = Date.now();
+  const rec = {
+    id: 'rep_' + now, ticketNo: no, type,
+    clientName: name, clientPhone: phone, clientEmail: email,
+    photoUrl, photoUrlHi, description: desc,
+    estLow: parseFloat((estLow || estHigh).toFixed(2)), estHigh: estHigh > estLow ? parseFloat(estHigh.toFixed(2)) : 0,
+    deposit: type === 'custom' ? parseFloat(dep.toFixed(2)) : (dep > 0 ? parseFloat(dep.toFixed(2)) : null),
+    depositMethod: dep > 0 ? (document.getElementById('repDepositMethod')?.value || 'cash') : null,
+    datePromised: promised || null,
+    status: 'in_progress', notifiedAt: null, finalPrice: null,
+    dateCreated: now, dateReady: null, dateCollected: null, notes: '',
+    createdBy: creds.displayName || creds.userName || ''
+  };
+  const list = getRepairs(); list.push(rec); saveRepairsLocal(list); pushRepairsToCloud(list);
+  upsertClientFromSale(name, phone, email);
+  ov?.remove();
+  showToast(isEl ? '✓ Το δελτίο δημιουργήθηκε' : '✓ Ticket created');
+  renderRepairs();
+}
+
+// ── Detail ──
+function openRepairDetail(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const owner = isOwnerOrManager();
+  document.getElementById('repairDetailOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repairDetailOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  const statusLabel = r.status === 'in_progress' ? (isEl ? 'Σε εξέλιξη' : 'In progress') : r.status === 'ready' ? (isEl ? 'Έτοιμο' : 'Ready') : r.status === 'collected' ? (isEl ? 'Παραλήφθηκε' : 'Collected') : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
+  const phoneBtn = r.clientPhone ? `<button onclick="_callPhone('${_repEsc(r.clientPhone)}')" style="background:none;border:none;color:#4bd07f;font-family:'DM Mono',monospace;font-size:13px;cursor:pointer;padding:0">📞 ${_repEsc(r.clientPhone)}</button>` : '';
+  // Notify buttons (ready or in-progress): WhatsApp / SMS / Email
+  const waNum = (r.clientPhone || '').replace(/[^0-9]/g, '');
+  const notifyRow = (r.status === 'in_progress' || r.status === 'ready') && (r.clientPhone || r.clientEmail) ? `
+    <div style="${_resLbl};margin-top:6px">${isEl ? 'Ειδοποίηση πελάτη' : 'Notify customer'}${r.notifiedAt ? ` · <span style="color:#7fd6b0;text-transform:none;letter-spacing:0">${isEl ? 'στάλθηκε' : 'sent'} ${fmtDate(new Date(r.notifiedAt))}</span>` : ''}</div>
+    <div style="display:flex;gap:7px;margin-bottom:10px">
+      ${waNum ? `<button onclick="_repairNotify('${r.id}','whatsapp')" style="flex:1;padding:9px;background:rgba(37,211,102,0.14);border:1px solid rgba(37,211,102,0.4);color:#25d366;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">WhatsApp</button>` : ''}
+      ${r.clientPhone ? `<button onclick="_repairNotify('${r.id}','sms')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">SMS</button>` : ''}
+      ${r.clientEmail ? `<button onclick="_repairNotify('${r.id}','email')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Email</button>` : ''}
+    </div>` : '';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_repEsc(r.clientName || '—')}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${repNoFmt(r)} · ${repTypeLabel(r)} · ${statusLabel}</div></div>
+      <button onclick="document.getElementById('repairDetailOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+    </div>
+    ${phoneBtn ? `<div style="margin-bottom:8px">${phoneBtn}</div>` : ''}
+    ${r.photoUrl ? `<img src="${r.photoUrl}" style="width:100%;max-height:220px;object-fit:contain;background:#fff;border-radius:10px;margin-bottom:10px">` : ''}
+    ${r.description ? `<div style="font-size:14px;color:var(--text);margin-bottom:10px;line-height:1.5">${_repEsc(r.description)}</div>` : ''}
+    <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Εκτίμηση' : 'Estimate'}</span><span style="color:var(--text)">${repEstText(r)}</span></div>
+      ${r.deposit ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Προκαταβολή' : 'Deposit'}</span><span style="color:#7fd6b0">${cur}${(parseFloat(r.deposit) || 0).toFixed(2)}</span></div>` : ''}
+      ${r.datePromised ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Έτοιμο έως' : 'Ready by'}</span><span style="color:var(--text)">${fmtDate(r.datePromised)}</span></div>` : ''}
+      ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)}</span></div>` : ''}
+    </div>
+    ${notifyRow}
+    <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)'}</button>
+    ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">✓ ${isEl ? 'Έτοιμο' : 'Mark ready'}</button>` : ''}
+    ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="_repairCollectOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${isEl ? 'Παραλαβή' : 'Collect'}</button>` : ''}
+    ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" style="width:100%;margin-top:2px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
+    ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.35);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+function _repairSetStatus(id, status) {
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  r.status = status;
+  if (status === 'ready' && !r.dateReady) r.dateReady = Date.now();
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  openRepairDetail(id); renderRepairs();
+}
+
+// Pre-filled "ready for pickup" message via WhatsApp / SMS / Email.
+function _repairNotify(id, channel) {
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el';
+  const what = r.type === 'custom' ? (isEl ? 'η παραγγελία σας' : 'your custom order') : (isEl ? 'η επισκευή σας' : 'your repair');
+  const msg = isEl
+    ? `Γεια σας ${r.clientName || ''}! Στο Lekkas Jewelry, ${what} (${repNoFmt(r)}) είναι έτοιμη για παραλαβή. 💍`
+    : `Hello ${r.clientName || ''}! At Lekkas Jewelry, ${what} (${repNoFmt(r)}) is ready for pickup. 💍`;
+  const enc = encodeURIComponent(msg);
+  if (channel === 'whatsapp') {
+    const num = (r.clientPhone || '').replace(/[^0-9]/g, '');
+    if (!num) { showToast(isEl ? 'Χωρίς αριθμό' : 'No number'); return; }
+    window.open('https://wa.me/' + num + '?text=' + enc, '_blank');
+  } else if (channel === 'sms') {
+    const num = (r.clientPhone || '').replace(/[^0-9+]/g, '');
+    if (!num) { showToast(isEl ? 'Χωρίς αριθμό' : 'No number'); return; }
+    window.location.href = 'sms:' + num + '?&body=' + enc;
+  } else if (channel === 'email') {
+    if (!r.clientEmail) { showToast(isEl ? 'Χωρίς email' : 'No email'); return; }
+    const subj = encodeURIComponent(isEl ? 'Lekkas Jewelry — έτοιμο για παραλαβή' : 'Lekkas Jewelry — ready for pickup');
+    window.location.href = 'mailto:' + r.clientEmail + '?subject=' + subj + '&body=' + enc;
+  }
+  if (!r.notifiedAt) { r.notifiedAt = Date.now(); saveRepairsLocal(list); pushRepairsToCloud(list); setTimeout(() => { if (document.getElementById('repairDetailOverlay')) openRepairDetail(id); }, 400); }
+}
+
+// Collect: enter a final price, optionally log it as income, mark collected.
+function _repairCollectOpen(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const suggested = (parseFloat(r.estHigh) || parseFloat(r.estLow) || 0);
+  document.getElementById('repCollectOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repCollectOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:12px">💰 ${isEl ? 'Παραλαβή' : 'Collect'} · ${repNoFmt(r)}</div>
+    <div style="${_resLbl}">${isEl ? 'Τελική τιμή' : 'Final price'} (€)</div>
+    <input id="repFinalPrice" type="number" step="0.01" inputmode="decimal" value="${suggested > 0 ? suggested.toFixed(2) : ''}" style="${_resInp}">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <select id="repFinalMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
+      <label style="flex:1;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="repLogIncome" checked style="width:auto;flex:0 0 auto">${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</label>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('repCollectOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+      <button onclick="_repairCollectConfirm('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Παραλαβή' : 'Collect'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function _repairCollectConfirm(id) {
+  const isEl = lang === 'el';
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
+  const method = document.getElementById('repFinalMethod')?.value || 'cash';
+  const logIt = !!document.getElementById('repLogIncome')?.checked;
+  r.status = 'collected'; r.dateCollected = Date.now();
+  r.finalPrice = price > 0 ? parseFloat(price.toFixed(2)) : null;
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  document.getElementById('repCollectOverlay')?.remove();
+  if (logIt && price > 0) {
+    const note = (r.type === 'custom' ? (isEl ? 'Παραγγελία' : 'Custom order') : (isEl ? 'Επισκευή' : 'Repair')) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
+    try { await _recordRepairIncome(price, method, note); } catch (e) {}
+  }
+  openRepairDetail(id); renderRepairs();
+  showToast(isEl ? '✓ Παραλήφθηκε' : '✓ Collected');
+}
+
+// Book a repair/custom-order collection as a normal income record (day revenue + profit).
+async function _recordRepairIncome(amount, method, note) {
+  const sales = await getSales();
+  const g = parseFloat(amount.toFixed(2));
+  const rec = {
+    id: Date.now(),
+    amount: g, note: note || '', date: todayStr(), ts: Date.now(),
+    vendor: '', customer: '', email: '',
+    employee: creds.userName || '', employeeName: creds.displayName || '',
+    bonusAmt: 0, bonusPct: 0, invQr: '',
+    cost: null, profit: g, cashSale: method !== 'card',
+    salePhotoUrl: '', salePhotoName: '', seqRef: '', repairIncome: true
+  };
+  sales.push(rec);
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  try { await pushSalesToCloud(sales); } catch (e) {}
+  return rec;
+}
+
+function _repairCancel(id) {
+  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  showConfirm(lang === 'el' ? 'Ακύρωση αυτού του δελτίου;' : 'Cancel this ticket?', () => {
+    const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+    r.status = 'cancelled'; saveRepairsLocal(list); pushRepairsToCloud(list);
+    document.getElementById('repairDetailOverlay')?.remove();
+    renderRepairs();
+    showToast(lang === 'el' ? 'Ακυρώθηκε' : 'Cancelled');
+  }, null, { danger: true });
+}
+function _repairDelete(id) {
+  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτού του δελτίου;' : 'Permanently delete this ticket?', () => {
+    const list = getRepairs().filter(x => x.id !== id);
+    saveRepairsLocal(list); pushRepairsToCloud(list);
+    document.getElementById('repairDetailOverlay')?.remove();
+    renderRepairs();
+    showToast(lang === 'el' ? 'Διαγράφηκε' : 'Deleted');
+  }, null, { danger: true });
+}
+
+// ── Claim form (branded A4 PDF — item photo + signature + stamp box) ──
+async function buildRepairPDF(r) {
+  if (!window.jspdf) throw new Error('PDF library not loaded yet. Please try again.');
+  const { jsPDF } = window.jspdf;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210, MARGIN = 16;
+
+  async function fetchFontB64(fn) { try { const buf = await fetch('./fonts/' + fn).then(x => x.arrayBuffer()); let bin = ''; new Uint8Array(buf).forEach(b => bin += String.fromCharCode(b)); return btoa(bin); } catch (e) { return null; } }
+  const [regB64, boldB64] = await Promise.all([fetchFontB64('NotoSans-Regular.ttf'), fetchFontB64('NotoSans-Bold.ttf')]);
+  if (regB64) { doc.addFileToVFS('NotoSans-Regular.ttf', regB64); doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal'); }
+  if (boldB64) { doc.addFileToVFS('NotoSans-Bold.ttf', boldB64); doc.addFont('NotoSans-Bold.ttf', 'NotoSans', 'bold'); }
+  const setReg = (s, r2 = 40, g = 30, b = 20) => { doc.setFont('NotoSans', 'normal'); doc.setFontSize(s); doc.setTextColor(r2, g, b); };
+  const setBold = (s, r2 = 30, g = 20, b = 10) => { doc.setFont('NotoSans', 'bold'); doc.setFontSize(s); doc.setTextColor(r2, g, b); };
+
+  // Branded header (same canvas as the other forms)
+  const HEADER_H_MM = 36;
+  const hc = document.createElement('canvas'); const DPI = 3;
+  hc.width = Math.round(pageW * DPI * 3.78); hc.height = Math.round(HEADER_H_MM * DPI * 3.78);
+  const hctx = hc.getContext('2d'); const W = hc.width, H = hc.height; const px = v => Math.round(v * DPI * 3.78);
+  hctx.fillStyle = '#ffffff'; hctx.fillRect(0, 0, W, H);
+  hctx.font = `bold ${px(7)}px 'Cormorant Garamond', Georgia, serif`; hctx.fillStyle = '#0E0C08'; hctx.textBaseline = 'top'; hctx.letterSpacing = `${px(0.8)}px`;
+  hctx.fillText('LEKKAS ', px(0), px(3)); const lw = hctx.measureText('LEKKAS ').width; hctx.fillStyle = '#C9A84C'; hctx.fillText('JEWELRY', px(0) + lw, px(3)); hctx.letterSpacing = '0px';
+  hctx.font = `${px(2.5)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#999999'; hctx.letterSpacing = `${px(0.5)}px`; hctx.fillText('FINE JEWELRY  ·  KARPATHOS', px(0), px(12)); hctx.letterSpacing = '0px';
+  hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#666666';
+  hctx.fillText('📍 ' + (isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00'), px(0), px(18));
+  hctx.fillText('📞 +30 694 789 1151', px(0), px(23));
+  hctx.font = `${px(2.8)}px 'Inter', Arial, sans-serif`; hctx.fillStyle = '#888888'; hctx.textAlign = 'right'; hctx.fillText(fmtDate(new Date()), W - px(1), px(3)); hctx.textAlign = 'left';
+  hctx.fillStyle = '#C9A84C'; hctx.fillRect(0, H - px(0.5), W, px(0.5));
+  await new Promise(res => {
+    const qr = new Image(); qr.crossOrigin = 'anonymous';
+    qr.onload = () => { const qs = px(16), qx = W - px(2) - qs, qy = px(4); hctx.fillStyle = '#C9A84C'; hctx.fillRect(qx - px(0.6), qy - px(0.6), qs + px(1.2), qs + px(1.2)); hctx.drawImage(qr, qx, qy, qs, qs); res(); };
+    qr.onerror = () => res();
+    qr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent('https://maps.app.goo.gl/aqePd3XmXfnpG5h87?g_st=ac');
+  });
+  doc.addImage(hc.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, HEADER_H_MM);
+
+  // Title + ticket no/date
+  doc.setFont('NotoSans', 'bold'); doc.setFontSize(8); doc.setTextColor(150, 130, 80); doc.setCharSpace(1.4);
+  const title = r.type === 'custom' ? (isEl ? 'ΠΑΡΑΓΓΕΛΙΑ' : 'CUSTOM ORDER') : (isEl ? 'ΔΕΛΤΙΟ ΕΠΙΣΚΕΥΗΣ' : 'REPAIR TICKET');
+  doc.text(title, MARGIN, HEADER_H_MM + 5); doc.setCharSpace(0);
+  setReg(9, 90, 90, 90); doc.text(repNoFmt(r) + '  ·  ' + fmtDate(new Date(r.dateCreated || Date.now())), pageW - MARGIN, HEADER_H_MM + 5, { align: 'right' });
+
+  // Item photo (right column) — load if present
+  const photoBoxW = 46, photoBoxX = pageW - MARGIN - photoBoxW, photoTop = HEADER_H_MM + 14;
+  let photoBottom = photoTop;
+  if (r.photoUrl) {
+    const im = await new Promise(res => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = r.photoUrlHi || r.photoUrl; });
+    if (im && im.width) {
+      const ar = im.width / im.height;
+      let w = photoBoxW, h = w / ar; if (h > photoBoxW) { h = photoBoxW; w = h * ar; }
+      const ix = photoBoxX + (photoBoxW - w) / 2, iy = photoTop;
+      try { doc.addImage(im, 'JPEG', ix, iy, w, h); photoBottom = iy + h; } catch (e) {}
+    }
+  }
+
+  // Customer + description (left column)
+  const leftW = photoTop === photoBottom ? (pageW - 2 * MARGIN) : (photoBoxX - MARGIN - 6);
+  let y = photoTop;
+  setBold(9, 150, 130, 80); doc.text(isEl ? 'ΠΕΛΑΤΗΣ' : 'CUSTOMER', MARGIN, y); y += 5.5;
+  setBold(11); doc.text(doc.splitTextToSize(r.clientName || '—', leftW)[0], MARGIN, y); y += 5;
+  setReg(9, 90, 90, 90);
+  if (r.clientPhone) { doc.text((isEl ? 'Τηλέφωνο: ' : 'Phone: ') + r.clientPhone, MARGIN, y); y += 4.5; }
+  if (r.clientEmail) { doc.text('Email: ' + r.clientEmail, MARGIN, y); y += 4.5; }
+  if (r.description) {
+    y += 3; setBold(9, 150, 130, 80); doc.text(isEl ? 'ΠΕΡΙΓΡΑΦΗ' : 'DESCRIPTION', MARGIN, y); y += 5;
+    setReg(10, 55, 45, 35); const dl = doc.splitTextToSize(r.description, leftW); doc.text(dl, MARGIN, y); y += dl.length * 5;
+  }
+  y = Math.max(y, photoBottom) + 6;
+
+  // Estimate / deposit / ready-by
+  doc.setDrawColor(201, 168, 76); doc.setLineWidth(0.3); doc.line(MARGIN, y, pageW - MARGIN, y); y += 6;
+  const infoRow = (label, val, bold) => { (bold ? setBold : setReg)(bold ? 11 : 10, bold ? 30 : 90, bold ? 20 : 90, bold ? 10 : 90); doc.text(label, MARGIN, y); doc.text(val, pageW - MARGIN, y, { align: 'right' }); y += 6.5; };
+  infoRow(isEl ? 'Εκτίμηση κόστους' : 'Estimate', repEstText(r), false);
+  if (r.deposit) infoRow(isEl ? 'Προκαταβολή' : 'Deposit received', cur + (parseFloat(r.deposit) || 0).toFixed(2), false);
+  if (r.datePromised) infoRow(isEl ? 'Έτοιμο έως' : 'Ready by', fmtDate(r.datePromised), false);
+  y += 3;
+
+  // Terms
+  setReg(7.5, 130, 130, 130);
+  const terms = isEl
+    ? (r.type === 'custom'
+      ? 'Η προκαταβολή δεν επιστρέφεται σε περίπτωση ακύρωσης της παραγγελίας. Η εκτίμηση είναι κατά προσέγγιση· η τελική τιμή επιβεβαιώνεται κατά την παράδοση.'
+      : 'Η εκτίμηση είναι κατά προσέγγιση· η τελική τιμή επιβεβαιώνεται κατά την παράδοση. Το κόσμημα παραδίδεται με την επίδειξη αυτού του δελτίου.')
+    : (r.type === 'custom'
+      ? 'The deposit is non-refundable if the custom order is cancelled. The estimate is approximate; the final price is confirmed on delivery.'
+      : 'The estimate is approximate; the final price is confirmed on delivery. The item is released on presentation of this ticket.');
+  const tl = doc.splitTextToSize(terms, pageW - 2 * MARGIN); doc.text(tl, MARGIN, y); y += tl.length * 4 + 6;
+
+  // Signature + stamp box
+  const sigY = Math.max(y + 14, 262);
+  doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.3);
+  doc.line(MARGIN, sigY, MARGIN + 68, sigY);
+  setReg(8, 120, 120, 120); doc.text(isEl ? 'Υπογραφή πελάτη' : 'Customer signature', MARGIN, sigY + 4.5);
+  const sw = 52, sh = 30, sx = pageW - MARGIN - sw, sy = sigY - 24;
+  doc.setDrawColor(185, 185, 185); doc.rect(sx, sy, sw, sh);
+  setReg(7.5, 175, 175, 175); doc.text(isEl ? 'Σφραγίδα' : 'Stamp', sx + sw / 2, sy + sh / 2 + 1, { align: 'center' });
+
+  return doc.output('blob');
+}
+
+async function shareRepairForm(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  showToast(lang === 'el' ? '⏳ Δημιουργία δελτίου…' : '⏳ Generating form…');
+  try {
+    const blob = await buildRepairPDF(r);
+    const fname = 'repair-' + repNoFmt(r) + '.pdf';
     const file = new File([blob], fname, { type: 'application/pdf' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file] });
@@ -10808,6 +11303,8 @@ const BACKUP_PATHS = [
   ['labels',      '/jewelprice_labels.json'],
   ['qr_images',   '/jewelprice_qr_images.json'],
   ['inventory',   '/jewelprice_inventory.json'],
+  ['reservations','/jewelprice_reservations.json'],
+  ['repairs',     '/jewelprice_repairs.json'],
 ];
 
 // Fetch every node and bundle it into one object.
@@ -18052,8 +18549,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v10.88', date: 'Ιούλιος 2026', items: [
-        '📄 Έντυπη φόρμα κράτησης: από τα στοιχεία μιας κράτησης μπορείτε τώρα να δημιουργήσετε επώνυμη φόρμα PDF (λογότυπο, είδη, συμφωνημένη τιμή, προκαταβολή, υπόλοιπο, ημ. λήξης) με χώρο για υπογραφή πελάτη και σφραγίδα — για εκτύπωση ή αποστολή στον πελάτη.'
+      { version: 'v10.89', date: 'Ιούλιος 2026', items: [
+        '🔧 Νέο: Επισκευές & Παραγγελίες στην καρτέλα «Εργασίες». Ανοίξτε δελτίο για επισκευή (με φωτογραφία του κοσμήματος του πελάτη και υποχρεωτική εκτίμηση κόστους) ή για παραγγελία κατασκευής (με υποχρεωτική προκαταβολή).',
+        '📄 Κάθε δελτίο εκτυπώνεται/μοιράζεται ως επώνυμο PDF με φωτογραφία, εκτίμηση, προκαταβολή, χώρο υπογραφής και σφραγίδα.',
+        '📱 Κουμπί «Ειδοποίηση πελάτη» (WhatsApp/SMS/Email) όταν το κόσμημα είναι έτοιμο. Στην παραλαβή μπορείτε να καταγράψετε την τελική τιμή στα έσοδα της ημέρας.'
       ]},
           ]
   },
@@ -18084,8 +18583,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v10.88', date: 'Jul 2026', items: [
-        '📄 Printable reservation form: from a reservation you can now generate a branded PDF (logo, items, agreed price, deposit, balance, hold-until date) with a customer-signature line and stamp box — for printing or sharing with the customer.'
+      { version: 'v10.89', date: 'Jul 2026', items: [
+        '🔧 New: Repairs & Custom Orders in the Desk tab. Open a ticket for a repair (with a photo of the customer\'s item and a required cost estimate) or a custom piece to make (with a required deposit).',
+        '📄 Every ticket prints/shares as a branded PDF with photo, estimate, deposit, a signature line and a stamp box.',
+        '📱 A "Notify customer" button (WhatsApp/SMS/Email) when the piece is ready. On collection you can log the final price into the day\'s income.'
       ]},
           ]
   }
@@ -21062,7 +21563,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '10.88';
+const APP_VERSION = '10.89';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
