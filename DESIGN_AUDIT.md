@@ -79,6 +79,22 @@ action bottom; destructive = `class="modal-danger"` + a `showConfirm`.**
 - **Mechanics:** Settings toggle Light/Dark → `localStorage 'jpro_theme'` → set
   `data-theme` on `<html>` at boot (before first paint to avoid a flash).
 
+### ✅ DONE (v11.05)
+- Settings → **Appearance** toggle (🌙 Dark / ☀️ Light), persisted, no-flash boot script.
+- `:root[data-theme="light"]` overrides all colour variables (ivory bg / charcoal text /
+  deep gold). The 216 translucent-white surfaces were routed through `--waNN` variables
+  that flip white→warm-dark; **dark theme values are byte-identical, so the dark look is
+  unchanged.** New `--ink` constant = text-on-gold that stays dark in both themes.
+- Bottom nav + price bar get a light skin so their text stays readable.
+- Kept intentionally dark in both themes (elegant / floating / transient): the fullscreen
+  customer price display, the floating select bar, the update banner, toasts.
+- **Verified:** contrast scan across all panels in light mode = **0 low-contrast elements**;
+  dark unchanged; toggle persists; no console errors. **Real size added: ~1.9 KB** (colours only).
+
+---
+**All of A, B, C are done.** Remaining: D (broader aesthetic/productivity) — ongoing, tackle
+as separate small passes when you want.
+
 ---
 
 ## D. Broader aesthetic / productivity (initial — expand later)

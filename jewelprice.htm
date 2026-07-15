@@ -16,6 +16,7 @@
 <style>
   :root {
     --gold: #D4AF37; --gold-light: #F0D060; --gold-deep: #A8882A;
+    --ink: #0F0D09; /* constant dark — text ON gold/accent surfaces (stays dark in both themes) */
     --dark: #0F0D09; --dark-2: #181410; --dark-3: #201C14;
     --card: #161310; --card-border: rgba(212,175,55,0.18);
     --text: #F7F0E0; --text-muted: #A89060; --text-dim: #6B5C3A;
@@ -26,7 +27,33 @@
     --font-body: 'Inter', sans-serif;
     --font-mono: 'JetBrains Mono', 'DM Mono', monospace;
     --radius: 10px; --radius-sm: 6px;
+    /* Translucent "surface/border on dark" values, routed through variables so a light
+       theme can flip white→warm-dark. Dark theme keeps the exact original values. */
+    --wa02:rgba(255, 255, 255, 0.02); --wa03:rgba(255, 255, 255, 0.03); --wa04:rgba(255, 255, 255, 0.04);
+    --wa05:rgba(255, 255, 255, 0.05); --wa06:rgba(255, 255, 255, 0.06); --wa07:rgba(255, 255, 255, 0.07);
+    --wa08:rgba(255, 255, 255, 0.08); --wa10:rgba(255, 255, 255, 0.10); --wa12:rgba(255, 255, 255, 0.12);
+    --wa14:rgba(255, 255, 255, 0.14); --wa15:rgba(255, 255, 255, 0.15); --wa18:rgba(255, 255, 255, 0.18);
+    --wa20:rgba(255, 255, 255, 0.20);
   }
+  /* ── LIGHT THEME (Settings toggle) — ivory + charcoal + deep gold, matching the
+     printed quote/reservation forms. Only colours change; layout/size unaffected. ── */
+  :root[data-theme="light"] {
+    --gold: #B8952E; --gold-light: #8A6E12; --gold-deep: #6E5714;
+    --dark: #FAF6EC; --dark-2: #FFFFFF; --dark-3: #F0E9D8;
+    --card: #FFFFFF; --card-border: rgba(150,120,45,0.28);
+    --text: #2A2416; --text-muted: #6E5F38; --text-dim: #9C8E64;
+    --silver: #6B7688; --silver-light: #8A94A6;
+    --danger: #C0392B; --success: #2E8B57;
+    --glow-gold: rgba(184,149,46,0.14); --glow-gold-strong: rgba(184,149,46,0.26);
+    --wa02:rgba(45,36,14,0.03); --wa03:rgba(45,36,14,0.04); --wa04:rgba(45,36,14,0.05);
+    --wa05:rgba(45,36,14,0.055); --wa06:rgba(45,36,14,0.06); --wa07:rgba(45,36,14,0.07);
+    --wa08:rgba(45,36,14,0.08); --wa10:rgba(45,36,14,0.1); --wa12:rgba(45,36,14,0.11);
+    --wa14:rgba(45,36,14,0.12); --wa15:rgba(45,36,14,0.14); --wa18:rgba(45,36,14,0.16);
+    --wa20:rgba(45,36,14,0.18);
+  }
+  /* A few surfaces are hardcoded dark; give them a light-theme skin so text stays readable. */
+  :root[data-theme="light"] .bottom-nav { background:rgba(255,255,255,0.96); border-top-color:rgba(150,120,45,0.2); }
+  :root[data-theme="light"] .customer-price-bar { background:rgba(255,255,255,0.97); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: var(--font-body);
@@ -201,7 +228,7 @@
   .code-not-found { background:rgba(192,57,43,0.08); border:1px solid rgba(192,57,43,0.3); border-radius:4px; padding:8px 14px; margin-bottom:14px; font-size:12px; color:var(--danger); display:none; }
   .code-not-found.show { display:block; }
   /* CODE BADGES in vendor cards */
-  .vendor-code-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
+  .vendor-code-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--wa05); }
   .vendor-code-row:last-child { border-bottom:none; }
   .code-badge { background:rgba(212,175,55,0.1); border:1px solid rgba(212,175,55,0.3); color:var(--gold-light); border-radius:20px; padding:3px 10px; font-family:var(--font-mono); font-size:11px; letter-spacing:0.1em; font-weight:500; min-width:60px; text-align:center; flex-shrink:0; }
   .code-desc { font-size:11px; color:#C8B080; flex:1; }
@@ -410,7 +437,7 @@
   @keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
   @keyframes slideDown { from{opacity:0;transform:translateY(-40px)} to{opacity:1;transform:translateY(0)} }
   .result-rows { padding: 16px 18px; }
-  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--wa05); font-size: 12px; }
   .result-row:last-child { border-bottom: none; }
   .result-row .r-label { font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.04em; }
   .result-row .r-value { font-family: var(--font-mono); color: var(--text); }
@@ -459,7 +486,7 @@
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-heading); font-size: 14px; font-weight: 700;
     flex-shrink: 0; border: 1px solid rgba(212,175,55,0.3);
-    color: var(--dark);
+    color: var(--ink);
   }
   .vendor-actions { display:flex; gap:8px; }
   /* Icon action buttons — replace old [EDIT][X] */
@@ -511,11 +538,11 @@
   #catNameOverlay .overlay-btns { display:flex; gap:10px; margin-top:14px; }
   #catNameOverlay .overlay-btns button { flex:1; padding:12px; border-radius:6px; font-size:15px; cursor:pointer; border:none; }
   #catNameOverlay .overlay-ok { background:var(--gold); color:#1a1400; font-weight:700; }
-  #catNameOverlay .overlay-cancel { background:rgba(255,255,255,0.08); color:#ccc; }
+  #catNameOverlay .overlay-cancel { background:var(--wa08); color:#ccc; }
   .labor-row input { flex:1; min-width:0; font-size:14px; padding:9px 10px; }
   .labor-row input.rate-input { flex:0 0 90px; text-align:center; }
   .labor-row .remove-btn { flex-shrink:0; width:32px; height:42px; border:1px solid rgba(192,57,43,0.4); color:var(--danger); background:none; border-radius:4px; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
-  .rate-type-toggle { flex:0 0 38px; height:42px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.15); border-radius:4px; color:var(--text-muted); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.05em; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+  .rate-type-toggle { flex:0 0 38px; height:42px; background:var(--wa04); border:1px solid var(--wa15); border-radius:4px; color:var(--text-muted); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.05em; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
   .rate-type-toggle.flat { background:rgba(201,168,76,0.15); border-color:rgba(201,168,76,0.5); color:var(--gold); }
   .rate-type-toggle.peritem { background:rgba(100,180,255,0.15); border-color:rgba(100,180,255,0.5); color:#64b4ff; }
   .add-labor-btn { width:100%; padding:9px; background:transparent; border:1px dashed rgba(201,168,76,0.3); color:var(--text-muted); border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; margin-bottom:12px; transition:all 0.2s; }
@@ -531,7 +558,7 @@
   .labor-row .karat-select { flex:0 0 58px; font-size:13px; padding:9px 2px; text-align:center; }
   .labor-row input.rate-input { flex:0 0 62px; }
   .labor-row input.margin-input { flex:0 0 54px; text-align:center; }
-  .handmade-toggle { flex:0 0 36px; height:40px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:4px; font-size:15px; cursor:pointer; opacity:0.25; transition:opacity 0.15s,background 0.15s,border-color 0.15s; padding:0; }
+  .handmade-toggle { flex:0 0 36px; height:40px; background:var(--wa04); border:1px solid var(--wa10); border-radius:4px; font-size:15px; cursor:pointer; opacity:0.25; transition:opacity 0.15s,background 0.15s,border-color 0.15s; padding:0; }
   .handmade-toggle.active { opacity:1; background:rgba(201,168,76,0.15); border-color:rgba(201,168,76,0.5); }
 
   .save-btn {
@@ -615,14 +642,14 @@
   .about-chevron { color:var(--gold); font-size:11px; transition:transform 0.2s; }
   .about-section-body { margin-top:14px; }
   .about-list { list-style:none; padding:0; }
-  .about-list li { font-family: var(--font-body); font-size:11px; color:var(--text-muted); padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.04); line-height:1.5; }
+  .about-list li { font-family: var(--font-body); font-size:11px; color:var(--text-muted); padding:5px 0; border-bottom:1px solid var(--wa04); line-height:1.5; }
   .about-list li:last-child { border-bottom:none; }
-  .manual-section { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .manual-section { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--wa06); }
   .manual-section:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
   .manual-heading { font-family: var(--font-body); font-size:12px; font-weight:600; color:var(--gold); letter-spacing:0.08em; margin-bottom:8px; }
   .manual-section p { font-family: var(--font-body); font-size:11px; color:var(--text-muted); line-height:1.6; margin-bottom:4px; }
   .manual-section strong { color:var(--text); }
-  .changelog-entry { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .changelog-entry { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--wa06); }
   .changelog-entry:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
   .changelog-version { font-family: var(--font-heading); font-size:16px; color:var(--gold-light); margin-bottom:8px; }
   .changelog-version span { font-family: var(--font-mono); font-size:10px; color:var(--text-muted); letter-spacing:0.1em; margin-left:8px; }
@@ -658,7 +685,7 @@
   .nav-btn svg { width: 20px; height: 20px; transition: transform 0.2s; }
   .nav-btn:hover { color: var(--text-muted); }
   .nav-btn.active {
-    color: var(--dark);
+    color: var(--ink);
     background: linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%);
     box-shadow: 0 2px 12px rgba(212,175,55,0.4);
   }
@@ -726,14 +753,14 @@
   .sp-cal-day-dot { width:4px; height:4px; border-radius:50%; margin-top:3px; }
   .sp-cal-day-empty { background:transparent; cursor:default; }
   .sp-cal-day-blank { background:transparent; border-color:transparent !important; cursor:default; }
-  .sp-cal-day-no-sale { background:rgba(255,255,255,0.03); border-color:rgba(255,255,255,0.06); }
+  .sp-cal-day-no-sale { background:var(--wa03); border-color:var(--wa06); }
   .sp-cal-day-no-sale .sp-cal-day-num { color:var(--text-muted); }
   .sp-cal-day-has-sale { background:rgba(201,168,76,0.12); border-color:rgba(201,168,76,0.35); }
   .sp-cal-day-has-sale .sp-cal-day-num { color:var(--gold-light); }
   .sp-cal-day-has-sale .sp-cal-day-dot { background:var(--gold); }
   .sp-cal-day-has-sale:hover { background:rgba(201,168,76,0.25); border-color:var(--gold); }
   .sp-cal-day-active { background:var(--gold) !important; border-color:var(--gold-light) !important; }
-  .sp-cal-day-active .sp-cal-day-num { color:var(--dark) !important; font-weight:600; }
+  .sp-cal-day-active .sp-cal-day-num { color:var(--ink) !important; font-weight:600; }
   .sp-cal-day-active .sp-cal-day-dot { background:var(--dark) !important; }
   .sp-cal-day-today { border-color:rgba(39,174,96,0.6) !important; }
   .sp-cal-day-today:not(.sp-cal-day-active) .sp-cal-day-num { color:#27AE60; }
@@ -846,7 +873,7 @@
   }
   .pin-box {
     width: 62px; height: 72px;
-    background: rgba(255,255,255,0.05);
+    background: var(--wa05);
     border: 2px solid rgba(212,175,55,0.25);
     border-radius: 14px;
     display: flex; align-items: center; justify-content: center;
@@ -884,10 +911,10 @@
     letter-spacing: 0.06em; transition: all 0.2s;
   }
   .pin-btn-cancel {
-    background: rgba(255,255,255,0.07); color: var(--text-muted);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: var(--wa07); color: var(--text-muted);
+    border: 1px solid var(--wa12);
   }
-  .pin-btn-cancel:hover { background: rgba(255,255,255,0.12); }
+  .pin-btn-cancel:hover { background: var(--wa12); }
   .pin-btn-ok {
     background: linear-gradient(135deg, var(--gold-deep), var(--gold));
     color: #0E0C08;
@@ -967,13 +994,17 @@
      .modal-danger = a de-emphasized destructive action (delete/cancel) — outlined, never a
      filled block competing with the primary CTA; always paired with a confirm dialog. */
   .modal-x { flex-shrink:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;
-    background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:50%;
+    background:var(--wa07); border:1px solid var(--wa14); border-radius:50%;
     color:var(--text-muted); font-size:17px; line-height:1; cursor:pointer; padding:0; transition:background 0.15s; }
-  .modal-x:hover, .modal-x:active { background:rgba(255,255,255,0.14); color:var(--text); }
+  .modal-x:hover, .modal-x:active { background:var(--wa14); color:var(--text); }
   .modal-danger { width:100%; margin-top:10px; padding:11px; background:transparent;
     border:1px solid rgba(224,80,80,0.35); color:var(--danger); border-radius:10px;
     font-family:var(--font-body); font-size:12.5px; font-weight:600; letter-spacing:0.02em; cursor:pointer; transition:background 0.15s; }
   .modal-danger:active { background:rgba(224,80,80,0.12); }
+  .theme-seg { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:11px;
+    background:var(--wa05); border:1px solid var(--wa15); border-radius:10px; color:var(--text-muted);
+    font-family:var(--font-body); font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+  .theme-seg.active { background:var(--glow-gold); border-color:var(--gold); color:var(--gold-light); }
   .inv-summary {
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
   }
@@ -1035,7 +1066,7 @@
   .inv-fs-picker-item {
     display:flex;align-items:center;justify-content:space-between;
     padding:11px 14px;font-family:var(--font-body);font-size:13px;color:var(--text);
-    cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;
+    cursor:pointer;border-bottom:1px solid var(--wa04);transition:background 0.15s;
   }
   .inv-fs-picker-item:last-child { border-bottom:none; }
   .inv-fs-picker-item:active { background:rgba(212,175,55,0.08); }
@@ -1056,7 +1087,7 @@
     padding:14px; margin-bottom:10px; position:relative;
     transition: border-color 0.2s;
   }
-  .inv-card.sold { opacity:0.55; border-color:rgba(255,255,255,0.08); }
+  .inv-card.sold { opacity:0.55; border-color:var(--wa08); }
   @keyframes invCardFlash {
     0%   { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(201,168,76,0.6); background: rgba(201,168,76,0.12); }
     12%  { border-color: var(--card-border); box-shadow: none; background: var(--card); }
@@ -1075,7 +1106,7 @@
     text-transform:uppercase; padding:3px 8px; border-radius:20px; white-space:nowrap; flex-shrink:0;
   }
   .inv-badge-stock { background:rgba(61,170,106,0.15); border:1px solid rgba(61,170,106,0.35); color:var(--success); }
-  .inv-badge-sold { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted); }
+  .inv-badge-sold { background:var(--wa06); border:1px solid var(--wa12); color:var(--text-muted); }
   .inv-card-desc { font-family:var(--font-body); font-size:13px; color:var(--text); margin-bottom:6px; }
   .inv-card-meta { font-family:var(--font-mono); font-size:11px; color:var(--text-muted); margin-bottom:8px; line-height:1.6; }
   .inv-card-price { font-family:var(--font-heading); font-size:20px; color:var(--gold-light); font-weight:700; margin-bottom:10px; }
@@ -1099,7 +1130,7 @@
     padding:24px; max-width:400px; width:100%; margin-top:0;
   }
   .inv-modal-title { font-family:var(--font-heading); font-size:20px; color:var(--gold); margin-bottom:16px; }
-  .inv-modal-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px; }
+  .inv-modal-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--wa05); font-size:13px; }
   .inv-modal-row:last-of-type { border-bottom:none; }
   .inv-modal-key { color:var(--text-muted); font-family:var(--font-body); }
   .inv-modal-val { color:var(--text); font-family:var(--font-mono); font-size:12px; text-align:right; }
@@ -1111,6 +1142,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
 </head>
 <body>
+<script>/* Apply saved theme before first paint (no flash) */try{if(localStorage.getItem('jpro_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <div class="app">
   <header>
     <div class="header-left">
@@ -1301,7 +1333,7 @@
       <label data-i18n="laborCat">Κατηγορία Εργασίας</label>
       <div style="display:flex;gap:8px;align-items:stretch">
         <select id="workType" style="flex:1;min-width:0"></select>
-        <button type="button" id="calcHandmadeToggle" onclick="toggleCalcHandmade()" title="Handmade" style="flex:0 0 46px;height:46px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:4px;font-size:18px;cursor:pointer;opacity:0.35;transition:opacity 0.15s,background 0.15s,border-color 0.15s;display:flex;align-items:center;justify-content:center">✋</button>
+        <button type="button" id="calcHandmadeToggle" onclick="toggleCalcHandmade()" title="Handmade" style="flex:0 0 46px;height:46px;background:var(--wa04);border:1px solid var(--wa10);border-radius:4px;font-size:18px;cursor:pointer;opacity:0.35;transition:opacity 0.15s,background 0.15s,border-color 0.15s;display:flex;align-items:center;justify-content:center">✋</button>
       </div>
     </div>
     <!-- Other-type calc panel — shown after vendor+category -->
@@ -1357,7 +1389,7 @@
 
     <!-- STONE SECTION -->
     <div id="stoneSectionWrap" style="margin-bottom:16px">
-      <button type="button" onclick="toggleStoneSection()" id="stoneSectionToggle" style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(201,168,76,0.18);border-radius:4px;padding:10px 14px;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;text-align:left">
+      <button type="button" onclick="toggleStoneSection()" id="stoneSectionToggle" style="width:100%;background:var(--wa03);border:1px solid rgba(201,168,76,0.18);border-radius:4px;padding:10px 14px;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;text-align:left">
         <span>💎 <span id="stoneSectionLabel">Προσθήκη Πέτρας</span></span>
         <span id="stoneSectionChevron" style="transition:transform 0.2s;font-size:10px;color:var(--gold)">▼</span>
       </button>
@@ -1519,7 +1551,7 @@
     <div id="pfsType" style="font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.18em;color:#FFEBB0;text-transform:uppercase;margin-top:12px"></div>
     <div id="pfsDesc" style="font-family:var(--font-heading);font-style:italic;font-size:clamp(15px,4vw,19px);color:#FFEBB0;text-align:center;line-height:1.55;max-width:400px;padding:0 10px"></div>
     <img id="pfsPhoto" src="" alt="" style="display:none;flex:1 1 auto;min-height:0;width:min(76vw,320px);max-height:46vh;object-fit:contain;background:#fff;border-radius:14px;padding:8px;margin-top:6px;box-shadow:0 6px 26px rgba(0,0,0,0.5)">
-    <div style="position:absolute;bottom:40px;font-family:var(--font-mono);font-size:11px;color:rgba(255,255,255,0.2);letter-spacing:0.1em">TAP TO CLOSE</div>
+    <div style="position:absolute;bottom:40px;font-family:var(--font-mono);font-size:11px;color:var(--wa20);letter-spacing:0.1em">TAP TO CLOSE</div>
   </div>
 
   <!-- VENDORS -->
@@ -1530,7 +1562,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span style="font-family:var(--font-heading);font-size:22px;font-weight:700;color:var(--gold-light)" data-i18n="vendorsTab">Προμηθευτές</span>
       </div>
-      <button id="addVendorBtn" onclick="openAddVendorModal()" style="display:none;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);border:none;color:var(--dark);font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;padding:10px 16px;border-radius:var(--radius-sm);cursor:pointer;box-shadow:0 4px 14px rgba(212,175,55,0.35)">+ <span data-i18n="addVendorBtn">ADD</span></button>
+      <button id="addVendorBtn" onclick="openAddVendorModal()" style="display:none;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);border:none;color:var(--ink);font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;padding:10px 16px;border-radius:var(--radius-sm);cursor:pointer;box-shadow:0 4px 14px rgba(212,175,55,0.35)">+ <span data-i18n="addVendorBtn">ADD</span></button>
     </div>
 
     <div class="vendor-list" id="vendorList"></div>
@@ -1546,7 +1578,7 @@
       <div class="field"><label data-i18n="vendorName">Όνομα Προμηθευτή</label><input type="text" id="v_name" data-i18n-ph="vendorNamePh"></div>
       <!-- Vendor type toggle -->
       <div style="display:flex;gap:0;margin-bottom:16px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.18);border-radius:8px;overflow:hidden">
-        <button id="vfTypeMetal" onclick="setVendorFormType('metal')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark)" data-i18n="vendorTypeMetal">Μέταλλο</button>
+        <button id="vfTypeMetal" onclick="setVendorFormType('metal')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink)" data-i18n="vendorTypeMetal">Μέταλλο</button>
         <button id="vfTypeOther" onclick="setVendorFormType('other')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted)" data-i18n="vendorTypeOther">Άλλο</button>
       </div>
       <!-- Metal vendor fields -->
@@ -1575,7 +1607,7 @@
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="save-btn" onclick="saveVendor()" data-i18n="saveVendor">Αποθήκευση Προμηθευτή</button>
-        <button onclick="cancelEditVendor()" data-i18n="cancel" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.12);color:var(--text-muted);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">Ακύρωση</button>
+        <button onclick="cancelEditVendor()" data-i18n="cancel" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa12);color:var(--text-muted);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">Ακύρωση</button>
       </div>
       <div class="status-bar" id="vendorStatus"></div>
     </div>
@@ -1583,6 +1615,13 @@
 
   <!-- SETTINGS -->
   <div id="panel-settings" class="panel">
+    <div class="settings-section">
+      <h3 data-i18n="appearance">Εμφάνιση</h3>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="themeDarkBtn" onclick="applyTheme('dark')" class="theme-seg active">🌙 <span data-i18n="themeDark">Σκούρο</span></button>
+        <button type="button" id="themeLightBtn" onclick="applyTheme('light')" class="theme-seg">☀️ <span data-i18n="themeLight">Ανοιχτό</span></button>
+      </div>
+    </div>
     <div class="settings-section">
       <h3 data-i18n="taxMargin">Φόρος & Περιθώριο</h3>
       <div class="field"><label data-i18n="vat">ΦΠΑ (%)</label><input type="number" id="vatPct" placeholder="24" step="0.1" inputmode="decimal"></div>
@@ -1734,7 +1773,7 @@
   <div id="panel-sync" class="panel">
     <!-- Identity Card -->
     <div id="identityCard" style="background:linear-gradient(135deg,rgba(212,175,55,0.1),rgba(212,175,55,0.05));border:1px solid var(--card-border);border-radius:10px;padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px">
-      <div id="identityAvatar" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#C9A84C,#A8882A);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:20px;color:var(--dark);font-weight:700;flex-shrink:0">?</div>
+      <div id="identityAvatar" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#C9A84C,#A8882A);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:20px;color:var(--ink);font-weight:700;flex-shrink:0">?</div>
       <div style="flex:1;min-width:0">
         <div id="identityName" style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
         <div id="identityRole" style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);letter-spacing:0.12em;text-transform:uppercase;margin-top:2px">—</div>
@@ -1776,7 +1815,7 @@
           <input type="text" id="telegramTokenInput" placeholder="123456789:ABC..." autocomplete="off" autocorrect="off" autocapitalize="none" style="font-family:var(--font-mono);font-size:12px">
           <div class="hint" data-i18n="telegramTokenHint">Από το @BotFather</div>
           <button onclick="saveTelegramToken()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ Αποθήκευση Token</button>
-          <button onclick="showTelegramSetup()" style="margin-top:6px;margin-left:8px;padding:7px 14px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;cursor:pointer" data-i18n="telegramHowTo">Πώς να το ρυθμίσετε</button>
+          <button onclick="showTelegramSetup()" style="margin-top:6px;margin-left:8px;padding:7px 14px;background:transparent;border:1px solid var(--wa15);border-radius:8px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;cursor:pointer" data-i18n="telegramHowTo">Πώς να το ρυθμίσετε</button>
         </div>
         <button class="save-btn" onclick="ownerSaveAndPush()" data-i18n="savePush">💾 Αποθήκευση & Ανέβασμα</button>
         <button class="save-btn" onclick="showShareOptions()" style="margin-top:8px;border-color:rgba(176,184,200,0.4);color:var(--silver-light)" id="shareBtnEl">📤 <span id="shareBtnText">Κοινοποίηση Εφαρμογής</span></button>
@@ -1806,7 +1845,7 @@
     <div id="teamSection" class="cloud-box" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <h3 style="margin:0" data-i18n="teamTitle">👥 Ομάδα</h3>
-        <button onclick="openAddUserModal()" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:20px;padding:6px 14px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer">+ <span data-i18n="addPerson">Πρόσθεσε</span></button>
+        <button onclick="openAddUserModal()" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:20px;padding:6px 14px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer">+ <span data-i18n="addPerson">Πρόσθεσε</span></button>
       </div>
       <div id="teamList"></div>
     </div>
@@ -1823,7 +1862,7 @@
 
     <!-- User Identity Card -->
     <div id="infoIdentityCard" onclick="openChangeNameModal()" style="background:linear-gradient(135deg,rgba(212,175,55,0.1),rgba(212,175,55,0.05));border:1px solid var(--card-border);border-radius:12px;padding:18px 20px;margin-bottom:16px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:border-color 0.2s" onmouseenter="this.style.borderColor='rgba(212,175,55,0.35)'" onmouseleave="this.style.borderColor='rgba(212,175,55,0.18)'">
-      <div id="infoIdentityAvatar" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#C9A84C,#A8882A);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:24px;color:var(--dark);font-weight:700;flex-shrink:0;box-shadow:0 2px 12px rgba(212,175,55,0.3)">?</div>
+      <div id="infoIdentityAvatar" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#C9A84C,#A8882A);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:24px;color:var(--ink);font-weight:700;flex-shrink:0;box-shadow:0 2px 12px rgba(212,175,55,0.3)">?</div>
       <div style="flex:1;min-width:0">
         <div id="infoIdentityName" style="font-family:var(--font-heading);font-size:22px;color:var(--gold-light);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
         <div id="infoIdentityRole" style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);letter-spacing:0.12em;text-transform:uppercase;margin-top:3px">—</div>
@@ -1909,7 +1948,7 @@
     <div style="padding:14px 14px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold-light)" data-i18n="clientsTitle">👥 Πελάτες</div>
-        <button onclick="openClientEditModal(null)" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;padding:7px 14px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="clientAdd">+ Προσθήκη</button>
+        <button onclick="openClientEditModal(null)" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;padding:7px 14px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="clientAdd">+ Προσθήκη</button>
       </div>
       <div style="position:relative;margin-bottom:12px">
         <input type="text" id="clientSearch" data-i18n-ph="clientSearchPh" oninput="renderClients(this.value)" autocomplete="off"
@@ -2004,8 +2043,8 @@
       style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.4);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:10px 12px;margin-bottom:14px"
       onkeydown="if(event.key==='Enter'){confirmAddToCart();}">
     <div style="display:flex;gap:8px">
-      <button onclick="confirmAddToCart()" style="flex:1;padding:11px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="addToCartConfirm">➕ Προσθήκη</button>
-      <button onclick="closeItemNamePopup()" style="flex:1;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+      <button onclick="confirmAddToCart()" style="flex:1;padding:11px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="addToCartConfirm">➕ Προσθήκη</button>
+      <button onclick="closeItemNamePopup()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
 </div>
@@ -2070,10 +2109,10 @@
     <!-- Cash toggle — pressed = cash (black money), which hides VAT on the printed quote/certificate -->
     <button type="button" id="quoteCashToggle" data-cash-btn="1" onclick="_toggleCashBtn('quoteCashToggle')" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap">💵 ΜΕΤΡΗΤΑ</button>
     <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button onclick="printQuote()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="printQuoteConfirm">🖨 Εκτύπωση</button>
+      <button onclick="printQuote()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="printQuoteConfirm">🖨 Εκτύπωση</button>
       <button onclick="shareQuote()" style="flex:1;padding:12px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="shareQuoteBtn">📤 Αποστολή</button>
     </div>
-    <button onclick="closeQuoteModal()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+    <button onclick="closeQuoteModal()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
   </div>
 </div>
 
@@ -2106,7 +2145,7 @@
         👤<br><span data-i18n="shareAsEmployee">Υπάλληλος</span>
       </button>
     </div>
-    <button onclick="closeShareModal()" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+    <button onclick="closeShareModal()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
   </div>
 </div>
 
@@ -2123,7 +2162,7 @@
         🔒 <span id="printWithoutPricesLabel">Χωρίς τιμές εργασίας</span>
       </button>
     </div>
-    <button onclick="closePrintOptionsModal()" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+    <button onclick="closePrintOptionsModal()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
   </div>
 </div>
 
@@ -2161,11 +2200,11 @@
       </div>
     </div>
     <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
-      <button id="labelHandmadeToggle" style="flex:0 0 46px;height:46px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:20px;cursor:pointer;opacity:0.35;transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(201,168,76,0.15)':'rgba(255,255,255,0.04)';btn.style.borderColor=on?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.1)'})(this)">✋</button>
+      <button id="labelHandmadeToggle" style="flex:0 0 46px;height:46px;background:var(--wa04);border:1px solid var(--wa10);border-radius:8px;font-size:20px;cursor:pointer;opacity:0.35;transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(201,168,76,0.15)':'var(--wa04)';btn.style.borderColor=on?'rgba(201,168,76,0.5)':'var(--wa10)'})(this)">✋</button>
       <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted)" data-i18n="handmadeLabel">Χειροποίητο</span>
     </div>
     <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
-      <button id="labelHideShowroomToggle" style="flex:0 0 46px;height:46px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:20px;cursor:pointer;opacity:0.35;transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(229,115,115,0.15)':'rgba(255,255,255,0.04)';btn.style.borderColor=on?'rgba(229,115,115,0.5)':'rgba(255,255,255,0.1)'})(this)">🙈</button>
+      <button id="labelHideShowroomToggle" style="flex:0 0 46px;height:46px;background:var(--wa04);border:1px solid var(--wa10);border-radius:8px;font-size:20px;cursor:pointer;opacity:0.35;transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(229,115,115,0.15)':'var(--wa04)';btn.style.borderColor=on?'rgba(229,115,115,0.5)':'var(--wa10)'})(this)">🙈</button>
       <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);line-height:1.35"><span data-i18n="hideShowroomLabel">Απόκρυψη από βιτρίνα</span><br><span style="font-size:11px;color:var(--text-dim)" data-i18n="hideShowroomHint">Δεν θα εμφανίζεται στο online showroom</span></span>
     </div>
     <div style="margin-bottom:16px">
@@ -2192,8 +2231,8 @@
     </div>
     <div id="labelModalContent"></div>
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button onclick="closeLabelModal()" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="close">Κλείσιμο</button>
-      <button onclick="closeLabelModal()" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+      <button onclick="closeLabelModal()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="close">Κλείσιμο</button>
+      <button onclick="closeLabelModal()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
 </div>
@@ -2274,7 +2313,7 @@
     </div>
     <div style="display:flex;gap:10px">
       <button onclick="confirmSale()" style="flex:2;padding:12px;background:linear-gradient(135deg,#27AE60,#1e8449);color:#fff;border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="saleConfirm">✓ Καταχώριση</button>
-      <button onclick="closeSaleModal()" style="flex:1;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="cancel">Ακύρωση</button>
+      <button onclick="closeSaleModal()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
 </div>
@@ -2334,8 +2373,8 @@
       </div>
     </div>
     <div style="display:flex;gap:10px">
-      <button onclick="confirmSaleEdit()" style="flex:2;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;font-weight:700" data-i18n="save">Αποθήκευση</button>
-      <button onclick="closeSaleEditModal()" style="flex:1;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="cancel">Ακύρωση</button>
+      <button onclick="confirmSaleEdit()" style="flex:2;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;font-weight:700" data-i18n="save">Αποθήκευση</button>
+      <button onclick="closeSaleEditModal()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
 </div>
@@ -2343,7 +2382,7 @@
 <!-- SALE DETAIL MODAL -->
 <div id="saleDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeSaleDetailModal()">
   <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.35);border-radius:12px 12px 0 0;width:100%;max-width:480px;max-height:calc(100vh - 24px);overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,16px) 0">
-    <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.18)"></div></div>
+    <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--wa18)"></div></div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 12px">
       <div style="font-family:var(--font-heading);font-size:20px;font-weight:700;color:var(--gold-light)" id="sdmTitle">📋 Λεπτομέρειες</div>
       <button onclick="closeSaleDetailModal()" style="background:transparent;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;line-height:1;padding:4px">✕</button>
@@ -2363,9 +2402,9 @@
       </div>
       <div id="sdmDate" style="font-size:12px;color:var(--text-muted);margin-top:2px"></div>
     </div>
-    <div id="sdmGroupItems" style="display:none;margin:10px 18px 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px"></div>
-    <div id="sdmBreakdown" style="margin:10px 18px 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px"></div>
-    <div id="sdmMeta" style="margin:10px 18px 16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px"></div>
+    <div id="sdmGroupItems" style="display:none;margin:10px 18px 0;border-top:1px solid var(--wa08);padding-top:10px"></div>
+    <div id="sdmBreakdown" style="margin:10px 18px 0;border-top:1px solid var(--wa08);padding-top:10px"></div>
+    <div id="sdmMeta" style="margin:10px 18px 16px;border-top:1px solid var(--wa08);padding-top:10px"></div>
     <div style="display:flex;gap:10px;padding:0 18px 20px" id="sdmActions"></div>
   </div>
 </div>
@@ -2414,8 +2453,8 @@
       <textarea id="clientEditNotes" rows="3" style="background:var(--dark-3);border:1px solid rgba(201,168,76,0.25);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 12px;width:100%;resize:vertical"></textarea>
     </div>
     <div style="display:flex;gap:8px">
-      <button onclick="saveClientEdit()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="save">Αποθήκευση</button>
-      <button onclick="closeClientEditModal()" style="flex:1;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+      <button onclick="saveClientEdit()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="save">Αποθήκευση</button>
+      <button onclick="closeClientEditModal()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
 </div>
@@ -2431,7 +2470,7 @@
     <input type="hidden" id="vm_vendorType" value="metal">
     <!-- Vendor type toggle -->
     <div style="display:flex;gap:0;margin-bottom:16px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.18);border-radius:8px;overflow:hidden">
-      <button id="vmTypeMetal" onclick="setVendorModalType('metal')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);transition:all 0.2s" data-i18n="vendorTypeMetal">Μέταλλο</button>
+      <button id="vmTypeMetal" onclick="setVendorModalType('metal')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);transition:all 0.2s" data-i18n="vendorTypeMetal">Μέταλλο</button>
       <button id="vmTypeOther" onclick="setVendorModalType('other')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all 0.2s" data-i18n="vendorTypeOther">Άλλο</button>
     </div>
     <!-- Metal vendor fields -->
@@ -2459,7 +2498,7 @@
       <button onclick="addOtherCatRow()" style="width:100%;padding:9px;background:rgba(212,175,55,0.08);border:1px dashed rgba(212,175,55,0.3);border-radius:6px;color:var(--gold);font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:12px">+ Προσθήκη Κατηγορίας</button>
     </div>
     <button class="save-btn" onclick="saveVendorFromModal()"  style="margin-top:12px" data-i18n="saveVendor">Αποθήκευση Προμηθευτή</button>
-    <button onclick="closeAddVendorModal()" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.12);color:var(--text-muted);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+    <button onclick="closeAddVendorModal()" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid var(--wa12);color:var(--text-muted);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
     <div class="status-bar" id="vendorModalStatus"></div>
   </div>
 </div>
@@ -2483,7 +2522,7 @@
       </div>
       <textarea id="greetingMsgText" rows="7" style="background:var(--dark-3);border:1px solid rgba(201,168,76,0.25);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:10px 12px;width:100%;resize:vertical;line-height:1.6"></textarea>
     </div>
-    <button onclick="closeGreetingModal()" style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="close">Κλείσιμο</button>
+    <button onclick="closeGreetingModal()" style="width:100%;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer" data-i18n="close">Κλείσιμο</button>
   </div>
 </div>
 
@@ -2551,22 +2590,22 @@
 
     <!-- Toolbar: Sort / Select / Stale — equal-width so they fit any language, no scroll -->
     <div class="inv-toolbar" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <button id="invSortBtn" onclick="openInvSortSheet()" class="inv-toolbar-btn" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      <button id="invSortBtn" onclick="openInvSortSheet()" class="inv-toolbar-btn" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:var(--wa05);border:1px solid var(--wa18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 15 20 18 23 15"/><line x1="20" y1="18" x2="20" y2="10"/></svg>
         <span id="invSortLabel" data-i18n="invSortBtn">Ταξινόμηση</span>
       </button>
-      <button id="invSelectToggleBtn" onclick="toggleInvSelectMode()" class="inv-toolbar-btn" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      <button id="invSelectToggleBtn" onclick="toggleInvSelectMode()" class="inv-toolbar-btn" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:var(--wa05);border:1px solid var(--wa18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0"><rect x="3" y="3" width="7" height="7" rx="1.5"/><polyline points="5.5 6.5 6.5 7.5 8.5 5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><line x1="14" y1="6.5" x2="21" y2="6.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>
         <span id="invSelectToggleLabel" data-i18n="invSelectBtn">Επιλογή</span>
       </button>
-      <button id="invStaleBtn" onclick="openStaleReport()" class="inv-toolbar-btn" style="display:none;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      <button id="invStaleBtn" onclick="openStaleReport()" class="inv-toolbar-btn" style="display:none;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:var(--wa05);border:1px solid var(--wa18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0"><circle cx="12" cy="12" r="9"/><polyline points="12 7.5 12 12 15.5 14"/></svg>
         <span data-i18n="staleReportBtn">Στάσιμο</span>
       </button>
       <!-- Stock density picker — desktop only (CSS shows #invColsWrap at >=1000px) -->
       <div id="invColsWrap" style="display:none;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
-        <select id="invColsSelect" onchange="setInvCols(this.value)" style="padding:7px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.04em;cursor:pointer;outline:none">
+        <select id="invColsSelect" onchange="setInvCols(this.value)" style="padding:7px 10px;background:var(--wa05);border:1px solid var(--wa18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.04em;cursor:pointer;outline:none">
           <option value="1" data-i18n="invColsList">Λίστα</option>
           <option value="2" data-i18n="invCols2">2 στήλες</option>
           <option value="3" data-i18n="invCols3">3 στήλες</option>
@@ -2589,7 +2628,7 @@
       <div style="display:flex;align-items:center;gap:8px">
         <span id="invShareBarCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light);flex:1">0 επιλεγμένα</span>
         <button onclick="invSelectAll()" title="Select All" style="display:flex;align-items:center;gap:5px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:9px;padding:7px 11px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4,12 9,17 20,6"/></svg><span data-i18n="invSelAll">Όλα</span></button>
-        <button onclick="toggleInvSelectMode()" title="Exit" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">✕</button>
+        <button onclick="toggleInvSelectMode()" title="Exit" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">✕</button>
       </div>
       <!-- Row 2: primary actions — big, equal-width, easy to tap -->
       <div style="display:flex;gap:8px">
@@ -2617,12 +2656,12 @@
             <span style="color:var(--text-muted);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px" data-i18n="selTotalCost">Κόστος</span>
             <span id="invSelTotalCost" style="color:#f0d87a;font-weight:700;font-size:13px">—</span>
           </div>
-          <div style="width:1px;background:rgba(255,255,255,0.1);flex-shrink:0"></div>
+          <div style="width:1px;background:var(--wa10);flex-shrink:0"></div>
           <div style="display:flex;flex-direction:column;align-items:center;flex:1">
             <span style="color:var(--text-muted);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px" data-i18n="selTotalRetail">Λιανική</span>
             <span id="invSelTotalRetail" style="color:#7ecfaa;font-weight:700;font-size:13px">—</span>
           </div>
-          <div style="width:1px;background:rgba(255,255,255,0.1);flex-shrink:0"></div>
+          <div style="width:1px;background:var(--wa10);flex-shrink:0"></div>
           <div style="display:flex;flex-direction:column;align-items:center;flex:1">
             <span style="color:var(--text-muted);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px" data-i18n="selTotalMetal">Μέταλλο</span>
             <span id="invSelTotalMetal" style="color:#a0c4e8;font-weight:700;font-size:13px">—</span>
@@ -2647,7 +2686,7 @@
 <div id="invSortSheet" style="display:none;position:fixed;inset:0;z-index:99996">
   <div onclick="closeInvSortSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);z-index:0"></div>
   <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);z-index:1;padding:20px 20px 40px 20px">
-    <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 18px auto"></div>
+    <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 18px auto"></div>
     <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:16px" data-i18n="invSortTitle">Ταξινόμηση</div>
     <div id="invSortOptions" style="display:flex;flex-direction:column;gap:6px"></div>
   </div>
@@ -2658,8 +2697,8 @@
   <div id="invFilterBackdrop" onclick="closeInvFilterSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);z-index:0"></div>
   <div id="invFilterBox" style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;z-index:1;display:flex;flex-direction:column">
     <!-- Sticky header: drag handle + title + clear/close — stays at top while content scrolls -->
-    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:8px 20px 10px;border-bottom:1px solid rgba(255,255,255,0.06)">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 10px"></div>
+    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:8px 20px 10px;border-bottom:1px solid var(--wa06)">
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 10px"></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="invFilterTitle">Φίλτρα</div>
         <div style="display:flex;align-items:center;gap:12px">
@@ -2680,8 +2719,8 @@
 <div id="invExportSheet" style="display:none;position:fixed;inset:0;z-index:99996">
   <div onclick="closeInvExportSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);z-index:0"></div>
   <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;z-index:1;display:flex;flex-direction:column">
-    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:8px 20px 10px;border-bottom:1px solid rgba(255,255,255,0.06)">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 10px"></div>
+    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:8px 20px 10px;border-bottom:1px solid var(--wa06)">
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 10px"></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="exportSheetTitle">📊 Εξαγωγή Απογραφής</div>
         <button onclick="closeInvExportSheet()" class="modal-x" aria-label="Close">✕</button>
@@ -2704,7 +2743,7 @@
 <div id="stkOverlay" style="display:none;position:fixed;inset:0;z-index:99997;background:var(--dark);flex-direction:column">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--card-border);flex-shrink:0">
     <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)" data-i18n="stkScanTitle">📋 Απογραφή — Σάρωση</div>
-    <button onclick="stkCloseScanner()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:7px 16px;color:var(--text);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer" data-i18n="stkDone">Τέλος</button>
+    <button onclick="stkCloseScanner()" style="background:var(--wa08);border:1px solid var(--wa15);border-radius:20px;padding:7px 16px;color:var(--text);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer" data-i18n="stkDone">Τέλος</button>
   </div>
   <div style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
     <div id="stkVideoWrap" style="position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:1;background:#000;border-radius:14px;overflow:hidden;border:2px solid var(--card-border)">
@@ -2739,7 +2778,7 @@
 <!-- INVENTORY CHECK — comparison report -->
 <div id="stkReport" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.75)">
   <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;display:flex;flex-direction:column">
-    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center">
+    <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:10px 20px;border-bottom:1px solid var(--wa06);display:flex;justify-content:space-between;align-items:center">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="stkReportTitle">📋 Αποτέλεσμα Απογραφής</div>
       <button onclick="stkCloseReport()" class="modal-x" aria-label="Close">✕</button>
     </div>
@@ -2791,7 +2830,7 @@
 
     <!-- View toggle: By Date / By Vendor -->
     <div id="spViewToggle" style="display:flex;gap:0;margin-bottom:16px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.18);border-radius:8px;overflow:hidden">
-      <button id="spViewDateBtn" onclick="spSetView('date')" style="flex:1;padding:9px 0;font-family:var(--font-body);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);transition:all 0.2s" data-i18n="spViewByDate">ΑΝΑ ΗΜΕΡΟΜΗΝΙΑ</button>
+      <button id="spViewDateBtn" onclick="spSetView('date')" style="flex:1;padding:9px 0;font-family:var(--font-body);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);transition:all 0.2s" data-i18n="spViewByDate">ΑΝΑ ΗΜΕΡΟΜΗΝΙΑ</button>
       <button id="spViewVendorBtn" onclick="spSetView('vendor')" style="flex:1;padding:9px 0;font-family:var(--font-body);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all 0.2s" data-i18n="spViewByVendor">ΑΝΑ ΠΡΟΜΗΘΕΥΤΗ</button>
       <button id="spViewEmployeeBtn" onclick="spSetView('employee')" style="flex:1;padding:9px 0;font-family:var(--font-body);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all 0.2s" data-i18n="spViewByEmployee">ΑΝΑ ΥΠΑΛΛΗΛΟ</button>
     </div>
@@ -3066,6 +3105,7 @@ const T = {
     myCoinsHint:'Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.',
     weightTiersNote:'Το τελευταίο συμπληρωμένο επίπεδο καλύπτει όλα τα μεγαλύτερα βάρη.',
     tierFrom:'Από (γρ.)', tierMargin:'Περιθώριο %',
+    appearance:'Εμφάνιση', themeDark:'Σκούρο', themeLight:'Ανοιχτό',
     taxMargin:'Φόρος & Περιθώριο', vat:'ΦΠΑ (%)',
     margin:'Περιθώριο Κέρδους (%)', currency:'Σύμβολο Νομίσματος', dateLocaleLabel:'Μορφή Ημερομηνίας',
     saveSettings:'Αποθήκευση Ρυθμίσεων', spotOverride:'Χειροκίνητη Τιμή Spot',
@@ -3456,6 +3496,7 @@ const T = {
     myCoinsHint:'Coins you added yourself (recognised by weight). Delete any you don\'t need.',
     weightTiersNote:'The last filled tier covers all heavier weights.',
     tierFrom:'From (g)', tierMargin:'Margin %',
+    appearance:'Appearance', themeDark:'Dark', themeLight:'Light',
     taxMargin:'Tax & Margin', vat:'VAT (%)',
     margin:'Profit Margin (%)', currency:'Currency Symbol', dateLocaleLabel:'Date Format',
     saveSettings:'Save Settings', spotOverride:'Spot Price Override',
@@ -3849,6 +3890,21 @@ const T = {
 let lang = localStorage.getItem('jpro_lang') || 'el';
 
 function t(key) { return T[lang][key] || T['en'][key] || key; }
+
+// ── Theme (dark default / light) ──────────────────────────────────────────────
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  if (isLight) document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('jpro_theme', isLight ? 'light' : 'dark'); } catch (e) {}
+  const d = document.getElementById('themeDarkBtn'), l = document.getElementById('themeLightBtn');
+  if (d) d.classList.toggle('active', !isLight);
+  if (l) l.classList.toggle('active', isLight);
+}
+function initThemeToggle() {
+  const saved = (() => { try { return localStorage.getItem('jpro_theme'); } catch (e) { return null; } })();
+  applyTheme(saved === 'light' ? 'light' : 'dark');
+}
 
 function setLang(l) {
   lang = l;
@@ -4768,7 +4824,7 @@ function _resClientAutocomplete(val) {
   if (q.length < 1) { box.style.display = 'none'; return; }
   const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
   if (!matches.length) { box.style.display = 'none'; return; }
-  box.innerHTML = matches.map(c => `<div onclick="_resSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_resEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_resEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.innerHTML = matches.map(c => `<div onclick="_resSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--wa05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_resEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_resEsc(c.phone)}</span>` : ''}</div>`).join('');
   box.style.display = 'block';
 }
 function _resSelectClient(id) {
@@ -4828,7 +4884,7 @@ function openReservationDetail(id) {
   document.getElementById('reservationDetailOverlay')?.remove();
   const ov = document.createElement('div'); ov.id = 'reservationDetailOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
-  const itemsHtml = (r.items || r.itemsSnapshot || []).map(i => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">${i.photoUrl ? `<img src="${i.photoUrl}" style="width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}<div style="min-width:0;flex:1"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div><span style="font-size:12px;color:var(--text-muted)">${cur}${(i.price != null ? i.price : (i.retail || 0)).toFixed(0)}</span></div>`).join('');
+  const itemsHtml = (r.items || r.itemsSnapshot || []).map(i => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--wa05)">${i.photoUrl ? `<img src="${i.photoUrl}" style="width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}<div style="min-width:0;flex:1"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div><span style="font-size:12px;color:var(--text-muted)">${cur}${(i.price != null ? i.price : (i.retail || 0)).toFixed(0)}</span></div>`).join('');
   const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:#7fd6b0">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
@@ -4842,7 +4898,7 @@ function openReservationDetail(id) {
     <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction'}</span><span style="color:var(--text-muted)">${r.cashSale ? (isEl ? '💵 Μετρητά' : '💵 Cash') : (isEl ? '🧾 Με απόδειξη' : '🧾 With receipt')}</span></div>
     ${r.holdUntil ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Κράτηση έως' : 'Hold until'}</span><span style="color:var(--text-muted)">${fmtDate(r.holdUntil)}</span></div>` : ''}
     ${r.clientEmail ? `<div style="font-size:11px;color:var(--text-dim);margin:2px 0">${_resEsc(r.clientEmail)}</div>` : ''}
-    <div style="border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;padding-top:10px">
+    <div style="border-top:1px solid var(--wa08);margin:12px 0;padding-top:10px">
       <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">${isEl ? 'Πληρωμές' : 'Payments'}</div>${payHtml}
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -5299,7 +5355,7 @@ function _repClientAutocomplete(val) {
   if (q.length < 1) { box.style.display = 'none'; return; }
   const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
   if (!matches.length) { box.style.display = 'none'; return; }
-  box.innerHTML = matches.map(c => `<div onclick="_repSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_repEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_repEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.innerHTML = matches.map(c => `<div onclick="_repSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--wa05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_repEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_repEsc(c.phone)}</span>` : ''}</div>`).join('');
   box.style.display = 'block';
 }
 function _repSelectClient(id) {
@@ -5985,8 +6041,8 @@ function toggleCalcHandmade() {
     btn.style.borderColor = 'rgba(201,168,76,0.5)';
   } else {
     btn.style.opacity = '0.35';
-    btn.style.background = 'rgba(255,255,255,0.04)';
-    btn.style.borderColor = 'rgba(255,255,255,0.1)';
+    btn.style.background = 'var(--wa04)';
+    btn.style.borderColor = 'var(--wa10)';
   }
 }
 
@@ -6110,7 +6166,7 @@ function addStoneRow(data={}) {
   const isEl = lang === 'el';
   const div = document.createElement('div');
   div.className = 'stone-row';
-  div.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(201,168,76,0.15);border-radius:4px;padding:10px;margin-bottom:8px;position:relative';
+  div.style.cssText = 'background:var(--wa03);border:1px solid rgba(201,168,76,0.15);border-radius:4px;padding:10px;margin-bottom:8px;position:relative';
 
   const typeOptions = STONE_TYPES.map(t => `<option value="${t}"${data.type===t?' selected':''}>${lang==='el'?(STONE_TRANSLATIONS[t]||t):t}</option>`).join('');
   const clarityOptions = `<option value="">—</option>` + CLARITY_GRADES.map(c => `<option value="${c}"${data.clarity===c?' selected':''}>${c}</option>`).join('');
@@ -6131,7 +6187,7 @@ function addStoneRow(data={}) {
             ? `<div class="stone-qty-display" style="flex:1;font-size:12px;padding:8px 6px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--gold);letter-spacing:0.05em;display:flex;align-items:center">⬡ ${lang==='el'?'Σύνολο':'Total'}<input type="hidden" class="stone-qty" value="t"></div>`
             : `<input type="number" class="stone-qty stone-qty-display" value="${data.qty>1?data.qty:''}" placeholder="—" min="1" step="1" inputmode="numeric" style="flex:1;font-size:14px;padding:8px 6px">`
           }
-          <button type="button" onclick="toggleStoneQtyMelee(this)" title="${lang==='el'?'Εναλλαγή melee / τεμάχια':'Toggle melee / count'}" style="flex:0 0 28px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:4px;color:var(--text-muted);font-size:13px;cursor:pointer;padding:0;line-height:1;${data.qty==='t'?'color:var(--gold);border-color:rgba(201,168,76,0.5);background:rgba(201,168,76,0.1)':''}">⬡</button>
+          <button type="button" onclick="toggleStoneQtyMelee(this)" title="${lang==='el'?'Εναλλαγή melee / τεμάχια':'Toggle melee / count'}" style="flex:0 0 28px;background:var(--wa04);border:1px solid rgba(201,168,76,0.2);border-radius:4px;color:var(--text-muted);font-size:13px;cursor:pointer;padding:0;line-height:1;${data.qty==='t'?'color:var(--gold);border-color:rgba(201,168,76,0.5);background:rgba(201,168,76,0.1)':''}">⬡</button>
         </div>
       </div>
     </div>
@@ -6482,7 +6538,7 @@ function _showDupQrWarning(data, existing) {
     + (existing.status !== 'in_stock' ? (lang==='el' ? ' [πωλημένο]' : ' [sold]') : '');
   const photo = existing.photoUrl
     ? `<img src="${existing.photoUrl}" style="width:56px;height:56px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);flex-shrink:0">`
-    : `<div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">💎</div>`;
+    : `<div style="width:56px;height:56px;border-radius:8px;background:var(--wa05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">💎</div>`;
   const curWeight = parseFloat(document.getElementById('weight')?.value) || 0;
   const suggestedWeight = curWeight > 0 ? (curWeight + 0.01).toFixed(2) : '';
   const isEl = lang === 'el';
@@ -6494,7 +6550,7 @@ function _showDupQrWarning(data, existing) {
     <div style="background:var(--dark-2);border:1px solid rgba(255,80,80,0.4);border-radius:14px;padding:22px;width:100%;max-width:360px;max-height:90vh;overflow-y:auto">
       <div style="font-family:var(--font-heading);font-size:18px;color:#FF6B6B;margin-bottom:4px">⚠️ ${isEl?'Διπλότυπος Κωδικός QR':'Duplicate QR Code'}</div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;font-family:var(--font-body)">${isEl?'Υπάρχει ήδη αντικείμενο με αυτόν τον κωδικό στο απόθεμα:':'An item with this QR code already exists in stock:'}</div>
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;background:var(--wa04);border:1px solid var(--wa08);border-radius:8px;padding:10px 12px;margin-bottom:16px">
         ${photo}
         <div style="flex:1;min-width:0">
           <div style="font-family:var(--font-body);font-size:13px;color:var(--text-light);margin-bottom:3px">${desc}</div>
@@ -6509,8 +6565,8 @@ function _showDupQrWarning(data, existing) {
       </div>
       <div id="dupQrNewCode" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;min-height:16px"></div>
       <div style="display:flex;gap:8px">
-        <button id="dupQrCancelBtn" style="flex:1;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl?'Ακύρωση':'Cancel'}</button>
-        <button id="dupQrConfirmBtn" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;color:var(--dark);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">${isEl?'Συνέχεια →':'Continue →'}</button>
+        <button id="dupQrCancelBtn" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl?'Ακύρωση':'Cancel'}</button>
+        <button id="dupQrConfirmBtn" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;color:var(--ink);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">${isEl?'Συνέχεια →':'Continue →'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -6578,8 +6634,8 @@ function _genderAlsoLabel(g) {
 }
 function _genderAlsoPillStyle(sel) {
   return `display:inline-flex;align-items:center;padding:7px 12px;border-radius:16px;`
-    + `border:1px solid ${sel?'rgba(100,160,255,0.5)':'rgba(255,255,255,0.12)'};`
-    + `background:${sel?'rgba(100,160,255,0.15)':'rgba(255,255,255,0.03)'};`
+    + `border:1px solid ${sel?'rgba(100,160,255,0.5)':'var(--wa12)'};`
+    + `background:${sel?'rgba(100,160,255,0.15)':'var(--wa03)'};`
     + `color:${sel?'#80b4ff':'var(--text-muted)'};font-family:var(--font-body);font-size:12px;cursor:pointer;transition:all .15s`;
 }
 // Build the "Also appears under" pill group. `idPrefix` namespaces the pills so
@@ -6799,15 +6855,15 @@ function _openLabelModalInner(data, modal, content) {
   if (_lblHmBtn) {
     const on = calcHandmadeActive || false;
     _lblHmBtn.style.opacity = on ? '1' : '0.35';
-    _lblHmBtn.style.background = on ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)';
-    _lblHmBtn.style.borderColor = on ? 'rgba(201,168,76,0.5)' : 'rgba(255,255,255,0.1)';
+    _lblHmBtn.style.background = on ? 'rgba(201,168,76,0.15)' : 'var(--wa04)';
+    _lblHmBtn.style.borderColor = on ? 'rgba(201,168,76,0.5)' : 'var(--wa10)';
   }
   // Reset the "hide from showroom" toggle to OFF for each new item
   const _lblHideBtn = document.getElementById('labelHideShowroomToggle');
   if (_lblHideBtn) {
     _lblHideBtn.style.opacity = '0.35';
-    _lblHideBtn.style.background = 'rgba(255,255,255,0.04)';
-    _lblHideBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+    _lblHideBtn.style.background = 'var(--wa04)';
+    _lblHideBtn.style.borderColor = 'var(--wa10)';
   }
   // Show/hide target retail field based on vendor category rateType
   const _lblTrWrap = document.getElementById('labelTargetRetailWrap');
@@ -7488,7 +7544,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   bk.innerHTML = '';
   const mkRow = (label, val, color) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--wa05)';
     row.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">' + label + '</span>' +
       '<span style="font-family:var(--font-mono);font-size:13px;color:' + (color || 'var(--text)') + '">' + val + '</span>';
     bk.appendChild(row);
@@ -7530,7 +7586,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     (lang === 'el' ? 'Αντικείμενα' : 'Items') + ' (' + members.length + ')</div>' +
     members.map(m => {
       const sub = m.seqRef || m.invQr || '';
-      return '<div onclick="showSaleDetail(' + m.id + ',true)" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">' +
+      return '<div onclick="showSaleDetail(' + m.id + ',true)" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--wa05);cursor:pointer">' +
         '<div style="min-width:0"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + memberDesc(m) + '</div>' +
         (sub ? '<div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-top:1px">' + sub + '</div>' : '') + '</div>' +
         '<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);white-space:nowrap">' + cur + parseFloat(m.amount).toFixed(2) + ' ›</div>' +
@@ -7545,7 +7601,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   mt.innerHTML = '';
   const mkMeta = (icon, label, val) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--wa05)';
     row.innerHTML = '<span style="font-size:14px;flex-shrink:0">' + icon + '</span>' +
       '<div><div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">' + label + '</div>' +
       '<div style="font-size:13px;color:var(--text);margin-top:1px">' + val + '</div></div>';
@@ -7610,7 +7666,7 @@ async function showSaleDetail(id, forceSingle) {
   bk.innerHTML = '';
   const mkRow = (label, val, color) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--wa05)';
     row.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">' + label + '</span>' +
       '<span style="font-family:var(--font-mono);font-size:13px;color:' + (color || 'var(--text)') + '">' + val + '</span>';
     bk.appendChild(row);
@@ -7636,7 +7692,7 @@ async function showSaleDetail(id, forceSingle) {
   mt.innerHTML = '';
   const mkMeta = (icon, label, val) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--wa05)';
     row.innerHTML = '<span style="font-size:14px;flex-shrink:0">' + icon + '</span>' +
       '<div><div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">' + label + '</div>' +
       '<div style="font-size:13px;color:var(--text);margin-top:1px">' + val + '</div></div>';
@@ -8098,7 +8154,7 @@ function spSetView(v) {
   const dateBtn = document.getElementById('spViewDateBtn');
   const vendorBtn = document.getElementById('spViewVendorBtn');
   const empBtn = document.getElementById('spViewEmployeeBtn');
-  const activeStyle = 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark)';
+  const activeStyle = 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink)';
   const inactiveStyle = 'background:transparent;color:var(--text-muted)';
   if (dateBtn) dateBtn.style.cssText = dateBtn.style.cssText.replace(/background:[^;]+;color:[^;]+/, '') + (v==='date' ? activeStyle : inactiveStyle);
   if (vendorBtn) vendorBtn.style.cssText = vendorBtn.style.cssText.replace(/background:[^;]+;color:[^;]+/, '') + (v==='vendor' ? activeStyle : inactiveStyle);
@@ -8523,7 +8579,7 @@ async function renderSalesPanel() {
   if (isEmp && _spView !== 'employee') {
     _spView = 'employee';
     const empBtn = document.getElementById('spViewEmployeeBtn');
-    const activeStyle = 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark)';
+    const activeStyle = 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink)';
     if (empBtn) empBtn.style.cssText = empBtn.style.cssText.replace(/background:[^;]+;color:[^;]+/, '') + activeStyle;
   }
   // For date/vendor views, employees see only their own sales
@@ -10187,6 +10243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') closeCatNameOverlay(false);
   });
   checkDeepLinkHash();
+  initThemeToggle(); // sync theme + toggle buttons to the saved choice
   // Restore cart UI if items were persisted in sessionStorage
   if (quoteCart.length > 0) updateCartUI();
   _jpInitBackGuard();
@@ -10904,7 +10961,7 @@ async function _checkInvStatusForCalc(raw) {
     _lastScannedRaw = null;
     // Clear secondary metal panel — new unrecognised QR, start fresh
     if (_secMetal) removeSecMetal();
-    chip.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:var(--text-muted)';
+    chip.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted)';
     chip.innerHTML = `<span style="flex:1">${isEl ? '➕ Όχι στο απόθεμα' : '➕ Not in inventory'}</span><span style="font-size:11px;opacity:.8;white-space:nowrap">${isEl ? 'Πρόσθεσε →' : 'Add →'}</span>`;
     chip.onclick = () => { prepareInvConfirm(raw); };
   }
@@ -11662,8 +11719,8 @@ function _staleRenderList() {
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button onclick="_staleOpen('${r.id}')" style="flex:1;padding:6px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light);border-radius:6px;font-size:11px;cursor:pointer">✏️ ${t('staleOpen')}</button>
-          <button onclick="_staleShare('${r.id}')" style="flex:1;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:6px;font-size:11px;cursor:pointer">📤 ${t('staleShare')}</button>
-          ${it.hideFromShowroom ? `<button onclick="_staleShow('${r.id}')" style="flex:1;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:6px;font-size:11px;cursor:pointer">${t('staleShow')}</button>` : ''}
+          <button onclick="_staleShare('${r.id}')" style="flex:1;padding:6px;background:var(--wa05);border:1px solid var(--wa15);color:var(--text-muted);border-radius:6px;font-size:11px;cursor:pointer">📤 ${t('staleShare')}</button>
+          ${it.hideFromShowroom ? `<button onclick="_staleShow('${r.id}')" style="flex:1;padding:6px;background:var(--wa05);border:1px solid var(--wa15);color:var(--text-muted);border-radius:6px;font-size:11px;cursor:pointer">${t('staleShow')}</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -11756,7 +11813,7 @@ async function openInvExportSheet() {
   presentTypes.forEach(jt => { if (jt.key !== 'coin' && jt.key !== 'metal') _ieOpts.types.add(jt.key); });
   const sel = on => on ? ' sel' : '';
   const lbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px';
-  const secStyle = 'padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.06)';
+  const secStyle = 'padding:14px 0;border-bottom:1px solid var(--wa06)';
   const dateInput = 'width:100%;box-sizing:border-box;padding:10px;background:var(--dark);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:14px';
   const typePills = presentTypes.map(jt => `<button class="inv-fs-pill${sel(_ieOpts.types.has(jt.key))}" onclick="_iePill('types','${jt.key}',this)">${isEl ? jt.el : jt.en}</button>`).join('') || '—';
   content.innerHTML = `
@@ -12488,7 +12545,7 @@ async function runStonePriceAudit() {
     const ref = it.seqId ? itemRefCode(it) : (it.qrCode || it.code || c.id);
     const desc = _itemDesc(it) || (it.jewelryType ? invTypeLabel(it.jewelryType) : '') || ref;
     const cacheTag = c.cacheMatch ? ` · ${lang==='el'?'ίδιο με cache':'= cache'}` : '';
-    return `<div style="border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,0.02)">
+    return `<div style="border:1px solid var(--wa10);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--wa02)">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
         <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gold-light)">${ref}</span>
         <span style="font-family:var(--font-body);font-size:10px;color:#e05a5a">+${c.gainPct.toFixed(1)}%</span>
@@ -13676,7 +13733,7 @@ function openInvSortSheet() {
   const _empInv = creds.role === 'employee';
   opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv)).map(o => {
     const active = _invSort === o.key;
-    return `<button onclick="setInvSort('${o.key}')" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:${active ? 'rgba(212,175,55,0.15)' : 'rgba(255,255,255,0.03)'};border:1px solid ${active ? 'rgba(212,175,55,0.5)' : 'rgba(255,255,255,0.08)'};border-radius:10px;color:${active ? 'var(--gold-light)' : 'var(--text-light)'};font-family:var(--font-body);font-size:13px;cursor:pointer;text-align:left">
+    return `<button onclick="setInvSort('${o.key}')" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:${active ? 'rgba(212,175,55,0.15)' : 'var(--wa03)'};border:1px solid ${active ? 'rgba(212,175,55,0.5)' : 'var(--wa08)'};border-radius:10px;color:${active ? 'var(--gold-light)' : 'var(--text-light)'};font-family:var(--font-body);font-size:13px;cursor:pointer;text-align:left">
       <span style="font-size:15px">${o.icon}</span>
       <span style="flex:1">${t(o.i18n)}</span>
       ${active ? '<span style="color:var(--gold)">✓</span>' : ''}
@@ -13698,9 +13755,9 @@ function setInvSort(key) {
   const btn = document.getElementById('invSortBtn');
   if (btn) {
     const isDefault = key === 'newest';
-    btn.style.borderColor = isDefault ? 'rgba(255,255,255,0.18)' : 'rgba(212,175,55,0.5)';
+    btn.style.borderColor = isDefault ? 'var(--wa18)' : 'rgba(212,175,55,0.5)';
     btn.style.color = isDefault ? 'var(--text-muted)' : 'var(--gold-light)';
-    btn.style.background = isDefault ? 'rgba(255,255,255,0.05)' : 'rgba(212,175,55,0.1)';
+    btn.style.background = isDefault ? 'var(--wa05)' : 'rgba(212,175,55,0.1)';
   }
   renderInvList();
 }
@@ -14753,7 +14810,7 @@ function renderInvList() {
       const lbl = itemColorLabel(item.color);
       if (!lbl) return '';
       const dotCss = itemColorSwatchCss(item.color) || 'background:#888';
-      return `<span class="inv-card-badge" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-muted);font-size:10px;letter-spacing:0.03em;display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;${dotCss};display:inline-block;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>${lbl}</span>`;
+      return `<span class="inv-card-badge" style="background:var(--wa06);border:1px solid var(--wa18);color:var(--text-muted);font-size:10px;letter-spacing:0.03em;display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;${dotCss};display:inline-block;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>${lbl}</span>`;
     })();
     const metalLabel = item.metal === 'gold' ? t('gold') : t('silver');
     const karatLabel = item.metal === 'gold' ? item.karat + 'K' : item.karat;
@@ -14845,8 +14902,8 @@ function renderInvList() {
             <div class="inv-select-cb" data-id="${id}" onclick="invSelectToggleItem('${id}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${item.qrCode || item.code || '—'}</div>
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
-            <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
-            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'rgba(255,255,255,0.2)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
+            <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'var(--wa20)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
@@ -14981,8 +15038,8 @@ function renderInvList() {
             <div class="inv-select-cb" data-id="${repId}" onclick="invSelectToggleGroup('${gid}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${codeStr}</div>
             ${rep.isCoin ? `<a href="${coinNumistaUrl(rep)}" target="_blank" rel="noopener noreferrer" class="inv-share-btn" title="Numista" onclick="event.stopPropagation()" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(100,160,255,0.12);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;text-decoration:none;font-size:14px">🔗</a>` : ''}
-            <button onclick="invShareGroup('${gid}')" class="inv-share-btn" title="Share all ${count}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
-            ${(!rep.isCoin && !rep.isMetal) ? `<button onclick="event.stopPropagation();openInvGroup('${gid}')" class="inv-share-btn" title="${_grpAnyReserved ? (lang==='el'?'Κρατημένα (δες πιέσεις)':'Some reserved (view pieces)') : (lang==='el'?'Κράτηση κομματιού':'Reserve a piece')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${_grpAnyReserved ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.07)'};border:1px solid ${_grpAnyReserved ? 'var(--gold)' : 'rgba(255,255,255,0.2)'};color:${_grpAnyReserved ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
+            <button onclick="invShareGroup('${gid}')" class="inv-share-btn" title="Share all ${count}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+            ${(!rep.isCoin && !rep.isMetal) ? `<button onclick="event.stopPropagation();openInvGroup('${gid}')" class="inv-share-btn" title="${_grpAnyReserved ? (lang==='el'?'Κρατημένα (δες πιέσεις)':'Some reserved (view pieces)') : (lang==='el'?'Κράτηση κομματιού':'Reserve a piece')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${_grpAnyReserved ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${_grpAnyReserved ? 'var(--gold)' : 'var(--wa20)'};color:${_grpAnyReserved ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
@@ -15197,7 +15254,7 @@ function showInvScanConfirm(item, rows, priceStr, isSilver, cacheFound, invStone
       ${invTypeSelectHtml('', 'invScanTypeSelect')}
     </div>
     <div style="margin:0 0 14px;display:flex;align-items:center;gap:10px">
-      <button id="invScanHandmadeToggle" style="flex:0 0 46px;height:46px;background:${item.handmade?'rgba(201,168,76,0.15)':'rgba(255,255,255,0.04)'};border:1px solid ${item.handmade?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.1)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${item.handmade?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s">✋</button>
+      <button id="invScanHandmadeToggle" style="flex:0 0 46px;height:46px;background:${item.handmade?'rgba(201,168,76,0.15)':'var(--wa04)'};border:1px solid ${item.handmade?'rgba(201,168,76,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${item.handmade?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s">✋</button>
       <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted)">${lang==='el'?'Χειροποίητο':'Handmade'}</span>
     </div>
     <div style="margin:0 0 14px">
@@ -15236,8 +15293,8 @@ function showInvScanConfirm(item, rows, priceStr, isSilver, cacheFound, invStone
       <div id="invScanPhotoPickerWrap"></div>
     </div>
     <div style="display:flex;gap:10px">
-      <button id="invScanSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${lang==='el'?'✓ Αποθήκευση':'✓ Save'}</button>
-      <button onclick="document.getElementById('invScanConfirmOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+      <button id="invScanSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${lang==='el'?'✓ Αποθήκευση':'✓ Save'}</button>
+      <button onclick="document.getElementById('invScanConfirmOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
     </div>`;
 
   overlay.appendChild(box);
@@ -15262,8 +15319,8 @@ function showInvScanConfirm(item, rows, priceStr, isSilver, cacheFound, invStone
     _invScanHmBtn.addEventListener('click', () => {
       item.handmade = !item.handmade;
       _invScanHmBtn.style.opacity = item.handmade ? '1' : '0.35';
-      _invScanHmBtn.style.background = item.handmade ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)';
-      _invScanHmBtn.style.borderColor = item.handmade ? 'rgba(201,168,76,0.5)' : 'rgba(255,255,255,0.1)';
+      _invScanHmBtn.style.background = item.handmade ? 'rgba(201,168,76,0.15)' : 'var(--wa04)';
+      _invScanHmBtn.style.borderColor = item.handmade ? 'rgba(201,168,76,0.5)' : 'var(--wa10)';
     });
   }
 
@@ -15584,7 +15641,7 @@ function _invEditAddStoneRow(data={}) {
   const isEl = lang === 'el';
   const div = document.createElement('div');
   div.className = 'inv-edit-stone-row';
-  div.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(201,168,76,0.15);border-radius:6px;padding:10px;margin-bottom:8px;position:relative';
+  div.style.cssText = 'background:var(--wa03);border:1px solid rgba(201,168,76,0.15);border-radius:6px;padding:10px;margin-bottom:8px;position:relative';
   const typeOptions = STONE_TYPES.map(t => `<option value="${t}"${data.type===t?' selected':''}>${lang==='el'?(STONE_TRANSLATIONS[t]||t):t}</option>`).join('');
   const clarityOptions = `<option value="">—</option>` + CLARITY_GRADES.map(c => `<option value="${c}"${data.clarity===c?' selected':''}>${c}</option>`).join('');
   const colorOptions = `<option value="">—</option>` + COLOR_GRADES.map(c => `<option value="${c}"${data.color===c?' selected':''}>${c}</option>`).join('');
@@ -15603,7 +15660,7 @@ function _invEditAddStoneRow(data={}) {
             ? `<div class="ies-qty-display" style="flex:1;font-size:12px;padding:8px 6px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--gold);letter-spacing:0.05em;display:flex;align-items:center">⬡ ${isEl?'Σύνολο':'Total'}<input type="hidden" class="ies-qty" value="t"></div>`
             : `<input type="number" class="ies-qty ies-qty-display" value="${data.qty>1?data.qty:''}" placeholder="—" min="1" step="1" inputmode="numeric" style="flex:1;font-size:14px;padding:8px 6px;background:var(--dark-3);border:1px solid rgba(201,168,76,0.2);border-radius:4px;color:var(--text)">`
           }
-          <button type="button" onclick="_toggleIesQtyMelee(this)" title="${isEl?'Εναλλαγή melee / τεμάχια':'Toggle melee / count'}" style="flex:0 0 28px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:4px;color:var(--text-muted);font-size:13px;cursor:pointer;padding:0;line-height:1;${data.qty==='t'?'color:var(--gold);border-color:rgba(201,168,76,0.5);background:rgba(201,168,76,0.1)':''}">⬡</button>
+          <button type="button" onclick="_toggleIesQtyMelee(this)" title="${isEl?'Εναλλαγή melee / τεμάχια':'Toggle melee / count'}" style="flex:0 0 28px;background:var(--wa04);border:1px solid rgba(201,168,76,0.2);border-radius:4px;color:var(--text-muted);font-size:13px;cursor:pointer;padding:0;line-height:1;${data.qty==='t'?'color:var(--gold);border-color:rgba(201,168,76,0.5);background:rgba(201,168,76,0.1)':''}">⬡</button>
         </div>
       </div>
     </div>
@@ -15678,7 +15735,7 @@ function invEditSetSecMetal(m) {
   [noneBtn, goldBtn, silverBtn].forEach(b => {
     if (!b) return;
     b.style.background = 'transparent';
-    b.style.borderColor = 'rgba(255,255,255,0.1)';
+    b.style.borderColor = 'var(--wa10)';
     b.style.color = 'var(--text-muted)';
   });
   if (m === 'none') {
@@ -15892,7 +15949,7 @@ function invEdit(id) {
     </div>
     <div style="margin-bottom:18px;display:flex;align-items:center;gap:10px">
       ${(()=>{ const _ir = parseFloat(item.initialRetail); const _pp = calcInvItemPrice(item); const _curr = _pp ? _pp.retail : 0; const _diff = _ir && _curr ? _curr - _ir : 0; const _pct = _ir > 0 ? (_diff/_ir*100) : 0; const _absPct2 = Math.abs(_pct); const _pctStr2 = (_absPct2 < 0.05) ? '0.0' : _absPct2.toFixed(1); const _sign = (_absPct2 < 0.05) ? '±' : (_diff >= 0 ? '+' : '-'); const _col = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)'; return _ir ? `<div style="flex:1"><div style="font-size:11px;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:2px">${t('initialPriceLbl')}</div><div style="font-family:'DM Mono',monospace;font-size:14px;color:var(--text)">${state.currency||'€'}${_ir.toFixed(2)} <span style="color:${_col}">(${_sign}${_pctStr2}%)</span>${_absPct2 >= 0.05 ? '<button onclick="invEditResetInitialPrice(\'' + id + '\')" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;font-family:var(--font-mono);letter-spacing:0.05em;padding:0 0 0 6px;text-decoration:underline">' + (lang==='el'?'Επαναφορά':'Reset') + '</button>' : ''}</div></div>` : `<span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);flex:1">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`; })()}
-      <button id="invEditHandmadeToggle" style="flex:0 0 46px;height:46px;background:${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'rgba(201,168,76,0.15)':'rgba(255,255,255,0.04)'};border:1px solid ${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.1)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s">✋</button>
+      <button id="invEditHandmadeToggle" style="flex:0 0 46px;height:46px;background:${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'rgba(201,168,76,0.15)':'var(--wa04)'};border:1px solid ${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'rgba(201,168,76,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s">✋</button>
     </div>
     <div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Κοινό Αγοραστικό':'Target Audience'}</label>
@@ -15909,7 +15966,7 @@ function invEdit(id) {
       <select id="invEditColorSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">${itemColorOptionsHtml(item.color)}</select>
     </div>
     <div style="margin-bottom:18px;display:flex;align-items:center;gap:10px">
-      <button id="invEditHideShowroomToggle" style="flex:0 0 46px;height:46px;background:${item.hideFromShowroom?'rgba(229,115,115,0.15)':'rgba(255,255,255,0.04)'};border:1px solid ${item.hideFromShowroom?'rgba(229,115,115,0.5)':'rgba(255,255,255,0.1)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${item.hideFromShowroom?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(229,115,115,0.15)':'rgba(255,255,255,0.04)';btn.style.borderColor=on?'rgba(229,115,115,0.5)':'rgba(255,255,255,0.1)'})(this)">🙈</button>
+      <button id="invEditHideShowroomToggle" style="flex:0 0 46px;height:46px;background:${item.hideFromShowroom?'rgba(229,115,115,0.15)':'var(--wa04)'};border:1px solid ${item.hideFromShowroom?'rgba(229,115,115,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${item.hideFromShowroom?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(229,115,115,0.15)':'var(--wa04)';btn.style.borderColor=on?'rgba(229,115,115,0.5)':'var(--wa10)'})(this)">🙈</button>
       <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);line-height:1.35">${lang==='el'?'Απόκρυψη από βιτρίνα':'Hide from showroom'}<br><span style="font-size:11px;color:var(--text-dim)">${lang==='el'?'Δεν θα εμφανίζεται στο online showroom':'Won\'t appear in the online showroom'}</span></span>
     </div>
     ${!isOtherEdit && item.metal === 'gold' ? `
@@ -15923,9 +15980,9 @@ function invEdit(id) {
     <div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">⚗️ ${lang==='el'?'Δευτερεύον Μέταλλο (προαιρετικό)':'Secondary Metal (optional)'}</label>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button id="invEditSecMetalNone" onclick="invEditSetSecMetal('none')" style="flex:1;padding:7px;border-radius:6px;border:1px solid ${!item.secondaryMetal?'rgba(212,175,55,0.5)':'rgba(255,255,255,0.1)'};background:${!item.secondaryMetal?'rgba(212,175,55,0.15)':'transparent'};color:${!item.secondaryMetal?'var(--gold)':'var(--text-muted)'};font-family:var(--font-body);font-size:11px;cursor:pointer">${lang==='el'?'Κανένα':'None'}</button>
-        <button id="invEditSecMetalGold" onclick="invEditSetSecMetal('gold')" style="flex:1;padding:7px;border-radius:6px;border:1px solid ${item.secondaryMetal==='gold'?'rgba(212,175,55,0.5)':'rgba(255,255,255,0.1)'};background:${item.secondaryMetal==='gold'?'rgba(212,175,55,0.15)':'transparent'};color:${item.secondaryMetal==='gold'?'var(--gold)':'var(--text-muted)'};font-family:var(--font-body);font-size:11px;cursor:pointer">${lang==='el'?'Χρυσός':'Gold'}</button>
-        <button id="invEditSecMetalSilver" onclick="invEditSetSecMetal('silver')" style="flex:1;padding:7px;border-radius:6px;border:1px solid ${item.secondaryMetal==='silver'?'rgba(176,184,200,0.5)':'rgba(255,255,255,0.1)'};background:${item.secondaryMetal==='silver'?'rgba(176,184,200,0.15)':'transparent'};color:${item.secondaryMetal==='silver'?'var(--silver-light)':'var(--text-muted)'};font-family:var(--font-body);font-size:11px;cursor:pointer">${lang==='el'?'Ασήμι':'Silver'}</button>
+        <button id="invEditSecMetalNone" onclick="invEditSetSecMetal('none')" style="flex:1;padding:7px;border-radius:6px;border:1px solid ${!item.secondaryMetal?'rgba(212,175,55,0.5)':'var(--wa10)'};background:${!item.secondaryMetal?'rgba(212,175,55,0.15)':'transparent'};color:${!item.secondaryMetal?'var(--gold)':'var(--text-muted)'};font-family:var(--font-body);font-size:11px;cursor:pointer">${lang==='el'?'Κανένα':'None'}</button>
+        <button id="invEditSecMetalGold" onclick="invEditSetSecMetal('gold')" style="flex:1;padding:7px;border-radius:6px;border:1px solid ${item.secondaryMetal==='gold'?'rgba(212,175,55,0.5)':'var(--wa10)'};background:${item.secondaryMetal==='gold'?'rgba(212,175,55,0.15)':'transparent'};color:${item.secondaryMetal==='gold'?'var(--gold)':'var(--text-muted)'};font-family:var(--font-body);font-size:11px;cursor:pointer">${lang==='el'?'Χρυσός':'Gold'}</button>
+        <button id="invEditSecMetalSilver" onclick="invEditSetSecMetal('silver')" style="flex:1;padding:7px;border-radius:6px;border:1px solid ${item.secondaryMetal==='silver'?'rgba(176,184,200,0.5)':'var(--wa10)'};background:${item.secondaryMetal==='silver'?'rgba(176,184,200,0.15)':'transparent'};color:${item.secondaryMetal==='silver'?'var(--silver-light)':'var(--text-muted)'};font-family:var(--font-body);font-size:11px;cursor:pointer">${lang==='el'?'Ασήμι':'Silver'}</button>
       </div>
       <div id="invEditSecMetalFields" style="${item.secondaryMetal?'':'display:none'}">
         <div style="display:flex;gap:8px">
@@ -15964,8 +16021,8 @@ function invEdit(id) {
     ${(creds.role !== 'employee' && item.status !== 'sold' && !item.isBulk) ? `
     <button type="button" onclick="invAddSimilar('${id}')" style="width:100%;padding:12px;margin-bottom:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</button>` : ''}
     <div style="display:flex;gap:10px">
-      <button id="invEditSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('invEditSave')}</button>
-      <button onclick="document.getElementById('invEditOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+      <button id="invEditSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('invEditSave')}</button>
+      <button onclick="document.getElementById('invEditOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
     </div>`;
 
   overlay.appendChild(box);
@@ -16034,8 +16091,8 @@ function invEdit(id) {
     _invEditHmBtn.addEventListener('click', () => {
       item.handmade = !item.handmade;
       _invEditHmBtn.style.opacity = item.handmade ? '1' : '0.35';
-      _invEditHmBtn.style.background = item.handmade ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)';
-      _invEditHmBtn.style.borderColor = item.handmade ? 'rgba(201,168,76,0.5)' : 'rgba(255,255,255,0.1)';
+      _invEditHmBtn.style.background = item.handmade ? 'rgba(201,168,76,0.15)' : 'var(--wa04)';
+      _invEditHmBtn.style.borderColor = item.handmade ? 'rgba(201,168,76,0.5)' : 'var(--wa10)';
     });
   }
 
@@ -16552,8 +16609,8 @@ function _promptStoneTagReprint(id, item, newQR) {
       <div style="background:var(--dark-3);border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:13px;color:var(--gold);margin-bottom:16px;word-break:break-all">${newQR}</div>
       <div id="stoneReprintStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px">
-        <button id="stoneReprintPrintBtn" style="flex:1;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${isEl?'Νέα Ετικέτα':'Print New Tag'}</button>
-        <button id="stoneReprintLaterBtn" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl?'Αργότερα':'Later'}</button>
+        <button id="stoneReprintPrintBtn" style="flex:1;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${isEl?'Νέα Ετικέτα':'Print New Tag'}</button>
+        <button id="stoneReprintLaterBtn" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl?'Αργότερα':'Later'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -16627,7 +16684,7 @@ function showPhotoFullscreen(url, evt) {
   ov.id = 'photoFullscreenOverlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:999999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
   ov.innerHTML = `<img src="${url}" style="max-width:94vw;max-height:88vh;object-fit:contain;border-radius:12px;box-shadow:0 8px 48px rgba(0,0,0,0.7)">
-    <button onclick="document.getElementById('photoFullscreenOverlay').remove()" style="position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:22px;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>`;
+    <button onclick="document.getElementById('photoFullscreenOverlay').remove()" style="position:absolute;top:18px;right:18px;background:var(--wa12);border:none;color:#fff;font-size:22px;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>`;
   ov.addEventListener('click', () => ov.remove());
   document.body.appendChild(ov);
 }
@@ -16659,13 +16716,13 @@ function openAddBulkSheet() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-end;justify-content:center';
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:24px 20px 40px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold-light);margin-bottom:20px">${t('bulkAddTitle')}</div>
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Μέταλλο':'Metal'}</label>
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button id="bulkMetalGold" onclick="setBulkMetal('gold')" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(212,175,55,0.5);background:rgba(212,175,55,0.2);color:var(--gold-light);font-family:var(--font-body);font-size:13px;cursor:pointer">${lang==='el'?'Χρυσός':'Gold'}</button>
-        <button id="bulkMetalSilver" onclick="setBulkMetal('silver')" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;cursor:pointer">${lang==='el'?'Ασήμι':'Silver'}</button>
+        <button id="bulkMetalSilver" onclick="setBulkMetal('silver')" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--wa15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;cursor:pointer">${lang==='el'?'Ασήμι':'Silver'}</button>
       </div>
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Καράτι':'Karat'}</label>
@@ -16696,8 +16753,8 @@ function openAddBulkSheet() {
         style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none;margin-bottom:24px">
 
       <div style="display:flex;gap:10px">
-        <button onclick="confirmAddBulk()" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${lang==='el'?'✓ Αποθήκευση':'✓ Save'}</button>
-        <button onclick="document.getElementById('bulkAddOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+        <button onclick="confirmAddBulk()" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${lang==='el'?'✓ Αποθήκευση':'✓ Save'}</button>
+        <button onclick="document.getElementById('bulkAddOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -16721,7 +16778,7 @@ function setBulkMetal(m) {
     goldBtn.style.borderColor = 'rgba(212,175,55,0.5)';
     goldBtn.style.color = 'var(--gold-light)';
     silvBtn.style.background = 'transparent';
-    silvBtn.style.borderColor = 'rgba(255,255,255,0.15)';
+    silvBtn.style.borderColor = 'var(--wa15)';
     silvBtn.style.color = 'var(--text-muted)';
     karatSel.innerHTML = '<option value="18">18K</option><option value="14" selected>14K</option><option value="9">9K</option>';
   } else {
@@ -16729,7 +16786,7 @@ function setBulkMetal(m) {
     silvBtn.style.borderColor = 'rgba(200,200,220,0.5)';
     silvBtn.style.color = '#ddd';
     goldBtn.style.background = 'transparent';
-    goldBtn.style.borderColor = 'rgba(255,255,255,0.15)';
+    goldBtn.style.borderColor = 'var(--wa15)';
     goldBtn.style.color = 'var(--text-muted)';
     karatSel.innerHTML = '<option value="925" selected>925</option><option value="800">800</option>';
   }
@@ -16813,7 +16870,7 @@ function openBulkSellSheet(id) {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto';
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:0 0 20px 20px;padding:24px 20px 40px;max-width:480px;width:100%;min-height:100vh;box-sizing:border-box">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold-light);margin-bottom:4px">${t('bulkSellTitle')}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${_itemDesc(item)} · ${item.karat}${item.metal==='gold'?'K':''} · ${parseFloat(item.weight).toFixed(1)}g ${t('bulkRemaining')}</div>
 
@@ -16843,7 +16900,7 @@ function openBulkSellSheet(id) {
       <div id="bulkSellDiscBadge" style="display:none;margin-bottom:16px">
         <span style="background:rgba(231,76,60,0.15);border:1px solid rgba(231,76,60,0.35);color:#e57373;border-radius:20px;padding:3px 10px;font-size:12px;font-family:'DM Mono',monospace"></span>
       </div>
-      <div style="height:1px;background:rgba(255,255,255,0.08);margin-bottom:16px"></div>
+      <div style="height:1px;background:var(--wa08);margin-bottom:16px"></div>
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Πελάτης (προαιρετικό)':'Customer (optional)'}</label>
       <input type="text" id="bulkSellCustomer" autocomplete="off" autocorrect="off"
@@ -16867,13 +16924,13 @@ function openBulkSellSheet(id) {
         style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:16px">
 
       <button id="bulkSellCashBtn" data-cash-btn="1" onclick="toggleManualCash('bulkSellCashBtn')"
-        style="width:100%;padding:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;margin-bottom:24px">
+        style="width:100%;padding:11px;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;margin-bottom:24px">
         💵 ${lang==='el'?'ΜΕΤΡΗΤΑ':'CASH'}
       </button>
 
       <div style="display:flex;gap:10px;margin-bottom:10px">
-        <button onclick="confirmBulkSell()" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('bulkConfirmSell')}</button>
-        <button onclick="window._bulkSellPhotoDataUrl=null;document.getElementById('bulkSellOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+        <button onclick="confirmBulkSell()" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('bulkConfirmSell')}</button>
+        <button onclick="window._bulkSellPhotoDataUrl=null;document.getElementById('bulkSellOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
       </div>
       <button onclick="bulkAddToCart()" style="width:100%;padding:13px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">🛒 ${lang==='el'?'Προσθήκη στο Καλάθι':'Add to Cart'}</button>
     </div>`;
@@ -17164,7 +17221,7 @@ function openBulkRestockSheet(id) {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-end;justify-content:center';
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:24px 20px 40px;max-width:480px;width:100%">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold-light);margin-bottom:4px">${t('bulkRestockTitle')}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${lang==='el'?'Τρέχον υπόλοιπο':'Current stock'}: <strong style="color:var(--gold-light)">${parseFloat(item.weight).toFixed(1)}g</strong></div>
 
@@ -17173,8 +17230,8 @@ function openBulkRestockSheet(id) {
         style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.35);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:22px;font-weight:700;box-sizing:border-box;outline:none;margin-bottom:24px">
 
       <div style="display:flex;gap:10px">
-        <button onclick="confirmBulkRestock('${id}')" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('bulkConfirmRestock')}</button>
-        <button onclick="document.getElementById('bulkRestockOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+        <button onclick="confirmBulkRestock('${id}')" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('bulkConfirmRestock')}</button>
+        <button onclick="document.getElementById('bulkRestockOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -17327,14 +17384,14 @@ function invRestock(id) {
       </div>` : ''}
       <div id="invRestockStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button id="invRestockPrintBtn" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase">${t('invRestockPrint')}</button>
+        <button id="invRestockPrintBtn" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase">${t('invRestockPrint')}</button>
         <button id="invRestockCopyBtn" style="flex:1;padding:12px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;text-transform:uppercase">${t('invRestockCopy')}</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button id="invRestockSkipBtn" style="flex:1;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${t('invRestockSkip')}</button>
-        <button onclick="document.getElementById('invRestockOverlay').remove()" style="flex:1;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+        <button id="invRestockSkipBtn" style="flex:1;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${t('invRestockSkip')}</button>
+        <button onclick="document.getElementById('invRestockOverlay').remove()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
       </div>
-      <div style="border-top:1px solid rgba(255,255,255,0.07);margin:4px 0 12px 0"></div>
+      <div style="border-top:1px solid var(--wa07);margin:4px 0 12px 0"></div>
       <button id="invRestoreBtn" style="width:100%;padding:11px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.35);color:#e57373;border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:0.08em">↩️ ${lang==='el'?'Επαναφορά σε Απόθεμα (λάθος / επιστροφή)':'Restore to Stock (mistake / return)'}</button>
     </div>`;
 
@@ -17541,7 +17598,7 @@ function openAddCoinModal(prefillKey) {
   const optsFor = (metal) => coinCatalogByMetal(metal).map(c =>
     `<option value="${c.key}"${c.key === prefillKey ? ' selected' : ''}>${coinEntryLabel(c)}${c.custom?' ★':''} — ${c.pure.toFixed(2)}g</option>`
   ).join('') + `<option value="custom">${isEl?'✏️ Άλλο (προσαρμογή)…':'✏️ Custom…'}</option>`;
-  const mBtn = (m, label) => `<button id="addCoinMetal_${m}" onclick="_addCoinSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
+  const mBtn = (m, label) => `<button id="addCoinMetal_${m}" onclick="_addCoinSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--wa15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
   const overlay = document.createElement('div');
   overlay.id = 'addCoinOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;padding:20px';
@@ -17570,7 +17627,7 @@ function openAddCoinModal(prefillKey) {
         <div id="addCoinIdMatches" style="margin-top:8px"></div>
       </div>
 
-      <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px"><div style="flex:1;height:1px;background:rgba(255,255,255,0.08)"></div><div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em">${isEl?'ή επιλέξτε':'or pick'}</div><div style="flex:1;height:1px;background:rgba(255,255,255,0.08)"></div></div>
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px"><div style="flex:1;height:1px;background:var(--wa08)"></div><div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em">${isEl?'ή επιλέξτε':'or pick'}</div><div style="flex:1;height:1px;background:var(--wa08)"></div></div>
 
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${isEl?'Νόμισμα':'Coin'}</div>
       <select id="addCoinSelect" onchange="_addCoinOnChange()" style="width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px;appearance:none">
@@ -17609,8 +17666,8 @@ function openAddCoinModal(prefillKey) {
 
       <div id="addCoinPreview" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:10px;padding:12px 14px;margin-bottom:6px"></div>
       <div id="addCoinCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:8px;font-weight:600"></div>
-      <button id="addCoinAddBtn" onclick="_addCoinConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${isEl?'Προσθήκη στο απόθεμα':'Add to stock'}</button>
-      <button onclick="_addCoinDone()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Τέλος':'Done'}</button>
+      <button id="addCoinAddBtn" onclick="_addCoinConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${isEl?'Προσθήκη στο απόθεμα':'Add to stock'}</button>
+      <button onclick="_addCoinDone()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Τέλος':'Done'}</button>
     </div>`;
   document.body.appendChild(overlay);
   _addCoinSetMetal(initMetal);
@@ -17634,7 +17691,7 @@ function _addCoinSetMetal(metal) {
     const accent = x === 'silver' ? '176,184,200' : '201,168,76';
     b.style.background = on ? `rgba(${accent},0.22)` : 'transparent';
     b.style.color = on ? 'var(--text)' : 'var(--text-muted)';
-    b.style.borderColor = on ? `rgba(${accent},0.7)` : 'rgba(255,255,255,0.15)';
+    b.style.borderColor = on ? `rgba(${accent},0.7)` : 'var(--wa15)';
     b.style.fontWeight = on ? '700' : '500';
   });
   const sel = document.getElementById('addCoinSelect');
@@ -17759,7 +17816,7 @@ function _addCoinUpdatePreview() {
       ? `<div style="font-size:12px;color:var(--gold-light);font-family:var(--font-mono);margin-top:4px">${isEl?'Ζωντανή αξία':'Live value'}: <strong>${cur}${meltEach.toFixed(2)}</strong>${markup>0?` · ${isEl?'πώληση από':'sell from'} ${cur}${suggEach.toFixed(2)}`:''}</div>`
       : `<div style="font-size:12px;color:#e0a05a;margin-top:4px">${isEl?('⚠️ Τιμή '+(isAg?'αργύρου':'χρυσού')+' μη διαθέσιμη'):('⚠️ '+(isAg?'Silver':'Gold')+' price unavailable')}</div>`) +
     (qty > 1 && meltEach != null
-      ? `<div style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono);margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.08)">${qty}× → ${isEl?'σύνολο':'total'} ${cur}${(meltEach*qty).toFixed(2)} · ${(spec.pure*qty).toFixed(1)}g ${metalWord}</div>`
+      ? `<div style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono);margin-top:5px;padding-top:5px;border-top:1px solid var(--wa08)">${qty}× → ${isEl?'σύνολο':'total'} ${cur}${(meltEach*qty).toFixed(2)} · ${(spec.pure*qty).toFixed(1)}g ${metalWord}</div>`
       : '');
 }
 
@@ -17844,7 +17901,7 @@ function renderCustomCoinsManager() {
   }
   box.innerHTML = list.map((c, i) => {
     const mWord = c.metal === 'silver' ? (isEl?'άργυρος':'silver') : (isEl?'χρυσός':'gold');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--dark-3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;margin-bottom:6px">
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--dark-3);border:1px solid var(--wa10);border-radius:8px;margin-bottom:6px">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;color:var(--text)">${c.name || '—'}</div>
         <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${(+c.gross).toFixed(2)}g · ${(+c.pure).toFixed(2)}g ${mWord} · ${Math.round(c.fineness*1000)}‰</div>
@@ -17936,7 +17993,7 @@ function openMetalModal(mode, prefill) {
   const title = window._metalMode === 'edit' ? t('metalModalEditTitle') : t('metalModalAddTitle');
   const btnLbl = window._metalMode === 'edit' ? t('metalSaveBtn') : t('metalAddBtn');
   const _inS = 'width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:15px';
-  const mBtn = (m, label) => `<button id="metalMetal_${m}" onclick="_metalSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
+  const mBtn = (m, label) => `<button id="metalMetal_${m}" onclick="_metalSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--wa15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
   const overlay = document.createElement('div');
   overlay.id = 'metalOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;padding:20px';
@@ -17963,8 +18020,8 @@ function openMetalModal(mode, prefill) {
       </div>
       ${window._metalMode === 'add' ? `<div style="font-size:11px;color:var(--text-dim);margin:0 0 12px">${t('metalPricePaidHint')}</div>` : ''}
       <div id="metalPreview" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:10px;padding:12px 14px;margin-bottom:10px"></div>
-      <button id="metalAddBtn" onclick="_metalConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${btnLbl}</button>
-      <button onclick="document.getElementById('metalOverlay')?.remove()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Άκυρο':'Cancel'}</button>
+      <button id="metalAddBtn" onclick="_metalConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${btnLbl}</button>
+      <button onclick="document.getElementById('metalOverlay')?.remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Άκυρο':'Cancel'}</button>
     </div>`;
   document.body.appendChild(overlay);
   _metalSetMetal(initMetal);
@@ -17998,7 +18055,7 @@ function _metalSetMetal(metal) {
     const accent = x === 'silver' ? '176,184,200' : '201,168,76';
     b.style.background = on ? `rgba(${accent},0.22)` : 'transparent';
     b.style.color = on ? 'var(--text)' : 'var(--text-muted)';
-    b.style.borderColor = on ? `rgba(${accent},0.7)` : 'rgba(255,255,255,0.15)';
+    b.style.borderColor = on ? `rgba(${accent},0.7)` : 'var(--wa15)';
     b.style.fontWeight = on ? '700' : '500';
   });
   const sel = document.getElementById('metalKaratSelect');
@@ -18043,7 +18100,7 @@ function _metalUpdatePreview() {
       const loss = _refiningLossPct();
       const recover = melt * (1 - loss / 100);
       const gain = recover - paid;
-      html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08)">${t('metalRecoverable').replace('{loss}', loss)}: ${cur}${recover.toFixed(2)}</div>`;
+      html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid var(--wa08)">${t('metalRecoverable').replace('{loss}', loss)}: ${cur}${recover.toFixed(2)}</div>`;
       if (gain > 0) html += `<div style="font-size:12px;color:#4caf84;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t('metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
       else html += `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px">${isEl ? 'Χωρίς κέρδος (τιμή ≥ αξία)' : 'No gain (price ≥ value)'}</div>`;
     }
@@ -18217,10 +18274,10 @@ function invAddSimilar(sourceId) {
       <div id="invAddSimCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:6px;font-family:var(--font-body);font-weight:600"></div>
       <div id="invAddSimStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:14px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button id="invAddSimPrintBtn" style="flex:1.4;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση & Προσθήκη':'Print & Add'}</button>
+        <button id="invAddSimPrintBtn" style="flex:1.4;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση & Προσθήκη':'Print & Add'}</button>
         <button id="invAddSimAddBtn" style="flex:1;padding:13px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;text-transform:uppercase">＋ ${lang==='el'?'Προσθήκη':'Add'}</button>
       </div>
-      <button id="invAddSimDoneBtn" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Τέλος':'Done'}</button>
+      <button id="invAddSimDoneBtn" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Τέλος':'Done'}</button>
     </div>`;
   document.body.appendChild(overlay);
 
@@ -18401,12 +18458,12 @@ function invPrintTagFromCard(id) {
       <div style="background:var(--dark-3);border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:13px;color:var(--gold);margin-bottom:16px;word-break:break-all">${qr}</div>
       <div id="invPrintTagStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button id="invPrintTagPrintBtn" style="flex:1;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση':'Print'}</button>
+        <button id="invPrintTagPrintBtn" style="flex:1;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση':'Print'}</button>
         <button id="invPrintTagCopyBtn" style="flex:1;padding:13px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">📋 ${lang==='el'?'Αντιγραφή':'Copy'}</button>
       </div>
       <button id="invPrintTagQrOnlyBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:8px">📟 ${lang==='el'?'Εκτύπωση Μόνο QR':'Print QR Only'}</button>
       <button id="invPrintTagQrBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:8px">🖼️ ${lang==='el'?'Αποθήκευση QR ως Εικόνα':'Save QR as Image'}</button>
-      <button onclick="document.getElementById('invPrintTagOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Κλείσιμο':'Close'}</button>
+      <button onclick="document.getElementById('invPrintTagOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Κλείσιμο':'Close'}</button>
     </div>`;
 
   document.body.appendChild(overlay);
@@ -18924,8 +18981,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.04', date: 'Ιούλιος 2026', items: [
-        '❌ Ενιαία κουμπιά σε όλα τα παράθυρα: το «✕» για κλείσιμο έχει πλέον την ίδια εμφάνιση και θέση (πάνω δεξιά) παντού, και τα κουμπιά διαγραφής/ακύρωσης είναι διακριτικά (περίγραμμα, όχι γεμάτα) και πάντα με επιβεβαίωση — για λιγότερα λάθη και πιο γρήγορη δουλειά.'
+      { version: 'v11.05', date: 'Ιούλιος 2026', items: [
+        '☀️ Νέο ανοιχτό (light) θέμα! Ρυθμίσεις → Εμφάνιση → 🌙 Σκούρο / ☀️ Ανοιχτό. Ελεφαντόδοντο φόντο με χρυσές πινελιές, σαν τα εκτυπωμένα έντυπα. Η επιλογή σας αποθηκεύεται. (Μόνο χρώματα — δεν βάρυνε η εφαρμογή.)'
       ]},
           ]
   },
@@ -18956,8 +19013,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.04', date: 'Jul 2026', items: [
-        '❌ Consistent buttons across every popup: the "✕" close is now the same look and place (top-right) everywhere, and delete/cancel buttons are quiet (outlined, not filled) and always ask for confirmation — fewer mistakes, faster work.'
+      { version: 'v11.05', date: 'Jul 2026', items: [
+        '☀️ New light theme! Settings → Appearance → 🌙 Dark / ☀️ Light. Ivory background with gold accents, like the printed forms. Your choice is remembered. (Colours only — no real size added.)'
       ]},
           ]
   }
@@ -19083,7 +19140,7 @@ function confirmAddToCart() {
   if (calcHandmadeActive) {
     calcHandmadeActive = false;
     const hb = document.getElementById('calcHandmadeToggle');
-    if (hb) { hb.style.opacity = '0.35'; hb.style.background = 'rgba(255,255,255,0.04)'; hb.style.borderColor = 'rgba(255,255,255,0.1)'; }
+    if (hb) { hb.style.opacity = '0.35'; hb.style.background = 'var(--wa04)'; hb.style.borderColor = 'var(--wa10)'; }
   }
 
   // Collapse & clear stone section
@@ -19352,7 +19409,7 @@ function clearCalc() {
   if (calcHandmadeActive) {
     calcHandmadeActive = false;
     const hb = document.getElementById('calcHandmadeToggle');
-    if (hb) { hb.style.opacity = '0.35'; hb.style.background = 'rgba(255,255,255,0.04)'; hb.style.borderColor = 'rgba(255,255,255,0.1)'; }
+    if (hb) { hb.style.opacity = '0.35'; hb.style.background = 'var(--wa04)'; hb.style.borderColor = 'var(--wa10)'; }
   }
 
   // Collapse & clear stone section
@@ -19463,7 +19520,7 @@ function updateCartUI() {
   const list = document.getElementById('cartItemsList');
   if (list) {
     list.innerHTML = quoteCart.map((ci, i) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--wa06)">
         <div>
           <div style="font-size:12px;color:var(--text)">${ci.name}</div>
           <div style="font-size:10px;color:var(--text-muted)">${ci.result.metalLabel} · ${ci.result.weight}g${ci.result.discount > 0 ? ' · -' + ci.result.discount + '%' : ''}</div>
@@ -20134,7 +20191,7 @@ function openQuoteCertPicker() {
     <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-radius:16px;padding:24px;width:100%;max-width:360px">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:16px">🖨️ ${isEl ? 'Εκτύπωση / Αποστολή' : 'Print / Share'}</div>
       <div style="display:flex;gap:10px;margin-bottom:10px">
-        <button id="qcpQuoteBtn" style="flex:1;padding:16px 8px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.06em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <button id="qcpQuoteBtn" style="flex:1;padding:16px 8px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.06em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
           <span style="font-size:22px">🖨️</span>
           <span>${isEl ? 'Προσφορά' : 'Quote'}</span>
         </button>
@@ -20143,7 +20200,7 @@ function openQuoteCertPicker() {
           <span>${isEl ? 'Πιστοποιητικό' : 'Certificate'}</span>
         </button>
       </div>
-      <button onclick="document.getElementById('quoteCertPickerOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);border-radius:10px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>
+      <button onclick="document.getElementById('quoteCertPickerOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:10px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>
     </div>`;
 
   document.body.appendChild(overlay);
@@ -20533,7 +20590,7 @@ async function renderStoneCacheSettings() {
     const label = k.replace(/_/g, ' ').replace(/\.00ct/g, 'ct');
     const srcLabel = v.source === 'manual' ? (lang === 'el' ? 'Χειρ.' : 'Manual') : 'AI';
     const safeKey = btoa(unescape(encodeURIComponent(k))); // base64 encode key to avoid quote issues
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:8px">'
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--wa05);gap:8px">'
       + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + label + '</div>'
       + '<div style="font-size:10px;color:var(--text-muted)">' + cDate + ' · ' + srcLabel + ' · ' + (fresh ? (lang === 'el' ? expDays + ' μέρες απομένουν' : expDays + 'd left') : (lang === 'el' ? 'Ληγμένο' : 'Expired')) + '</div>'
@@ -20600,7 +20657,7 @@ function renderHistory(search) {
 
     const isOwner = isOwnerOrManager();
     list.innerHTML = filtered.map(e => `
-      <div style="background:var(--dark-3);border:1px solid ${e.sold ? 'rgba(39,174,96,0.35)' : 'rgba(255,255,255,0.07)'};border-radius:6px;padding:12px 14px;margin-bottom:8px">
+      <div style="background:var(--dark-3);border:1px solid ${e.sold ? 'rgba(39,174,96,0.35)' : 'var(--wa07)'};border-radius:6px;padding:12px 14px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
             <div style="font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.title}</div>
@@ -21738,7 +21795,7 @@ function renderTeamList(users) {
     const isMe = slug === creds.userName;
     const safeNameEn = (u.nameEn||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const safeName = (u.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    return `<div style="background:var(--dark-3);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px;margin-bottom:8px;${!u.active?'opacity:0.55':''}">
+    return `<div style="background:var(--dark-3);border:1px solid var(--wa07);border-radius:8px;padding:12px 14px;margin-bottom:8px;${!u.active?'opacity:0.55':''}">
       <div style="display:flex;align-items:center;gap:10px">
         <div style="width:38px;height:38px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:17px;color:#fff;font-weight:700;flex-shrink:0">${initial}</div>
         <div style="flex:1;min-width:0">
@@ -21943,7 +22000,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.04';
+const APP_VERSION = '11.05';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -22115,7 +22172,7 @@ function showNamePrompt() {
           style="width:100%;padding:12px 14px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:15px;box-sizing:border-box;outline:none"
           autocomplete="off" autocorrect="off">
       </div>
-      <button onclick="confirmNamePrompt()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${isEl ? '✓ Συνέχεια' : '✓ Continue'}</button>
+      <button onclick="confirmNamePrompt()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${isEl ? '✓ Συνέχεια' : '✓ Continue'}</button>
     </div>`;
   document.body.appendChild(overlay);
   setTimeout(() => { const inp = document.getElementById('namePromptInput'); if (inp) inp.focus(); }, 100);
@@ -22163,7 +22220,7 @@ _showSecMetalBtn();
 showDebugCodes();
 // Show name prompt if identity not set — but skip if identity came from URL params
 if (!creds.displayName && !userParam) showNamePrompt();
-document.getElementById('vendorSelect').addEventListener('change', () => { updateWorkTypeOptions(); if(calcHandmadeActive){calcHandmadeActive=false;const b=document.getElementById('calcHandmadeToggle');b.style.opacity='0.35';b.style.background='rgba(255,255,255,0.04)';b.style.borderColor='rgba(255,255,255,0.1)';} if(metal==='other') setTimeout(calcOtherRetail,150); updateOtherCalcPanel(); });
+document.getElementById('vendorSelect').addEventListener('change', () => { updateWorkTypeOptions(); if(calcHandmadeActive){calcHandmadeActive=false;const b=document.getElementById('calcHandmadeToggle');b.style.opacity='0.35';b.style.background='var(--wa04)';b.style.borderColor='var(--wa10)';} if(metal==='other') setTimeout(calcOtherRetail,150); updateOtherCalcPanel(); });
 document.getElementById('workType').addEventListener('change', () => { if(metal==='other') calcOtherRetail(); });
 _loadSpotPrices();            // restore last good price so a startup blip never blanks it
 fetchSpotPrices();
@@ -22403,7 +22460,7 @@ function openNotifPanel() {
     ? `<div style="text-align:center;color:var(--text-muted);font-family:var(--font-body);font-size:13px;padding:24px 0">${t('notifNone')}</div>`
     : entries.map(([id, n]) => {
         const dt = n.sentAt ? new Date(n.sentAt).toLocaleString(state.dateLocale||'el-GR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
-        return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;margin-bottom:10px">
+        return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid var(--wa08);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
             <div>
               <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold);font-weight:600">${(n.qrCodes && n.qrCodes.length > 1) ? n.qrCodes.length + (lang==='el'?' αντικείμενα':' items') : (n.qrCode||'')}</div>
@@ -22421,7 +22478,7 @@ function openNotifPanel() {
 
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${t('notifPanelTitle')}</div>
         ${entries.length > 0 ? `<button onclick="notifClearAll()" style="background:transparent;border:1px solid rgba(255,80,80,0.4);border-radius:8px;padding:6px 12px;color:rgba(255,100,100,0.8);font-family:var(--font-body);font-size:11px;cursor:pointer">${t('notifClearAll')}</button>` : ''}
@@ -22528,8 +22585,8 @@ function toggleInvSelectMode() {
     if (label) label.textContent = t('invSelectDone');
     if (bar) { bar.style.display = 'flex'; }
   } else {
-    btn.style.background = 'rgba(255,255,255,0.05)';
-    btn.style.borderColor = 'rgba(255,255,255,0.18)';
+    btn.style.background = 'var(--wa05)';
+    btn.style.borderColor = 'var(--wa18)';
     btn.style.color = 'var(--text-muted)';
     if (label) label.textContent = t('invSelectBtn');
     if (bar) { bar.style.display = 'none'; }
@@ -22714,7 +22771,7 @@ function openInvGroup(gid) {
       const _boughtC = (!isEmp && _pcC > 0)
         ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;font-family:'DM Mono',monospace">${lang==='el'?'Αγοράστηκε':'Bought'}: ${cur}${_pcC.toFixed(2)}</div>`
         : '';
-      return `<div style="padding:11px 2px 12px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      return `<div style="padding:11px 2px 12px;border-bottom:1px solid var(--wa06)">
         <div style="margin-bottom:8px">
           <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);word-break:break-all">${it.qrCode || it.code || '—'}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${_sub}</div>
@@ -22753,7 +22810,7 @@ function openInvGroup(gid) {
     // Sold, Edit, Delete) so no functionality is lost when items are grouped. Actions
     // that navigate away close the sheet first.
     const _bStyle = 'flex:1 1 62px;padding:7px 6px;font-size:10px;letter-spacing:0.04em';
-    return `<div style="padding:11px 2px 12px;border-bottom:1px solid rgba(255,255,255,0.06)">
+    return `<div style="padding:11px 2px 12px;border-bottom:1px solid var(--wa06)">
       <div style="margin-bottom:8px">
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);word-break:break-all">${it.qrCode || it.code || '—'}</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${sub}</div>
@@ -22761,10 +22818,10 @@ function openInvGroup(gid) {
       ${apprecHtml}
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         <button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light)" onclick="closeInvGroup();invLoadToCalc('${id}')">➕ Calc</button>
-        <button class="inv-action-btn" style="${_bStyle};background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-muted)" onclick="closeInvGroup();invShareSingle('${id}')">${lang==='el'?'Κοινοπ.':'Share'}</button>
+        <button class="inv-action-btn" style="${_bStyle};background:var(--wa06);border:1px solid var(--wa18);color:var(--text-muted)" onclick="closeInvGroup();invShareSingle('${id}')">${lang==='el'?'Κοινοπ.':'Share'}</button>
         <button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invPrintTagFromCard('${id}')">🏷️ ${lang==='el'?'Ετικέτα':'Tag'}</button>
         <button class="inv-action-btn inv-action-sell" style="${_bStyle}" onclick="closeInvGroup();invMarkSold('${id}')">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
-        ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${it.reservationId?'rgba(212,175,55,0.22)':'rgba(255,255,255,0.06)'};border:1px solid ${it.reservationId?'var(--gold)':'rgba(255,255,255,0.18)'};color:${it.reservationId?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${it.reservationId?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
+        ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${it.reservationId?'rgba(212,175,55,0.22)':'var(--wa06)'};border:1px solid ${it.reservationId?'var(--gold)':'var(--wa18)'};color:${it.reservationId?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${it.reservationId?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
         ${isEmp ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invEdit('${id}')">✏️ ${lang==='el'?'Επεξ.':'Edit'}</button>`}
         ${isEmp ? '' : `<button class="inv-action-btn inv-action-del" style="${_bStyle}" onclick="closeInvGroup();invDelete('${id}')">🗑</button>`}
       </div>
@@ -22786,14 +22843,14 @@ function openInvGroup(gid) {
       ${members.length > 1 ? `
       <div style="display:flex;align-items:center;gap:8px;background:rgba(61,170,106,0.08);border:1px solid rgba(61,170,106,0.3);border-radius:10px;padding:10px 12px;margin:12px 0 4px">
         <span style="font-size:12px;color:var(--text-muted);flex:1">${lang==='el'?'Πώληση πολλών:':'Sell several:'}</span>
-        <button onclick="_invGroupQtyStep(-1)" style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:18px;line-height:1;cursor:pointer">−</button>
-        <input id="invGroupSellQty" type="number" min="1" max="${members.length}" value="1" readonly style="width:44px;text-align:center;padding:6px;background:var(--dark-3);border:1px solid rgba(255,255,255,0.15);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:15px;box-sizing:border-box">
-        <button onclick="_invGroupQtyStep(1)" style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:18px;line-height:1;cursor:pointer">＋</button>
+        <button onclick="_invGroupQtyStep(-1)" style="width:30px;height:30px;border-radius:8px;background:var(--wa07);border:1px solid var(--wa15);color:var(--text);font-size:18px;line-height:1;cursor:pointer">−</button>
+        <input id="invGroupSellQty" type="number" min="1" max="${members.length}" value="1" readonly style="width:44px;text-align:center;padding:6px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:15px;box-sizing:border-box">
+        <button onclick="_invGroupQtyStep(1)" style="width:30px;height:30px;border-radius:8px;background:var(--wa07);border:1px solid var(--wa15);color:var(--text);font-size:18px;line-height:1;cursor:pointer">＋</button>
         <button onclick="invSellFromGroup('${gid}')" style="flex:0 0 auto;padding:8px 14px;background:rgba(61,170,106,0.9);border:none;border-radius:8px;color:#fff;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
       </div>` : ''}
       ${isEmp ? '' : `<button onclick="closeInvGroup();${rep.isCoin ? `openAddCoinModal('${rep.coinKey||''}')` : `invAddSimilar('${members[0][0]}')`}" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">＋ ${lang==='el' ? 'Προσθήκη κι άλλων' : 'Add more'}</button>`}
       <div style="margin-top:12px">
-        <button onclick="_invGroupTogglePieces()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:11px 13px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">
+        <button onclick="_invGroupTogglePieces()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--wa04);border:1px solid var(--wa12);border-radius:10px;padding:11px 13px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">
           <span>${lang==='el'?'Μεμονωμένα κομμάτια':'Individual pieces'} (${members.length})</span>
           <span id="invGroupPiecesChev">${_piecesCollapsed ? '▶' : '▼'}</span>
         </button>
@@ -22914,7 +22971,7 @@ function showInvShareOptions(items) {
 
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">
         ${items.length > 1 ? items.length + ' ' + (lang==='el'?'αντικείμενα':'items') : singleQR}
       </div>
@@ -22927,7 +22984,7 @@ function showInvShareOptions(items) {
           <div style="padding:12px 16px 10px;font-family:var(--font-body);font-size:14px;font-weight:700;color:var(--gold-light)">${t('invShareOrderSheet')}</div>
           <div style="display:flex;gap:8px;padding:0 12px 12px">
             <button onclick="invDoShare(${codes},true,'order')" style="${subBtnBase}background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08">${t('invShareWithPrice')}</button>
-            <button onclick="invDoShare(${codes},false,'order')" style="${subBtnBase}background:rgba(255,255,255,0.07);color:var(--text);border:1px solid rgba(255,255,255,0.15)">${t('invShareWithoutPrice')}</button>
+            <button onclick="invDoShare(${codes},false,'order')" style="${subBtnBase}background:var(--wa07);color:var(--text);border:1px solid var(--wa15)">${t('invShareWithoutPrice')}</button>
           </div>
         </div>
 
@@ -22936,7 +22993,7 @@ function showInvShareOptions(items) {
           <div style="padding:12px 16px 10px;font-family:var(--font-body);font-size:14px;font-weight:700;color:#80b4ff">${t('invShareCatalog')}</div>
           <div style="display:flex;gap:8px;padding:0 12px 12px">
             <button onclick="invDoShare(${codes},true,'catalog')" style="${subBtnBase}background:rgba(100,140,255,0.2);color:#c0d8ff;border:1px solid rgba(100,140,255,0.3)">${t('invShareWithPrice')}</button>
-            <button onclick="invDoShare(${codes},false,'catalog')" style="${subBtnBase}background:rgba(255,255,255,0.07);color:var(--text);border:1px solid rgba(255,255,255,0.15)">${t('invShareWithoutPrice')}</button>
+            <button onclick="invDoShare(${codes},false,'catalog')" style="${subBtnBase}background:var(--wa07);color:var(--text);border:1px solid var(--wa15)">${t('invShareWithoutPrice')}</button>
           </div>
         </div>
 
@@ -23023,7 +23080,7 @@ function showPromoImageDialog(qr) {
   const segBase = 'flex:1;padding:10px 8px;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;';
   ov.innerHTML = `
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:20px 20px 40px;max-width:480px;width:100%">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 16px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 16px"></div>
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:2px">${t('invSharePromo').replace('📸 ','')}</div>
       <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:14px">${item.qrCode || item.code || ''} · Instagram / Facebook</div>
       <div id="promoPreviewWrap" style="display:flex;justify-content:center;align-items:center;min-height:300px;margin-bottom:16px">
@@ -23053,7 +23110,7 @@ function _promoSet(key, val, qr) {
 
 function _promoSyncButtons() {
   const on = 'background:rgba(201,168,76,0.22);color:var(--gold-light);border:1px solid rgba(201,168,76,0.5)';
-  const off = 'background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid rgba(255,255,255,0.12)';
+  const off = 'background:var(--wa06);color:var(--text-muted);border:1px solid var(--wa12)';
   const map = {
     promoStyleIvoryBtn:   [_promoState.style === 'ivory',    t('promoStyleIvory')],
     promoStyleMidnightBtn:[_promoState.style === 'midnight', t('promoStyleMidnight')],
@@ -23432,7 +23489,7 @@ async function invShareToTeam(qrInput) {
         const u = users[slug];
         const name = lang === 'el' ? (u.name || slug) : (u.nameEn || u.name || slug);
         const roleIcon = u.role === 'owner' ? '👑' : u.role === 'manager' ? '🔑' : '👤';
-        return `<div onclick="notifToggleRecipient(this,'${slug}')" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer">
+        return `<div onclick="notifToggleRecipient(this,'${slug}')" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--wa06);cursor:pointer">
           <div class="notif-cb" data-slug="${slug}" style="flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;display:flex;align-items:center;justify-content:center"></div>
           <span style="font-family:var(--font-body);font-size:14px;color:var(--text);flex:1">${name}</span>
           <span style="font-size:11px;color:var(--text-muted)">${roleIcon} ${u.role||''}</span>
@@ -23441,7 +23498,7 @@ async function invShareToTeam(qrInput) {
 
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">📤 ${t('notifSendTitle')}</div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);margin-bottom:4px">${isSingleItem ? (firstItem && firstItem.seqId ? itemRefCode(firstItem) + ' · ' : '') + qrCodes[0] : qrCodes.length + (lang==='el'?' αντικείμενα επιλεγμένα':' items selected')}</div>
       ${itemDesc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-bottom:18px">${itemDesc}</div>` : '<div style="margin-bottom:18px"></div>'}
@@ -23450,7 +23507,7 @@ async function invShareToTeam(qrInput) {
 
       <div style="margin-bottom:18px">
         <div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em">${t('notifNoteLabel')}</div>
-        <textarea id="notifNoteInput" placeholder="${t('notifNotePh')}" maxlength="200" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:var(--text);font-family:var(--font-body);font-size:13px;resize:none;height:72px;outline:none"></textarea>
+        <textarea id="notifNoteInput" placeholder="${t('notifNotePh')}" maxlength="200" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid var(--wa15);border-radius:10px;color:var(--text);font-family:var(--font-body);font-size:13px;resize:none;height:72px;outline:none"></textarea>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -24057,7 +24114,7 @@ async function showClientPurchases(clientName) {
 
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:20px 16px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
-      <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 16px"></div>
+      <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 16px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);font-weight:600">👤 ${clientName}</div>
         <button onclick="document.getElementById('clientPurchasesOverlay').remove()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px">✕</button>
@@ -24306,8 +24363,8 @@ function addVfOtherCatRow(name='', multiplier='') {
     <div style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px">🇬🇧 <span data-i18n="nameEnLabel">English — optional</span></div>
     <input type="text" id="changeNameInputEn" placeholder="e.g. Sotiris Lekkas" style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:15px;margin-bottom:16px;box-sizing:border-box;outline:none" autocomplete="off" autocorrect="off">
     <div style="display:flex;gap:10px">
-      <button onclick="saveChangeName()" style="flex:2;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="save">✓ Αποθήκευση</button>
-      <button onclick="closeChangeNameModal()" style="flex:1;padding:12px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+      <button onclick="saveChangeName()" style="flex:2;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="save">✓ Αποθήκευση</button>
+      <button onclick="closeChangeNameModal()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
 </div>
@@ -24339,7 +24396,7 @@ function addVfOtherCatRow(name='', multiplier='') {
     <div style="margin-bottom:12px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px" data-i18n="userRoleLabel">Ρόλος</label>
       <div style="display:flex;gap:0;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;overflow:hidden">
-        <button id="userRoleEmployee" onclick="setUserRole('employee')" style="flex:1;padding:9px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);transition:all 0.2s" data-i18n="employee">👤 Υπάλληλος</button>
+        <button id="userRoleEmployee" onclick="setUserRole('employee')" style="flex:1;padding:9px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);transition:all 0.2s" data-i18n="employee">👤 Υπάλληλος</button>
         <button id="userRoleManager" onclick="setUserRole('manager')" style="flex:1;padding:9px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all 0.2s" data-i18n="manager">👑 Διευθυντής</button>
       </div>
     </div>
@@ -24365,8 +24422,8 @@ function addVfOtherCatRow(name='', multiplier='') {
 
     <div id="addUserStatus" style="min-height:18px;font-size:11px;color:var(--danger);margin-bottom:10px"></div>
 
-    <button onclick="saveUser()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--dark);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;margin-bottom:8px" data-i18n="saveUser">✓ Αποθήκευση</button>
-    <button onclick="closeAddUserModal()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(255,255,255,0.12);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
+    <button onclick="saveUser()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;margin-bottom:8px" data-i18n="saveUser">✓ Αποθήκευση</button>
+    <button onclick="closeAddUserModal()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa12);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" data-i18n="cancel">Ακύρωση</button>
   </div>
 </div>
 
@@ -24376,7 +24433,7 @@ function addVfOtherCatRow(name='', multiplier='') {
   <div style="background:#1a1509;border:1px solid rgba(197,160,80,0.3);border-radius:18px;padding:28px 24px 20px;max-width:320px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.7)">
     <p id="customConfirmMsg" style="font-family:var(--font-body);font-size:16px;color:var(--text-light);margin:0 0 24px;line-height:1.5;text-align:center"></p>
     <div style="display:flex;gap:12px">
-      <button id="customConfirmCancelBtn" onclick="_confirmCancel()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(197,160,80,0.25);background:rgba(255,255,255,0.05);color:var(--text-muted);font-family:var(--font-body);font-size:15px;cursor:pointer">Ακύρωση</button>
+      <button id="customConfirmCancelBtn" onclick="_confirmCancel()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(197,160,80,0.25);background:var(--wa05);color:var(--text-muted);font-family:var(--font-body);font-size:15px;cursor:pointer">Ακύρωση</button>
       <button id="customConfirmOkBtn" onclick="_confirmOk()" style="flex:1;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#b8860b,#c8a84b);color:#000;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer">OK</button>
     </div>
   </div>
