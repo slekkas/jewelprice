@@ -19095,8 +19095,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.07', date: 'Ιούλιος 2026', items: [
-        '⬇️ Στην επιλογή ειδών: η μπάρα ενεργειών (Κοινοποίηση / Ομάδα / Κράτηση / Πώληση) έχει τώρα κουμπί ελαχιστοποίησης — πατήστε το βελάκι για να την κρύψετε και να φτάσετε τα κουμπιά που βρίσκονται από πίσω· ξαναπατήστε το μικρό εικονίδιο για να επανέλθει.'
+      { version: 'v11.08', date: 'Ιούλιος 2026', items: [
+        '👁️ «Μόνο επιλεγμένα»: όταν ξεπατάτε ένα είδος, εξαφανίζεται αμέσως από τη λίστα — έτσι όσο δουλεύετε (π.χ. αλλάζετε φωτογραφίες) μένουν να φαίνονται μόνο όσα δεν έχετε τελειώσει ακόμη.'
       ]},
           ]
   },
@@ -19127,8 +19127,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.07', date: 'Jul 2026', items: [
-        '⬇️ When selecting items: the action bar (Share / Group / Reserve / Sell) now has a minimize button — tap the arrow to hide it and reach the buttons behind it; tap the small icon to bring it back.'
+      { version: 'v11.08', date: 'Jul 2026', items: [
+        '👁️ "View selected only": deselecting an item now removes it from the view instantly — so as you work through them (e.g. changing photos) only the ones still left to do stay on screen.'
       ]},
           ]
   }
@@ -22133,7 +22133,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.07';
+const APP_VERSION = '11.08';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -22789,6 +22789,12 @@ function invSelectToggleItem(id, checked) {
     document.querySelectorAll('.inv-select-cb[data-id="'+id+'"]').forEach(el => {
       el.classList.remove('checked');
       el.innerHTML = '';
+      // In "view selected only" mode a deselected item should drop out of the view
+      // immediately, so the list keeps narrowing to the ones still to do.
+      if (_invSelectMode && _invShowSelectedOnly) {
+        const card = el.closest('.inv-card, .inv-group-card');
+        if (card) card.remove();
+      }
     });
   }
   updateInvShareBar();
@@ -22807,6 +22813,10 @@ function invSelectToggleGroup(gid, checked) {
     el.classList.toggle('checked', checked);
     el.innerHTML = checked ? '<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="#D4AF37" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
   });
+  // In "view selected only" mode, a deselected group drops out of the view immediately.
+  if (!checked && _invSelectMode && _invShowSelectedOnly) {
+    document.querySelectorAll('.inv-group-card[data-group-id="'+gid+'"]').forEach(c => c.remove());
+  }
   updateInvShareBar();
 }
 
