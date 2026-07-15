@@ -2629,6 +2629,7 @@
         <span id="invShareBarCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light);flex:1">0 επιλεγμένα</span>
         <button id="invShowSelBtn" onclick="invToggleShowSelected()" title="View selected only" style="display:flex;align-items:center;gap:5px;background:var(--wa07);border:1px solid var(--wa20);border-radius:9px;padding:7px 11px;color:var(--text-muted);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="invShowSel">Επιλεγμένα</span></button>
         <button onclick="invSelectAll()" title="Select All" style="display:flex;align-items:center;gap:5px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:9px;padding:7px 11px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4,12 9,17 20,6"/></svg><span data-i18n="invSelAll">Όλα</span></button>
+        <button onclick="toggleInvShareBar()" title="Minimize" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="3,5 8,11 13,5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button onclick="toggleInvSelectMode()" title="Exit" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">✕</button>
       </div>
       <!-- Row 2: primary actions — big, equal-width, easy to tap -->
@@ -2670,6 +2671,11 @@
         </div>
       </div>
     </div>
+    <!-- Select-bar restore pill (shown when the select bar is minimized) -->
+    <button id="invShareBarPill" onclick="toggleInvShareBar()" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);z-index:9990;background:linear-gradient(135deg,#2a1f00,#1a1500);border:1.5px solid rgba(201,168,76,0.6);border-radius:24px;padding:8px 16px;cursor:pointer;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,0.7);backdrop-filter:blur(12px)">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><polyline points="3,11 8,5 13,11" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="invShareBarPillCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light)">0</span>
+    </button>
 
     <!-- Item list -->
     <div id="invNotifFilterBanner" style="display:none;margin:0 12px 8px;padding:10px 14px;background:rgba(61,170,106,0.12);border:1px solid rgba(61,170,106,0.4);border-radius:12px;align-items:flex-start;gap:10px">
@@ -13854,6 +13860,7 @@ function setInvCols(v) {
 }
 
 let _invSelectMode = false;
+let _invBarMinimized = false;
 let _invSelected = new Set();
 let _invShowSelectedOnly = false; // select mode: narrow the list to only picked items
 
@@ -19088,12 +19095,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.06', date: 'Ιούλιος 2026', items: [
-        '☰ Το μενού «Περισσότερα» (πάνω δεξιά) εμφανίζεται πλέον σωστά και στο Απόθεμα και στις Πωλήσεις (πριν κρυβόταν πίσω από τη λίστα).',
-        '🔎 Φίλτρο: τα φύλα εμφανίζονται πλέον στα Ελληνικά (Γυναικεία / Ανδρικά / Παιδικά).',
-        '🔍 Αναζήτηση με πολλές λέξεις χωρισμένες με κόμμα — π.χ. «CR0100, CR0200» δείχνει και τα δύο.',
-        '✅ Στην επιλογή ειδών: νέο κουμπί «Επιλεγμένα» δείχνει μόνο όσα έχετε επιλέξει (ξαναπατήστε το για όλα). Και κρατήστε πατημένη μια κάρτα για να μπείτε σε λειτουργία επιλογής από όπου κι αν βρίσκεστε στη λίστα.',
-        '🔗 Προσθήκη όμοιων ειδών: τώρα μπορείτε να ορίσετε και Χρώμα Χρυσού (π.χ. χρυσό / λευκόχρυσο) και να τραβήξετε/ανεβάσετε διαφορετική φωτογραφία ανά παραλλαγή. Στη βιτρίνα τα διαφορετικά χρώματα εμφανίζονται ως ξεχωριστές εικόνες. (Κενή φωτό = ίδια με την ομάδα.)'
+      { version: 'v11.07', date: 'Ιούλιος 2026', items: [
+        '⬇️ Στην επιλογή ειδών: η μπάρα ενεργειών (Κοινοποίηση / Ομάδα / Κράτηση / Πώληση) έχει τώρα κουμπί ελαχιστοποίησης — πατήστε το βελάκι για να την κρύψετε και να φτάσετε τα κουμπιά που βρίσκονται από πίσω· ξαναπατήστε το μικρό εικονίδιο για να επανέλθει.'
       ]},
           ]
   },
@@ -19124,12 +19127,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.06', date: 'Jul 2026', items: [
-        '☰ The "More" menu (top right) now shows correctly on the Stock and Sales tabs too (it used to hide behind the list).',
-        '🔎 Filter: genders now display in Greek (Women / Men / Children).',
-        '🔍 Search several terms separated by commas — e.g. "CR0100, CR0200" shows both.',
-        '✅ When selecting items: a new "Selected" button shows only the ones you picked (tap again for all). Also press & hold any card to enter select mode from anywhere in the list — no need to scroll back up.',
-        '🔗 Add similar items: you can now also set the Gold Color (e.g. gold / white gold) and take/upload a different photo per variant. In the showroom, different colours appear as separate images. (Blank photo = same as the group.)'
+      { version: 'v11.07', date: 'Jul 2026', items: [
+        '⬇️ When selecting items: the action bar (Share / Group / Reserve / Sell) now has a minimize button — tap the arrow to hide it and reach the buttons behind it; tap the small icon to bring it back.'
       ]},
           ]
   }
@@ -19490,6 +19489,25 @@ function togglePriceBar() {
     const amt = document.getElementById('retailPriceDisplay');
     const pillAmt = document.getElementById('cpbRestorePillAmt');
     if (amt && pillAmt) pillAmt.textContent = amt.textContent || '—';
+    bar.style.display = 'none';
+    pill.style.display = 'flex';
+  }
+}
+
+// Minimize / restore the Stock select-mode floating bar so items behind it stay reachable
+function toggleInvShareBar() {
+  const bar = document.getElementById('invShareBar');
+  const pill = document.getElementById('invShareBarPill');
+  if (!bar || !pill) return;
+  const isMin = bar.style.display === 'none';
+  if (isMin) {
+    _invBarMinimized = false;
+    bar.style.display = 'flex';
+    pill.style.display = 'none';
+  } else {
+    _invBarMinimized = true;
+    const count = document.getElementById('invShareBarPillCount');
+    if (count) count.textContent = String(_invSelected ? _invSelected.size : 0);
     bar.style.display = 'none';
     pill.style.display = 'flex';
   }
@@ -22115,7 +22133,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.06';
+const APP_VERSION = '11.07';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -22697,6 +22715,9 @@ function toggleInvSelectMode() {
   const btn = document.getElementById('invSelectToggleBtn');
   const label = document.getElementById('invSelectToggleLabel');
   const bar = document.getElementById('invShareBar');
+  const barPill = document.getElementById('invShareBarPill');
+  if (barPill) barPill.style.display = 'none';
+  _invBarMinimized = false;
   if (_invSelectMode) {
     btn.style.background = 'rgba(212,175,55,0.18)';
     btn.style.borderColor = 'rgba(212,175,55,0.5)';
@@ -22795,7 +22816,13 @@ function updateInvShareBar() {
   const totalsRow = document.getElementById('invShareBarTotals');
   if (!bar) return;
   if (_invSelectMode) {
-    bar.style.display = 'flex';
+    // Respect a user-minimized bar: keep it hidden and just refresh the pill count.
+    if (_invBarMinimized) {
+      const pc = document.getElementById('invShareBarPillCount');
+      if (pc) pc.textContent = String(_invSelected.size);
+    } else {
+      bar.style.display = 'flex';
+    }
     const n = _invSelected.size;
     count.textContent = n + (lang === 'el' ? ' επιλεγμέν' + (n === 1 ? 'ο' : 'α') : ' selected');
     // Totals — owner/manager only
