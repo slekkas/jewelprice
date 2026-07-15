@@ -2627,6 +2627,7 @@
       <!-- Row 1: count + utility (select all / exit) -->
       <div style="display:flex;align-items:center;gap:8px">
         <span id="invShareBarCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light);flex:1">0 επιλεγμένα</span>
+        <button id="invShowSelBtn" onclick="invToggleShowSelected()" title="View selected only" style="display:flex;align-items:center;gap:5px;background:var(--wa07);border:1px solid var(--wa20);border-radius:9px;padding:7px 11px;color:var(--text-muted);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="invShowSel">Επιλεγμένα</span></button>
         <button onclick="invSelectAll()" title="Select All" style="display:flex;align-items:center;gap:5px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:9px;padding:7px 11px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4,12 9,17 20,6"/></svg><span data-i18n="invSelAll">Όλα</span></button>
         <button onclick="toggleInvSelectMode()" title="Exit" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">✕</button>
       </div>
@@ -3373,7 +3374,7 @@ const T = {
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
     selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
     invSelectBtn:'Επιλογή', invSelectDone:'Τέλος', invShareBtn:'Κοινοποίηση',
-    invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση', invSelReserve:'Κράτηση',
+    invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση', invSelReserve:'Κράτηση', invShowSel:'Επιλεγμένα',
     hideShowroomLabel:'Απόκρυψη από βιτρίνα', hideShowroomHint:'Δεν θα εμφανίζεται στο online showroom',
     invColsList:'Λίστα', invCols2:'2 στήλες', invCols3:'3 στήλες',
     invShareSelected:'Κοινοποίηση Επιλεγμένων', invShareIncludePrice:'Εμφάνιση τιμής στην κοινοποίηση;',
@@ -3444,6 +3445,10 @@ const T = {
     genderLabel:'Κοινό Αγοραστικό',
     goldColorLabel:'Χρώμα Χρυσού',
     invFilterGender:'Φύλο',
+    genderWomen:'♀️ Γυναικεία',
+    genderMen:'♂️ Ανδρικά',
+    genderChildren:'👶 Παιδικά',
+    genderUnisex:'✨ Unisex',
     invFilterMixed:'Μικτό Μέταλλο'
   },
   en: {
@@ -3803,7 +3808,7 @@ const T = {
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
     selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
     invSelectBtn:'Select', invSelectDone:'Done', invShareBtn:'Share',
-    invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell', invSelReserve:'Reserve',
+    invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell', invSelReserve:'Reserve', invShowSel:'Selected',
     hideShowroomLabel:'Hide from showroom', hideShowroomHint:'Won\'t appear in the online showroom',
     invColsList:'List', invCols2:'2 columns', invCols3:'3 columns',
     invShareSelected:'Share Selected', invShareIncludePrice:'Include price in share?',
@@ -4555,7 +4560,22 @@ function toggleMoreMenu(e) {
   if (e) e.stopPropagation();
   const m = document.getElementById('moreMenu');
   if (!m) return;
-  m.style.display = (!m.style.display || m.style.display === 'none') ? 'block' : 'none';
+  if (m.style.display === 'block') { m.style.display = 'none'; return; }
+  // The Stock/Sales panels are position:fixed z-index:100 and live OUTSIDE the
+  // .app wrapper (which is position:relative z-index:1), so a dropdown nested in
+  // the header would paint UNDERNEATH them. Re-parent the menu to <body> and
+  // position it fixed under the ☰ button so it escapes .app's stacking context
+  // and shows above every panel.
+  const btn = document.getElementById('moreBtn');
+  if (btn) {
+    if (m.parentElement !== document.body) document.body.appendChild(m);
+    const r = btn.getBoundingClientRect();
+    m.style.position = 'fixed';
+    m.style.top = (r.bottom + 8) + 'px';
+    m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+    m.style.left = 'auto';
+  }
+  m.style.display = 'block';
 }
 function closeMoreMenu() {
   const m = document.getElementById('moreMenu'); if (m) m.style.display = 'none';
@@ -13773,6 +13793,49 @@ function _initInvScrollTop() {
     // Reveal the next page of cards as we approach the bottom (windowed list).
     if (panel.scrollHeight - panel.scrollTop - panel.clientHeight < 900) _invRenderNextPage();
   }, { passive: true });
+  _initInvLongPress(panel);
+}
+
+// Long-press (press & hold ~0.5s) any card to enter select mode with that piece
+// already ticked — so a selection can be started from deep in the list without
+// scrolling all the way back up to the "Select" button.
+let _lpTimer = null, _lpFired = false, _lpSwallow = false, _lpX = 0, _lpY = 0;
+function _initInvLongPress(panel) {
+  const start = (e) => {
+    if (_invSelectMode) return;               // already selecting — normal taps select
+    const card = e.target.closest && e.target.closest('.inv-card');
+    if (!card) return;
+    const pt = e.touches ? e.touches[0] : e;
+    _lpX = pt.clientX; _lpY = pt.clientY; _lpFired = false;
+    clearTimeout(_lpTimer);
+    _lpTimer = setTimeout(() => {
+      _lpFired = true;
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch(_) {} }
+      toggleInvSelectMode();                  // enter select mode (empty selection)
+      const gid = card.getAttribute('data-group-id');
+      if (gid) invSelectToggleGroup(gid, true);
+      else { const id = card.getAttribute('data-inv-id'); if (id) invSelectToggleItem(id, true); }
+    }, 500);
+  };
+  const move = (e) => {
+    if (_lpTimer == null) return;
+    const pt = e.touches ? e.touches[0] : e;
+    if (Math.abs(pt.clientX - _lpX) > 10 || Math.abs(pt.clientY - _lpY) > 10) { clearTimeout(_lpTimer); _lpTimer = null; }
+  };
+  const end = () => {
+    clearTimeout(_lpTimer); _lpTimer = null;
+    if (_lpFired) { _lpSwallow = true; _lpFired = false; }  // swallow the trailing tap/click
+  };
+  panel.addEventListener('touchstart', start, { passive: true });
+  panel.addEventListener('touchmove', move, { passive: true });
+  panel.addEventListener('touchend', end);
+  panel.addEventListener('mousedown', start);
+  panel.addEventListener('mousemove', move);
+  panel.addEventListener('mouseup', end);
+  // The synthetic click that follows a long-press must not trigger a button — eat it once.
+  panel.addEventListener('click', (e) => {
+    if (_lpSwallow) { _lpSwallow = false; e.preventDefault(); e.stopPropagation(); }
+  }, true);
 }
 
 // Desktop stock density (List / 2 / 3 columns). Persisted; the CSS reads #invList[data-cols].
@@ -13792,6 +13855,7 @@ function setInvCols(v) {
 
 let _invSelectMode = false;
 let _invSelected = new Set();
+let _invShowSelectedOnly = false; // select mode: narrow the list to only picked items
 
 function invFiltersActive() {
   const f = _invFilters;
@@ -14596,7 +14660,11 @@ function renderInvList() {
         .filter(Boolean).join(' ').toLowerCase();
       // also match seqId number without prefix
       const _numOnly = item.seqId ? String(item.seqId) : '';
-      if (!hay.includes(searchQuery) && !_numOnly.includes(searchQuery)) return false;
+      // Multiple comma-separated terms are treated as OR (e.g. "CR0100, CR0200"
+      // shows both). An item matches if ANY term is found; blank terms are ignored.
+      const _terms = searchQuery.split(',').map(s => s.trim()).filter(Boolean);
+      const _matchTerm = tm => hay.includes(tm) || _numOnly.includes(tm);
+      if (_terms.length ? !_terms.some(_matchTerm) : !_matchTerm(searchQuery)) return false;
     }
     return true;
   });
@@ -14614,6 +14682,12 @@ function renderInvList() {
       if (!_types.includes('coin'))  filtered = filtered.filter(([, it]) => !it.isCoin);
       if (!_types.includes('metal')) filtered = filtered.filter(([, it]) => !it.isMetal);
     }
+  }
+
+  // "Show selected only" (select mode) — narrow the visible list to the picked items
+  // so the owner can review a scattered selection without scrolling the whole list.
+  if (_invSelectMode && _invShowSelectedOnly) {
+    filtered = filtered.filter(([id]) => _invSelected.has(id));
   }
 
   // Sort by user preference (default: in-stock first, then newest)
@@ -14948,10 +15022,14 @@ function renderInvList() {
         priceStr = (mx - mn < 0.01) ? cur + mn.toFixed(2) : cur + mn.toFixed(2) + ' – ' + cur + mx.toFixed(2);
       }
     }
-    // Colour breakdown: label (blank → the piece's metal) → count, e.g. "2 Gold · 1 Blue"
+    // Colour breakdown: label (blank → the piece's gold colour / metal) → count,
+    // e.g. "2 Gold · 1 White Gold" or "1 Blue · 1 Red". Different gold colours in the
+    // same group are counted separately so a yellow + white gold set reads correctly.
     const buckets = {};
     members.forEach(([,it]) => {
-      const key = it.color ? itemColorLabel(it.color) : (it.metal === 'gold' ? t('gold') : it.metal === 'silver' ? t('silver') : '');
+      const key = it.color ? itemColorLabel(it.color)
+        : (it.metal === 'gold' ? goldColorLabel(it.goldColor || 'gold')
+        : it.metal === 'silver' ? t('silver') : '');
       if (key) buckets[key] = (buckets[key] || 0) + 1;
     });
     const colorSummary = Object.keys(buckets).length > 1
@@ -18270,6 +18348,10 @@ function invAddSimilar(sourceId) {
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα':'Color'}</div>
       <select id="invAddSimColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${itemColorOptionsHtml(source.color)}</select>
+      ${source.metal === 'gold' ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα Χρυσού':'Gold Color'}</div>
+      <select id="invAddSimGoldColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${GOLD_COLORS.map(c => `<option value="${c.value}"${(source.goldColor||'gold')===c.value?' selected':''}>${lang==='el'?c.el:c.en}</option>`).join('')}</select>` : ''}
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Φωτογραφία':'Photo'} <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδια με την ομάδα':'blank = same as group'}</span></div>
+      <div id="invAddSimPhotoWrap" style="margin-bottom:12px"></div>
       <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
       <div id="invAddSimCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:6px;font-family:var(--font-body);font-weight:600"></div>
       <div id="invAddSimStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:14px;margin-bottom:10px;font-family:var(--font-mono)"></div>
@@ -18280,6 +18362,16 @@ function invAddSimilar(sourceId) {
       <button id="invAddSimDoneBtn" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Τέλος':'Done'}</button>
     </div>`;
   document.body.appendChild(overlay);
+
+  // Optional per-variant photo — when the owner adds a different-colour piece it
+  // usually needs its own picture. Left blank, the new pieces reuse the source's
+  // photo (identical pieces share one image).
+  let _asPhoto = null, _asPhotoHi = null;
+  renderPhotoPicker(document.getElementById('invAddSimPhotoWrap'), {
+    previewId: 'invAddSimPhoto',
+    existingUrl: source.photoUrl || null,
+    onCapture: (u, hi) => { _asPhoto = u; _asPhotoHi = hi; }
+  });
 
   const wEl = () => document.getElementById('invAddSimWeight');
   const previewEl = document.getElementById('invAddSimPreview');
@@ -18308,6 +18400,20 @@ function invAddSimilar(sourceId) {
     let qty = parseInt(document.getElementById('invAddSimQty').value) || 1;
     qty = Math.max(1, Math.min(50, qty));
     const colorVal = document.getElementById('invAddSimColor').value || null;
+    const goldColorEl = document.getElementById('invAddSimGoldColor');
+    const goldColorVal = (source.metal === 'gold') ? (goldColorEl?.value || 'gold') : (source.goldColor || null);
+    // Upload a per-variant photo once (shared by the whole batch); blank → reuse the
+    // source's existing photoUrl/photoUrlHi (already copied by Object.assign below).
+    let _photoUrl = null, _photoUrlHi = null;
+    if (_asPhoto) {
+      const st = document.getElementById('invAddSimStatus');
+      if (st) st.textContent = lang==='el' ? 'Μεταφόρτωση φωτό…' : 'Uploading photo…';
+      try {
+        const up = await uploadInventoryPhoto(_asPhoto, _asPhotoHi);
+        if (up) { _photoUrl = up.url; _photoUrlHi = up.hiUrl; }
+      } catch(e) {}
+      if (st) st.textContent = '';
+    }
     // Ensure the source carries a groupId (mint on first add so source + clone group up)
     let gid = source.groupId;
     if (!gid) {
@@ -18320,9 +18426,10 @@ function invAddSimilar(sourceId) {
     for (let i = 0; i < qty; i++) {
       const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
       const newItem = Object.assign({}, source, {
-        weight: w, color: colorVal, groupId: gid, status: 'in_stock',
+        weight: w, color: colorVal, goldColor: goldColorVal, groupId: gid, status: 'in_stock',
         dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || '', dateSold: null
       });
+      if (_photoUrl) { newItem.photoUrl = _photoUrl; newItem.photoUrlHi = _photoUrlHi || _photoUrl; }
       delete newItem.dateSold;
       if (_canRegenQR) { newItem.qrCode = buildQR(w); newItem.code = _latinBase + w.toString(); }
       // Keep seqId + refType (shared reference code) — copied by Object.assign above.
@@ -18981,8 +19088,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.05', date: 'Ιούλιος 2026', items: [
-        '☀️ Νέο ανοιχτό (light) θέμα! Ρυθμίσεις → Εμφάνιση → 🌙 Σκούρο / ☀️ Ανοιχτό. Ελεφαντόδοντο φόντο με χρυσές πινελιές, σαν τα εκτυπωμένα έντυπα. Η επιλογή σας αποθηκεύεται. (Μόνο χρώματα — δεν βάρυνε η εφαρμογή.)'
+      { version: 'v11.06', date: 'Ιούλιος 2026', items: [
+        '☰ Το μενού «Περισσότερα» (πάνω δεξιά) εμφανίζεται πλέον σωστά και στο Απόθεμα και στις Πωλήσεις (πριν κρυβόταν πίσω από τη λίστα).',
+        '🔎 Φίλτρο: τα φύλα εμφανίζονται πλέον στα Ελληνικά (Γυναικεία / Ανδρικά / Παιδικά).',
+        '🔍 Αναζήτηση με πολλές λέξεις χωρισμένες με κόμμα — π.χ. «CR0100, CR0200» δείχνει και τα δύο.',
+        '✅ Στην επιλογή ειδών: νέο κουμπί «Επιλεγμένα» δείχνει μόνο όσα έχετε επιλέξει (ξαναπατήστε το για όλα). Και κρατήστε πατημένη μια κάρτα για να μπείτε σε λειτουργία επιλογής από όπου κι αν βρίσκεστε στη λίστα.',
+        '🔗 Προσθήκη όμοιων ειδών: τώρα μπορείτε να ορίσετε και Χρώμα Χρυσού (π.χ. χρυσό / λευκόχρυσο) και να τραβήξετε/ανεβάσετε διαφορετική φωτογραφία ανά παραλλαγή. Στη βιτρίνα τα διαφορετικά χρώματα εμφανίζονται ως ξεχωριστές εικόνες. (Κενή φωτό = ίδια με την ομάδα.)'
       ]},
           ]
   },
@@ -19013,8 +19124,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.05', date: 'Jul 2026', items: [
-        '☀️ New light theme! Settings → Appearance → 🌙 Dark / ☀️ Light. Ivory background with gold accents, like the printed forms. Your choice is remembered. (Colours only — no real size added.)'
+      { version: 'v11.06', date: 'Jul 2026', items: [
+        '☰ The "More" menu (top right) now shows correctly on the Stock and Sales tabs too (it used to hide behind the list).',
+        '🔎 Filter: genders now display in Greek (Women / Men / Children).',
+        '🔍 Search several terms separated by commas — e.g. "CR0100, CR0200" shows both.',
+        '✅ When selecting items: a new "Selected" button shows only the ones you picked (tap again for all). Also press & hold any card to enter select mode from anywhere in the list — no need to scroll back up.',
+        '🔗 Add similar items: you can now also set the Gold Color (e.g. gold / white gold) and take/upload a different photo per variant. In the showroom, different colours appear as separate images. (Blank photo = same as the group.)'
       ]},
           ]
   }
@@ -22000,7 +22115,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.05';
+const APP_VERSION = '11.06';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -22575,6 +22690,10 @@ function clearNotifFilter() {
 function toggleInvSelectMode() {
   _invSelectMode = !_invSelectMode;
   _invSelected.clear();
+  // Leaving select mode always drops the "selected only" lens so the full list is
+  // visible again (re-render below restores the hidden cards).
+  const _wasLens = _invShowSelectedOnly;
+  if (_invShowSelectedOnly) { _invShowSelectedOnly = false; _syncShowSelBtn(); }
   const btn = document.getElementById('invSelectToggleBtn');
   const label = document.getElementById('invSelectToggleLabel');
   const bar = document.getElementById('invShareBar');
@@ -22601,6 +22720,39 @@ function toggleInvSelectMode() {
     b.style.display = _invSelectMode ? 'none' : 'flex';
   });
   updateInvShareBar();
+  // If the "selected only" lens was on when we exited, re-render so every card returns.
+  if (_wasLens && !_invSelectMode) renderInvList();
+}
+
+// "View selected only" lens (select mode): flips the list between showing every
+// item and only the picked ones, so a scattered selection can be reviewed at a
+// glance. Unpressing shows all items again.
+function invToggleShowSelected() {
+  if (!_invSelectMode) return;
+  if (!_invShowSelectedOnly && _invSelected.size === 0) {
+    showToast(lang === 'el' ? '⚠️ Δεν επιλέξατε αντικείμενα' : '⚠️ No items selected');
+    return;
+  }
+  _invShowSelectedOnly = !_invShowSelectedOnly;
+  _syncShowSelBtn();
+  renderInvList();
+  // Keep the checkboxes ticked on the re-rendered (selected) cards.
+  _invRestoreSelectMode(document.getElementById('invList'));
+}
+
+// Reflect the lens state on its toggle button (gold when active).
+function _syncShowSelBtn() {
+  const b = document.getElementById('invShowSelBtn');
+  if (!b) return;
+  if (_invShowSelectedOnly) {
+    b.style.background = 'rgba(201,168,76,0.22)';
+    b.style.borderColor = 'var(--gold)';
+    b.style.color = 'var(--gold-light)';
+  } else {
+    b.style.background = 'var(--wa07)';
+    b.style.borderColor = 'var(--wa20)';
+    b.style.color = 'var(--text-muted)';
+  }
 }
 
 function invSelectToggleItem(id, checked) {

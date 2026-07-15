@@ -1793,7 +1793,7 @@ function _navFacetResultCount(typeKey) {
   let count = 0;
   matched.forEach(i => {
     if (i.groupId) {
-      const key = i.groupId + '|' + (i.color || '');
+      const key = i.groupId + '|' + (i.color || '') + '|' + (i.goldColor || '');
       if (seen.has(key)) return;
       seen.add(key);
     }
@@ -2246,7 +2246,9 @@ function renderGrid() {
   for (const item of filtered) {
     const gid = item.groupId;
     if (!gid) { rows.push({ item, count: 1 }); continue; }
-    const key = gid + '|' + (item.color || '');
+    // Split a group by BOTH decorative colour and gold colour, so e.g. a yellow-gold
+    // and a white-gold version of the same cross show as two separate cards.
+    const key = gid + '|' + (item.color || '') + '|' + (item.goldColor || '');
     if (_rowMap.has(key)) { rows[_rowMap.get(key)].count++; }
     else { _rowMap.set(key, rows.length); rows.push({ item, count: 1 }); }
   }
@@ -2356,7 +2358,7 @@ function openLightbox(key) {
   // In-stock count for grouped similar items (same group + same colour), matching the grid card
   if (item.groupId) {
     const stockN = (filtered || allItems).filter(i =>
-      i.groupId === item.groupId && (i.color || '') === (item.color || '')).length;
+      i.groupId === item.groupId && (i.color || '') === (item.color || '') && (i.goldColor || '') === (item.goldColor || '')).length;
     if (stockN > 1) rows += row(lang==='el'?'Απόθεμα':'In stock', stockN + (lang==='el'?' διαθέσιμα':' available'));
   }
   const _colLbl = itemColorLabel(item.color);
