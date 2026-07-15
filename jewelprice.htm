@@ -1628,7 +1628,7 @@
           <p class="hint" style="margin-bottom:12px" id="stoneCacheHint">Shared stone prices synced across all devices. Valid for 6 months. Tap ✕ to remove an entry and force a fresh AI estimate.</p>
           <div id="stoneCacheList" style="margin-bottom:12px"></div>
           <button onclick="(async()=>{const mem=await getStoneCacheMem();const ok=await pushStoneCacheToCloud(mem);showToast(ok?('✓ Pushed '+Object.keys(mem).length+' entries to cloud'):('❌ Push failed'));await renderStoneCacheSettings();})()" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(180,150,60,0.35);color:var(--gold);border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;margin-top:4px;margin-bottom:4px">☁️ Push to Cloud</button>
-          <button onclick="(async()=>{await clearStonePriceCache();await renderStoneCacheSettings();})()" id="stoneCacheClearBtn" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(192,57,43,0.35);color:var(--danger);border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;margin-top:4px">🗑 Clear All</button>
+          <button onclick="showConfirm(lang==='el'?'Καθαρισμός όλης της μνήμης τιμών πετρών;':'Clear the entire stone-price cache?', async()=>{await clearStonePriceCache();await renderStoneCacheSettings();}, null, {danger:true})" id="stoneCacheClearBtn" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(192,57,43,0.35);color:var(--danger);border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;margin-top:4px">🗑 Clear All</button>
         </div>
       </div>
       <!-- LABEL HISTORY (owner/manager only) -->
@@ -6393,10 +6393,11 @@ async function loadLabelHistory() {
   } catch(e) { return []; }
 }
 
-async function deleteLabelHistoryEntry(idx) {
+function deleteLabelHistoryEntry(idx) {
   const fbBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
   if (!fbBase) return;
-  try {
+  showConfirm(lang === 'el' ? 'Διαγραφή αυτής της εγγραφής ετικέτας;' : 'Delete this label entry?', async () => {
+   try {
     const list = await loadLabelHistory();
     list.splice(idx, 1);
     await fetch(fbUrl('/jewelprice_labels.json'), {
@@ -6405,7 +6406,8 @@ async function deleteLabelHistoryEntry(idx) {
       body: JSON.stringify(list)
     });
     await renderLabelHistorySettings();
-  } catch(e) { showToast('❌ Error'); }
+   } catch(e) { showToast('❌ Error'); }
+  }, null, { danger: true });
 }
 
 async function renderLabelHistorySettings() {
@@ -15743,18 +15745,20 @@ function _invEditParseStoredStones(stonesDesc) {
   return rows;
 }
 
-async function invEditResetInitialPrice(id) {
+function invEditResetInitialPrice(id) {
   const item = _inventoryCache?.[id];
   if (!item) return;
-  const pp = calcInvItemPrice(item);
-  if (!pp) return;
-  item.initialRetail = parseFloat(pp.retail.toFixed(2));
-  const ok = await saveInventoryItem(id, item);
-  if (ok) {
-    showToast(lang === 'el' ? '✅ Αρχική τιμή επαναφέρθηκε' : '✅ Initial price reset');
-    document.getElementById('invEditOverlay')?.remove();
-    renderInventory();
-  }
+  showConfirm(lang === 'el' ? 'Επαναφορά αρχικής τιμής στη σημερινή αξία; Θα αλλάξει η υπεραξία (%).' : 'Reset the initial price to today\'s value? This changes the gain %.', async () => {
+    const pp = calcInvItemPrice(item);
+    if (!pp) return;
+    item.initialRetail = parseFloat(pp.retail.toFixed(2));
+    const ok = await saveInventoryItem(id, item);
+    if (ok) {
+      showToast(lang === 'el' ? '✅ Αρχική τιμή επαναφέρθηκε' : '✅ Initial price reset');
+      document.getElementById('invEditOverlay')?.remove();
+      renderInventory();
+    }
+  }, null, { danger: true });
 }
 
 function invEdit(id) {
@@ -18908,8 +18912,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.02', date: 'Ιούλιος 2026', items: [
-        '🧭 Νέα διάταξη εργαλείων στο Απόθεμα: το «Φίλτρο» μετακινήθηκε δίπλα στην μπάρα αναζήτησης, και τα «Ταξινόμηση / Επιλογή / Στάσιμο» μπήκαν από κάτω σε τρία ίσα κουμπιά που χωράνε πάντα, σε κάθε γλώσσα και σε υπολογιστή — χωρίς κρυφή κύλιση.'
+      { version: 'v11.03', date: 'Ιούλιος 2026', items: [
+        '🛡️ Περισσότερη ασφάλεια: ζητείται πλέον επιβεβαίωση πριν διαγράψετε προσφορά, καθαρίσετε τη μνήμη τιμών πετρών, καθαρίσετε όλες τις ειδοποιήσεις, επαναφέρετε την αρχική τιμή είδους ή διαγράψετε εγγραφή ετικέτας — ώστε να μη χάνεται τίποτα κατά λάθος.'
       ]},
           ]
   },
@@ -18940,8 +18944,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.02', date: 'Jul 2026', items: [
-        '🧭 Reworked the Stock toolbar: Filter moved up beside the search bar, and Sort / Select / Stale sit below as three equal buttons that always fit — every language and on desktop — with nothing hidden to scroll for.'
+      { version: 'v11.03', date: 'Jul 2026', items: [
+        '🛡️ More safety: you now get a confirmation before deleting a saved quote, clearing the stone-price cache, clearing all notifications, resetting an item\'s initial price, or deleting a label-history entry — so nothing is lost by an accidental tap.'
       ]},
           ]
   }
@@ -20635,15 +20639,17 @@ function reprintQuote(id) {
   } catch(err) { showToast('❌ Error: ' + err.message); }
 }
 
-async function deleteQuote(id) {
-  try {
-    // Pull fresh from Firebase, remove the quote, push back immediately
-    const cloud = await pullQuotesFromCloud() || [];
-    const updated = cloud.filter(q => q.id !== id);
-    localStorage.setItem('jpro_quotes', JSON.stringify(updated));
-    await pushQuotesToCloud(updated);
-    renderHistory(document.getElementById('historySearch').value);
-  } catch(e) { console.warn('Could not delete quote:', e); }
+function deleteQuote(id) {
+  showConfirm(lang === 'el' ? 'Διαγραφή αυτής της προσφοράς;' : 'Delete this quote?', async () => {
+    try {
+      // Pull fresh from Firebase, remove the quote, push back immediately
+      const cloud = await pullQuotesFromCloud() || [];
+      const updated = cloud.filter(q => q.id !== id);
+      localStorage.setItem('jpro_quotes', JSON.stringify(updated));
+      await pushQuotesToCloud(updated);
+      renderHistory(document.getElementById('historySearch').value);
+    } catch(e) { console.warn('Could not delete quote:', e); }
+  }, null, { danger: true });
 }
 
 async function clearQuoteHistory() {
@@ -21925,7 +21931,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.02';
+const APP_VERSION = '11.03';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -22431,16 +22437,18 @@ async function notifDismissOne(notifId) {
   } catch(e) { showToast('⚠️ Error'); }
 }
 
-async function notifClearAll() {
+function notifClearAll() {
   const slug = creds.userName || '';
   if (!slug) return;
-  try {
+  showConfirm(lang === 'el' ? 'Καθαρισμός όλων των ειδοποιήσεων;' : 'Clear all notifications?', async () => {
+   try {
     await fetch(fbUrl(`/jewelprice_notifications/${slug}.json`), { method: 'DELETE' });
     _notifCache = {};
     const overlay = document.getElementById('notifPanelOverlay');
     if (overlay) overlay.remove();
     notifCheckAndUpdateBadge();
-  } catch(e) { showToast('⚠️ Error'); }
+   } catch(e) { showToast('⚠️ Error'); }
+  }, null, { danger: true });
 }
 
 function notifViewById(notifId) {
