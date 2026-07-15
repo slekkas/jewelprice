@@ -958,6 +958,8 @@
     white-space:normal; line-height:1.25; text-align:center;
   }
   .inv-scan-btn:active { background:rgba(212,175,55,0.25); }
+  .inv-filterbar { scrollbar-width:none; -ms-overflow-style:none; }
+  .inv-filterbar::-webkit-scrollbar { display:none; }
   .inv-summary {
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
   }
@@ -2526,9 +2528,9 @@
       <button id="invSearchClear" onclick="document.getElementById('invSearchInput').value='';renderInvList()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1">✕</button>
     </div>
 
-    <!-- Filter bar -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <button id="invFilterBtn" onclick="openInvFilterSheet()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,rgba(212,175,55,0.12),rgba(212,175,55,0.04));border:1px solid rgba(212,175,55,0.35);border-radius:20px;color:var(--gold-light);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer">
+    <!-- Filter bar (horizontally scrollable so all actions fit any label / language) -->
+    <div class="inv-filterbar" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;overflow-x:auto">
+      <button id="invFilterBtn" onclick="openInvFilterSheet()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,rgba(212,175,55,0.12),rgba(212,175,55,0.04));border:1px solid rgba(212,175,55,0.35);border-radius:20px;color:var(--gold-light);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
         <span data-i18n="invFilterBtn">Φίλτρο</span>
         <span id="invFilterBadge" style="display:none;background:var(--gold);color:#0E0C08;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700"></span>
@@ -2541,7 +2543,9 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><polyline points="5.5 6.5 6.5 7.5 8.5 5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><line x1="14" y1="6.5" x2="21" y2="6.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>
         <span id="invSelectToggleLabel" data-i18n="invSelectBtn">Επιλογή</span>
       </button>
-      <button id="invStaleBtn" onclick="openStaleReport()" style="display:none;align-items:center;gap:5px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0"><span data-i18n="staleReportBtn">🕰️ Στάσιμο απόθεμα</span></button>
+      <button id="invStaleBtn" onclick="openStaleReport()" style="display:none;align-items:center;gap:5px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><polyline points="12 7.5 12 12 15.5 14"/></svg>
+        <span data-i18n="staleReportBtn">Στάσιμο απόθεμα</span></button>
       <div id="invFilterSummary" style="font-size:11px;color:var(--text-muted);font-family:var(--font-body);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
       <!-- Stock density picker — desktop only (CSS shows #invColsWrap at >=1000px) -->
       <div id="invColsWrap" style="display:none;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
@@ -3346,7 +3350,7 @@ const T = {
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
     invFilterAge:'Χρόνος στο απόθεμα', invSeasonWord:'σεζόν',
-    staleReportBtn:'🕰️ Στάσιμο απόθεμα', staleTitle:'🕰️ Στάσιμο απόθεμα',
+    staleReportBtn:'Στάσιμο απόθεμα', staleTitle:'🕰️ Στάσιμο απόθεμα',
     staleHint:'Κομμάτια που κάθονται καιρό — δείτε το περιθώριο έκπτωσης.', staleThreshold:'Ελάχιστες σεζόν',
     staleNone:'Κανένα κομμάτι πάνω από το όριο. Το απόθεμα είναι φρέσκο 👍',
     staleColRetail:'Λιανική', staleColFloor:'Αξία μετάλλου', staleColRoom:'Περιθώριο', staleColAge:'Στο απόθεμα',
@@ -3775,7 +3779,7 @@ const T = {
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
     invFilterAge:'Time in Stock', invSeasonWord:'seasons',
-    staleReportBtn:'🕰️ Stale Stock', staleTitle:'🕰️ Stale Stock',
+    staleReportBtn:'Stale Stock', staleTitle:'🕰️ Stale Stock',
     staleHint:'Pieces sitting a long time — see the room you have to discount.', staleThreshold:'Min. seasons',
     staleNone:'No pieces past the threshold. Your stock is fresh 👍',
     staleColRetail:'Retail', staleColFloor:'Metal floor', staleColRoom:'Room', staleColAge:'In stock',
@@ -18898,8 +18902,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.0', date: 'Ιούλιος 2026', items: [
-        '📱 Στα δελτία Επισκευής/Παραγγελίας, τα κουμπιά ειδοποίησης (WhatsApp/SMS/Email) χρησιμοποιούν τώρα και το τηλέφωνο/email του πελάτη από την καρτέλα Πελατών — αν προσθέσετε τον αριθμό εκεί αργότερα, το WhatsApp εμφανίζεται αυτόματα στο δελτίο.'
+      { version: 'v11.01', date: 'Ιούλιος 2026', items: [
+        '🔧 Η μπάρα φίλτρων στο Απόθεμα κυλάει πλέον οριζόντια, ώστε το κουμπί «Στάσιμο απόθεμα» να χωράει και σε στενές οθόνες. Αφαιρέθηκε το εικονίδιο emoji για ομοιομορφία με τα άλλα κουμπιά.'
       ]},
           ]
   },
@@ -18930,8 +18934,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.0', date: 'Jul 2026', items: [
-        '📱 On Repair/Custom-order tickets, the notify buttons (WhatsApp/SMS/Email) now also use the customer\'s phone/email from the Clients tab — so if you add the number there later, the WhatsApp button appears on the ticket automatically.'
+      { version: 'v11.01', date: 'Jul 2026', items: [
+        '🔧 The Stock filter bar now scrolls sideways so the "Stale Stock" button fits on narrow screens. Removed its emoji icon to match the other buttons.'
       ]},
           ]
   }
@@ -21915,7 +21919,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.0';
+const APP_VERSION = '11.01';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
