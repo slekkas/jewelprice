@@ -930,6 +930,8 @@
     #cartPanel { max-width:560px !important; }
     /* Stock density picker (List / 2 / 3 columns) — shown only on desktop */
     #invColsWrap { display:flex !important; }
+    /* On the wide desktop frame, toolbar buttons size to content (not stretched thirds) */
+    .inv-toolbar-btn { flex:0 0 auto !important; }
     /* Default (and data-cols=2): two columns; vertical spacing keeps each card's margin-bottom.
        align-items defaults to stretch so every card in a row shares the tallest card's height
        (a grouped card that carries less text no longer looks stunted next to its neighbours). */
@@ -958,8 +960,8 @@
     white-space:normal; line-height:1.25; text-align:center;
   }
   .inv-scan-btn:active { background:rgba(212,175,55,0.25); }
-  .inv-filterbar { scrollbar-width:none; -ms-overflow-style:none; }
-  .inv-filterbar::-webkit-scrollbar { display:none; }
+  /* Sort/Select/Stale share the row as equal thirds on mobile (fits any language) */
+  .inv-toolbar-btn { flex:1 1 0; min-width:0; }
   .inv-summary {
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
   }
@@ -2518,35 +2520,37 @@
       </div>
     </div>
 
-    <!-- Search bar -->
-    <div style="position:relative;margin-bottom:10px">
-      <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:0.45;pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold-light)" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="invSearchInput" autocomplete="off" autocorrect="off" spellcheck="false"
-        oninput="renderInvList()"
-        data-i18n-ph="invSearchPh" placeholder="Αναζήτηση περιγραφής, κωδικού..."
-        style="width:100%;padding:10px 36px 10px 36px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:20px;color:var(--text);font-family:var(--font-body);font-size:13px;box-sizing:border-box;outline:none">
-      <button id="invSearchClear" onclick="document.getElementById('invSearchInput').value='';renderInvList()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1">✕</button>
-    </div>
-
-    <!-- Filter bar (horizontally scrollable so all actions fit any label / language) -->
-    <div class="inv-filterbar" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;overflow-x:auto">
-      <button id="invFilterBtn" onclick="openInvFilterSheet()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,rgba(212,175,55,0.12),rgba(212,175,55,0.04));border:1px solid rgba(212,175,55,0.35);border-radius:20px;color:var(--gold-light);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
+    <!-- Search + Filter (both narrow results, so they sit together) -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+      <div style="position:relative;flex:1;min-width:0">
+        <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:0.45;pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold-light)" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="invSearchInput" autocomplete="off" autocorrect="off" spellcheck="false"
+          oninput="renderInvList()"
+          data-i18n-ph="invSearchPh" placeholder="Αναζήτηση περιγραφής, κωδικού..."
+          style="width:100%;padding:10px 34px 10px 36px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:20px;color:var(--text);font-family:var(--font-body);font-size:13px;box-sizing:border-box;outline:none">
+        <button id="invSearchClear" onclick="document.getElementById('invSearchInput').value='';renderInvList()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1">✕</button>
+      </div>
+      <button id="invFilterBtn" onclick="openInvFilterSheet()" style="display:flex;align-items:center;gap:6px;padding:10px 14px;background:linear-gradient(135deg,rgba(212,175,55,0.14),rgba(212,175,55,0.05));border:1px solid rgba(212,175,55,0.4);border-radius:20px;color:var(--gold-light);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
         <span data-i18n="invFilterBtn">Φίλτρο</span>
         <span id="invFilterBadge" style="display:none;background:var(--gold);color:#0E0C08;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700"></span>
       </button>
-      <button id="invSortBtn" onclick="openInvSortSheet()" style="display:flex;align-items:center;gap:5px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 15 20 18 23 15"/><line x1="20" y1="18" x2="20" y2="10"/></svg>
+    </div>
+
+    <!-- Toolbar: Sort / Select / Stale — equal-width so they fit any language, no scroll -->
+    <div class="inv-toolbar" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <button id="invSortBtn" onclick="openInvSortSheet()" class="inv-toolbar-btn" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 15 20 18 23 15"/><line x1="20" y1="18" x2="20" y2="10"/></svg>
         <span id="invSortLabel" data-i18n="invSortBtn">Ταξινόμηση</span>
       </button>
-      <button id="invSelectToggleBtn" onclick="toggleInvSelectMode()" style="display:flex;align-items:center;gap:5px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><polyline points="5.5 6.5 6.5 7.5 8.5 5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><line x1="14" y1="6.5" x2="21" y2="6.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>
+      <button id="invSelectToggleBtn" onclick="toggleInvSelectMode()" class="inv-toolbar-btn" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0"><rect x="3" y="3" width="7" height="7" rx="1.5"/><polyline points="5.5 6.5 6.5 7.5 8.5 5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><line x1="14" y1="6.5" x2="21" y2="6.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>
         <span id="invSelectToggleLabel" data-i18n="invSelectBtn">Επιλογή</span>
       </button>
-      <button id="invStaleBtn" onclick="openStaleReport()" style="display:none;align-items:center;gap:5px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;flex-shrink:0">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><polyline points="12 7.5 12 12 15.5 14"/></svg>
-        <span data-i18n="staleReportBtn">Στάσιμο απόθεμα</span></button>
-      <div id="invFilterSummary" style="font-size:11px;color:var(--text-muted);font-family:var(--font-body);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+      <button id="invStaleBtn" onclick="openStaleReport()" class="inv-toolbar-btn" style="display:none;align-items:center;justify-content:center;gap:5px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.18);border-radius:20px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0"><circle cx="12" cy="12" r="9"/><polyline points="12 7.5 12 12 15.5 14"/></svg>
+        <span data-i18n="staleReportBtn">Στάσιμο</span>
+      </button>
       <!-- Stock density picker — desktop only (CSS shows #invColsWrap at >=1000px) -->
       <div id="invColsWrap" style="display:none;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
@@ -2557,6 +2561,7 @@
         </select>
       </div>
     </div>
+    <div id="invFilterSummary" style="display:none;font-size:11px;color:var(--text-muted);font-family:var(--font-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:12px"></div>
     <!-- Scroll to top button -->
     <button id="invScrollTopBtn" onclick="document.getElementById('panel-inventory').scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:80px;right:16px;z-index:9980;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;box-shadow:0 4px 16px rgba(0,0,0,0.5);cursor:pointer;align-items:center;justify-content:center">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E0C08" stroke-width="2.8"><polyline points="18 15 12 9 6 15"/></svg>
@@ -3350,7 +3355,7 @@ const T = {
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
     invFilterAge:'Χρόνος στο απόθεμα', invSeasonWord:'σεζόν',
-    staleReportBtn:'Στάσιμο απόθεμα', staleTitle:'🕰️ Στάσιμο απόθεμα',
+    staleReportBtn:'Στάσιμο', staleTitle:'🕰️ Στάσιμο απόθεμα',
     staleHint:'Κομμάτια που κάθονται καιρό — δείτε το περιθώριο έκπτωσης.', staleThreshold:'Ελάχιστες σεζόν',
     staleNone:'Κανένα κομμάτι πάνω από το όριο. Το απόθεμα είναι φρέσκο 👍',
     staleColRetail:'Λιανική', staleColFloor:'Αξία μετάλλου', staleColRoom:'Περιθώριο', staleColAge:'Στο απόθεμα',
@@ -3779,7 +3784,7 @@ const T = {
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
     invFilterAge:'Time in Stock', invSeasonWord:'seasons',
-    staleReportBtn:'Stale Stock', staleTitle:'🕰️ Stale Stock',
+    staleReportBtn:'Stale', staleTitle:'🕰️ Stale Stock',
     staleHint:'Pieces sitting a long time — see the room you have to discount.', staleThreshold:'Min. seasons',
     staleNone:'No pieces past the threshold. Your stock is fresh 👍',
     staleColRetail:'Retail', staleColFloor:'Metal floor', staleColRoom:'Room', staleColAge:'In stock',
@@ -13745,6 +13750,7 @@ function updateInvFilterBadge() {
     if (_invFilters.seasonMin) parts.push('🕰️ ' + _invFilters.seasonMin + '+ ' + t('invSeasonWord'));
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
     summary.textContent = parts.join(' · ');
+    summary.style.display = parts.length ? 'block' : 'none'; // its own row — hide when empty
   }
 }
 
@@ -18902,8 +18908,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.01', date: 'Ιούλιος 2026', items: [
-        '🔧 Η μπάρα φίλτρων στο Απόθεμα κυλάει πλέον οριζόντια, ώστε το κουμπί «Στάσιμο απόθεμα» να χωράει και σε στενές οθόνες. Αφαιρέθηκε το εικονίδιο emoji για ομοιομορφία με τα άλλα κουμπιά.'
+      { version: 'v11.02', date: 'Ιούλιος 2026', items: [
+        '🧭 Νέα διάταξη εργαλείων στο Απόθεμα: το «Φίλτρο» μετακινήθηκε δίπλα στην μπάρα αναζήτησης, και τα «Ταξινόμηση / Επιλογή / Στάσιμο» μπήκαν από κάτω σε τρία ίσα κουμπιά που χωράνε πάντα, σε κάθε γλώσσα και σε υπολογιστή — χωρίς κρυφή κύλιση.'
       ]},
           ]
   },
@@ -18934,8 +18940,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.01', date: 'Jul 2026', items: [
-        '🔧 The Stock filter bar now scrolls sideways so the "Stale Stock" button fits on narrow screens. Removed its emoji icon to match the other buttons.'
+      { version: 'v11.02', date: 'Jul 2026', items: [
+        '🧭 Reworked the Stock toolbar: Filter moved up beside the search bar, and Sort / Select / Stale sit below as three equal buttons that always fit — every language and on desktop — with nothing hidden to scroll for.'
       ]},
           ]
   }
@@ -21919,7 +21925,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.01';
+const APP_VERSION = '11.02';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
