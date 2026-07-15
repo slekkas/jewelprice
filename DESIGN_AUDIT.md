@@ -43,20 +43,21 @@ would slow the daily pricing flow for no real safety gain. (Change if you disagr
   — big, in the easy-to-tap zone, sometimes right under the primary green CTA.
   This is exactly the accidental-press risk Sotiris flagged.
 
-### Proposed standard (apply to every modal)
-1. **Close ✕ — always top-right**, one component: 34px circle, same glyph (`✕`),
-   same muted style, everywhere. (Big enough to tap, always in the same spot.)
-2. **Primary / safe action — bottom, full-width, gold or green.** Same spot every time.
-3. **Destructive action (delete / cancel) — visually separated and de-emphasized:**
-   outlined/text style (not a big filled block), set apart from the primary CTA
-   (its own row with a gap, or smaller), and always behind a `showConfirm`. Never the
-   same size/position as the primary tap target.
-4. On detail sheets that both *complete* and *cancel* (reservations, repairs), keep
-   **Complete/primary prominent, Cancel small and low-contrast** so the finger goes to
-   the right one by habit.
+### ✅ DONE (v11.04) — two shared classes, applied across the modals
+- **`.modal-x`** — the Close ✕: one 34px circle, glyph normalized to `✕` (was ✕/×/&times;),
+  same muted style, sits top-right in the header. Applied to the reservation/repair/group
+  detail sheets, add-vendor, cart, quote-history, and every circular header close (12 modals).
+- **`.modal-danger`** — destructive action (Cancel/Delete): outlined red, never a filled
+  block, consistent gap above, and every one is now behind a `showConfirm` (from item A).
+  Applied to reservation Cancel/Delete, repair Cancel/Delete, group Delete-all.
+- Glyph fully normalized: 0 `&times;` buttons remain.
 
-Rollout: introduce one shared modal header (close ✕) + footer (primary + de-emphasized
-destructive) and migrate modals to it a few at a time.
+**Deliberately left non-standard (context demands it):** the small `top:6px;right:6px`
+popover closes (a 34px circle would dwarf them), the fullscreen photo/price overlay's big
+white ✕, and the panel "Exit" button. Forcing the header style there would look worse.
+
+The rule going forward for any NEW modal: **Close ✕ = `class="modal-x"` top-right; primary
+action bottom; destructive = `class="modal-danger"` + a `showConfirm`.**
 
 ---
 

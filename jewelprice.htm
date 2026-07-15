@@ -962,6 +962,18 @@
   .inv-scan-btn:active { background:rgba(212,175,55,0.25); }
   /* Sort/Select/Stale share the row as equal thirds on mobile (fits any language) */
   .inv-toolbar-btn { flex:1 1 0; min-width:0; }
+  /* ── Standard modal controls (consistency = muscle memory) ──
+     .modal-x  = the Close (✕) button — same look/size everywhere, sits top-right in the header.
+     .modal-danger = a de-emphasized destructive action (delete/cancel) — outlined, never a
+     filled block competing with the primary CTA; always paired with a confirm dialog. */
+  .modal-x { flex-shrink:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:50%;
+    color:var(--text-muted); font-size:17px; line-height:1; cursor:pointer; padding:0; transition:background 0.15s; }
+  .modal-x:hover, .modal-x:active { background:rgba(255,255,255,0.14); color:var(--text); }
+  .modal-danger { width:100%; margin-top:10px; padding:11px; background:transparent;
+    border:1px solid rgba(224,80,80,0.35); color:var(--danger); border-radius:10px;
+    font-family:var(--font-body); font-size:12.5px; font-weight:600; letter-spacing:0.02em; cursor:pointer; transition:background 0.15s; }
+  .modal-danger:active { background:rgba(224,80,80,0.12); }
   .inv-summary {
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
   }
@@ -1969,7 +1981,7 @@
   <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-radius:8px;padding:16px;box-shadow:0 -4px 24px rgba(0,0,0,0.5)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--gold-light)">🛒 <span data-i18n="cartTitle">Καλάθι Προσφοράς</span></div>
-      <button onclick="toggleCartPanel()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer">✕</button>
+      <button onclick="toggleCartPanel()" class="modal-x">✕</button>
     </div>
     <div id="cartItemsList" style="margin-bottom:12px"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid rgba(201,168,76,0.2);margin-bottom:10px">
@@ -2070,7 +2082,7 @@
   <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:20px;max-width:500px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:90vh">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold-light)" data-i18n="historyTitle">📋 Ιστορικό Προσφορών</div>
-      <button onclick="closeQuoteHistory()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer">✕</button>
+      <button onclick="closeQuoteHistory()" class="modal-x">✕</button>
     </div>
     <div style="position:relative;margin-bottom:12px">
       <input type="text" id="historySearch" data-i18n-ph="historySearchPh" oninput="renderHistory(this.value)" autocomplete="off"
@@ -2413,7 +2425,7 @@
   <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.25);border-radius:0 0 16px 16px;padding:24px 20px 32px;width:100%;max-width:480px;max-height:calc(100vh - 24px);overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div style="font-family:var(--font-heading);font-size:22px;font-weight:700;color:var(--gold-light)" data-i18n="addVendor">Προσθήκη Προμηθευτή</div>
-      <button onclick="closeAddVendorModal()" style="background:rgba(255,255,255,0.08);border:none;color:var(--text-muted);border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+      <button onclick="closeAddVendorModal()" class="modal-x">✕</button>
     </div>
     <div class="field"><label data-i18n="vendorName">Όνομα Προμηθευτή</label><input type="text" id="vm_name" data-i18n-ph="vendorNamePh"></div>
     <input type="hidden" id="vm_vendorType" value="metal">
@@ -2652,7 +2664,7 @@
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="invFilterTitle">Φίλτρα</div>
         <div style="display:flex;align-items:center;gap:12px">
           <button onclick="clearInvFilters()" style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);background:transparent;border:none;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" data-i18n="invFilterClear">Καθαρισμός</button>
-          <button onclick="closeInvFilterSheet()" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0" aria-label="Close">&times;</button>
+          <button onclick="closeInvFilterSheet()" class="modal-x" aria-label="Close">✕</button>
         </div>
       </div>
     </div>
@@ -2672,7 +2684,7 @@
       <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 10px"></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="exportSheetTitle">📊 Εξαγωγή Απογραφής</div>
-        <button onclick="closeInvExportSheet()" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0" aria-label="Close">&times;</button>
+        <button onclick="closeInvExportSheet()" class="modal-x" aria-label="Close">✕</button>
       </div>
     </div>
     <div style="padding:16px 20px 0;flex:1">
@@ -2729,7 +2741,7 @@
   <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);max-height:calc(100vh - 24px);overflow-y:auto;display:flex;flex-direction:column">
     <div style="position:sticky;top:0;z-index:2;background:var(--dark-2);border-radius:20px 20px 0 0;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)" data-i18n="stkReportTitle">📋 Αποτέλεσμα Απογραφής</div>
-      <button onclick="stkCloseReport()" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer" aria-label="Close">&times;</button>
+      <button onclick="stkCloseReport()" class="modal-x" aria-label="Close">✕</button>
     </div>
     <div id="stkReportContent" style="padding:16px 20px 40px"></div>
   </div>
@@ -4690,7 +4702,7 @@ function openReserveDialog(items, source) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🔒 ${isEl ? 'Κράτηση' : 'Reserve'}</div>
-      <button onclick="document.getElementById('reserveDialogOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+      <button onclick="document.getElementById('reserveDialogOverlay').remove()" class="modal-x">✕</button>
     </div>
     <div style="${_resLbl}">${isEl ? 'Είδη' : 'Items'} (${items.length})</div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
@@ -4821,7 +4833,7 @@ function openReservationDetail(id) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="_callPhone('${(r.clientPhone||'').replace(/[^0-9+]/g,'')}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
-      <button onclick="document.getElementById('reservationDetailOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0">&times;</button>
+      <button onclick="document.getElementById('reservationDetailOverlay').remove()" class="modal-x">✕</button>
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.agreedTotal) || 0).toFixed(2)}</span></div>
@@ -4843,9 +4855,9 @@ function openReservationDetail(id) {
       <button onclick="_resAddPayment('${r.id}')" style="flex:0 0 auto;width:auto;padding:10px 15px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-size:16px;cursor:pointer">＋</button>
     </div>
     <button onclick="_resComplete('${r.id}')" style="width:100%;margin-top:12px;padding:14px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">✅ ${isEl ? 'Ολοκλήρωση & Πώληση' : 'Complete & sell'}</button>
-    <button onclick="_resCancel('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">✕ ${isEl ? 'Ακύρωση κράτησης' : 'Cancel reservation'}</button>`
+    <button onclick="_resCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση κράτησης' : 'Cancel reservation'}</button>`
     : `<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:6px">${r.status === 'completed' ? (isEl ? 'Ολοκληρώθηκε' : 'Completed') : r.status === 'expired' ? (isEl ? 'Έληξε' : 'Expired') : (isEl ? 'Ακυρώθηκε' : 'Cancelled')}${r.dateCompleted ? ' · ' + fmtDate(new Date(r.dateCompleted)) : ''}</div>
-    ${(r.status === 'cancelled' || r.status === 'expired') ? `<button onclick="_resDelete('${r.id}')" style="width:100%;margin-top:12px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.35);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}`}
+    ${(r.status === 'cancelled' || r.status === 'expired') ? `<button onclick="_resDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}`}
   </div>`;
   document.body.appendChild(ov);
 }
@@ -5228,7 +5240,7 @@ function openRepairModal() {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🔧 ${isEl ? 'Νέο δελτίο' : 'New ticket'}</div>
-      <button onclick="document.getElementById('repairModalOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+      <button onclick="document.getElementById('repairModalOverlay').remove()" class="modal-x">✕</button>
     </div>
     <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:12px">
       <button id="repTypeRepair" class="desk-seg active" onclick="_repairSetType('repair')">🔧 ${isEl ? 'Επισκευή' : 'Repair'}</button>
@@ -5368,7 +5380,7 @@ function openRepairDetail(id) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_repEsc(r.clientName || '—')}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${repNoFmt(r)} · ${repTypeLabel(r)} · ${statusLabel}</div></div>
-      <button onclick="document.getElementById('repairDetailOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+      <button onclick="document.getElementById('repairDetailOverlay').remove()" class="modal-x">✕</button>
     </div>
     ${phoneBtn ? `<div style="margin-bottom:8px">${phoneBtn}</div>` : ''}
     ${r.photoUrl ? `<img src="${r.photoUrl}" style="width:100%;max-height:220px;object-fit:contain;background:#fff;border-radius:10px;margin-bottom:10px">` : ''}
@@ -5385,8 +5397,8 @@ function openRepairDetail(id) {
     <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)'}</button>
     ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">✓ ${isEl ? 'Έτοιμο' : 'Mark ready'}</button>` : ''}
     ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="_repairCollectOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${isEl ? 'Παραλαβή' : 'Collect'}</button>` : ''}
-    ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" style="width:100%;margin-top:2px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
-    ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid rgba(224,90,90,0.35);color:#e05a5a;border-radius:8px;font-size:12px;cursor:pointer">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
+    ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
+    ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
   </div>`;
   document.body.appendChild(ov);
 }
@@ -11595,7 +11607,7 @@ function openStaleReport() {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:16px;width:100%;max-width:520px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${t('staleTitle')}</div>
-      <button onclick="document.getElementById('staleOverlay').remove()" style="width:30px;height:30px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:50%;color:var(--text-muted);font-size:16px;cursor:pointer">&times;</button>
+      <button onclick="document.getElementById('staleOverlay').remove()" class="modal-x">✕</button>
     </div>
     <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:10px">${t('staleHint')}</div>
     <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px">${t('staleThreshold')}</div>
@@ -18912,8 +18924,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.03', date: 'Ιούλιος 2026', items: [
-        '🛡️ Περισσότερη ασφάλεια: ζητείται πλέον επιβεβαίωση πριν διαγράψετε προσφορά, καθαρίσετε τη μνήμη τιμών πετρών, καθαρίσετε όλες τις ειδοποιήσεις, επαναφέρετε την αρχική τιμή είδους ή διαγράψετε εγγραφή ετικέτας — ώστε να μη χάνεται τίποτα κατά λάθος.'
+      { version: 'v11.04', date: 'Ιούλιος 2026', items: [
+        '❌ Ενιαία κουμπιά σε όλα τα παράθυρα: το «✕» για κλείσιμο έχει πλέον την ίδια εμφάνιση και θέση (πάνω δεξιά) παντού, και τα κουμπιά διαγραφής/ακύρωσης είναι διακριτικά (περίγραμμα, όχι γεμάτα) και πάντα με επιβεβαίωση — για λιγότερα λάθη και πιο γρήγορη δουλειά.'
       ]},
           ]
   },
@@ -18944,8 +18956,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.03', date: 'Jul 2026', items: [
-        '🛡️ More safety: you now get a confirmation before deleting a saved quote, clearing the stone-price cache, clearing all notifications, resetting an item\'s initial price, or deleting a label-history entry — so nothing is lost by an accidental tap.'
+      { version: 'v11.04', date: 'Jul 2026', items: [
+        '❌ Consistent buttons across every popup: the "✕" close is now the same look and place (top-right) everywhere, and delete/cancel buttons are quiet (outlined, not filled) and always ask for confirmation — fewer mistakes, faster work.'
       ]},
           ]
   }
@@ -21931,7 +21943,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.03';
+const APP_VERSION = '11.04';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -22186,7 +22198,7 @@ autoSync().then(async () => {
     banner.innerHTML = `
       <span style="flex:1">${msg}</span>
       <button id="bannerInstallBtn" style="background:#fff;color:#1a7a45;border:none;border-radius:6px;padding:7px 12px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:0.05em;cursor:pointer;flex-shrink:0;white-space:nowrap">${installLabel}</button>
-      <button onclick="this.closest('div').remove()" style="background:transparent;border:none;color:rgba(255,255,255,0.7);font-size:18px;cursor:pointer;padding:0 4px;flex-shrink:0;line-height:1">&times;</button>`;
+      <button onclick="this.closest('div').remove()" style="background:transparent;border:none;color:rgba(255,255,255,0.7);font-size:18px;cursor:pointer;padding:0 4px;flex-shrink:0;line-height:1">✕</button>`;
     document.body.appendChild(banner);
 
     // Wire install button — use existing PWA install prompt if available
@@ -22397,7 +22409,7 @@ function openNotifPanel() {
               <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold);font-weight:600">${(n.qrCodes && n.qrCodes.length > 1) ? n.qrCodes.length + (lang==='el'?' αντικείμενα':' items') : (n.qrCode||'')}</div>
               ${n.itemDesc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-top:2px">${n.itemDesc}</div>` : ''}
             </div>
-            <button onclick="notifDismissOne('${id}')" style="flex-shrink:0;background:transparent;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+            <button onclick="notifDismissOne('${id}')" style="flex-shrink:0;background:transparent;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">✕</button>
           </div>
           ${n.note ? `<div style="background:rgba(201,168,76,0.08);border-left:3px solid var(--gold);border-radius:0 6px 6px 0;padding:8px 10px;font-family:var(--font-body);font-size:13px;color:var(--text);margin-bottom:10px;line-height:1.5">${n.note}</div>` : ''}
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -22769,7 +22781,7 @@ function openInvGroup(gid) {
           <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">🔗 ${title}</div>
           <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);letter-spacing:0.08em;margin-top:2px">${rep.seqId ? itemRefCode(rep) : ''} · ${members.length} ${lang==='el'?'σε απόθεμα':'in stock'}</div>
         </div>
-        <button class="invGroupClose" onclick="closeInvGroup()" style="flex:0 0 auto;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;width:34px;height:34px;color:var(--text-muted);font-size:16px;cursor:pointer">✕</button>
+        <button onclick="closeInvGroup()" class="modal-x">✕</button>
       </div>
       ${members.length > 1 ? `
       <div style="display:flex;align-items:center;gap:8px;background:rgba(61,170,106,0.08);border:1px solid rgba(61,170,106,0.3);border-radius:10px;padding:10px 12px;margin:12px 0 4px">
@@ -22787,7 +22799,7 @@ function openInvGroup(gid) {
         </button>
         <div id="invGroupPiecesList" style="display:${_piecesCollapsed ? 'none' : 'block'};margin-top:4px">${rowsHtml}</div>
       </div>
-      ${isEmp ? '' : `<button onclick="invDeleteGroup('${gid}')" style="margin-top:10px;width:100%;background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.4);color:#e05a5a;border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">🗑 ${lang==='el' ? 'Διαγραφή όλων ('+members.length+')' : 'Delete all ('+members.length+')'}</button>`}
+      ${isEmp ? '' : `<button onclick="invDeleteGroup('${gid}')" class="modal-danger">🗑 ${lang==='el' ? 'Διαγραφή όλων ('+members.length+')' : 'Delete all ('+members.length+')'}</button>`}
     </div>`;
   document.body.appendChild(overlay);
 }
