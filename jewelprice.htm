@@ -8050,12 +8050,17 @@ async function confirmSale() {
         }
       } else {
         const qrNorm = lastCalcResult.labelCode.trim().toUpperCase();
-        const invEntry = Object.entries(_inventoryCache).find(([,it]) =>
-          it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm
+        // Identical pieces (a similar-items batch, or one piece in two gold colours) SHARE
+        // one QR, so this can match several records. Take an IN-STOCK one: matching the
+        // first record regardless of status meant that after selling one, selling its twin
+        // found the already-sold record, did nothing, and left the twin in stock forever.
+        // Never mark a bulk batch sold via QR match — bulk sells by weight deduction.
+        const _qrMatches = Object.entries(_inventoryCache).filter(([,it]) =>
+          it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm && !it.isBulk
         );
+        const invEntry = _qrMatches.find(([,it]) => it.status === 'in_stock') || _qrMatches[0];
         if (invEntry) {
           const [invId, invItem] = invEntry;
-          // Never mark a bulk batch sold via QR match — bulk sells by weight deduction
           if (invItem.status !== 'sold' && !invItem.isBulk) {
             invItem.status = 'sold';
             invItem.dateSold = new Date(date).getTime();
@@ -15550,6 +15555,17 @@ function renderInvList() {
     if (gid) { _grpIndex.set(gid, groupedRows.length); groupedRows.push([id, item, [[id, item]]]); }
     else groupedRows.push([id, item]);
   }
+  // The group's face is its ORIGINAL piece — the earliest one added — not whichever member
+  // the current sort happens to put first. Otherwise adding a new colour to a group (or
+  // just re-sorting) silently swapped the photo, description and badges on the card for a
+  // piece the owner thinks of as a later addition. The row keeps its sorted POSITION; only
+  // which member it shows changes.
+  for (const row of groupedRows) {
+    if (!row[2] || row[2].length < 2) continue;
+    let first = row[2][0];
+    for (const m of row[2]) if ((m[1].dateAdded || 0) < (first[1].dateAdded || 0)) first = m;
+    row[0] = first[0]; row[1] = first[1];
+  }
   // Dispatcher: a 3-element row (has members[]) → grouped card, else the normal card.
   const buildRow = (row) => (row[2] ? buildGroupCard(row) : buildCard([row[0], row[1]]));
 
@@ -19492,9 +19508,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.14', date: 'Ιούλιος 2026', items: [
-        '🩹 Αυτο-διόρθωση κοσμημάτων που «κόλλησαν» σε λάθος προμηθευτή. Όταν διαγραφόταν ένας προμηθευτής (πριν το φτιάξουμε στην v11.12), όσα κοσμήματα ήταν από κάτω του δείχνανε σε λάθος προμηθευτή. Κάθε κόσμημα αποθηκεύει και το ΟΝΟΜΑ του προμηθευτή του, οπότε τώρα, αν το όνομα διαφωνεί με τη θέση, κερδίζει το όνομα — και η τιμή βγαίνει σωστή. Δεν αλλάζει τίποτα στα δεδομένα σας, μόνο στον υπολογισμό.',
-        '✅ Στα δικά σας δεδομένα βρέθηκαν ακριβώς 2 τέτοια κοσμήματα (2 σμαραγδένια του Κούλη από τις 18 Ιουνίου) — και τα δύο τιμολογούνται πλέον σωστά στα €25/γρ. αντί για λάθος/καθόλου εργατικά.'
+      { version: 'v11.15', date: 'Ιούλιος 2026', items: [
+        '🖼️ Η ομάδα δείχνει ξανά το ΑΡΧΙΚΟ της κόσμημα. Πριν, η κάρτα της ομάδας έδειχνε όποιο κομμάτι έτυχε να είναι πρώτο στην τρέχουσα ταξινόμηση — έτσι, προσθέτοντας ένα νέο χρώμα (π.χ. ροζ χρυσό), άλλαζε μόνη της η φωτογραφία της ομάδας. Τώρα δείχνει πάντα το πρώτο που προσθέσατε.',
+        '💰 Πώληση διπλών κομματιών: όταν δύο κομμάτια μοιράζονται τον ίδιο κωδικό (ίδια ομάδα, ίδιο βάρος), η πώληση με σκανάρισμα έβρισκε πάντα το ΠΡΩΤΟ. Έτσι, αφού πουλούσατε το ένα, η πώληση του δεύτερου δεν έκανε τίποτα και το δεύτερο έμενε «σε απόθεμα» για πάντα. Τώρα διαλέγει πάντα ένα κομμάτι που είναι όντως σε απόθεμα.'
       ]},
           ]
   },
@@ -19525,9 +19541,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.14', date: 'Jul 2026', items: [
-        '🩹 Pieces stuck on the wrong vendor now heal themselves. When a vendor was deleted (before v11.12 fixed that), every piece below it started pointing at the wrong vendor. Each piece also stores its vendor\'s NAME, so when the name disagrees with the position, the name now wins — and the price comes out right. Nothing in your data is rewritten; only the calculation changes.',
-        '✅ Your data had exactly 2 such pieces (two of Κούλης\'s emerald items from 18 June) — both now price correctly at €25/g instead of with the wrong labour or none at all.'
+      { version: 'v11.15', date: 'Jul 2026', items: [
+        '🖼️ A group shows its ORIGINAL piece again. The group card used to show whichever member the current sort put first — so adding a new colour (e.g. rose gold) silently changed the group\'s photo. It now always shows the first piece you added.',
+        '💰 Selling twin pieces: when two pieces share one code (same group, same weight), a scanned sale always found the FIRST record. So after selling one, selling its twin did nothing and left the twin "in stock" forever. It now always picks a piece that is actually in stock.'
       ]},
           ]
   }
@@ -22532,7 +22548,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.14';
+const APP_VERSION = '11.15';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
