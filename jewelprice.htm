@@ -1281,6 +1281,10 @@
     </div>
     <div class="code-not-found" id="codeNotFound" data-i18n="codeNotFound">Κωδικός δεν βρέθηκε</div>
     <div id="invStatusChip" style="display:none;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;display:none;align-items:center;gap:10px;cursor:pointer;transition:opacity .2s"></div>
+    <!-- Shown only when one scanned code matches several in-stock pieces that LOOK different
+         (same weight → same tag, but different gold/decorative colour). The tag can't say
+         which one is in hand, so the owner picks. See _renderScanVariantPicker. -->
+    <div id="scanVariantPicker" style="display:none;margin:6px 0 2px"></div>
 
     <div class="metal-toggle">
       <button class="metal-btn active-gold" onclick="setMetal('gold')">
@@ -4747,8 +4751,11 @@ function _resItemFromResult(name, result) {
   const qr = (r.labelCode || '').trim().toUpperCase();
   let invId = null, item = null;
   if (qr && _inventoryCache) {
-    const found = Object.entries(_inventoryCache).find(([, it]) => it.status === 'in_stock' && !it.isBulk && (
-      ((it.qrCode || it.code || '').trim().toUpperCase() === qr) || (r.seqRef && it.seqId && itemRefCode(it) === r.seqRef)));
+    // Twins share a tag; hold the exact piece the owner picked in the scan chooser.
+    const chosen = _scanChosenInvId && _inventoryCache[_scanChosenInvId];
+    const found = (chosen && chosen.status === 'in_stock') ? [_scanChosenInvId, chosen]
+      : Object.entries(_inventoryCache).find(([, it]) => it.status === 'in_stock' && !it.isBulk && (
+          ((it.qrCode || it.code || '').trim().toUpperCase() === qr) || (r.seqRef && it.seqId && itemRefCode(it) === r.seqRef)));
     if (found) { invId = found[0]; item = found[1]; }
   }
   return { invId, isBulk: false, qr: item ? (item.qrCode || '') : (r.labelCode || ''), ref: item ? itemRefCode(item) : (r.seqRef || ''),
@@ -7096,6 +7103,13 @@ let _inventoryCache = null; // in-memory inventory cache
 let _lastScannedInvEntry = null; // inventory entry resolved by most recent QR scan — used by calculate() for photo lookup
 let _lastScannedRaw = null;         // raw QR string that produced _lastScannedInvEntry
 let _lastChipRaw = null;            // raw QR string last shown in invStatusChip (any state)
+// Pieces of a similar-items group that share ONE weight share ONE printed tag, so a scan
+// cannot say which is in hand. When they also LOOK different (gold colour / decorative
+// colour) that matters: the photo, the sale and the reservation must target the right
+// record. _scanVariants holds the in-stock candidates for the current scan and
+// _scanChosenInvId the owner's pick — the id every downstream path prefers.
+let _scanVariants = [];             // [[id, item], …] in-stock pieces sharing the scanned QR
+let _scanChosenInvId = null;        // id picked in the variant chooser (null = not asked/answered)
 
 function todayStr() {
   const d = new Date();
@@ -8058,7 +8072,10 @@ async function confirmSale() {
         const _qrMatches = Object.entries(_inventoryCache).filter(([,it]) =>
           it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm && !it.isBulk
         );
-        const invEntry = _qrMatches.find(([,it]) => it.status === 'in_stock') || _qrMatches[0];
+        // If the twins looked different and the owner told us which one is in hand, sell
+        // exactly that record — never a guess.
+        const invEntry = (_scanChosenInvId && _qrMatches.find(([id]) => id === _scanChosenInvId))
+          || _qrMatches.find(([,it]) => it.status === 'in_stock') || _qrMatches[0];
         if (invEntry) {
           const [invId, invItem] = invEntry;
           if (invItem.status !== 'sold' && !invItem.isBulk) {
@@ -9730,6 +9747,14 @@ function calculate() {
     //    drops trailing .0 from weight (e.g. 32.0 -> 32) causing a mismatch with stored qrCode.
     let match = null;
     const rawInputNorm = (document.getElementById('codeInput')?.value || '').trim().toUpperCase();
+    // Several in-stock pieces share this tag and look different: showing the first one's
+    // photo would be a guess, and the wrong photo in front of a customer is worse than
+    // none. Wait for the chooser (_pickScanVariant fills it in).
+    if (_scanVariants.length > 1 && !_scanChosenInvId) {
+      if (lastCalcResult) lastCalcResult.photoUrl = null;
+      cpbThumb.removeAttribute('data-src'); cpbThumb.src = ''; cpbThumb.style.display = 'none';
+      return;
+    }
     if (_lastScannedInvEntry && _lastScannedRaw && _lastScannedRaw === rawInputNorm) {
       match = _lastScannedInvEntry;
     } else {
@@ -11287,23 +11312,98 @@ function parseCodeInput(raw) {
   return { code, weight, stone, stones };
 }
 
+// How a piece LOOKS. Two records sharing a QR only need telling apart when this differs —
+// truly identical twins are interchangeable and must never nag the owner.
+function _variantKey(it) { return (it.goldColor || '') + '|' + (it.color || ''); }
+
+function _variantLabel(it) {
+  const bits = [];
+  if (it.goldColor) bits.push(goldColorLabel(it.goldColor));
+  if (it.color) bits.push(itemColorLabel(it.color));
+  return bits.join(' · ') || (lang === 'el' ? 'Χωρίς χρώμα' : 'No colour');
+}
+
+// Ask which piece is in hand. Nothing is pre-selected on purpose: a wrong guess here sells
+// the wrong ring and leaves the other one in stock, so a deliberate tap is worth the second.
+function _renderScanVariantPicker() {
+  const box = document.getElementById('scanVariantPicker');
+  if (!box) return;
+  if (_scanVariants.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const isEl = lang === 'el';
+  const chips = _scanVariants.map(([id, it]) => {
+    const sel = id === _scanChosenInvId;
+    return `<button type="button" onclick="_pickScanVariant('${id}')" style="flex:1 1 0;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;cursor:pointer;text-align:left;
+      border:1px solid ${sel ? 'var(--gold)' : 'var(--wa12)'};background:${sel ? 'rgba(201,168,76,0.15)' : 'var(--wa04)'};color:${sel ? 'var(--gold-light)' : 'var(--text-muted)'};font-family:var(--font-body);font-size:12px">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex:0 0 auto">` : ''}
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_variantLabel(it)}</span>
+    </button>`;
+  }).join('');
+  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">${
+    _scanChosenInvId ? (isEl ? '✓ Επιλεγμένο κομμάτι' : '✓ Selected piece')
+                     : '⚠️ ' + (isEl ? 'Ίδια ετικέτα σε ' + _scanVariants.length + ' κομμάτια — ποιο κρατάτε;'
+                                     : 'Same tag on ' + _scanVariants.length + ' pieces — which one are you holding?')
+  }</div><div style="display:flex;gap:6px">${chips}</div>`;
+  box.style.display = 'block';
+}
+
+// Point the photo (price bar + the fullscreen customer view, which reads lastCalcResult)
+// at the chosen piece.
+function _applyScanVariantPhoto(it) {
+  const url = (it && it.photoUrl) ? it.photoUrl : null;
+  if (lastCalcResult) lastCalcResult.photoUrl = url;
+  const t = document.getElementById('cpbPhotoThumb');
+  if (!t) return;
+  if (url) { t.setAttribute('data-src', url); t.src = url; t.style.display = 'block'; }
+  else { t.removeAttribute('data-src'); t.src = ''; t.style.display = 'none'; }
+}
+
+function _pickScanVariant(id) {
+  const hit = _scanVariants.find(([vid]) => vid === id);
+  if (!hit) return;
+  _scanChosenInvId = id;
+  _lastScannedInvEntry = hit[1];   // drives calculate()'s photo lookup on any re-render
+  _applyScanVariantPhoto(hit[1]);
+  _renderScanVariantPicker();
+}
+
+function _resetScanVariants() {
+  _scanVariants = [];
+  _scanChosenInvId = null;
+  const box = document.getElementById('scanVariantPicker');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
 async function _checkInvStatusForCalc(raw) {
   const chip = document.getElementById('invStatusChip');
   if (!chip) return;
   chip.style.display = 'none';
+  _resetScanVariants();
   if (!raw) { _lastChipRaw = null; return; }
   const rawNorm = raw.trim().toUpperCase();
   _lastChipRaw = raw;
   // Always reload inventory here — this is the QR scan entry point and we need fresh photoUrl
   _inventoryCache = await loadInventory();
   const entries = Object.entries(_inventoryCache || {});
-  const found = entries.find(([, it]) => it.qrCode && it.qrCode.trim().toUpperCase() === rawNorm);
+  // One tag can sit on several records — a similar-items batch shares its weight, so it
+  // shares its code. Prefer an IN-STOCK one (matching a sold twin first showed a "Sold"
+  // chip for a piece that is actually on the shelf).
+  const _matches = entries.filter(([, it]) => it.qrCode && it.qrCode.trim().toUpperCase() === rawNorm);
+  const found = _matches.find(([, it]) => it.status === 'in_stock') || _matches[0];
   const isEl = lang === 'el';
   if (found) {
     const [fbKey, item] = found;
     // Cache this entry so calculate()'s photo IIFE can use it directly (avoids stale-cache miss)
     _lastScannedInvEntry = item;
     _lastScannedRaw = rawNorm; // rawNorm = raw.trim().toUpperCase()
+
+    // Do the in-stock twins LOOK different? Then the tag alone can't identify the piece —
+    // ask. Identical twins stay silent (any of them will do).
+    const _inStock = _matches.filter(([, it]) => it.status === 'in_stock' && !it.isBulk);
+    if (_inStock.length > 1 && new Set(_inStock.map(([, it]) => _variantKey(it))).size > 1) {
+      _scanVariants = _inStock;
+      _scanChosenInvId = null;
+      _renderScanVariantPicker();
+    }
 
     // Populate secondary metal UI from inventory item so calculate() picks it up
     if (item.secondaryMetal && item.secondaryWeight) {
@@ -19508,9 +19608,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.15', date: 'Ιούλιος 2026', items: [
-        '🖼️ Η ομάδα δείχνει ξανά το ΑΡΧΙΚΟ της κόσμημα. Πριν, η κάρτα της ομάδας έδειχνε όποιο κομμάτι έτυχε να είναι πρώτο στην τρέχουσα ταξινόμηση — έτσι, προσθέτοντας ένα νέο χρώμα (π.χ. ροζ χρυσό), άλλαζε μόνη της η φωτογραφία της ομάδας. Τώρα δείχνει πάντα το πρώτο που προσθέσατε.',
-        '💰 Πώληση διπλών κομματιών: όταν δύο κομμάτια μοιράζονται τον ίδιο κωδικό (ίδια ομάδα, ίδιο βάρος), η πώληση με σκανάρισμα έβρισκε πάντα το ΠΡΩΤΟ. Έτσι, αφού πουλούσατε το ένα, η πώληση του δεύτερου δεν έκανε τίποτα και το δεύτερο έμενε «σε απόθεμα» για πάντα. Τώρα διαλέγει πάντα ένα κομμάτι που είναι όντως σε απόθεμα.'
+      { version: 'v11.16', date: 'Ιούλιος 2026', items: [
+        '🎨 «Ποιο κρατάτε;» — Δύο κομμάτια της ίδιας ομάδας με ίδιο βάρος έχουν ΙΔΙΑ ετικέτα, οπότε το σκανάρισμα δεν μπορεί να ξέρει ποιο έχετε στο χέρι. Αν διαφέρουν στο χρώμα (π.χ. ροζ χρυσό vs χρυσό & λευκόχρυσο), η εφαρμογή σας ρωτάει τώρα με φωτογραφίες — και η επιλογή σας καθορίζει τη φωτογραφία, την ΠΩΛΗΣΗ και την κράτηση. Πριν έδειχνε πάντα το πρώτο, οπότε πουλώντας το ροζ σημειωνόταν πουλημένο το λευκόχρυσο.',
+        '📦 Επίσης: αν σκανάρετε κωδικό που έχει και πουλημένο και διαθέσιμο κομμάτι, η ένδειξη έλεγε λανθασμένα «Πουλήθηκε». Τώρα δείχνει το κομμάτι που είναι πράγματι σε απόθεμα.'
       ]},
           ]
   },
@@ -19541,9 +19641,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.15', date: 'Jul 2026', items: [
-        '🖼️ A group shows its ORIGINAL piece again. The group card used to show whichever member the current sort put first — so adding a new colour (e.g. rose gold) silently changed the group\'s photo. It now always shows the first piece you added.',
-        '💰 Selling twin pieces: when two pieces share one code (same group, same weight), a scanned sale always found the FIRST record. So after selling one, selling its twin did nothing and left the twin "in stock" forever. It now always picks a piece that is actually in stock.'
+      { version: 'v11.16', date: 'Jul 2026', items: [
+        '🎨 "Which one are you holding?" — Two pieces in a group with the same weight carry the SAME tag, so a scan cannot know which one is in your hand. When they differ in colour (e.g. rose gold vs gold & white gold), the app now asks, with photos — and your choice drives the photo, the SALE and the reservation. Before it always took the first, so selling the rose one marked the white one sold.',
+        '📦 Also: scanning a code that has both a sold and an in-stock piece wrongly showed "Sold". It now shows the piece that is actually in stock.'
       ]},
           ]
   }
@@ -20012,6 +20112,7 @@ function clearCalc() {
   _lastScannedInvEntry = null;
   _lastScannedRaw = null;
   _lastChipRaw = null;
+  _resetScanVariants();
   const cpbThumb = document.getElementById('cpbPhotoThumb');
   if (cpbThumb) { cpbThumb.removeAttribute('data-src'); cpbThumb.src = ''; cpbThumb.style.display = 'none'; }
 
@@ -22548,7 +22649,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.15';
+const APP_VERSION = '11.16';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
