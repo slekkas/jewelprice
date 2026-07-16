@@ -13933,12 +13933,31 @@ async function deleteInventoryItem(id) {
 }
 
 // Calculate live retail price for an inventory item using current spot prices
+// Resolve an item's VENDOR.
+// vendorIdx is a position in state.vendors, and deleting a vendor used to shift every
+// later vendor down (fixed in v11.12 — they retire now, keeping their slot). Pieces added
+// before a deletion still carry the old index and silently price off the wrong vendor.
+// Items also store vendorName, so when the two disagree the name wins: it is what the
+// owner actually chose. Read-only — nothing is rewritten (a silent self-heal that edited
+// records is exactly what went wrong with stone auto-pricing in v10.19).
+// A renamed vendor makes the stored name match nothing, which correctly falls back to the
+// index; the name is only trusted when it identifies exactly ONE vendor.
+function _itemVendor(item) {
+  if (!item || item.vendorIdx === undefined || item.vendorIdx === null) return null;
+  const byIdx = state.vendors[item.vendorIdx];
+  if (item.vendorName && (!byIdx || byIdx.name !== item.vendorName)) {
+    const hits = state.vendors.filter(v => v.name === item.vendorName);
+    if (hits.length === 1) return hits[0];
+  }
+  return byIdx || null;
+}
+
 // Resolve the correct vendor category for an inventory item.
 // Looks up by catName first (immune to index shifts from add/delete/reorder),
 // falls back to catIdx for legacy items that predate catName storage.
 function getItemCat(item) {
   if (item.vendorIdx === undefined || item.vendorIdx === null) return null;
-  const vendor = state.vendors[item.vendorIdx];
+  const vendor = _itemVendor(item);
   if (!vendor) return null;
   const cats = getVendorCategories(vendor);
   if (!cats || cats.length === 0) return null;
@@ -14005,7 +14024,7 @@ function calcInvItemPrice(item) {
   let margin = globalMargin;
   let isPerItemLabor = false;
   if (item.vendorIdx !== undefined && item.catIdx !== undefined) {
-    const vendor = state.vendors[item.vendorIdx];
+    const vendor = _itemVendor(item);
     if (vendor) {
       const cats = getVendorCategories(vendor);
       const cat = getItemCat(item);
@@ -19473,8 +19492,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.13', date: 'Ιούλιος 2026', items: [
-        '🐞 Διόρθωση: εμφανιζόταν λανθασμένη προειδοποίηση «άλλαξες το καράτι» σε προμηθευτές που έχουν δύο κατηγορίες με ίδιο όνομα και διαφορετικό καράτι (π.χ. «Διάφορα κοσμήματα 18k» και «Διάφορα κοσμήματα 14k») — ακόμα κι αν δεν αγγίζατε τίποτα. Δεν χαλούσε τίποτα, αλλά τρόμαζε άδικα. Βρέθηκε ελέγχοντας τα πραγματικά σας δεδομένα.'
+      { version: 'v11.14', date: 'Ιούλιος 2026', items: [
+        '🩹 Αυτο-διόρθωση κοσμημάτων που «κόλλησαν» σε λάθος προμηθευτή. Όταν διαγραφόταν ένας προμηθευτής (πριν το φτιάξουμε στην v11.12), όσα κοσμήματα ήταν από κάτω του δείχνανε σε λάθος προμηθευτή. Κάθε κόσμημα αποθηκεύει και το ΟΝΟΜΑ του προμηθευτή του, οπότε τώρα, αν το όνομα διαφωνεί με τη θέση, κερδίζει το όνομα — και η τιμή βγαίνει σωστή. Δεν αλλάζει τίποτα στα δεδομένα σας, μόνο στον υπολογισμό.',
+        '✅ Στα δικά σας δεδομένα βρέθηκαν ακριβώς 2 τέτοια κοσμήματα (2 σμαραγδένια του Κούλη από τις 18 Ιουνίου) — και τα δύο τιμολογούνται πλέον σωστά στα €25/γρ. αντί για λάθος/καθόλου εργατικά.'
       ]},
           ]
   },
@@ -19505,8 +19525,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.13', date: 'Jul 2026', items: [
-        '🐞 Fix: a false "you changed the karat" warning appeared on vendors that have two categories with the same name at different karats (e.g. "Διάφορα κοσμήματα 18k" and "Διάφορα κοσμήματα 14k") — even when you changed nothing. It broke nothing, but it was alarming for no reason. Found by auditing your real data.'
+      { version: 'v11.14', date: 'Jul 2026', items: [
+        '🩹 Pieces stuck on the wrong vendor now heal themselves. When a vendor was deleted (before v11.12 fixed that), every piece below it started pointing at the wrong vendor. Each piece also stores its vendor\'s NAME, so when the name disagrees with the position, the name now wins — and the price comes out right. Nothing in your data is rewritten; only the calculation changes.',
+        '✅ Your data had exactly 2 such pieces (two of Κούλης\'s emerald items from 18 June) — both now price correctly at €25/g instead of with the wrong labour or none at all.'
       ]},
           ]
   }
@@ -22511,7 +22532,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.13';
+const APP_VERSION = '11.14';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
