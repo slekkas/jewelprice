@@ -6324,10 +6324,8 @@ function buildLabelStrings() {
   if (!latinCode) return null;
   const vAbbr = getVendorAbbr(vendor.name, state.vendors);
   const cats = getVendorCategories(vendor);
-  const nameToAbbr = buildNameToAbbr(cats);
   const cat = cats[catIdx];
-  const catKey = extractLetters(cat ? cat.name : '');
-  const cAbbr = nameToAbbr[catKey] || '';
+  const cAbbr = catAbbrs(cats)[catIdx] || '';
   const k = cat && cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
   const greekCode = vAbbr + k + cAbbr;
   const isOtherVendor = vendor.vendorType === 'other';
@@ -9920,21 +9918,21 @@ function renderVendors() {
   document.getElementById('vendorList').innerHTML = state.vendors.map((v,i) => {
     const cats = getVendorCategories(v);
     const vAbbr = getVendorAbbr(v.name, state.vendors);
-    const nameToAbbrV = buildNameToAbbr(cats);
+    const _abbrsV = catAbbrs(cats);
+    const _abbrsVLatin = catAbbrs(cats, true);
 
     // Codes detail (shown when expanded)
     const codesHtml = cats.map((c,ci) => {
-      const cAbbr = nameToAbbrV[extractLetters(c.name)];
+      const cAbbr = _abbrsV[ci];
       const k = c.karat && c.karat !== '—' ? karatCode(c.karat) : '';
       const codePattern = vAbbr + k + cAbbr;
       const vAbbrLatin = getLatinVendorAbbr(v.name, state.vendors);
-      const nameToAbbrLatin = buildLatinNameToAbbr(cats);
-      const cAbbrLatin = nameToAbbrLatin[transliterateToLatin(extractLetters(c.name))];
+      const cAbbrLatin = _abbrsVLatin[ci];
       const latinCode = vAbbrLatin + k + cAbbrLatin;
       const marginBadge = (!isEmployee && c.margin !== undefined && c.margin !== null)
         ? ` <span style="font-size:9px;color:var(--text-muted)">(${c.margin}%)</span>` : '';
       const handmadeBadge = c.handmade ? ' ✋' : '';
-      const rateHtml = isEmployee ? '' : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${parseFloat(c.rate).toFixed(2)}${c.rateType==='flat'?' flat':'/g'}</span>`;
+      const rateHtml = isEmployee ? '' : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${_fmtRate(c.rate)}${c.rateType==='flat'?' flat':'/g'}</span>`;
       return `<div class="vendor-code-row">
         <span class="code-badge">${codePattern}</span>
         <span class="code-badge" style="background:rgba(176,184,200,0.1);border-color:rgba(176,184,200,0.3);color:var(--silver-light);font-size:11px">${latinCode}</span>
@@ -10066,6 +10064,7 @@ function saveVendorFromModal() {
       if (catName) laborCategories.push({ name: catName, multiplier, karat: '—', rate: 0 });
     });
     if (laborCategories.length === 0) { showStatus('vendorModalStatus', lang==='el'?'⚠️ Προσθέστε τουλάχιστον μία κατηγορία':'⚠️ Add at least one category', 'error'); return; }
+    _freezeCatAbbrs(laborCategories);
     state.vendors.push({ name, vendorType: 'other', discount, laborCategories });
   } else {
     // Metal-type vendor (existing flow)
@@ -10083,6 +10082,7 @@ function saveVendorFromModal() {
       if (!catName || (rateType !== 'peritem' && isNaN(rate))) { showStatus('vendorModalStatus', t('laborFillAll'), 'error'); return; }
       laborCategories.push({ name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType, ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
     }
+    _freezeCatAbbrs(laborCategories);
     state.vendors.push({ name, laborCategories });
   }
   const savedIdx = state.vendors.length - 1;
@@ -10102,11 +10102,20 @@ function editVendor(i) {
     setVendorFormType('other');
     document.getElementById('v_discount').value = v.discount || '';
     document.getElementById('vfOtherCatList').innerHTML = '';
-    (v.laborCategories || []).forEach(c => addVfOtherCatRow(c.name, c.multiplier || ''));
+    const _oCats = v.laborCategories || [];
+    const _oAbbrs = catAbbrs(_oCats);
+    const _oAbbrsLatin = catAbbrs(_oCats, true);
+    _oCats.forEach((c, ci) => addVfOtherCatRow(c.name, c.multiplier || '', _oAbbrs[ci], _oAbbrsLatin[ci]));
   } else {
     setVendorFormType('metal');
     document.getElementById('laborList').innerHTML = '';
-    getVendorCategories(v).forEach(c => addLaborRow(c.name, c.karat || '18', c.rate, c.margin !== undefined ? c.margin : '', c.handmade || false, c.rateType || 'pergram'));
+    // Freeze each category's code letters NOW, from the names as they stand before the
+    // owner touches anything — a legacy vendor has none stored yet, and once the form is
+    // saved the codes are pinned to what its printed tags already say.
+    const _vCats = getVendorCategories(v);
+    const _vAbbrs = catAbbrs(_vCats);
+    const _vAbbrsLatin = catAbbrs(_vCats, true);
+    _vCats.forEach((c, ci) => addLaborRow(c.name, c.karat || '18', c.rate, c.margin !== undefined ? c.margin : '', c.handmade || false, c.rateType || 'pergram', _vAbbrs[ci], _vAbbrsLatin[ci]));
   }
 
   const form = document.getElementById('addVendorForm');
@@ -10212,10 +10221,14 @@ async function confirmDeleteLaborRow(btn) {
   );
 }
 
-function addLaborRow(name='', karat='18', rate='', margin='', handmade=false, rateType='pergram') {
+function addLaborRow(name='', karat='18', rate='', margin='', handmade=false, rateType='pergram', abbr='', abbrLatin='') {
   const list = document.getElementById('laborList');
   const row = document.createElement('div');
   row.className = 'labor-row';
+  // The row carries the category's frozen code letters so a rename in this form can't
+  // move them. A row added by hand has none and gets fresh ones on save.
+  if (abbr) row.dataset.abbr = abbr;
+  if (abbrLatin) row.dataset.abbrLatin = abbrLatin;
   const karatOptions = ['9','10','14','18','21','22','24','925s','950s','800s','—'].map(k => {
     const isSilver = k.endsWith('s');
     const val = isSilver ? k.slice(0,-1) : k;
@@ -10364,9 +10377,12 @@ function saveVendor() {
       const inputs = row.querySelectorAll('input');
       const catName = inputs[0].value.trim();
       const multiplier = parseFloat(inputs[1].value) || 1;
-      if (catName) laborCategories.push({ name: catName, multiplier, karat: '—', rate: 0 });
+      if (catName) laborCategories.push({ name: catName, multiplier, karat: '—', rate: 0,
+        ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
+        ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }) });
     });
     if (laborCategories.length === 0) { showStatus('vendorStatus', lang==='el'?'⚠️ Προσθέστε τουλάχιστον μία κατηγορία':'⚠️ Add at least one category', 'error'); return; }
+    _freezeCatAbbrs(laborCategories);
     vendor = { name, vendorType: 'other', discount, laborCategories };
   } else {
     const rows = document.querySelectorAll('#laborList .labor-row');
@@ -10381,8 +10397,12 @@ function saveVendor() {
       const rateType = row.querySelector('.rate-type-toggle')?.classList.contains('flat') ? 'flat' : row.querySelector('.rate-type-toggle')?.classList.contains('peritem') ? 'peritem' : 'pergram';
       const rate = rateType === 'peritem' ? 0 : parseFloat(row.querySelector('.rate-input').value);
       if (!catName || (rateType !== 'peritem' && isNaN(rate))) { showStatus('vendorStatus', t('laborFillAll'), 'error'); return; }
-      laborCategories.push({ name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType, ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
+      laborCategories.push({ name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType,
+        ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
+        ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }),
+        ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
     }
+    _freezeCatAbbrs(laborCategories);
     vendor = { name, laborCategories };
   }
   // Detect labor rate / margin changes on existing categories — these silently drift
@@ -10390,7 +10410,12 @@ function saveVendor() {
   let changedCats = [];
   if (editingVendorIndex !== null && vendorType !== 'other') {
     const oldVendor = state.vendors[editingVendorIndex];
-    const oldCats = oldVendor ? getVendorCategories(oldVendor) : [];
+    // Compare rows by _catKey, which prefers the frozen code letters. The saved rows carry
+    // them, but a vendor being edited for the first time since v11.10 doesn't have them
+    // stored yet — resolve the same values it was opened with so the two sides match.
+    const _oldRaw = oldVendor ? getVendorCategories(oldVendor) : [];
+    const _oldFrozen = catAbbrs(_oldRaw);
+    const oldCats = _oldRaw.map((c, i) => (c.abbr ? c : { ...c, abbr: _oldFrozen[i] }));
     (vendor.laborCategories || []).forEach(newCat => {
       if (newCat.rateType === 'peritem') return; // per-item labor is frozen on the item itself, no live drift
       const oldCat = oldCats.find(c => _catKey(c) === _catKey(newCat));
@@ -10534,10 +10559,11 @@ function getVendorCategories(vendor) {
   ];
 }
 
-// A vendor can hold the same category name at several karats (e.g. Earrings 18K and
-// Earrings 14K) — the karat, not the name, is what tells two such rows apart, both in
-// the printed code (ΚΑΛ18Κ vs ΚΑΛ14Κ) and wherever a category is matched by identity.
-const _catKey = c => (c ? (c.name || '') + '|' + (c.karat || '') : '');
+// Identity of one labor-category ROW. Two rows may legitimately share a name (Σκουλαρίκια
+// at 18K and at 14K, or even the same karat at two rates), so identity is the frozen code
+// letters when present — unique per row within the vendor, and stable across a rename.
+// Legacy rows that aren't frozen yet fall back to name+karat.
+const _catKey = c => (c ? (c.abbr ? 'a:' + c.abbr : (c.name || '') + '|' + (c.karat || '')) : '');
 
 function catKaratLabel(cat) {
   const k = cat && cat.karat;
@@ -10545,7 +10571,11 @@ function catKaratLabel(cat) {
   return String(k).endsWith('s') ? karatCode(k) : karatCode(k) + 'K';
 }
 
-// Shared label for a labor-category <option>: "Σκουλαρίκια (18K · €22.00/γρ.)".
+// Rates are round numbers (10, 12, 20) with the odd half (12.5), so trailing zeros are
+// just clutter: 12 → "12", 12.5 → "12.5", never "12.00".
+const _fmtRate = r => String(parseFloat(r));
+
+// Shared label for a labor-category <option>: "Σκουλαρίκια (18K · €22/γρ.)".
 // The karat + rate are shown so two same-named categories are distinguishable at a glance.
 function catOptionLabel(cat, isOtherType) {
   const bits = [];
@@ -10559,7 +10589,7 @@ function catOptionLabel(cat, isOtherType) {
     bits.push('📦 ' + t('perItem'));
   } else if (!isNaN(parseFloat(cat.rate))) {
     const unit = cat.rateType === 'flat' ? ' ' + t('flatFee') : (lang === 'el' ? '/γρ.' : '/g');
-    bits.push(cur + parseFloat(cat.rate).toFixed(2) + unit);
+    bits.push(cur + _fmtRate(cat.rate) + unit);
   }
   return bits.length ? cat.name + ' (' + bits.join(' · ') + ')' : cat.name;
 }
@@ -10629,11 +10659,9 @@ function buildLatinNameToAbbr(cats) {
 function getLatinCodeForCat(vendor, catIdx, allVendors) {
   const vAbbr = getLatinVendorAbbr(vendor.name, allVendors);
   const cats = getVendorCategories(vendor);
-  const nameToAbbr = buildLatinNameToAbbr(cats);
   const cat = cats[catIdx];
   if (!cat) return '';
-  const key = transliterateToLatin(extractLetters(cat.name));
-  const cAbbr = nameToAbbr[key];
+  const cAbbr = catAbbrs(cats, true)[catIdx];
   const k = cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
   return vAbbr + k + cAbbr;
 }
@@ -10734,17 +10762,98 @@ function buildNameToAbbr(cats) {
   return nameToAbbr;
 }
 
+// ─── FROZEN CATEGORY ABBREVIATIONS ───────────────────────────────────────────
+// The category letters in a printed code (ΚΑΛ18Σ → Σ) used to be re-derived from the
+// category NAME every time they were needed. That made renaming a category silently
+// change codes already printed on tags in the shop — and worse, because the letters are
+// handed out in list order and must stay unique within a vendor, renaming one category
+// could shift a NEIGHBOUR's letter and strand tags on a category never touched.
+//
+// A category therefore carries a frozen `abbr` / `abbrLatin` from the moment its vendor
+// is saved: the code is pinned to what its tags actually say, and the name becomes free
+// to edit. `editVendor` freezes the current values when the form opens — before any
+// rename can happen — exactly like the frozen `refType` on an item (v10.20).
+//
+// A vendor saved before v11.10 carries no frozen abbreviations at all; those keep
+// deriving through the OLD name-keyed scheme, so their tags are untouched until the owner
+// opens and saves that vendor. Anything derived fresh from here on uses deriveCatAbbr.
+const GREEK_ALPHA_UP = 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ';
+const LATIN_ALPHA_UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function _firstFreeAbbr(first, alpha, used) {
+  for (const ch of alpha) {
+    const a = first + ch;
+    if (!used.includes(a)) return a;
+  }
+  return null;
+}
+
+// First letter + the next letter of the name that keeps it unique within the vendor:
+// «Σκουλαρίκια» → ΣΚ, a second one → ΣΟ, a third → ΣΥ. Two letters, so the same category
+// name can be repeated at several karats/rates and each still gets its own code.
+// NEVER returns a digit: parseCodeInput reads the trailing digits of a code as the
+// weight, so a digit here would be swallowed into it (ΚΑΛ14Σ2 + 4.5 → weight 24.5).
+function deriveCatAbbr(catName, used, latin) {
+  const clean = latin ? transliterateToLatin(extractLetters(catName)) : extractLetters(catName);
+  const alpha = latin ? LATIN_ALPHA_UP : GREEK_ALPHA_UP;
+  if (!clean) return _firstFreeAbbr(alpha[0], alpha, used) || alpha[0] + alpha[0];
+  const first = clean[0];
+  for (let i = 1; i < clean.length; i++) {
+    const a = first + clean[i];
+    if (!used.includes(a)) return a;
+  }
+  // Every letter of the name is already spoken for — walk the alphabet instead.
+  return _firstFreeAbbr(first, alpha, used) || (first + first);
+}
+
+// Pin every category's code letters onto the category itself, so from this save on the
+// code no longer depends on the name. Categories that already carry frozen letters keep
+// them untouched (that is the whole point); only the ones without get fresh ones.
+// Called from both vendor-save paths, so every category saved from v11.10 on is pinned.
+function _freezeCatAbbrs(cats) {
+  const usedG = cats.map(c => c.abbr).filter(Boolean);
+  const usedL = cats.map(c => c.abbrLatin).filter(Boolean);
+  cats.forEach(c => {
+    if (!c.abbr)      { c.abbr      = deriveCatAbbr(c.name, usedG, false); usedG.push(c.abbr); }
+    if (!c.abbrLatin) { c.abbrLatin = deriveCatAbbr(c.name, usedL, true);  usedL.push(c.abbrLatin); }
+  });
+  return cats;
+}
+
+// Abbreviations for a vendor's categories, index-aligned with `cats` (NOT keyed by name —
+// two categories may legitimately share a name at different karats/rates and each needs
+// its own code).
+function catAbbrs(cats, latin) {
+  const field = latin ? 'abbrLatin' : 'abbr';
+  if (!cats.some(c => c[field])) {
+    // Legacy vendor, never saved since v11.10: derive exactly as before so its printed
+    // tags keep resolving. Opening and saving the vendor pins these same values.
+    const m = latin ? buildLatinNameToAbbr(cats) : buildNameToAbbr(cats);
+    return cats.map(c => {
+      const key = latin ? transliterateToLatin(extractLetters(c.name)) : extractLetters(c.name);
+      return m[key] || '';
+    });
+  }
+  const used = cats.map(c => c[field]).filter(Boolean);
+  return cats.map(c => {
+    if (c[field]) return c[field];
+    const a = deriveCatAbbr(c.name, used, latin);
+    used.push(a);
+    return a;
+  });
+}
+
 function buildCodeMap() {
   const map = new Map();
   state.vendors.forEach((vendor, vi) => {
     const vAbbr = getVendorAbbr(vendor.name, state.vendors);
     const vAbbrLatin = getLatinVendorAbbr(vendor.name, state.vendors);
     const cats = getVendorCategories(vendor);
-    const nameToAbbr = buildNameToAbbr(cats);
-    const nameToAbbrLatin = buildLatinNameToAbbr(cats);
+    const _abbrs = catAbbrs(cats);
+    const _abbrsLatin = catAbbrs(cats, true);
     cats.forEach((cat, ci) => {
-      const cAbbr = nameToAbbr[extractLetters(cat.name)];
-      const cAbbrLatin = nameToAbbrLatin[transliterateToLatin(extractLetters(cat.name))];
+      const cAbbr = _abbrs[ci];
+      const cAbbrLatin = _abbrsLatin[ci];
       const k = cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
       const isOtherType = vendor.vendorType === 'other';
       // Greek code
@@ -10779,12 +10888,12 @@ function showDebugCodes() {
   state.vendors.forEach((vendor, vi) => {
     const vAbbr = getVendorAbbr(vendor.name, state.vendors);
     const cats = getVendorCategories(vendor);
-    const nameToAbbr = buildNameToAbbr(cats);
-    const nameToAbbrLatin = buildLatinNameToAbbr(cats);
+    const _abbrs = catAbbrs(cats);
+    const _abbrsLatin = catAbbrs(cats, true);
     const vAbbrLatin = getLatinVendorAbbr(vendor.name, state.vendors);
-    cats.forEach(cat => {
-      const cAbbr = nameToAbbr[extractLetters(cat.name)];
-      const cAbbrLatin = nameToAbbrLatin[transliterateToLatin(extractLetters(cat.name))];
+    cats.forEach((cat, ci) => {
+      const cAbbr = _abbrs[ci];
+      const cAbbrLatin = _abbrsLatin[ci];
       const k = cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
       const greekCode = vAbbr + k + cAbbr;
       const latinCode = vAbbrLatin + k + cAbbrLatin;
@@ -11486,12 +11595,12 @@ function doPrintRefCard(showPrices) {
   state.vendors.forEach((vendor, vi) => {
     const vAbbr = getVendorAbbr(vendor.name, state.vendors);
     const cats = getVendorCategories(vendor);
-    const nameToAbbrP = buildNameToAbbr(cats);
-    const nameToAbbrLatinP = buildLatinNameToAbbr(cats);
+    const _abbrsP = catAbbrs(cats);
+    const _abbrsLatinP = catAbbrs(cats, true);
     const vAbbrLatinP = getLatinVendorAbbr(vendor.name, state.vendors);
     cats.forEach((cat, ci) => {
-      const cAbbr = nameToAbbrP[extractLetters(cat.name)];
-      const cAbbrLatin = nameToAbbrLatinP[transliterateToLatin(extractLetters(cat.name))];
+      const cAbbr = _abbrsP[ci];
+      const cAbbrLatin = _abbrsLatinP[ci];
       if (!byVendor[vendor.name]) byVendor[vendor.name] = [];
       const k = cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
       byVendor[vendor.name].push({
@@ -13640,12 +13749,16 @@ function getItemCat(item) {
   if (!vendor) return null;
   const cats = getVendorCategories(vendor);
   if (!cats || cats.length === 0) return null;
-  // Name-first lookup
+  // Name-first lookup — it survives a category being inserted above this one, which would
+  // shift catIdx. But a name is only a safe key while it identifies exactly ONE category:
+  // a vendor may now hold the same name at several karats/rates (Σκουλαρίκια 14K and 18K),
+  // and picking the first match there would price the piece off the wrong row entirely.
+  // When the name is ambiguous, catIdx is the only thing that says which one was chosen.
   if (item.catName) {
-    const byName = cats.find(c => c.name === item.catName);
-    if (byName) return byName;
+    const byName = cats.filter(c => c.name === item.catName);
+    if (byName.length === 1) return byName[0];
   }
-  // Fallback: index
+  // Index: exact for the category the piece was actually priced with.
   return cats[item.catIdx] || null;
 }
 
@@ -19167,9 +19280,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.09', date: 'Ιούλιος 2026', items: [
-        '🖨️ Η επανεκτύπωση ετικέτας δεν προσθέτει πια το κόσμημα δεύτερη φορά. Μόλις αποθηκευτεί στο απόθεμα, το παράθυρο της ετικέτας το γράφει («✓ Αποθηκεύτηκε στο απόθεμα — PE0599») και το κουμπί γίνεται «Επανεκτύπωση»: πατήστε το όσες φορές θέλετε, τυπώνει μόνο χαρτί. Για αλλαγές ή για δεύτερο ίδιο κομμάτι, πηγαίνετε στο Απόθεμα (✏️ Επεξεργασία ή «🔗 Προσθήκη παρόμοιων»).',
-        '🏷️ Η λίστα «Κατηγορία Εργασίας» δείχνει τώρα καράτια και τιμή — π.χ. «Σκουλαρίκια (18K · €22.00/γρ.)». Έτσι μπορείτε να έχετε την ίδια κατηγορία σε δύο καράτια (18Κ και 14Κ) χωρίς να μετονομάσετε τίποτα.'
+      { version: 'v11.10', date: 'Ιούλιος 2026', items: [
+        '🔒 Τα ονόματα κατηγοριών ξεκλείδωσαν! Ο κωδικός κάθε κατηγορίας «καρφώνεται» πλέον σε αυτό που γράφουν ήδη οι τυπωμένες ετικέτες, την πρώτη φορά που θα ανοίξετε και θα αποθηκεύσετε τον προμηθευτή. Από εκεί και πέρα μετονομάστε ελεύθερα ό,τι θέλετε (π.χ. «Μενταγιόν 14€/g 14k» → «Μενταγιόν») — καμία ετικέτα δεν χαλάει. Πριν, μια μετονομασία άλλαζε στα κρυφά τον κωδικό και οι παλιές ετικέτες δεν διαβάζονταν πια.',
+        '👯 Ίδιο όνομα σε πολλές κατηγορίες: μπορείτε τώρα να έχετε «Σκουλαρίκια (14K · €17/γρ.)» και «Σκουλαρίκια (18K · €20/γρ.)» — ακόμα και ίδιο καράτι με άλλη τιμή. Οι νέες κατηγορίες παίρνουν κωδικό δύο γραμμάτων (Σκουλαρίκια → ΣΚ, το επόμενο → ΣΟ, μετά ΣΥ).',
+        '🔢 Χωρίς περιττά μηδενικά στην τιμή: €17/γρ. αντί για €17.00/γρ. (τα μισά δεκαδικά μένουν, π.χ. €12.5/γρ.).'
       ]},
           ]
   },
@@ -19200,9 +19314,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.09', date: 'Jul 2026', items: [
-        '🖨️ Reprinting a tag no longer adds the piece to stock a second time. Once it is saved the label box says so ("✓ Saved to stock — PE0599") and the button becomes "Reprint": press it as often as you like, it only puts ink on paper. To change something, or to add a second identical piece, use Stock (✏️ Edit or "🔗 Add similar items").',
-        '🏷️ The "Labor Category" dropdown now shows the karat and the rate — e.g. "Earrings (18K · €22.00/g)". So you can keep the same category at two karats (18K and 14K) without renaming anything.'
+      { version: 'v11.10', date: 'Jul 2026', items: [
+        '🔒 Category names are unlocked! Each category\'s code is now pinned to what its printed tags already say, the first time you open and save that vendor. From then on rename anything you like (e.g. "Μενταγιόν 14€/g 14k" → "Μενταγιόν") — no tag ever breaks. Before, a rename silently changed the code and the old tags stopped scanning.',
+        '👯 The same name can now be used more than once: "Earrings (14K · €17/g)" and "Earrings (18K · €20/g)" — even the same karat at a different rate. New categories get a two-letter code (Earrings → ΣΚ, the next one → ΣΟ, then ΣΥ).',
+        '🔢 No more trailing zeros on the rate: €17/g instead of €17.00/g (halves still show, e.g. €12.5/g).'
       ]},
           ]
   }
@@ -22207,7 +22322,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.09';
+const APP_VERSION = '11.10';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -24592,10 +24707,14 @@ function setVendorFormType(type) {
   document.getElementById('v_vendorType').value = type;
 }
 
-function addVfOtherCatRow(name='', multiplier='') {
+function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='') {
   const list = document.getElementById('vfOtherCatList');
   const row = document.createElement('div');
   row.className = 'other-cat-row';
+  // Other-type categories are in printed codes too (BUTR-5594), so their letters are
+  // frozen on the row exactly like the metal-vendor rows above.
+  if (abbr) row.dataset.abbr = abbr;
+  if (abbrLatin) row.dataset.abbrLatin = abbrLatin;
   row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px';
   row.innerHTML = `
     <input type="text" placeholder="${lang==='el'?'π.χ. Σκουλαρίκια':'e.g. Earrings'}" value="${name}" style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:9px 10px;outline:none">
