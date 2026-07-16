@@ -6801,6 +6801,7 @@ function _openLabelModalInner(data, modal, content) {
       style="width:100%;margin-top:8px;padding:12px;background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase">
       🖼️ ${lang === 'el' ? 'Αποθήκευση QR ως Εικόνα' : 'Save QR as Image'}
     </button>
+    <div id="lblSavedNote" style="display:none;font-size:11px;color:#81c784;text-align:center;margin-top:8px;font-family:'DM Mono',monospace;letter-spacing:0.05em"></div>
     <div id="lblPrintStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px;min-height:16px;font-family:'DM Mono',monospace;letter-spacing:0.05em"></div>
     <div style="font-size:10px;color:var(--text-muted);text-align:center;margin-top:4px;opacity:0.6">${t('labelPrintHint')}</div>`;
 
@@ -10392,19 +10393,19 @@ function saveVendor() {
     const oldCats = oldVendor ? getVendorCategories(oldVendor) : [];
     (vendor.laborCategories || []).forEach(newCat => {
       if (newCat.rateType === 'peritem') return; // per-item labor is frozen on the item itself, no live drift
-      const oldCat = oldCats.find(c => c.name === newCat.name);
+      const oldCat = oldCats.find(c => _catKey(c) === _catKey(newCat));
       if (!oldCat) return; // brand new category — nothing existing to recalibrate
       const oldRate = parseFloat(oldCat.rate) || 0;
       const newRate = parseFloat(newCat.rate) || 0;
       const oldMargin = (oldCat.margin === undefined || oldCat.margin === null) ? null : parseFloat(oldCat.margin);
       const newMargin = (newCat.margin === undefined || newCat.margin === null) ? null : parseFloat(newCat.margin);
       if (Math.abs(oldRate - newRate) > 0.001 || oldMargin !== newMargin) {
-        changedCats.push({ name: newCat.name, oldRate, newRate });
+        changedCats.push({ name: newCat.name, karat: newCat.karat, key: _catKey(newCat), oldRate, newRate });
       }
     });
   }
 
-  function finishVendorSave(isMistakeFix, recalCatNames) {
+  function finishVendorSave(isMistakeFix, recalCatKeys) {
     let savedIdx;
     if (editingVendorIndex !== null) {
       savedIdx = editingVendorIndex;
@@ -10420,19 +10421,22 @@ function saveVendor() {
     document.getElementById('addVendorForm').style.display = 'none';
     document.getElementById('laborList').innerHTML = '';
     showStatus('vendorStatus', t('vendorSaved'), 'ok');
-    if (isMistakeFix && recalCatNames && recalCatNames.length > 0) {
-      recalibrateCategoryItems(savedIdx, recalCatNames);
+    if (isMistakeFix && recalCatKeys && recalCatKeys.length > 0) {
+      recalibrateCategoryItems(savedIdx, recalCatKeys);
     }
   }
 
   if (changedCats.length > 0) {
     const cur = state.currency || '€';
-    const list = changedCats.map(c => `${c.name}: ${cur}${c.oldRate.toFixed(2)} → ${cur}${c.newRate.toFixed(2)}`).join('\n');
+    const list = changedCats.map(c => {
+      const k = catKaratLabel(c);
+      return `${c.name}${k ? ' ' + k : ''}: ${cur}${c.oldRate.toFixed(2)} → ${cur}${c.newRate.toFixed(2)}`;
+    }).join('\n');
     const msg = lang === 'el'
       ? `Άλλαξες την τιμή σε ${changedCats.length === 1 ? 'αυτή την κατηγορία' : 'αυτές τις κατηγορίες'}:\n${list}\n\nΕίναι αύξηση τιμής (η τιμή των υπαρχόντων αντικειμένων θα ακολουθήσει κανονικά) ή διόρθωση λάθους (η αρχική τιμή θα επαναφερθεί ώστε να μη φανεί ψεύτικη μεταβολή %);`
       : `You changed the rate on ${changedCats.length === 1 ? 'this category' : 'these categories'}:\n${list}\n\nIs this a price increase (existing items' % will move normally) or a mistake fix (their initial price will be recalibrated so the % doesn't show a fake jump)?`;
     showConfirm(msg, () => {
-      finishVendorSave(true, changedCats.map(c => c.name));
+      finishVendorSave(true, changedCats.map(c => c.key));
     }, () => {
       finishVendorSave(false, []);
     }, {
@@ -10448,12 +10452,14 @@ function saveVendor() {
 
 // Bulk-recalibrate initialRetail for all in-stock items in the given categories of a vendor,
 // so a corrected labor rate / margin doesn't show up as a fake price-change %.
-async function recalibrateCategoryItems(vendorIdx, catNames) {
+// Categories are matched by name+karat (_catKey), so correcting the rate on e.g. Earrings 14K
+// leaves the same vendor's Earrings 18K items alone.
+async function recalibrateCategoryItems(vendorIdx, catKeys) {
   const inv = _inventoryCache || await loadInventory();
   const targets = Object.entries(inv).filter(([, item]) => {
     if (item.vendorIdx !== vendorIdx || item.metal === 'other' || item.status === 'sold') return false;
     const cat = getItemCat(item);
-    return cat && catNames.includes(cat.name);
+    return cat && catKeys.includes(_catKey(cat));
   });
   if (targets.length === 0) return;
 
@@ -10508,9 +10514,10 @@ function updateWorkTypeOptions() {
     return;
   }
   const cats = getVendorCategories(vendor);
+  const _isOther = vendor.vendorType === 'other';
   const placeholder = lang === 'el' ? 'Επιλέξτε κατηγορία...' : 'Select category...';
   wt.innerHTML = `<option value="" disabled>${placeholder}</option>` +
-    cats.map((c,i) => `<option value="${i}">${c.name}</option>`).join('');
+    cats.map((c,i) => `<option value="${i}">${catOptionLabel(c, _isOther)}</option>`).join('');
   if (prevVal !== '' && parseInt(prevVal) < cats.length) {
     wt.value = prevVal;
   } else {
@@ -10525,6 +10532,36 @@ function getVendorCategories(vendor) {
     { name: 'Handmade / Artisan', rate: vendor.handmade || 0 },
     { name: 'Custom / Bespoke', rate: vendor.custom || 0 }
   ];
+}
+
+// A vendor can hold the same category name at several karats (e.g. Earrings 18K and
+// Earrings 14K) — the karat, not the name, is what tells two such rows apart, both in
+// the printed code (ΚΑΛ18Κ vs ΚΑΛ14Κ) and wherever a category is matched by identity.
+const _catKey = c => (c ? (c.name || '') + '|' + (c.karat || '') : '');
+
+function catKaratLabel(cat) {
+  const k = cat && cat.karat;
+  if (!k || k === '—') return '';
+  return String(k).endsWith('s') ? karatCode(k) : karatCode(k) + 'K';
+}
+
+// Shared label for a labor-category <option>: "Σκουλαρίκια (18K · €22.00/γρ.)".
+// The karat + rate are shown so two same-named categories are distinguishable at a glance.
+function catOptionLabel(cat, isOtherType) {
+  const bits = [];
+  const k = catKaratLabel(cat);
+  if (k) bits.push(k);
+  const cur = state.currency || '€';
+  if (isOtherType) {
+    const m = parseFloat(cat.multiplier) || 0;
+    if (m) bits.push('×' + m);
+  } else if (cat.rateType === 'peritem') {
+    bits.push('📦 ' + t('perItem'));
+  } else if (!isNaN(parseFloat(cat.rate))) {
+    const unit = cat.rateType === 'flat' ? ' ' + t('flatFee') : (lang === 'el' ? '/γρ.' : '/g');
+    bits.push(cur + parseFloat(cat.rate).toFixed(2) + unit);
+  }
+  return bits.length ? cat.name + ' (' + bits.join(' · ') + ')' : cat.name;
 }
 
 // ─── LATIN TRANSLITERATION FOR QR CODES ──────────────────────────────────────
@@ -13205,8 +13242,40 @@ function renderPhotoPicker(container, opts) {
 
 function openPhotoPicker() {}
 
-// Called automatically when a label is printed/copied/saved — saves item to inventory
+// Called automatically when a label is printed/copied/saved — saves item to inventory.
+// One label-modal session = ONE inventory record.
+// Every button in the modal (Print / Copy / Print QR only / Save QR as image) saves the
+// piece to stock, so pressing a second one — or pressing Print again because the tag came
+// out crooked — used to add the SAME piece to stock twice. The guard lives on the label
+// `data` object, which openLabelModal rebuilds each time it opens, so a genuinely new
+// piece still saves normally. A failed save clears the flag so the next press retries.
 async function saveToInventoryFromLabel(labelData) {
+  if (!labelData || !labelData.fullQR) return;
+  if (labelData._invSaveState) return; // already saved (or saving) in this modal session
+  labelData._invSaveState = 'saving';
+  let saved = false;
+  try {
+    saved = (await _saveToInventoryFromLabel(labelData)) === true;
+  } finally {
+    labelData._invSaveState = saved ? 'saved' : null;
+  }
+  if (saved) _lblMarkSaved(labelData);
+}
+
+// The piece is now in stock: relabel the modal's Print button as a plain reprint and say
+// so, since from here on the buttons only put ink on paper.
+function _lblMarkSaved(labelData) {
+  const note = document.getElementById('lblSavedNote');
+  if (note) {
+    note.style.display = 'block';
+    note.textContent = '✓ ' + (lang === 'el' ? 'Αποθηκεύτηκε στο απόθεμα' : 'Saved to stock')
+      + (labelData.refCode ? ' — ' + labelData.refCode : '');
+  }
+  const pb = document.getElementById('lblPrintBtn');
+  if (pb) pb.innerHTML = '🖨️ ' + (lang === 'el' ? 'Επανεκτύπωση' : 'Reprint');
+}
+
+async function _saveToInventoryFromLabel(labelData) {
   const r = lastCalcResult;
   if (!labelData || !labelData.fullQR) return;
   // For peritem categories, lastCalcResult may be null — that's OK, we read from DOM directly
@@ -13392,8 +13461,11 @@ async function saveToInventoryFromLabel(labelData) {
   item.seqId = labelData._pendingSeqId || await getNextSeqId();
 
   const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
-  await saveInventoryItem(id, item);
-  if (_inventoryCache) _inventoryCache[id] = item;
+  const ok = await saveInventoryItem(id, item);
+  // Only cache on success — a failed save must not leave a phantom item behind that the
+  // duplicate-QR guard would then trip over when the owner presses Print again to retry.
+  if (ok && _inventoryCache) _inventoryCache[id] = item;
+  return ok;
 }
 
 async function loadInventory() {
@@ -16884,7 +16956,7 @@ function updateBulkCatSelect() {
   const vendor = state.vendors[vIdx];
   if (!vendor) return;
   const cats = getVendorCategories(vendor);
-  catSel.innerHTML = cats.map((c,i) => `<option value="${i}">${c.name} — ${c.rateType==='peritem'?'📦 per item':('€'+parseFloat(c.rate).toFixed(2)+(c.rateType==='flat'?' flat':'/g'))}</option>`).join('');
+  catSel.innerHTML = cats.map((c,i) => `<option value="${i}">${catOptionLabel(c, vendor.vendorType === 'other')}</option>`).join('');
 }
 
 async function confirmAddBulk() {
@@ -19095,8 +19167,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.08', date: 'Ιούλιος 2026', items: [
-        '👁️ «Μόνο επιλεγμένα»: όταν ξεπατάτε ένα είδος, εξαφανίζεται αμέσως από τη λίστα — έτσι όσο δουλεύετε (π.χ. αλλάζετε φωτογραφίες) μένουν να φαίνονται μόνο όσα δεν έχετε τελειώσει ακόμη.'
+      { version: 'v11.09', date: 'Ιούλιος 2026', items: [
+        '🖨️ Η επανεκτύπωση ετικέτας δεν προσθέτει πια το κόσμημα δεύτερη φορά. Μόλις αποθηκευτεί στο απόθεμα, το παράθυρο της ετικέτας το γράφει («✓ Αποθηκεύτηκε στο απόθεμα — PE0599») και το κουμπί γίνεται «Επανεκτύπωση»: πατήστε το όσες φορές θέλετε, τυπώνει μόνο χαρτί. Για αλλαγές ή για δεύτερο ίδιο κομμάτι, πηγαίνετε στο Απόθεμα (✏️ Επεξεργασία ή «🔗 Προσθήκη παρόμοιων»).',
+        '🏷️ Η λίστα «Κατηγορία Εργασίας» δείχνει τώρα καράτια και τιμή — π.χ. «Σκουλαρίκια (18K · €22.00/γρ.)». Έτσι μπορείτε να έχετε την ίδια κατηγορία σε δύο καράτια (18Κ και 14Κ) χωρίς να μετονομάσετε τίποτα.'
       ]},
           ]
   },
@@ -19127,8 +19200,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.08', date: 'Jul 2026', items: [
-        '👁️ "View selected only": deselecting an item now removes it from the view instantly — so as you work through them (e.g. changing photos) only the ones still left to do stay on screen.'
+      { version: 'v11.09', date: 'Jul 2026', items: [
+        '🖨️ Reprinting a tag no longer adds the piece to stock a second time. Once it is saved the label box says so ("✓ Saved to stock — PE0599") and the button becomes "Reprint": press it as often as you like, it only puts ink on paper. To change something, or to add a second identical piece, use Stock (✏️ Edit or "🔗 Add similar items").',
+        '🏷️ The "Labor Category" dropdown now shows the karat and the rate — e.g. "Earrings (18K · €22.00/g)". So you can keep the same category at two karats (18K and 14K) without renaming anything.'
       ]},
           ]
   }
@@ -22133,7 +22207,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.08';
+const APP_VERSION = '11.09';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
