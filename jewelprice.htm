@@ -11323,26 +11323,58 @@ function _variantLabel(it) {
   return bits.join(' · ') || (lang === 'el' ? 'Χωρίς χρώμα' : 'No colour');
 }
 
-// Ask which piece is in hand. Nothing is pre-selected on purpose: a wrong guess here sells
-// the wrong ring and leaves the other one in stock, so a deliberate tap is worth the second.
+// The chooser is a SHEET, not inline chips: a group can hold every colour combination going
+// (8+ rings), which no row of chips can show without squeezing the calc off the screen. One
+// scrollable list, one tap, gone.
+function closeScanVariantSheet() {
+  document.getElementById('scanVariantOverlay')?.remove();
+}
+
+function openScanVariantSheet() {
+  if (_scanVariants.length < 2) return;
+  closeScanVariantSheet();
+  const isEl = lang === 'el';
+  const overlay = document.createElement('div');
+  overlay.id = 'scanVariantOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99996;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;padding:0';
+  // No backdrop-dismiss and no Cancel while nothing is chosen — picking IS the job here,
+  // and a half-answered scan silently sells the wrong piece.
+  overlay.onclick = (e) => { if (e.target === overlay && _scanChosenInvId) closeScanVariantSheet(); };
+  const rows = _scanVariants.map(([id, it]) => {
+    const sel = id === _scanChosenInvId;
+    return `<button type="button" onclick="_pickScanVariant('${id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:8px;border-radius:12px;cursor:pointer;text-align:left;
+      border:1px solid ${sel ? 'var(--gold)' : 'var(--wa12)'};background:${sel ? 'rgba(201,168,76,0.15)' : 'var(--wa04)'};color:var(--text)">
+      <img src="${it.photoUrl || ''}" style="width:56px;height:56px;border-radius:8px;object-fit:contain;background:#fff;flex:0 0 auto"${it.photoUrl ? '' : ' hidden'}>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-family:var(--font-body);font-size:14px;color:${sel ? 'var(--gold-light)' : 'var(--text)'}">${_variantLabel(it)}</span>
+        <span style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:2px">${it.weight ? parseFloat(it.weight).toFixed(2) + 'g' : ''}${it.goldColor && it.color ? '' : ''}</span>
+      </span>
+      ${sel ? '<span style="color:var(--gold);font-size:16px">✓</span>' : ''}
+    </button>`;
+  }).join('');
+  overlay.innerHTML = `<div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-top-left-radius:18px;border-top-right-radius:18px;padding:18px 16px 22px;width:100%;max-width:480px;max-height:82vh;display:flex;flex-direction:column">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">${isEl ? 'Ποιο κρατάτε;' : 'Which one are you holding?'}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
+      ? `Αυτά τα ${_scanVariants.length} κομμάτια έχουν την ΙΔΙΑ ετικέτα (ίδιο βάρος), οπότε το σκανάρισμα δεν ξέρει ποιο κρατάτε. Διαλέξτε το.`
+      : `These ${_scanVariants.length} pieces share the SAME tag (same weight), so the scan can't tell which one you have. Pick it.`}</div>
+    <div style="overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch">${rows}</div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+// A one-line reminder of the pick, tappable to change it. Replaces the old inline chips.
 function _renderScanVariantPicker() {
   const box = document.getElementById('scanVariantPicker');
   if (!box) return;
   if (_scanVariants.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
   const isEl = lang === 'el';
-  const chips = _scanVariants.map(([id, it]) => {
-    const sel = id === _scanChosenInvId;
-    return `<button type="button" onclick="_pickScanVariant('${id}')" style="flex:1 1 0;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;cursor:pointer;text-align:left;
-      border:1px solid ${sel ? 'var(--gold)' : 'var(--wa12)'};background:${sel ? 'rgba(201,168,76,0.15)' : 'var(--wa04)'};color:${sel ? 'var(--gold-light)' : 'var(--text-muted)'};font-family:var(--font-body);font-size:12px">
-      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex:0 0 auto">` : ''}
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_variantLabel(it)}</span>
-    </button>`;
-  }).join('');
-  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">${
-    _scanChosenInvId ? (isEl ? '✓ Επιλεγμένο κομμάτι' : '✓ Selected piece')
-                     : '⚠️ ' + (isEl ? 'Ίδια ετικέτα σε ' + _scanVariants.length + ' κομμάτια — ποιο κρατάτε;'
-                                     : 'Same tag on ' + _scanVariants.length + ' pieces — which one are you holding?')
-  }</div><div style="display:flex;gap:6px">${chips}</div>`;
+  const chosen = _scanVariants.find(([id]) => id === _scanChosenInvId);
+  box.innerHTML = `<div onclick="openScanVariantSheet()" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;cursor:pointer;font-family:var(--font-body);font-size:13px;
+    border:1px solid ${chosen ? 'rgba(201,168,76,0.35)' : 'rgba(255,170,60,0.5)'};background:${chosen ? 'rgba(201,168,76,0.13)' : 'rgba(255,170,60,0.12)'};color:${chosen ? 'var(--gold-light)' : '#ffbe5c'}">
+    <span style="flex:1">${chosen ? '✓ ' + _variantLabel(chosen[1])
+      : '⚠️ ' + (isEl ? 'Ίδια ετικέτα σε ' + _scanVariants.length + ' κομμάτια' : 'Same tag on ' + _scanVariants.length + ' pieces')}</span>
+    <span style="font-size:11px;opacity:.8;white-space:nowrap">${chosen ? (isEl ? 'Αλλαγή →' : 'Change →') : (isEl ? 'Διαλέξτε →' : 'Pick →')}</span>
+  </div>`;
   box.style.display = 'block';
 }
 
@@ -11364,11 +11396,13 @@ function _pickScanVariant(id) {
   _lastScannedInvEntry = hit[1];   // drives calculate()'s photo lookup on any re-render
   _applyScanVariantPhoto(hit[1]);
   _renderScanVariantPicker();
+  closeScanVariantSheet();
 }
 
 function _resetScanVariants() {
   _scanVariants = [];
   _scanChosenInvId = null;
+  closeScanVariantSheet();
   const box = document.getElementById('scanVariantPicker');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
 }
@@ -11403,6 +11437,7 @@ async function _checkInvStatusForCalc(raw) {
       _scanVariants = _inStock;
       _scanChosenInvId = null;
       _renderScanVariantPicker();
+      openScanVariantSheet();   // ask straight away — the answer gates the photo and the sale
     }
 
     // Populate secondary metal UI from inventory item so calculate() picks it up
@@ -19608,8 +19643,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.16', date: 'Ιούλιος 2026', items: [
-        '🎨 «Ποιο κρατάτε;» — Δύο κομμάτια της ίδιας ομάδας με ίδιο βάρος έχουν ΙΔΙΑ ετικέτα, οπότε το σκανάρισμα δεν μπορεί να ξέρει ποιο έχετε στο χέρι. Αν διαφέρουν στο χρώμα (π.χ. ροζ χρυσό vs χρυσό & λευκόχρυσο), η εφαρμογή σας ρωτάει τώρα με φωτογραφίες — και η επιλογή σας καθορίζει τη φωτογραφία, την ΠΩΛΗΣΗ και την κράτηση. Πριν έδειχνε πάντα το πρώτο, οπότε πουλώντας το ροζ σημειωνόταν πουλημένο το λευκόχρυσο.',
+      { version: 'v11.17', date: 'Ιούλιος 2026', items: [
+        '🎨 «Ποιο κρατάτε;» — Κομμάτια της ίδιας ομάδας με ίδιο βάρος έχουν ΙΔΙΑ ετικέτα (ίδιο QR και ίδιο κωδικό αναφοράς), οπότε το σκανάρισμα δεν μπορεί να ξέρει ποιο έχετε στο χέρι. Αν διαφέρουν στο χρώμα, ανοίγει τώρα ένα καθαρό παράθυρο με ΛΙΣΤΑ (φωτογραφία + χρώμα, το ένα κάτω από το άλλο): διαλέγετε, κλείνει, και ο υπολογισμός δείχνει το σωστό δαχτυλίδι. Χωράει άνετα 8+ παραλλαγές. Η επιλογή σας καθορίζει τη φωτογραφία, την ΠΩΛΗΣΗ και την κράτηση — πριν έδειχνε πάντα το πρώτο, οπότε πουλώντας το ροζ σημειωνόταν πουλημένο το λευκόχρυσο.',
         '📦 Επίσης: αν σκανάρετε κωδικό που έχει και πουλημένο και διαθέσιμο κομμάτι, η ένδειξη έλεγε λανθασμένα «Πουλήθηκε». Τώρα δείχνει το κομμάτι που είναι πράγματι σε απόθεμα.'
       ]},
           ]
@@ -19641,8 +19676,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.16', date: 'Jul 2026', items: [
-        '🎨 "Which one are you holding?" — Two pieces in a group with the same weight carry the SAME tag, so a scan cannot know which one is in your hand. When they differ in colour (e.g. rose gold vs gold & white gold), the app now asks, with photos — and your choice drives the photo, the SALE and the reservation. Before it always took the first, so selling the rose one marked the white one sold.',
+      { version: 'v11.17', date: 'Jul 2026', items: [
+        '🎨 "Which one are you holding?" — Pieces in a group with the same weight carry the SAME tag (same QR and same reference code), so a scan cannot know which one is in your hand. When they differ in colour, a clean sheet now opens with them LISTED one under another (photo + colour): you pick, it closes, and the calculator shows the right ring. It fits 8+ variants comfortably. Your choice drives the photo, the SALE and the reservation — before it always took the first, so selling the rose one marked the white one sold.',
         '📦 Also: scanning a code that has both a sold and an in-stock piece wrongly showed "Sold". It now shows the piece that is actually in stock.'
       ]},
           ]
@@ -22649,7 +22684,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.16';
+const APP_VERSION = '11.17';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
