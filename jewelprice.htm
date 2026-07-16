@@ -9935,7 +9935,8 @@ function renderVendors() {
       const latinCode = vAbbrLatin + k + cAbbrLatin;
       const marginBadge = (!isEmployee && c.margin !== undefined && c.margin !== null)
         ? ` <span style="font-size:9px;color:var(--text-muted)">(${c.margin}%)</span>` : '';
-      const handmadeBadge = c.handmade ? ' ✋' : '';
+      const handmadeBadge = (c.handmade ? ' ✋' : '')
+        + (c.deleted ? ` <span style="font-size:9px;color:var(--text-muted)">(${lang==='el'?'αποσύρθηκε':'retired'})</span>` : '');
       const rateHtml = isEmployee ? '' : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${_fmtRate(c.rate)}${c.rateType==='flat'?' flat':'/g'}</span>`;
       return `<div class="vendor-code-row">
         <span class="code-badge">${codePattern}</span>
@@ -9953,19 +9954,28 @@ function renderVendors() {
     const summaryItems = cats.length + ' ' + (lang === 'el' ? 'κωδικοί' : 'items');
     const summaryFrom = cats.length ? (lang === 'el' ? `Από ${cur}${minRate.toFixed(2)}/g` : `From ${cur}${minRate.toFixed(2)}/g`) : '';
 
-    const actionsHtml = isEmployee ? '' : `<div class="vendor-actions">
+    // A retired vendor stays listed (dimmed) so it can be restored — it is never removed,
+    // because its position in the list is what every one of its items points at.
+    const actionsHtml = isEmployee ? '' : v.deleted
+      ? `<div class="vendor-actions">
+      <button class="btn-icon" onclick="event.stopPropagation();restoreVendor(${i})" title="${lang==='el'?'Επαναφορά':'Restore'}">↩️</button>
+    </div>`
+      : `<div class="vendor-actions">
       <button class="btn-icon" onclick="event.stopPropagation();editVendor(${i})" title="${t('editBtn')}">✏️</button>
       <button class="btn-icon btn-icon-danger" onclick="event.stopPropagation();deleteVendor(${i})" title="${t('deleteBtn')}">🗑️</button>
     </div>`;
+    const retiredBadge = v.deleted
+      ? ` <span style="font-size:10px;color:var(--text-muted);border:1px solid var(--wa12);border-radius:10px;padding:1px 7px;margin-left:6px">${lang==='el'?'αποσύρθηκε':'retired'}</span>`
+      : '';
 
     const avatarColor = vendorAvatarColor(v.name);
     const avatarLetter = (v.name||'?')[0].toUpperCase();
 
-    return `<div class="vendor-card" id="vcard-${i}" onclick="toggleVendorCard(${i})">
+    return `<div class="vendor-card" id="vcard-${i}" onclick="toggleVendorCard(${i})"${v.deleted?' style="opacity:0.5"':''}>
       <div class="vendor-card-header">
         <div class="vendor-name-display">
           <div class="vendor-avatar" style="background:${avatarColor}">${avatarLetter}</div>
-          ${v.name}
+          ${v.name}${retiredBadge}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           ${actionsHtml}
@@ -10140,13 +10150,25 @@ function cancelEditVendor() {
   document.getElementById('laborList').innerHTML = '';
 }
 
+// Retire a category row rather than dropping it. Items point at their category by its
+// POSITION in the vendor's list, so removing one shifted every category below it — pieces
+// then priced off the wrong row, or (once duplicate names became possible and the name
+// could no longer rescue them) off no row at all. A retired row keeps its slot: it is
+// hidden from the pickers, its existing pieces keep pricing correctly and its printed tags
+// keep scanning. Rows never saved yet (a brand-new vendor) can just go.
+function _retireLaborRow(row) {
+  if (!row.dataset.abbr) { row.remove(); return; } // never saved — no items, no tags
+  row.dataset.deleted = '1';
+  row.style.display = 'none';
+}
+
 async function confirmDeleteLaborRow(btn) {
   // Only check inventory when editing an existing vendor
   if (editingVendorIndex === null) { btn.parentElement.remove(); return; }
   const vendor = state.vendors[editingVendorIndex];
-  if (!vendor) { btn.parentElement.remove(); return; }
+  if (!vendor) { _retireLaborRow(btn.parentElement); return; }
   const catName = btn.parentElement.querySelector('.labor-name')?.value?.trim();
-  if (!catName) { btn.parentElement.remove(); return; }
+  if (!catName) { _retireLaborRow(btn.parentElement); return; }
 
   // Scan inventory for items using this vendor + category name
   const inv = await (async () => {
@@ -10165,10 +10187,10 @@ async function confirmDeleteLaborRow(btn) {
     item.catName === catName
   );
 
-  if (affected.length === 0) { btn.parentElement.remove(); return; }
+  if (affected.length === 0) { _retireLaborRow(btn.parentElement); return; }
 
   // Build list of other categories currently in the form (already saved)
-  const otherCats = getVendorCategories(vendor).filter(c => c.name !== catName);
+  const otherCats = getVendorCategories(vendor).filter(c => c.name !== catName && !c.deleted);
 
   if (otherCats.length === 0) {
     showToast(lang === 'el'
@@ -10217,7 +10239,7 @@ async function confirmDeleteLaborRow(btn) {
       try {
         await Promise.all(Object.entries(updates).map(([id, item]) => saveInventoryItem(id, item)));
         _inventoryCache = null;
-        btn.parentElement.remove();
+        _retireLaborRow(btn.parentElement);
         showToast(isEl
           ? `✅ ${affected.length} αντικείμενα μεταφέρθηκαν στην «${targetCat.name}»`
           : `✅ ${affected.length} item(s) moved to «${targetCat.name}»`);
@@ -10364,13 +10386,39 @@ function forceRestoreFromLocal() {
   } catch(e) { showToast('❌ Error: ' + e.message); }
 }
 
+// RETIRE, never remove.
+// Every inventory item points at its vendor by its POSITION in state.vendors, and nothing
+// anywhere renumbers those references. Splicing a vendor out therefore shifted every later
+// vendor down and silently repriced their pieces off the wrong vendor's rates (and changed
+// their codes) — with 600+ items, one tap could corrupt most of the stock.
+// A retired vendor keeps its slot: it vanishes from the pickers, but its items still price
+// correctly, its printed tags still scan, and it can be restored.
 function deleteVendor(i) {
-  if (state.vendors.length <= 1) { showToast('⚠️ ' + t('alertMinVendor')); return; }
-  showConfirm(t('alertDeleteVendor') + state.vendors[i].name + '?', () => {
-    state.vendors.splice(i, 1);
-    saveState(); pushIfOwner(); renderVendors();
-  });
+  if (activeVendors().length <= 1) { showToast('⚠️ ' + t('alertMinVendor')); return; }
+  const isEl = lang === 'el';
+  showConfirm(
+    (isEl ? 'Απόσυρση του προμηθευτή «' : 'Retire vendor «') + state.vendors[i].name +
+    (isEl ? '»;\n\nΘα κρυφτεί από τις λίστες, αλλά τα υπάρχοντα κοσμήματά του κρατούν τις τιμές τους και οι ετικέτες τους διαβάζονται κανονικά. Μπορείτε να τον επαναφέρετε όποτε θέλετε.'
+          : '»?\n\nIt disappears from the lists, but its existing pieces keep their prices and their tags still scan. You can restore it at any time.'),
+    () => {
+      state.vendors[i].deleted = true;
+      saveState(); pushIfOwner(); renderVendors(); populateVendorSelect();
+      showToast(isEl ? '✅ Ο προμηθευτής αποσύρθηκε' : '✅ Vendor retired');
+    },
+    null,
+    { okLabel: isEl ? 'Απόσυρση' : 'Retire' }
+  );
 }
+
+function restoreVendor(i) {
+  delete state.vendors[i].deleted;
+  saveState(); pushIfOwner(); renderVendors(); populateVendorSelect();
+  showToast(lang === 'el' ? '✅ Ο προμηθευτής επανήλθε' : '✅ Vendor restored');
+}
+
+// Vendors the owner can still price with. Retired ones stay in state.vendors (their slot is
+// their identity) but must never appear in a picker.
+function activeVendors() { return state.vendors.filter(v => !v.deleted); }
 
 function saveVendor() {
   const name = document.getElementById('v_name').value.trim();
@@ -10409,8 +10457,10 @@ function saveVendor() {
       laborCategories.push({ name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType,
         ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
         ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }),
+        ...(row.dataset.deleted && { deleted: true }),
         ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
     }
+    if (!laborCategories.some(c => !c.deleted)) { showStatus('vendorStatus', t('laborRequired'), 'error'); return; }
     _freezeCatAbbrs(laborCategories);
     vendor = { name, laborCategories };
   }
@@ -10427,6 +10477,11 @@ function saveVendor() {
   // Detect labor rate / margin changes on existing categories — these silently drift
   // every in-stock item's live price, which distorts the Initial Price % on cards.
   let changedCats = [];
+  // A category's KARAT is part of its printed code (ΚΑΛ**14**Σ) — the one code ingredient
+  // that is still read from an editable field, because it also drives pricing and so can't
+  // just be frozen. Changing it rewrites the code, and every tag already printed for that
+  // category stops scanning. The owner has to be told, with the old and new code shown.
+  let karatChanges = [];
   if (editingVendorIndex !== null && vendorType !== 'other') {
     const oldVendor = state.vendors[editingVendorIndex];
     // Compare rows by _catKey, which prefers the frozen code letters. The saved rows carry
@@ -10435,6 +10490,19 @@ function saveVendor() {
     const _oldRaw = oldVendor ? getVendorCategories(oldVendor) : [];
     const _oldFrozen = catAbbrs(_oldRaw);
     const oldCats = _oldRaw.map((c, i) => (c.abbr ? c : { ...c, abbr: _oldFrozen[i] }));
+    const _vA = vendor.abbr || vendorAbbr(oldVendor, state.vendors);
+    (vendor.laborCategories || []).forEach(newCat => {
+      const oldCat = oldCats.find(c => _catKey(c) === _catKey(newCat));
+      if (!oldCat) return;
+      if ((oldCat.karat || '') !== (newCat.karat || '')) {
+        const _cA = newCat.abbr || '';
+        karatChanges.push({
+          name: newCat.name,
+          oldCode: _vA + karatCode(oldCat.karat) + _cA,
+          newCode: _vA + karatCode(newCat.karat) + _cA
+        });
+      }
+    });
     (vendor.laborCategories || []).forEach(newCat => {
       if (newCat.rateType === 'peritem') return; // per-item labor is frozen on the item itself, no live drift
       const oldCat = oldCats.find(c => _catKey(c) === _catKey(newCat));
@@ -10471,7 +10539,7 @@ function saveVendor() {
     }
   }
 
-  if (changedCats.length > 0) {
+  function _promptRateChange() {
     const cur = state.currency || '€';
     const list = changedCats.map(c => {
       const k = catKaratLabel(c);
@@ -10489,10 +10557,28 @@ function saveVendor() {
       cancelLabel: lang === 'el' ? '📈 Αύξηση τιμής' : '📈 Price increase',
       danger: true
     });
+  }
+
+  // Two independent things can need confirming; ask in order of severity and only then save.
+  const _afterKarat = () => {
+    if (changedCats.length > 0) { _promptRateChange(); return; }
+    finishVendorSave(false, []);
+  };
+
+  // The karat warning comes first: it breaks physical tags, which is worse than a price
+  // drift, and the owner may want to back out of the whole save.
+  if (karatChanges.length > 0) {
+    const isEl = lang === 'el';
+    const list = karatChanges.map(c => `${c.name}:  ${c.oldCode} → ${c.newCode}`).join('\n');
+    showConfirm(isEl
+      ? `⚠️ Άλλαξες το καράτι — αυτό αλλάζει τον ΤΥΠΩΜΕΝΟ κωδικό:\n${list}\n\nΟι ετικέτες που έχουν ήδη τυπωθεί με τον παλιό κωδικό ΔΕΝ θα διαβάζονται πια. Αν πρόκειται για διόρθωση σε κατηγορία χωρίς τυπωμένες ετικέτες, συνεχίστε. Αλλιώς φτιάξτε ΝΕΑ κατηγορία για το άλλο καράτι.`
+      : `⚠️ You changed the karat — this changes the PRINTED code:\n${list}\n\nTags already printed with the old code will STOP scanning. If this is a fix on a category with no printed tags, go ahead. Otherwise make a NEW category for the other karat instead.`,
+      _afterKarat, null,
+      { okLabel: isEl ? 'Αλλαγή ούτως ή άλλως' : 'Change anyway', cancelLabel: isEl ? 'Άκυρο' : 'Cancel', danger: true });
     return;
   }
 
-  finishVendorSave(false, []);
+  _afterKarat();
 }
 
 // Bulk-recalibrate initialRetail for all in-stock items in the given categories of a vendor,
@@ -10536,8 +10622,10 @@ function populateVendorSelect() {
   const sel = document.getElementById('vendorSelect');
   const prev = sel.value;
   const placeholder = lang === 'el' ? 'Επιλέξτε προμηθευτή...' : 'Select vendor...';
+  // Retired vendors keep their slot (items reference it by index) but must not be offered
+  // for new pricing — hence filter on the value, never reindex.
   sel.innerHTML = `<option value="" disabled>${placeholder}</option>` +
-    state.vendors.map((v,i) => `<option value="${i}">${v.name}</option>`).join('');
+    state.vendors.map((v,i) => v.deleted ? '' : `<option value="${i}">${v.name}</option>`).join('');
   // Restore previous selection if valid; otherwise leave on placeholder
   if (prev !== '' && parseInt(prev) < state.vendors.length) {
     sel.value = prev;
@@ -10561,8 +10649,10 @@ function updateWorkTypeOptions() {
   const cats = getVendorCategories(vendor);
   const _isOther = vendor.vendorType === 'other';
   const placeholder = lang === 'el' ? 'Επιλέξτε κατηγορία...' : 'Select category...';
+  // Retired categories keep their slot (items reference it by index) but must not be
+  // offered for new pricing — filter on the value, never reindex.
   wt.innerHTML = `<option value="" disabled>${placeholder}</option>` +
-    cats.map((c,i) => `<option value="${i}">${catOptionLabel(c, _isOther)}</option>`).join('');
+    cats.map((c,i) => c.deleted ? '' : `<option value="${i}">${catOptionLabel(c, _isOther)}</option>`).join('');
   if (prevVal !== '' && parseInt(prevVal) < cats.length) {
     wt.value = prevVal;
   } else {
@@ -10880,21 +10970,31 @@ function vendorAbbr(vendor, allVendors, latin) {
   return latin ? getLatinVendorAbbr(vendor.name, allVendors) : getVendorAbbr(vendor.name, allVendors);
 }
 
-// 3 letters of the name, 4 if those 3 are taken, 5 if… — then the alphabet. Mirrors the
-// old rule for a first-time name, but resolves collisions against what is already pinned
-// instead of renumbering the other vendor.
+// First TWO letters + the next letter of the name that keeps it unique: ΚΑΛΟΓΕΡΑΣ → ΚΑΛ,
+// and a later ΚΑΛΑΜΑΤΑ → ΚΑΑ (ΚΑ + the Α after the taken Λ), NOT ΚΑΛΑ.
+// Staying at three letters matters: the vendor prefix is in every QR, and a fourth letter
+// costs space a stone suffix may need. For the first vendor with a given prefix this is
+// identical to the old first-3-letters rule, so nothing derived today would move.
 function deriveVendorAbbr(name, used, latin) {
   const clean = latin ? transliterateToLatin(extractLetters(name)) : extractLetters(name);
   if (!clean) return latin ? 'VND' : 'ΠΡΜ';
-  for (let n = 3; n <= clean.length; n++) {
+  const head = clean.slice(0, 2);
+  for (let i = 2; i < clean.length; i++) {
+    const a = head + clean[i];
+    if (!used.includes(a)) return a;
+  }
+  // Name shorter than 3 letters — nothing to walk.
+  if (clean.length < 3 && !used.includes(head)) return head;
+  // Name exhausted: walk the alphabet for the third letter, still three long.
+  for (const ch of (latin ? LATIN_ALPHA_UP : GREEK_ALPHA_UP)) {
+    if (!used.includes(head + ch)) return head + ch;
+  }
+  // 24+ vendors sharing two initials — only now does it grow.
+  for (let n = 4; n <= clean.length; n++) {
     const a = clean.slice(0, n);
     if (!used.includes(a)) return a;
   }
-  const base = clean.slice(0, 3);
-  for (const ch of (latin ? LATIN_ALPHA_UP : GREEK_ALPHA_UP)) {
-    if (!used.includes(base + ch)) return base + ch;
-  }
-  return base;
+  return clean.slice(0, 3);
 }
 
 // Pin every existing vendor's abbreviation to what it resolves to RIGHT NOW. Must run
@@ -17154,7 +17254,7 @@ function updateBulkCatSelect() {
   const vendor = state.vendors[vIdx];
   if (!vendor) return;
   const cats = getVendorCategories(vendor);
-  catSel.innerHTML = cats.map((c,i) => `<option value="${i}">${catOptionLabel(c, vendor.vendorType === 'other')}</option>`).join('');
+  catSel.innerHTML = cats.map((c,i) => c.deleted ? '' : `<option value="${i}">${catOptionLabel(c, vendor.vendorType === 'other')}</option>`).join('');
 }
 
 async function confirmAddBulk() {
@@ -19365,9 +19465,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.11', date: 'Ιούλιος 2026', items: [
-        '🏭 Και τα ονόματα ΠΡΟΜΗΘΕΥΤΩΝ ξεκλείδωσαν, με τον ίδιο τρόπο. Πιο σημαντικό: μέχρι τώρα, αν προσθέτατε νέο προμηθευτή που ξεκινούσε με τα ίδια 3 γράμματα (π.χ. ΚΑΛΑΜΑΤΑ δίπλα στον ΚΑΛΟΓΕΡΑ), ο κωδικός του ΠΑΛΙΟΥ προμηθευτή άλλαζε μόνος του (ΚΑΛ → ΚΑΛΟ) και χαλούσαν όλες οι ετικέτες του — χωρίς καν να τον αγγίξετε. Τώρα ο παλιός κρατάει το ΚΑΛ και ο νέος παίρνει ΚΑΛΑ.',
-        '⚖️ Το καράτι ακολουθεί την κατηγορία: μόλις διαλέξετε «Σκουλαρίκια (18K)», το καράτι στον υπολογισμό γίνεται αυτόματα 18Κ (και για ασήμι αλλάζει σε ασήμι 925). Πριν μπορούσατε να υπολογίσετε 14Κ και να τυπώσετε ετικέτα που έγραφε 18 — και το σκανάρισμα αργότερα έδινε λάθος τιμή.'
+      { version: 'v11.12', date: 'Ιούλιος 2026', items: [
+        '🛡️ Η διαγραφή προμηθευτή δεν χαλάει πια το απόθεμα. Μέχρι τώρα, σβήνοντας έναν προμηθευτή, ΟΛΑ τα κοσμήματα των επόμενων προμηθευτών «γλιστρούσαν» σε λάθος προμηθευτή και άλλαζαν σιωπηλά τιμή (π.χ. σκουλαρίκι €17/γρ. γινόταν δαχτυλίδι €30/γρ.). Τώρα ο προμηθευτής ΑΠΟΣΥΡΕΤΑΙ: φεύγει από τις λίστες, αλλά τα κοσμήματά του κρατούν τιμές και ετικέτες — και μπορείτε να τον επαναφέρετε με ένα κουμπί.',
+        '🛡️ Το ίδιο και για τις κατηγορίες: αποσύρονται αντί να σβήνονται, οπότε καμία τιμή και καμία ετικέτα δεν χαλάει.',
+        '⚠️ Προειδοποίηση αν αλλάξετε καράτι σε κατηγορία: το καράτι είναι μέσα στον τυπωμένο κωδικό (ΚΑΛ14Σ), οπότε η αλλαγή του τον αλλάζει (ΚΑΛ14Σ → ΚΑΛ18Σ) και οι τυπωμένες ετικέτες σταματούν να διαβάζονται. Τώρα σας το λέει πριν το κάνει, δείχνοντας παλιό και νέο κωδικό.',
+        '🔤 Οι κωδικοί προμηθευτών μένουν πάντα 3 γράμματα: ΚΑΛΟΓΕΡΑΣ → ΚΑΛ, ΚΑΛΑΜΑΤΑ → ΚΑΑ (όχι ΚΑΛΑ), ώστε το QR να μη μεγαλώνει.'
       ]},
           ]
   },
@@ -19398,9 +19500,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.11', date: 'Jul 2026', items: [
-        '🏭 VENDOR names are unlocked too, the same way. More importantly: until now, adding a new vendor whose name began with the same 3 letters (e.g. ΚΑΛΑΜΑΤΑ next to ΚΑΛΟΓΕΡΑΣ) silently renumbered the OLD vendor\'s code (ΚΑΛ → ΚΑΛΟ) and broke every tag it had ever printed — without you touching that vendor at all. Now the old one keeps ΚΑΛ and the new one gets ΚΑΛΑ.',
-        '⚖️ The karat now follows the category: pick "Earrings (18K)" and the calculator switches to 18K automatically (and to silver 925 for a silver category). Before, you could price at 14K and print a tag that said 18 — and scanning that tag later gave the wrong price.'
+      { version: 'v11.12', date: 'Jul 2026', items: [
+        '🛡️ Deleting a vendor can no longer wreck your stock. Until now, removing one made EVERY piece belonging to the vendors below it slide onto the wrong vendor and silently reprice (a €17/g earring became a €30/g ring). A vendor is now RETIRED instead: it leaves the lists, but its pieces keep their prices and tags — and one button brings it back.',
+        '🛡️ Same for categories: they retire instead of being deleted, so no price and no tag ever breaks.',
+        '⚠️ You now get a warning before changing a category\'s karat. The karat is inside the printed code (ΚΑΛ14Σ), so changing it rewrites the code (ΚΑΛ14Σ → ΚΑΛ18Σ) and printed tags stop scanning. It now tells you first, showing the old and the new code.',
+        '🔤 Vendor codes always stay 3 letters: ΚΑΛΟΓΕΡΑΣ → ΚΑΛ, ΚΑΛΑΜΑΤΑ → ΚΑΑ (not ΚΑΛΑ), so the QR never grows.'
       ]},
           ]
   }
@@ -22405,7 +22509,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.11';
+const APP_VERSION = '11.12';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
