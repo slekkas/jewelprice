@@ -10484,16 +10484,20 @@ function saveVendor() {
   let karatChanges = [];
   if (editingVendorIndex !== null && vendorType !== 'other') {
     const oldVendor = state.vendors[editingVendorIndex];
-    // Compare rows by _catKey, which prefers the frozen code letters. The saved rows carry
-    // them, but a vendor being edited for the first time since v11.10 doesn't have them
-    // stored yet — resolve the same values it was opened with so the two sides match.
+    // Pair each saved row with the row it came from BY POSITION. The form is built from
+    // this list in order, retired rows keep their slot and new rows are appended, so
+    // position is exact — and unlike any key built from the row's contents it survives the
+    // very edits we're trying to detect (a changed karat, a changed name). Matching on the
+    // frozen letters looked tidier but they are not unique: the legacy derivation strips
+    // digits from the name, so «Διάφορα κοσμήματα 18k» and «…14k» share the letters ΔΚ and
+    // every save of that vendor raised a phantom "you changed the karat" warning.
     const _oldRaw = oldVendor ? getVendorCategories(oldVendor) : [];
     const _oldFrozen = catAbbrs(_oldRaw);
     const oldCats = _oldRaw.map((c, i) => (c.abbr ? c : { ...c, abbr: _oldFrozen[i] }));
     const _vA = vendor.abbr || vendorAbbr(oldVendor, state.vendors);
-    (vendor.laborCategories || []).forEach(newCat => {
-      const oldCat = oldCats.find(c => _catKey(c) === _catKey(newCat));
-      if (!oldCat) return;
+    (vendor.laborCategories || []).forEach((newCat, i) => {
+      const oldCat = oldCats[i];
+      if (!oldCat) return; // appended row — brand new, nothing printed for it yet
       if ((oldCat.karat || '') !== (newCat.karat || '')) {
         const _cA = newCat.abbr || '';
         karatChanges.push({
@@ -10503,9 +10507,9 @@ function saveVendor() {
         });
       }
     });
-    (vendor.laborCategories || []).forEach(newCat => {
+    (vendor.laborCategories || []).forEach((newCat, i) => {
       if (newCat.rateType === 'peritem') return; // per-item labor is frozen on the item itself, no live drift
-      const oldCat = oldCats.find(c => _catKey(c) === _catKey(newCat));
+      const oldCat = oldCats[i];
       if (!oldCat) return; // brand new category — nothing existing to recalibrate
       const oldRate = parseFloat(oldCat.rate) || 0;
       const newRate = parseFloat(newCat.rate) || 0;
@@ -10669,11 +10673,15 @@ function getVendorCategories(vendor) {
   ];
 }
 
-// Identity of one labor-category ROW. Two rows may legitimately share a name (Σκουλαρίκια
-// at 18K and at 14K, or even the same karat at two rates), so identity is the frozen code
-// letters when present — unique per row within the vendor, and stable across a rename.
-// Legacy rows that aren't frozen yet fall back to name+karat.
-const _catKey = c => (c ? (c.abbr ? 'a:' + c.abbr : (c.name || '') + '|' + (c.karat || '')) : '');
+// Identity of one labor-category ROW, used to match an ITEM's category to a row.
+// Frozen letters first (they survive a rename), but letters alone are NOT unique: the
+// pre-v11.10 derivation is keyed on the name with DIGITS STRIPPED, so «Διάφορα κοσμήματα
+// 18k» and «…14k» collapse to one key and share the letters ΔΚ. Their codes still differ
+// (the karat is in the code), so the karat has to be part of the identity as well.
+// NB: this key changes when the karat changes — never use it to match a row across a
+// karat edit (saveVendor pairs old and new rows by position for exactly that reason).
+const _catKey = c => (c ? (c.abbr ? 'a:' + c.abbr + '|' + (c.karat || '')
+                                  : (c.name || '') + '|' + (c.karat || '')) : '');
 
 function catKaratLabel(cat) {
   const k = cat && cat.karat;
@@ -19465,11 +19473,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.12', date: 'Ιούλιος 2026', items: [
-        '🛡️ Η διαγραφή προμηθευτή δεν χαλάει πια το απόθεμα. Μέχρι τώρα, σβήνοντας έναν προμηθευτή, ΟΛΑ τα κοσμήματα των επόμενων προμηθευτών «γλιστρούσαν» σε λάθος προμηθευτή και άλλαζαν σιωπηλά τιμή (π.χ. σκουλαρίκι €17/γρ. γινόταν δαχτυλίδι €30/γρ.). Τώρα ο προμηθευτής ΑΠΟΣΥΡΕΤΑΙ: φεύγει από τις λίστες, αλλά τα κοσμήματά του κρατούν τιμές και ετικέτες — και μπορείτε να τον επαναφέρετε με ένα κουμπί.',
-        '🛡️ Το ίδιο και για τις κατηγορίες: αποσύρονται αντί να σβήνονται, οπότε καμία τιμή και καμία ετικέτα δεν χαλάει.',
-        '⚠️ Προειδοποίηση αν αλλάξετε καράτι σε κατηγορία: το καράτι είναι μέσα στον τυπωμένο κωδικό (ΚΑΛ14Σ), οπότε η αλλαγή του τον αλλάζει (ΚΑΛ14Σ → ΚΑΛ18Σ) και οι τυπωμένες ετικέτες σταματούν να διαβάζονται. Τώρα σας το λέει πριν το κάνει, δείχνοντας παλιό και νέο κωδικό.',
-        '🔤 Οι κωδικοί προμηθευτών μένουν πάντα 3 γράμματα: ΚΑΛΟΓΕΡΑΣ → ΚΑΛ, ΚΑΛΑΜΑΤΑ → ΚΑΑ (όχι ΚΑΛΑ), ώστε το QR να μη μεγαλώνει.'
+      { version: 'v11.13', date: 'Ιούλιος 2026', items: [
+        '🐞 Διόρθωση: εμφανιζόταν λανθασμένη προειδοποίηση «άλλαξες το καράτι» σε προμηθευτές που έχουν δύο κατηγορίες με ίδιο όνομα και διαφορετικό καράτι (π.χ. «Διάφορα κοσμήματα 18k» και «Διάφορα κοσμήματα 14k») — ακόμα κι αν δεν αγγίζατε τίποτα. Δεν χαλούσε τίποτα, αλλά τρόμαζε άδικα. Βρέθηκε ελέγχοντας τα πραγματικά σας δεδομένα.'
       ]},
           ]
   },
@@ -19500,11 +19505,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.12', date: 'Jul 2026', items: [
-        '🛡️ Deleting a vendor can no longer wreck your stock. Until now, removing one made EVERY piece belonging to the vendors below it slide onto the wrong vendor and silently reprice (a €17/g earring became a €30/g ring). A vendor is now RETIRED instead: it leaves the lists, but its pieces keep their prices and tags — and one button brings it back.',
-        '🛡️ Same for categories: they retire instead of being deleted, so no price and no tag ever breaks.',
-        '⚠️ You now get a warning before changing a category\'s karat. The karat is inside the printed code (ΚΑΛ14Σ), so changing it rewrites the code (ΚΑΛ14Σ → ΚΑΛ18Σ) and printed tags stop scanning. It now tells you first, showing the old and the new code.',
-        '🔤 Vendor codes always stay 3 letters: ΚΑΛΟΓΕΡΑΣ → ΚΑΛ, ΚΑΛΑΜΑΤΑ → ΚΑΑ (not ΚΑΛΑ), so the QR never grows.'
+      { version: 'v11.13', date: 'Jul 2026', items: [
+        '🐞 Fix: a false "you changed the karat" warning appeared on vendors that have two categories with the same name at different karats (e.g. "Διάφορα κοσμήματα 18k" and "Διάφορα κοσμήματα 14k") — even when you changed nothing. It broke nothing, but it was alarming for no reason. Found by auditing your real data.'
       ]},
           ]
   }
@@ -22509,7 +22511,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.12';
+const APP_VERSION = '11.13';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
