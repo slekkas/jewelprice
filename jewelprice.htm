@@ -11736,7 +11736,8 @@ function _jumpToInvCard(fbKey) {
     if (!document.querySelector('.inv-card[data-inv-id]')) {
       await renderInvList();
     }
-    let card = _invEnsureRendered(fbKey) ? document.querySelector(`.inv-card[data-inv-id="${fbKey}"]`) : null;
+    // A grouped piece is shown by its group's card, which carries the representative's id.
+    let card = _invEnsureRendered(fbKey) ? document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(fbKey)}"]`) : null;
     if (!card) {
       // Item may be filtered out — clear filters and retry
       if (typeof _invFilters !== 'undefined') {
@@ -11745,7 +11746,7 @@ function _jumpToInvCard(fbKey) {
         _invEnsureRendered(fbKey);
       }
     }
-    const target = document.querySelector(`.inv-card[data-inv-id="${fbKey}"]`);
+    const target = document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(fbKey)}"]`);
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target.style.transition = 'box-shadow .3s, outline .3s';
@@ -15498,6 +15499,27 @@ function renderInvList() {
     return true;
   });
 
+  // A ref code names one PIECE, but a grouped piece is SHOWN as its group — so a ref-code
+  // search that hits one member brings the rest of its group along. Without this the card
+  // claims "1 in stock" for a product that has more, which is how the owner first thought
+  // a piece had gone missing. Deliberately ONLY for ref-code terms: searching a colour or
+  // a description should still narrow to what was asked for.
+  if (searchQuery) {
+    const _refTerms = searchQuery.split(',').map(s => s.trim())
+      .filter(t => /^[a-z]{2}\d{4}$/.test(t));
+    if (_refTerms.length) {
+      const _gids = new Set(filtered.filter(([, it]) => it.groupId && !it.isMetal).map(([, it]) => it.groupId));
+      if (_gids.size) {
+        const _have = new Set(filtered.map(([id]) => id));
+        allItems.forEach(entry => {
+          const [id, it] = entry;
+          if (!_have.has(id) && it.groupId && _gids.has(it.groupId) &&
+              it.status === 'in_stock' && !it.isMetal) filtered.push(entry);
+        });
+      }
+    }
+  }
+
   // Update summary to reflect filtered results (coins INCLUDED — the totals must not
   // change when coins are hidden from the list below).
   renderInvSummary(filtered);
@@ -15937,7 +15959,14 @@ function renderInvList() {
         _grpAppreciation = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${t('grpInitialLbl')}: ${cur}${_sumInit.toFixed(2)} <span style="color:${_color}">(${_sign}${_pctStr}%)</span></div>`;
       }
     }
-    const codeStr = rep.seqId ? itemRefCode(rep) : (rep.qrCode || rep.code || '—');
+    // Members used to always share one ref code, so showing the representative's was the
+    // whole truth. Since pieces that differ now get their OWN code (REF_TAG_DESIGN.md), a
+    // group can hold several — saying just "ER0509" would deny that ER0613 is in here too.
+    // The detail sheet lists every piece's code; the card just admits there are more.
+    const _grpRefs = [...new Set(members.map(([, it]) => it.seqId ? itemRefCode(it) : '').filter(Boolean))];
+    const codeStr = _grpRefs.length > 1
+      ? `${itemRefCode(rep)} <span style="font-size:11px;color:var(--text-muted)">+${_grpRefs.length - 1}</span>`
+      : (rep.seqId ? itemRefCode(rep) : (rep.qrCode || rep.code || '—'));
     return `
       <div class="inv-card inv-group-card" data-inv-id="${repId}" data-group-id="${gid}" style="border-color:rgba(201,168,76,0.4)">
         <div class="inv-card-top">
@@ -16038,6 +16067,16 @@ function _invMaybeFill() {
 
 // Ensure the card for a specific item id is rendered (used by "jump to card" flows,
 // since the target may live on a page not yet revealed). Returns true if now in DOM.
+// Which CARD stands in for this item? A grouped row renders ONE card carrying the
+// representative's id, so a non-representative member has no card of its own. Every jump
+// must ask this first, or it searches for an id that is not in the DOM, finds nothing and
+// silently does nothing — which is exactly what happened to "View →" on a grouped piece.
+function _invCardIdFor(id) {
+  const row = (_invSortedRows || []).find(r =>
+    r[0] === id || (r[2] && r[2].some(([mid]) => mid === id)));
+  return row ? row[0] : id;
+}
+
 function _invEnsureRendered(id) {
   if (document.querySelector(`.inv-card[data-inv-id="${id}"]`)) return true;
   // A grouped row is keyed by its representative id, but the target may be any member —
@@ -16049,7 +16088,10 @@ function _invEnsureRendered(id) {
   while (_invShownCount <= idx && _invShownCount < _invSortedRows.length && guard++ < 400) {
     _invRenderNextPage();
   }
-  return !!document.querySelector(`.inv-card[data-inv-id="${id}"]`);
+  // Check for the card that actually got rendered — for a grouped member that is the
+  // representative's. Re-checking the member's own id reported false even though the card
+  // was on screen, so callers gave up.
+  return !!document.querySelector(`.inv-card[data-inv-id="${_invSortedRows[idx][0]}"]`);
 }
 
 // Show the select-mode checkboxes on freshly appended cards (idempotent — skips cards
@@ -20000,8 +20042,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.25', date: 'Ιούλιος 2026', items: [
-        '🐞 ΣΗΜΑΝΤΙΚΟ: σκανάροντας ετικέτα κωδικού μπορούσε να εμφανιστεί ΑΛΛΟ κόσμημα. Ο παλιός περιγραφικός κωδικός δεν περιέχει τον τύπο του κοσμήματος, οπότε ένα μενταγιόν κι ένα ζευγάρι σκουλαρίκια του ίδιου προμηθευτή/κατηγορίας/βάρους έχουν ΤΟΝ ΙΔΙΟ κωδικό (NOH14L2.8). Τώρα ο κωδικός αναφοράς υπερισχύει πάντα και δείχνει ακριβώς το σωστό κομμάτι — και η ΠΩΛΗΣΗ σημειώνει το σωστό.'
+      { version: 'v11.26', date: 'Ιούλιος 2026', items: [
+        '🔍 Το «Δες το →» δουλεύει ξανά για κομμάτια μέσα σε ομάδα. Η ομάδα εμφανίζεται με ΜΙΑ κάρτα, οπότε ένα κομμάτι-μέλος δεν είχε δική του κάρτα και το κουμπί δεν πήγαινε πουθενά. Τώρα σας πάει στην κάρτα της ομάδας. Το ίδιο και για τα «Δες το» από ειδοποιήσεις και από πωλήσεις.',
+        '🔎 Αναζήτηση με κωδικό αναφοράς δείχνει ΟΛΗ την ομάδα. Πριν, ψάχνοντας ER0509 έβλεπες «1 σε απόθεμα» ενώ η ομάδα είχε 2 — έμοιαζε σαν να λείπει κομμάτι.',
+        '🏷️ Η κάρτα ομάδας δείχνει «ER0509 +1» όταν τα κομμάτια έχουν διαφορετικούς κωδικούς, και η λίστα κομματιών δείχνει τον κωδικό αναφοράς του καθενός (αυτόν που γράφει η ετικέτα του) — ώστε να ταιριάζετε σίγουρα το κόσμημα στο χέρι σας.'
       ]},
           ]
   },
@@ -20032,8 +20076,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.25', date: 'Jul 2026', items: [
-        '🐞 IMPORTANT: scanning a ref tag could show a DIFFERENT piece. The old descriptive code does not include the jewelry type, so a pendant and a pair of earrings from the same vendor/category/weight share the SAME code (NOH14L2.8). The reference code now always wins and resolves the exact piece — and the SALE marks the right one.'
+      { version: 'v11.26', date: 'Jul 2026', items: [
+        '🔍 "View →" works again for pieces inside a group. A group shows as ONE card, so a member piece had no card of its own and the button went nowhere. It now takes you to the group card. Same for "View item" from notifications and from sales.',
+        '🔎 Searching a reference code now shows the WHOLE group. Before, searching ER0509 showed "1 in stock" when the group had 2 — it looked like a piece had gone missing.',
+        '🏷️ The group card shows "ER0509 +1" when its pieces have different codes, and the piece list shows every reference code (the one printed on each tag) so you can match the jewel in your hand.'
       ]},
           ]
   }
@@ -23039,7 +23085,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.25';
+const APP_VERSION = '11.26';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -23913,9 +23959,15 @@ function openInvGroup(gid) {
     // Sold, Edit, Delete) so no functionality is lost when items are grouped. Actions
     // that navigate away close the sheet first.
     const _bStyle = 'flex:1 1 62px;padding:7px 6px;font-size:10px;letter-spacing:0.04em';
+    // Lead with the REFERENCE code — that is what is printed on this piece's tag, and the
+    // only way to match a row here against the jewel in hand. Pieces that differ now carry
+    // their own code (REF_TAG_DESIGN.md), so this is what tells them apart; the descriptive
+    // code sits underneath, quieter, since it no longer identifies anything on its own.
+    const _pieceRef = it.seqId ? itemRefCode(it) : '';
     return `<div style="padding:11px 2px 12px;border-bottom:1px solid var(--wa06)">
       <div style="margin-bottom:8px">
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);word-break:break-all">${it.qrCode || it.code || '—'}</div>
+        ${_pieceRef ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);letter-spacing:0.06em">${_pieceRef}</div>` : ''}
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);word-break:break-all${_pieceRef ? ';margin-top:1px' : ''}">${it.qrCode || it.code || '—'}</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${sub}</div>
       </div>
       ${apprecHtml}
@@ -24685,7 +24737,8 @@ function handleDeepLinkItem(qrCode) {
     if (item && (item.qrCode || item.code || '') === qrCode) targetId = id;
   });
   if (targetId) _invEnsureRendered(targetId);
-  const target = targetId ? document.querySelector(`.inv-card[data-inv-id="${targetId}"]`) : null;
+  // Grouped pieces are shown by their group's card (see _invCardIdFor).
+  const target = targetId ? document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(targetId)}"]`) : null;
   if (!target) { showToast('⚠️ ' + (lang==='el' ? 'Δεν βρέθηκε: ' : 'Not found: ') + qrCode); return; }
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   // Double rAF guarantees the browser has fully painted before animation starts
@@ -25142,9 +25195,10 @@ async function salesSearchGoToInventory(invId, status) {
     }
   }
 
-  // Find and highlight the card (rendering its page first if the list is windowed)
+  // Find and highlight the card (rendering its page first if the list is windowed).
+  // Grouped pieces are shown by their group's card (see _invCardIdFor).
   _invEnsureRendered(invId);
-  const card = document.querySelector(`.inv-card[data-inv-id="${invId}"]`);
+  const card = document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(invId)}"]`);
   if (card) {
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     card.style.transition = 'box-shadow 0.3s';
