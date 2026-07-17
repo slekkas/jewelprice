@@ -19717,13 +19717,15 @@ function invPrintTagFromCard(id) {
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-radius:16px;padding:24px;width:100%;max-width:360px">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:12px">🏷️ ${lang==='el'?'Εκτύπωση Ετικέτας':'Print Tag'}</div>
-      <div style="background:var(--dark-3);border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:13px;color:var(--gold);margin-bottom:16px;word-break:break-all">${qr}</div>
+      <div style="background:var(--dark-3);border-radius:8px;padding:10px 12px;margin-bottom:16px">
+        <div style="font-family:var(--font-mono);font-size:15px;color:var(--gold);word-break:break-all">${item.seqId ? itemRefCode(item) : qr}</div>
+        ${item.seqId ? `<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-top:3px;word-break:break-all">${qr}</div>` : ''}
+      </div>
       <div id="invPrintTagStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
         <button id="invPrintTagPrintBtn" style="flex:1;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση':'Print'}</button>
         <button id="invPrintTagCopyBtn" style="flex:1;padding:13px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">📋 ${lang==='el'?'Αντιγραφή':'Copy'}</button>
       </div>
-      <button id="invPrintTagRefBtn" style="width:100%;padding:12px;background:rgba(96,180,120,0.10);border:1px solid rgba(96,180,120,0.45);color:#7fd39b;border-radius:8px;font-family:var(--font-body);font-size:12.5px;cursor:pointer;margin-bottom:8px">🆔 ${lang==='el'?'Εκτύπωση ως ετικέτα κωδικού':'Print as ref tag'}<br><span style="font-size:10px;opacity:.75">${lang==='el'?'το QR δείχνει τον κωδικό αναφοράς — αλλάζετε βάρος/πέτρες χωρίς νέα ετικέτα':'QR carries the reference code — edit weight/stones without reprinting'}</span></button>
       <button id="invPrintTagQrOnlyBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:8px">📟 ${lang==='el'?'Εκτύπωση Μόνο QR':'Print QR Only'}</button>
       <button id="invPrintTagQrBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:8px">🖼️ ${lang==='el'?'Αποθήκευση QR ως Εικόνα':'Save QR as Image'}</button>
       <button onclick="document.getElementById('invPrintTagOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Κλείσιμο':'Close'}</button>
@@ -19755,24 +19757,18 @@ function invPrintTagFromCard(id) {
     this.disabled = true;
     const statusEl = document.getElementById('invPrintTagStatus');
     const _btn = this;
-    // Reprinting the tag — offer to re-sync the ref code first if the type changed.
-    _withRefSync(id, item, async (refCode) => {
-      data.refCode = refCode;
+    const _done = () => setTimeout(() => { _btn.disabled = false; }, 2000);
+    // Every printed tag is a reference-code tag now (REF_TAG_DESIGN.md): the QR carries the
+    // ref code, so weight / vendor / stones stay editable without reprinting. _printAsRefTag
+    // stamps tagRef, handles a shared-ref split and saves; _withRefSync first fixes a frozen
+    // prefix if the type changed. A rare legacy item with no seqId has no ref code — fall
+    // back to the descriptive tag so it can still print.
+    if (item.seqId) {
+      _withRefSync(id, item, async () => { await _printAsRefTag(id, data, statusEl); _done(); });
+    } else {
       await printLabel(data, statusEl);
-      setTimeout(() => { _btn.disabled = false; }, 2000);
-    });
-  });
-
-  document.getElementById('invPrintTagRefBtn').addEventListener('click', async function() {
-    this.disabled = true;
-    const statusEl = document.getElementById('invPrintTagStatus');
-    const _btn = this;
-    // Same ref-type re-sync offer as a normal reprint — the ref code IS the tag now, so
-    // getting the prefix right matters more, not less.
-    _withRefSync(id, item, async () => {
-      await _printAsRefTag(id, data, statusEl);
-      setTimeout(() => { _btn.disabled = false; }, 2000);
-    });
+      _done();
+    }
   });
 
   document.getElementById('invPrintTagCopyBtn').addEventListener('click', async function() {
@@ -19785,7 +19781,14 @@ function invPrintTagFromCard(id) {
     const statusEl = document.getElementById('invPrintTagStatus');
     this.disabled = true;
     this.textContent = '⏳ ' + (lang === 'el' ? 'Αποστολή...' : 'Sending...');
-    await printLabel(data, statusEl, true);
+    // Reprint just the QR square — carry the reference code too, so it stays a ref tag.
+    const _useRef = !!item.seqId;
+    if (_useRef) data.refCode = itemRefCode(item);
+    const _ok = await printLabel(data, statusEl, true, 1, _useRef);
+    if (_ok && _useRef && !item.tagRef) {
+      item.tagRef = true; _inventoryCache[id] = item;
+      await saveInventoryItem(id, item); renderInvList();
+    }
     setTimeout(() => {
       this.disabled = false;
       this.textContent = '📟 ' + (lang === 'el' ? 'Εκτύπωση Μόνο QR' : 'Print QR Only');
@@ -19796,7 +19799,9 @@ function invPrintTagFromCard(id) {
     const statusEl = document.getElementById('invPrintTagStatus');
     this.disabled = true;
     this.textContent = '⏳ ' + (lang === 'el' ? 'Λήψη...' : 'Downloading...');
-    await saveQrAsImage(data, statusEl);
+    // Save the reference-code QR (for BarTender etc.) so a tag printed from it is a ref tag.
+    const _imgData = item.seqId ? { ...data, fullQR: itemRefCode(item), greekCode: itemRefCode(item) } : data;
+    await saveQrAsImage(_imgData, statusEl);
     this.disabled = false;
     this.textContent = '🖼️ ' + (lang === 'el' ? 'Αποθήκευση QR ως Εικόνα' : 'Save QR as Image');
   });
@@ -20307,8 +20312,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.30', date: 'Ιούλιος 2026', items: [
-        '🐞 ΣΗΜΑΝΤΙΚΗ διόρθωση: μετά από αλλαγή βάρους σε κομμάτι με ετικέτα κωδικού, το σκανάρισμα μπορούσε να δείξει ΑΛΛΟ κόσμημα. Αν το νέο βάρος έδινε εσωτερικό κωδικό ίδιο με πουλημένο κομμάτι, η οθόνη «γλιστρούσε» στο πουλημένο (λάθος φωτογραφία, ένδειξη «Πουλήθηκε»). Ο κωδικός αναφοράς κρατά τώρα ΠΑΝΤΑ το σωστό κομμάτι — και στις επόμενες ανανεώσεις της οθόνης.'
+      { version: 'v11.31', date: 'Ιούλιος 2026', items: [
+        '🏷️ Απλούστερη εκτύπωση ετικέτας: το κουμπί «Εκτύπωση» τυπώνει πλέον ΠΑΝΤΑ ετικέτα με κωδικό αναφοράς — αυτή που σας αφήνει να αλλάζετε βάρος, προμηθευτή και πέτρες χωρίς νέα εκτύπωση. Το ξεχωριστό πράσινο κουμπί «ως ετικέτα κωδικού» αφαιρέθηκε γιατί δεν χρειαζόταν. Το «Μόνο QR» και η «Αποθήκευση ως Εικόνα» χρησιμοποιούν κι αυτά τον κωδικό αναφοράς.'
       ]},
           ]
   },
@@ -20339,8 +20344,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.30', date: 'Jul 2026', items: [
-        '🐞 IMPORTANT fix: after changing the weight of a ref-tagged piece, scanning it could show a DIFFERENT item. If the new weight produced an internal code identical to a sold piece, the screen would "slip" onto the sold one (wrong photo, "Sold" label). The reference code now always keeps the right piece — including on later screen refreshes.'
+      { version: 'v11.31', date: 'Jul 2026', items: [
+        '🏷️ Simpler tag printing: the "Print" button now ALWAYS prints a reference-code tag — the one that lets you change weight, vendor and stones without reprinting. The separate green "Print as ref tag" button was removed as redundant. "Print QR Only" and "Save QR as Image" use the reference code too.'
       ]},
           ]
   }
@@ -23348,7 +23353,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.30';
+const APP_VERSION = '11.31';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
