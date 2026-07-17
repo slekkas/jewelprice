@@ -1740,27 +1740,6 @@
         <button onclick="openInvExportSheet()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="exportBtn">📊 Εξαγωγή σε CSV</button>
       </div>
 
-      <!-- TAG TEST — TEMPORARY (see REF_TAG_DESIGN.md). Delete once the cell size is chosen. -->
-      <div class="settings-section" id="tagTestSection" style="display:none;margin-top:18px">
-        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0">🧪 Δοκιμή Ετικέτας / Tag Test</h4>
-        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6">Τυπώνει δοκιμαστικές ετικέτες για να συγκρίνετε μέγεθος QR και ευκολία σάρωσης. Βάλτε έναν αληθινό κωδικό αναφοράς (π.χ. RG0110) ώστε να ελέγξετε και το σκανάρισμα.<br>Prints test tags so you can compare QR size and how easily each scans. Use a real reference code so the scan resolves.</p>
-        <input type="text" id="tagTestCode" value="RG0110" placeholder="RG0110" style="width:100%;margin-bottom:8px;text-align:center;font-family:'DM Mono',monospace;letter-spacing:0.12em;text-transform:uppercase">
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <button onclick="_printTestTag('ref2')" style="flex:1;padding:11px 6px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer">REF · CELL 2<br><span style="opacity:.6">ECC H</span></button>
-          <button onclick="_printTestTag('ref3')" style="flex:1;padding:11px 6px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer">REF · CELL 3<br><span style="opacity:.6">ECC H</span></button>
-          <button onclick="_printTestTag('now')" style="flex:1;padding:11px 6px;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer">ΤΩΡΑ / NOW<br><span style="opacity:.6">cell 2 · M</span></button>
-        </div>
-        <div id="tagTestStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;font-family:'DM Mono',monospace"></div>
-      </div>
-
-      <!-- REF-TAG MIGRATION — TEMPORARY (see REF_TAG_DESIGN.md). Delete once the list is clear. -->
-      <div class="settings-section" id="refFixSection" style="display:none;margin-top:18px">
-        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0">🆔 Κοινοί Κωδικοί / Shared Codes</h4>
-        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6">Αυτά τα κομμάτια τυπώνουν τον ΙΔΙΟ κωδικό αλλά ΔΕΝ είναι ίδια (βάρος ή χρώμα). Μια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Πατήστε «Εκτύπωση» σε ένα από κάθε ζευγάρι: παίρνει δικό του κωδικό και νέα ετικέτα.<br>These pieces print the SAME code but are NOT identical. Print one of each pair — it gets its own code and a new tag.</p>
-        <div id="refFixList"></div>
-        <button onclick="renderRefFixList()" style="width:100%;padding:10px;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">🔄 Ανανέωση / Refresh</button>
-      </div>
-
       <!-- INVENTORY CHECK (stocktake) -->
       <div class="settings-section" id="stocktakeSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stkTitle">🔍 Έλεγχος Απογραφής</h4>
@@ -4424,9 +4403,6 @@ function applyRoleUI() {
   const _stk = document.getElementById('stocktakeSection'); if (_stk) _stk.style.display = isOwnerMgr ? '' : 'none';
   const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
   const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
-  const _tts = document.getElementById('tagTestSection'); if (_tts) _tts.style.display = isOwnerMgr ? '' : 'none';
-  const _rfs = document.getElementById('refFixSection');
-  if (_rfs) { _rfs.style.display = isOwnerMgr ? '' : 'none'; if (isOwnerMgr) renderRefFixList(); }
   const _staleBtn = document.getElementById('invStaleBtn'); if (_staleBtn) _staleBtn.style.display = isOwnerMgr ? 'flex' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -4692,8 +4668,6 @@ function resPaid(r) { return Math.round((r.payments || []).reduce((s, p) => s + 
 function resBalance(r) { return Math.round(((parseFloat(r.agreedTotal) || 0) - resPaid(r)) * 100) / 100; }
 function resNoFmt(r) { return 'H-' + String(r.reservationNo || 0).padStart(4, '0'); }
 function _resItemName(it) { return (lang === 'el' ? (it.descEl || it.descEn) : (it.descEn || it.descEl)) || it.description || invTypeLabel(it.jewelryType) || ''; }
-function _resItemSnap(id, it) { const p = calcInvItemPrice(it); return { id, ref: itemRefCode(it), desc: _resItemName(it), qr: it.qrCode || '', retail: p ? parseFloat(p.retail.toFixed(2)) : 0, photoUrl: it.photoUrl || '' }; }
-
 // Flag/unflag inventory items as reserved (removes/restores them from the showroom).
 async function _resMarkItems(ids, resId) {
   if (!ids || !ids.length) return;
@@ -6518,145 +6492,6 @@ async function printLabel(data, statusEl, qrOnly, copies, useRef) {
   return false;
 }
 
-// ─── REF-TAG MIGRATION LIST — TEMPORARY (see REF_TAG_DESIGN.md) ───────────────
-// The app knows exactly which pieces share a printed code with a piece that isn't the
-// same, so it drives the job rather than handing the owner a paper list. Printing one of
-// a pair splits the ref and greys the row out. Derived live from inventory — a piece that
-// no longer clashes simply stops appearing, so the list empties itself as the work is done.
-// Delete this + #refFixSection + the applyRoleUI line once it stays empty.
-async function renderRefFixList() {
-  const box = document.getElementById('refFixList');
-  if (!box) return;
-  const isEl = lang === 'el';
-  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">${isEl ? 'Έλεγχος…' : 'Checking…'}</div>`;
-  if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
-
-  // Group in-stock, non-coin/metal pieces by ref code; keep only refs whose members differ.
-  const byRef = {};
-  Object.entries(_inventoryCache).forEach(([id, it]) => {
-    if (!it.seqId || it.status !== 'in_stock' || it.isBulk || it.isCoin || it.isMetal) return;
-    (byRef[itemRefCode(it)] = byRef[itemRefCode(it)] || []).push([id, it]);
-  });
-  // Only the pieces that actually need a NEW code. In each clashing group the OLDEST piece
-  // keeps the existing code — its tag has been out in the shop longest, so leave it alone —
-  // and every later piece needs its own. Listing the keeper too just invited printing the
-  // wrong one: every row here is a row to print.
-  const groups = Object.entries(byRef)
-    .filter(([, m]) => m.length > 1 && new Set(m.map(([, it]) => _refIdentityKey(it))).size > 1)
-    .map(([ref, m]) => {
-      const sorted = m.slice().sort((a, b) => (a[1].dateAdded || 0) - (b[1].dateAdded || 0));
-      return [ref, sorted[0], sorted.slice(1)];   // [ref, keeper, needsNewCode[]]
-    })
-    .filter(([, , need]) => need.length)
-    .sort((a, b) => a[0].localeCompare(b[0]));
-
-  if (!groups.length) {
-    box.innerHTML = `<div style="font-size:12px;color:#7fd39b;text-align:center;padding:14px;line-height:1.5">✅ ${isEl ? 'Κανένας κοινός κωδικός — τελειώσατε!' : 'No shared codes — all done!'}</div>`;
-    return;
-  }
-  const todo = groups.reduce((n, [, , need]) => n + need.filter(([, it]) => !it.tagRef).length, 0);
-  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${todo} ${isEl ? 'ετικέτες για εκτύπωση' : 'tags to print'}</div>` +
-    groups.map(([ref, keeper, need]) => `
-      <div style="border:1px solid var(--wa10);border-radius:10px;padding:9px 10px;margin-bottom:8px">
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);margin-bottom:2px">${ref}
-          <span style="color:var(--text-muted);font-family:var(--font-body);font-size:11px"> · ${_refFixDesc(keeper[1])}</span></div>
-        <div style="font-size:10px;color:var(--text-dim);margin-bottom:7px">${isEl
-          ? `το ${keeper[1].weight}g κρατά τον ${ref} — τυπώστε τα παρακάτω`
-          : `the ${keeper[1].weight}g keeps ${ref} — print the one(s) below`}</div>
-        ${need.map(([id, it]) => `
-          <div id="reffix-${id}" style="display:flex;align-items:center;gap:10px;padding:5px 0${it.tagRef ? ';opacity:.4' : ''}">
-            <img src="${it.photoUrl || ''}" onclick="_refFixZoom('${(it.photoUrlHi || it.photoUrl || '').replace(/'/g, '')}')"
-                 style="width:46px;height:46px;border-radius:6px;object-fit:contain;background:#fff;flex:0 0 auto;cursor:zoom-in"${it.photoUrl ? '' : ' hidden'}>
-            <span style="flex:1;min-width:0;font-family:var(--font-body);font-size:12.5px;color:var(--text)">${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}</span>
-            ${it.tagRef
-              ? `<span style="font-size:11px;color:#7fd39b;white-space:nowrap">✓ ${isEl ? 'έγινε' : 'done'}</span>`
-              : `<button onclick="_refFixPrint('${id}')" style="padding:7px 13px;background:rgba(96,180,120,0.12);border:1px solid rgba(96,180,120,0.45);color:#7fd39b;border-radius:6px;font-family:var(--font-body);font-size:11px;cursor:pointer;white-space:nowrap">🖨️ ${isEl ? 'Εκτύπωση' : 'Print'}</button>`}
-          </div>`).join('')}
-      </div>`).join('') +
-    `<div id="refFixStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:8px;font-family:var(--font-mono)"></div>`;
-}
-
-// Tap a thumbnail to see the actual piece — 46px is enough to spot which pair you're on,
-// not enough to tell two near-identical gold hearts apart. Uses the hi-res photo.
-function _refFixZoom(url) {
-  if (!url) return;
-  document.getElementById('refFixZoomOverlay')?.remove();
-  const ov = document.createElement('div');
-  ov.id = 'refFixZoomOverlay';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:18px;cursor:zoom-out';
-  ov.onclick = () => ov.remove();
-  ov.innerHTML = `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;background:#fff;object-fit:contain">`;
-  document.body.appendChild(ov);
-}
-
-function _refFixDesc(it) {
-  return (lang === 'el' ? (it.descEl || it.descEn) : (it.descEn || it.descEl))
-    || invTypeLabel(it.jewelryType) || it.jewelryType || '';
-}
-
-// Reprint one piece as a ref tag, straight from the list — same path as the Stock card's
-// button, so the ref split and the tagRef stamp happen identically.
-async function _refFixPrint(id) {
-  const item = _inventoryCache && _inventoryCache[id];
-  if (!item) return;
-  const statusEl = document.getElementById('refFixStatus') || document.createElement('div');
-  const qr = item.qrCode || item.code || '';
-  const _d = qr.indexOf('-');
-  const _base = _d !== -1 ? qr.slice(0, _d) : qr;
-  const _stones = _d !== -1 ? qr.slice(_d + 1).split('+').filter(Boolean) : [];
-  const lines = [_base];
-  _stones.forEach((p, i) => lines.push((i === 0 ? '-' : '+') + p));
-  const data = { fullQR: qr, baseQR: _base, greekCode: _base, lines,
-                 hasStones: _stones.length > 0, refCode: itemRefCode(item) };
-  await _printAsRefTag(id, data, statusEl);
-  renderRefFixList();   // re-derive: a split piece drops out, a printed one greys
-}
-
-// ─── TAG TEST — TEMPORARY (see REF_TAG_DESIGN.md) ─────────────────────────────
-// Prints sample tags so the owner can compare QR size / scannability before we commit to
-// a payload + cell size. Deliberately builds its own TSPL rather than touching buildTSPL,
-// so nothing about production printing changes while we're still deciding.
-// Delete this + #tagTestSection + the applyRoleUI line once the choice is made.
-async function _printTestTag(mode) {
-  const statusEl = document.getElementById('tagTestStatus');
-  const setStatus = (t, c) => { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || 'var(--text-muted)'; } };
-  const ref = (document.getElementById('tagTestCode')?.value || '').trim().toUpperCase();
-  if (!ref) { setStatus('⚠️ ' + (lang === 'el' ? 'Βάλτε κωδικό' : 'Enter a code'), 'var(--danger)'); return; }
-  const fbBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
-  if (!fbBase) { setStatus('❌ ' + t('labelPrintError'), 'var(--danger)'); return; }
-
-  // mode → [payload, ECC, cell]. 'now' reproduces today's tag for a side-by-side.
-  const cfg = {
-    ref2: [ref, 'H', 2],
-    ref3: [ref, 'H', 3],
-    now:  [(lastCalcResult && lastCalcResult.labelCode) || 'ALO14D2.6-ZIR', 'M', 2]
-  }[mode];
-  if (!cfg) return;
-  const [payload, ecc, cell] = cfg;
-  const label = `${mode.toUpperCase()} ${payload} ${ecc}/${cell}`;
-
-  const cmds = [
-    'SIZE 65 mm, 12 mm', 'GAP 3 mm, 0 mm', 'DIRECTION 1', 'CODEPAGE 1252', 'REFERENCE 0,0',
-    'OFFSET 0 mm', 'SPEED 2', 'DENSITY 4', 'SET PEEL OFF', 'SET CUTTER OFF', 'CLS',
-    // Two lines: the code as it would print, plus which test this is (so the strips are
-    // identifiable once they're lying on the bench together).
-    `TEXT 228,34,"1",0,1,1,"${payload}"`,
-    `TEXT 228,50,"1",0,1,1,"${ecc}/cell${cell}"`,
-    `QRCODE ${395},${20},${ecc},${cell},A,0,M2,S7,"${payload}"`,
-    'PRINT 1,1'
-  ];
-  setStatus(t('labelPrintSending'));
-  try {
-    const r = await fetch(fbUrl('/jewelprice_print_job.json'), {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tspl: cmds.join('\n') + '\n', qrData: payload, qrX: 395, qrY: 20, createdAt: Date.now(), status: 'pending' })
-    });
-    setStatus(r.ok ? '✓ ' + label : t('labelPrintError') + ' (' + r.status + ')', r.ok ? 'var(--success, #81c784)' : 'var(--danger)');
-  } catch (e) {
-    setStatus('❌ ' + e.message, 'var(--danger)');
-  }
-}
-
 // ─── LABEL HISTORY ─────────────────────────────────────────────────────────────
 async function saveLabelToHistory(data) {
   const fbBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
@@ -6760,99 +6595,6 @@ function closeLabelHistoryIfMobile() {
   // No-op on desktop, keeps UX clean — the panel navigation handles it
 }
 
-// ── Duplicate QR Warning ─────────────────────────────────────────────────────
-function _showDupQrWarning(data, existing) {
-  // Show an overlay warning the user that this QR already exists in inventory,
-  // with the existing item's photo/description and a weight adjustment input.
-  const desc = (lang==='el'
-    ? (existing.descEl||existing.descEn||existing.description||'—')
-    : (existing.descEn||existing.descEl||existing.description||'—'))
-    + (existing.status !== 'in_stock' ? (lang==='el' ? ' [πωλημένο]' : ' [sold]') : '');
-  const photo = existing.photoUrl
-    ? `<img src="${existing.photoUrl}" style="width:56px;height:56px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);flex-shrink:0">`
-    : `<div style="width:56px;height:56px;border-radius:8px;background:var(--wa05);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">💎</div>`;
-  const curWeight = parseFloat(document.getElementById('weight')?.value) || 0;
-  const suggestedWeight = curWeight > 0 ? (curWeight + 0.01).toFixed(2) : '';
-  const isEl = lang === 'el';
-
-  const overlay = document.createElement('div');
-  overlay.id = 'dupQrWarningOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.innerHTML = `
-    <div style="background:var(--dark-2);border:1px solid rgba(255,80,80,0.4);border-radius:14px;padding:22px;width:100%;max-width:360px;max-height:90vh;overflow-y:auto">
-      <div style="font-family:var(--font-heading);font-size:18px;color:#FF6B6B;margin-bottom:4px">⚠️ ${isEl?'Διπλότυπος Κωδικός QR':'Duplicate QR Code'}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;font-family:var(--font-body)">${isEl?'Υπάρχει ήδη αντικείμενο με αυτόν τον κωδικό στο απόθεμα:':'An item with this QR code already exists in stock:'}</div>
-      <div style="display:flex;align-items:center;gap:10px;background:var(--wa04);border:1px solid var(--wa08);border-radius:8px;padding:10px 12px;margin-bottom:16px">
-        ${photo}
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-body);font-size:13px;color:var(--text-light);margin-bottom:3px">${desc}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${data.fullQR}</div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${existing.vendorName||''} · ${existing.catName||''}</div>
-        </div>
-      </div>
-      <div style="font-size:12px;color:var(--text-light);font-family:var(--font-body);margin-bottom:8px">${isEl?'Προσαρμόστε το βάρος για μοναδικό QR:':'Adjust weight for a unique QR:'}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-        <input id="dupQrWeightInput" type="number" step="0.01" inputmode="decimal" value="${suggestedWeight}" placeholder="${isEl?'π.χ. '+suggestedWeight:'e.g. '+suggestedWeight}" style="flex:1;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.4);border-radius:6px;color:var(--gold-light);font-family:'DM Mono',monospace;font-size:15px;outline:none">
-        <span style="font-size:12px;color:var(--text-muted);font-family:var(--font-body)">g</span>
-      </div>
-      <div id="dupQrNewCode" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;min-height:16px"></div>
-      <div style="display:flex;gap:8px">
-        <button id="dupQrCancelBtn" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl?'Ακύρωση':'Cancel'}</button>
-        <button id="dupQrConfirmBtn" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;color:var(--ink);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">${isEl?'Συνέχεια →':'Continue →'}</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  // Live preview of new QR code as weight is typed
-  const weightInput = document.getElementById('dupQrWeightInput');
-  const newCodeEl = document.getElementById('dupQrNewCode');
-  function updatePreview() {
-    const w = parseFloat(weightInput.value);
-    if (!isNaN(w) && w > 0) {
-      // Rebuild QR with new weight: replace weight portion in data.fullQR
-      // data.fullQR = baseCode + oldWeightStr + stoneSuffix
-      // Easiest: update the weight field and rebuild
-      const wEl = document.getElementById('weight');
-      if (wEl) {
-        const oldVal = wEl.value;
-        wEl.value = w;
-        const newData = buildLabelStrings();
-        wEl.value = oldVal;
-        if (newData) {
-          const isDup = Object.values(_inventoryCache||{}).some(it =>
-            (it.qrCode||it.code||'').trim().toUpperCase() === newData.fullQR.trim().toUpperCase()
-          );
-          newCodeEl.style.color = isDup ? 'var(--danger)' : '#27AE60';
-          newCodeEl.textContent = '→ ' + newData.fullQR + (isDup ? (isEl?' ⚠️ Ακόμα διπλό!':' ⚠️ Still duplicate!') : (isEl?' ✓ Μοναδικό':'  ✓ Unique'));
-        }
-      }
-    } else {
-      newCodeEl.textContent = '';
-    }
-  }
-  weightInput.addEventListener('input', updatePreview);
-  updatePreview();
-
-  document.getElementById('dupQrCancelBtn').addEventListener('click', () => overlay.remove());
-  document.getElementById('dupQrConfirmBtn').addEventListener('click', async () => {
-    const w = parseFloat(weightInput.value);
-    if (isNaN(w) || w <= 0) { showToast('⚠️ ' + (isEl?'Εισάγετε έγκυρο βάρος':'Enter a valid weight')); return; }
-    const wEl = document.getElementById('weight');
-    if (wEl) wEl.value = w;
-    overlay.remove();
-    calculate();
-    setTimeout(async () => {
-      const modal = document.getElementById('labelModal');
-      const content = document.getElementById('labelModalContent');
-      const newData = buildLabelStrings();
-      if (newData) {
-        newData._pendingSeqId = await getNextSeqId();
-        newData.refCode = formatSeqId(newData._pendingSeqId, document.getElementById('labelTypeSelect')?.value || '');
-        _openLabelModalInner(newData, modal, content);
-      }
-    }, 150);
-  });
-}
 
 // ─── SECONDARY GENDER ("Also appears under") ─────────────────────────────────
 // An item keeps ONE primary gender (drives the badge), but can be cross-listed
@@ -6924,29 +6666,14 @@ function openLabelModal() {
     return;
   }
 
-  // ── Duplicate QR check ────────────────────────────────────────────────────
-  // Before opening the label modal, check if this QR already exists in inventory
+  // No duplicate-code check before opening the label modal. Every tag carries the unique
+  // reference code, so a piece keeps its true weight even when another piece shares the same
+  // descriptive code — scanning each tag resolves to its own piece (verified). Just assign
+  // the reference code and open the modal.
   (async () => {
-    if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
-      _inventoryCache = await loadInventory();
-    }
-    const qrNorm = data.fullQR.trim().toUpperCase();
-    // Match ANY existing item with this QR — sold included. The physical tag of a sold
-    // item can still be floating around, and the owner keeps every QR globally unique
-    // (nudging the weight slightly), so a collision with a sold item must warn too.
-    // Prefer an in-stock match for the shown details, else fall back to any status.
-    const _allMatches = Object.values(_inventoryCache || {}).filter(it =>
-      (it.qrCode||it.code||'').trim().toUpperCase() === qrNorm);
-    const existing = _allMatches.find(it => it.status === 'in_stock') || _allMatches[0];
-    if (existing) {
-      // Show duplicate warning overlay instead of label modal
-      _showDupQrWarning(data, existing);
-    } else {
-      // Pre-fetch the seqId so label prints with ref code before item is saved
-      data._pendingSeqId = await getNextSeqId();
-      data.refCode = formatSeqId(data._pendingSeqId, document.getElementById('labelTypeSelect')?.value || '');
-      _openLabelModalInner(data, modal, content);
-    }
+    data._pendingSeqId = await getNextSeqId();
+    data.refCode = formatSeqId(data._pendingSeqId, document.getElementById('labelTypeSelect')?.value || '');
+    _openLabelModalInner(data, modal, content);
   })();
 }
 
@@ -8384,18 +8111,6 @@ async function confirmSale() {
 }
 
 // Manual entry from Settings
-async function saveManualSale() {
-  const amt = parseFloat(document.getElementById('manualSaleAmt').value);
-  if (!amt || amt <= 0) { showToast(lang==='el'?'⚠️ Εισάγετε έγκυρο ποσό':'⚠️ Enter a valid amount'); return; }
-  const note = document.getElementById('manualSaleNote').value.trim();
-  const date = document.getElementById('manualSaleDate').value || todayStr();
-  await addSaleRecord(amt, note, date);
-  document.getElementById('manualSaleAmt').value = '';
-  document.getElementById('manualSaleNote').value = '';
-  document.getElementById('manualSaleDate').value = '';
-  await renderSalesDashboard();
-}
-
 // ─── SALES PANEL (full-screen analytics) ─────────────────────────────────────
 
 let _spYear = new Date().getFullYear();
@@ -9602,12 +9317,6 @@ function _showStoneApplyBtns(cur) {
   if (el3) el3.textContent = (cur||'€') + (r||0);
   const btns = document.getElementById('stoneApplyBtns');
   if (btns) btns.style.display = 'flex';
-}
-
-function getStoneApplyLabelText() {
-  const cur = state.currency || '€';
-  const total = stoneEstimatedValue !== null ? stoneEstimatedValue : 0;
-  return (lang === 'el' ? 'Εφαρμογή ' : 'Apply ') + cur + Math.round(total);
 }
 
 function applyStoneEstimate(tier) {
@@ -13912,25 +13621,6 @@ function _scaleToJpeg(img, maxPx, quality) {
 }
 
 // Compress an image File/Blob to a small JPEG dataURL
-function compressPhoto(file, maxPx = 480, quality = 0.72) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(c.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
 // Upload a base64 dataURL to ImgBB, return the direct image URL or null
 async function uploadToImgBB(dataUrl, name) {
   try {
@@ -14037,8 +13727,6 @@ function renderPhotoPicker(container, opts) {
       '</div>' +
     '</div>';
 }
-
-function openPhotoPicker() {}
 
 // Called automatically when a label is printed/copied/saved — saves item to inventory.
 // One label-modal session = ONE inventory record.
@@ -14227,33 +13915,10 @@ async function _saveToInventoryFromLabel(labelData) {
     _pendingLabelPhotoHi = null;
   }
 
-  // Safety net: never save a duplicate QR to stock without warning. This backs up the
-  // pre-modal check in openLabelModal (belt-and-suspenders — catches stale-cache or
-  // weight-format edge cases so a duplicate can't slip through). NOT reached by the
-  // "Add similar" flow, which saves via saveInventoryItem directly.
-  {
-    if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
-      _inventoryCache = await loadInventory();
-    }
-    const _qn = (item.qrCode || '').trim().toUpperCase();
-    const _matches = _qn ? Object.values(_inventoryCache || {}).filter(it =>
-      (it.qrCode || it.code || '').trim().toUpperCase() === _qn) : [];
-    const _dup = _matches.find(it => it.status === 'in_stock') || _matches[0];
-    if (_dup) {
-      const _dd = lang === 'el'
-        ? (_dup.descEl || _dup.descEn || _dup.description || '—')
-        : (_dup.descEn || _dup.descEl || _dup.description || '—');
-      const _soldTag = _dup.status !== 'in_stock' ? (lang === 'el' ? ' [πωλημένο]' : ' [sold]') : '';
-      const _ok = await new Promise(res => showConfirm(
-        lang === 'el'
-          ? `⚠️ Ο κωδικός QR "${item.qrCode}" υπάρχει ήδη σε άλλο αντικείμενο (${_dd}${_soldTag}). Αλλάξτε ελαφρώς το βάρος για μοναδικό κωδικό. Αποθήκευση ούτως ή άλλως;`
-          : `⚠️ The QR code "${item.qrCode}" already exists on another item (${_dd}${_soldTag}). Adjust the weight slightly for a unique code. Save anyway?`,
-        () => res(true), () => res(false),
-        { okLabel: lang === 'el' ? 'Αποθήκευση' : 'Save anyway', danger: true }
-      ));
-      if (!_ok) { showToast(lang === 'el' ? 'Ακυρώθηκε — προσαρμόστε το βάρος' : 'Cancelled — adjust the weight'); return; }
-    }
-  }
+  // No duplicate-code check: every tag now carries the unique reference code, so two pieces
+  // of the same weight/vendor/category share a descriptive code yet are told apart by their
+  // ref codes (verified — each tag scans to its own piece, incl. the sold-marking target).
+  // The true weight is kept, which is the whole point of the reference-code system.
 
   // Assign sequential reference ID (use pre-fetched one from label modal if available)
   item.seqId = labelData._pendingSeqId || await getNextSeqId();
@@ -20312,8 +19977,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.31', date: 'Ιούλιος 2026', items: [
-        '🏷️ Απλούστερη εκτύπωση ετικέτας: το κουμπί «Εκτύπωση» τυπώνει πλέον ΠΑΝΤΑ ετικέτα με κωδικό αναφοράς — αυτή που σας αφήνει να αλλάζετε βάρος, προμηθευτή και πέτρες χωρίς νέα εκτύπωση. Το ξεχωριστό πράσινο κουμπί «ως ετικέτα κωδικού» αφαιρέθηκε γιατί δεν χρειαζόταν. Το «Μόνο QR» και η «Αποθήκευση ως Εικόνα» χρησιμοποιούν κι αυτά τον κωδικό αναφοράς.'
+      { version: 'v11.32', date: 'Ιούλιος 2026', items: [
+        '✅ Τέλος η προειδοποίηση «Διπλότυπος Κωδικός QR». Με το σύστημα κωδικών αναφοράς, δύο κομμάτια ίδιου βάρους/προμηθευτή/κατηγορίας ξεχωρίζουν από τον κωδικό αναφοράς τους (RG0624, RG0625) — οπότε πλέον κρατάτε το ΑΚΡΙΒΕΣ βάρος χωρίς να χρειάζεται να το αλλάξετε σε 1,301. Σκανάροντας κάθε ετικέτα βγαίνει το σωστό κομμάτι (επιβεβαιωμένο).',
+        '🧹 Εσωτερική εκκαθάριση: αφαιρέθηκαν τα προσωρινά εργαλεία δοκιμών (η λίστα «Κοινοί Κωδικοί» και το «Tag Test») που δεν χρειάζονται πια, καθώς και παλιός αχρησιμοποίητος κώδικας.'
       ]},
           ]
   },
@@ -20344,8 +20010,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.31', date: 'Jul 2026', items: [
-        '🏷️ Simpler tag printing: the "Print" button now ALWAYS prints a reference-code tag — the one that lets you change weight, vendor and stones without reprinting. The separate green "Print as ref tag" button was removed as redundant. "Print QR Only" and "Save QR as Image" use the reference code too.'
+      { version: 'v11.32', date: 'Jul 2026', items: [
+        '✅ No more "Duplicate QR Code" warning. With the reference-code system, two pieces of the same weight/vendor/category are told apart by their reference codes (RG0624, RG0625) — so you now keep the EXACT weight instead of nudging it to 1.301. Scanning each tag brings up the right piece (verified).',
+        '🧹 Internal tidy-up: removed the temporary test tools (the "Shared Codes" list and "Tag Test") that are no longer needed, plus some old unused code.'
       ]},
           ]
   }
@@ -22784,10 +22451,6 @@ function openQuoteWindow(html, share, viewerUrl) {
   };
 }
 
-function openQuoteWindowFallback(html, blobUrl, share) {
-  openQuoteWindow(html, share, null);
-}
-
 // Fallback overlay if popup is blocked
 function openQuoteOverlay(html, share, viewerUrl) {
   var savedOverflow = document.body.style.overflow;
@@ -23353,7 +23016,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.31';
+const APP_VERSION = '11.32';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -24311,21 +23974,6 @@ function invShareGroup(gid) {
 }
 
 // Ungroup: strip the groupId from every member so they render as individual cards again.
-function invUngroup(gid) {
-  if (creds.role === 'employee') return;
-  const members = Object.entries(_inventoryCache || {}).filter(([,it]) => it && it.groupId === gid);
-  if (!members.length) return;
-  showConfirm(
-    lang==='el' ? `Κατάργηση ομαδοποίησης ${members.length} ειδών; (τα είδη παραμένουν, απλώς ξεχωρίζουν ξανά)` : `Ungroup these ${members.length} items? (the items stay, they just show separately again)`,
-    async () => {
-      for (const [id, it] of members) { delete it.groupId; _inventoryCache[id] = it; await saveInventoryItem(id, it); }
-      closeInvGroup();
-      showToast(lang==='el' ? '✅ Καταργήθηκε η ομαδοποίηση' : '✅ Ungrouped');
-      renderInvList();
-    }
-  );
-}
-
 // Delete every in-stock piece of a group in one go (one confirmation), for cleaning up
 // a whole batch (e.g. coins added by mistake) without deleting 30 items one by one.
 function invDeleteGroup(gid) {
