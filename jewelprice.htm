@@ -1753,6 +1753,14 @@
         <div id="tagTestStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;font-family:'DM Mono',monospace"></div>
       </div>
 
+      <!-- REF-TAG MIGRATION — TEMPORARY (see REF_TAG_DESIGN.md). Delete once the list is clear. -->
+      <div class="settings-section" id="refFixSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0">🆔 Κοινοί Κωδικοί / Shared Codes</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6">Αυτά τα κομμάτια τυπώνουν τον ΙΔΙΟ κωδικό αλλά ΔΕΝ είναι ίδια (βάρος ή χρώμα). Μια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Πατήστε «Εκτύπωση» σε ένα από κάθε ζευγάρι: παίρνει δικό του κωδικό και νέα ετικέτα.<br>These pieces print the SAME code but are NOT identical. Print one of each pair — it gets its own code and a new tag.</p>
+        <div id="refFixList"></div>
+        <button onclick="renderRefFixList()" style="width:100%;padding:10px;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">🔄 Ανανέωση / Refresh</button>
+      </div>
+
       <!-- INVENTORY CHECK (stocktake) -->
       <div class="settings-section" id="stocktakeSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stkTitle">🔍 Έλεγχος Απογραφής</h4>
@@ -4417,6 +4425,8 @@ function applyRoleUI() {
   const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
   const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
   const _tts = document.getElementById('tagTestSection'); if (_tts) _tts.style.display = isOwnerMgr ? '' : 'none';
+  const _rfs = document.getElementById('refFixSection');
+  if (_rfs) { _rfs.style.display = isOwnerMgr ? '' : 'none'; if (isOwnerMgr) renderRefFixList(); }
   const _staleBtn = document.getElementById('invStaleBtn'); if (_staleBtn) _staleBtn.style.display = isOwnerMgr ? 'flex' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -6400,13 +6410,26 @@ function buildLabelStrings() {
   return { fullQR, baseQR, greekCode: baseGreek, lines, hasStones: stones.length > 0 };
 }
 
-function buildTSPL(data, qrOnly, copies) {
+// useRef=true → the QR carries the REFERENCE code (RG0110) instead of the descriptive code
+// (ALO14D2.6-ZIR). See REF_TAG_DESIGN.md. The tag then identifies the piece rather than
+// describing it, so weight/stones/colour become editable without stranding the tag — and
+// the short fixed payload buys ECC H (30% damage tolerance) at the same physical size.
+// The printed TEXT is already only the ref code, so a ref tag simply makes the QR agree
+// with the text. Defaults OFF: every existing caller keeps printing exactly as before.
+//
+// Cell size stays 2. Cell 3 was tested and rejected: a QR needs a 4-module quiet zone, so
+// at cell 3 the code + margins need ~87 of the label's 96 dots — about one dot of slack,
+// which any label-feed drift would eat. Cell 2 needs 66 of 96.
+function buildTSPL(data, qrOnly, copies, useRef) {
   // TSC TTP-244, 203dpi, 65x12mm = 520x96 dots
   // qrOnly=true → skip text lines, center QR horizontally (for long codes that overflow)
 
   // Greek encoding handled by Python (cp1253) — JS sends plain UTF-8
   function toWin1253Hex(str) { return str; }
 
+  const refMode = !!(useRef && data.refCode);
+  const qrPayload = refMode ? data.refCode : data.fullQR;
+  const qrEcc = refMode ? 'H' : 'M';   // a 6-char payload fits version 1 even at H
   const qrCell = 2;
   const qrY = 20;
   const qrX = 395;  // X position never changes — only text is suppressed in qrOnly mode
@@ -6441,17 +6464,18 @@ function buildTSPL(data, qrOnly, copies) {
     });
   }
 
-  cmds.push(`QRCODE ${qrX},${qrY},M,${qrCell},A,0,M2,S7,"${data.fullQR}"`);
+  cmds.push(`QRCODE ${qrX},${qrY},${qrEcc},${qrCell},A,0,M2,S7,"${qrPayload}"`);
   cmds.push('PRINT 1,' + Math.max(1, parseInt(copies) || 1));  // PRINT sets,copies
 
   return cmds.join('\r\n') + '\r\n';
 }
 
 
-async function printLabel(data, statusEl, qrOnly, copies) {
+async function printLabel(data, statusEl, qrOnly, copies, useRef) {
   // Push TSPL job to Firebase — Python helper polls and prints
   // qrOnly=true → text omitted from label, QR centered
   // copies>1 → print that many identical labels in one job (same-weight batch)
+  // useRef=true → QR carries the reference code, not the descriptive code (see buildTSPL)
   statusEl.textContent = t('labelPrintSending');
   statusEl.style.color = 'var(--text-muted)';
   const fbBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
@@ -6460,8 +6484,10 @@ async function printLabel(data, statusEl, qrOnly, copies) {
     statusEl.style.color = 'var(--error, #e57373)';
     return;
   }
-  const tspl = buildTSPL(data, qrOnly, copies);
-  const job = { tspl, qrData: data.fullQR, qrX: 395, qrY: 20, createdAt: Date.now(), status: 'pending' };
+  const tspl = buildTSPL(data, qrOnly, copies, useRef);
+  // qrData mirrors what the QR actually encodes — the print helper reads it.
+  const _payload = (useRef && data.refCode) ? data.refCode : data.fullQR;
+  const job = { tspl, qrData: _payload, qrX: 395, qrY: 20, createdAt: Date.now(), status: 'pending' };
   try {
     const r = await fetch(fbUrl(`/jewelprice_print_job.json`), {
       method: 'PUT',
@@ -6472,14 +6498,83 @@ async function printLabel(data, statusEl, qrOnly, copies) {
       statusEl.textContent = t('labelPrintSent');
       statusEl.style.color = 'var(--success, #81c784)';
       saveLabelToHistory(data); // fire-and-forget
-    } else {
-      statusEl.textContent = t('labelPrintError') + ' (' + r.status + ')';
-      statusEl.style.color = 'var(--error, #e57373)';
+      return true;   // callers stamp tagRef only on a tag that actually went to the printer
     }
+    statusEl.textContent = t('labelPrintError') + ' (' + r.status + ')';
+    statusEl.style.color = 'var(--error, #e57373)';
   } catch(e) {
     statusEl.textContent = t('labelPrintError') + ': ' + e.message;
     statusEl.style.color = 'var(--error, #e57373)';
   }
+  return false;
+}
+
+// ─── REF-TAG MIGRATION LIST — TEMPORARY (see REF_TAG_DESIGN.md) ───────────────
+// The app knows exactly which pieces share a printed code with a piece that isn't the
+// same, so it drives the job rather than handing the owner a paper list. Printing one of
+// a pair splits the ref and greys the row out. Derived live from inventory — a piece that
+// no longer clashes simply stops appearing, so the list empties itself as the work is done.
+// Delete this + #refFixSection + the applyRoleUI line once it stays empty.
+async function renderRefFixList() {
+  const box = document.getElementById('refFixList');
+  if (!box) return;
+  const isEl = lang === 'el';
+  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px">${isEl ? 'Έλεγχος…' : 'Checking…'}</div>`;
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
+
+  // Group in-stock, non-coin/metal pieces by ref code; keep only refs whose members differ.
+  const byRef = {};
+  Object.entries(_inventoryCache).forEach(([id, it]) => {
+    if (!it.seqId || it.status !== 'in_stock' || it.isBulk || it.isCoin || it.isMetal) return;
+    (byRef[itemRefCode(it)] = byRef[itemRefCode(it)] || []).push([id, it]);
+  });
+  const groups = Object.entries(byRef)
+    .filter(([, m]) => m.length > 1 && new Set(m.map(([, it]) => _refIdentityKey(it))).size > 1)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  if (!groups.length) {
+    box.innerHTML = `<div style="font-size:12px;color:#7fd39b;text-align:center;padding:14px;line-height:1.5">✅ ${isEl ? 'Κανένας κοινός κωδικός — τελειώσατε!' : 'No shared codes — all done!'}</div>`;
+    return;
+  }
+  const pieces = groups.reduce((n, [, m]) => n + m.length, 0);
+  box.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${groups.length} ${isEl ? 'κωδικοί' : 'codes'} · ${pieces} ${isEl ? 'κομμάτια' : 'pieces'}</div>` +
+    groups.map(([ref, members]) => `
+      <div style="border:1px solid var(--wa10);border-radius:10px;padding:9px 10px;margin-bottom:8px">
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);margin-bottom:6px">${ref}
+          <span style="color:var(--text-muted);font-family:var(--font-body);font-size:11px"> · ${_refFixDesc(members[0][1])}</span></div>
+        ${members.map(([id, it]) => `
+          <div id="reffix-${id}" style="display:flex;align-items:center;gap:8px;padding:5px 0${it.tagRef ? ';opacity:.4' : ''}">
+            <img src="${it.photoUrl || ''}" style="width:30px;height:30px;border-radius:5px;object-fit:contain;background:#fff;flex:0 0 auto"${it.photoUrl ? '' : ' hidden'}>
+            <span style="flex:1;min-width:0;font-family:var(--font-body);font-size:12px;color:var(--text)">${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}</span>
+            ${it.tagRef
+              ? `<span style="font-size:11px;color:#7fd39b;white-space:nowrap">✓ ${isEl ? 'έγινε' : 'done'}</span>`
+              : `<button onclick="_refFixPrint('${id}')" style="padding:6px 12px;background:rgba(96,180,120,0.12);border:1px solid rgba(96,180,120,0.45);color:#7fd39b;border-radius:6px;font-family:var(--font-body);font-size:11px;cursor:pointer;white-space:nowrap">🖨️ ${isEl ? 'Εκτύπωση' : 'Print'}</button>`}
+          </div>`).join('')}
+      </div>`).join('') +
+    `<div id="refFixStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:8px;font-family:var(--font-mono)"></div>`;
+}
+
+function _refFixDesc(it) {
+  return (lang === 'el' ? (it.descEl || it.descEn) : (it.descEn || it.descEl))
+    || invTypeLabel(it.jewelryType) || it.jewelryType || '';
+}
+
+// Reprint one piece as a ref tag, straight from the list — same path as the Stock card's
+// button, so the ref split and the tagRef stamp happen identically.
+async function _refFixPrint(id) {
+  const item = _inventoryCache && _inventoryCache[id];
+  if (!item) return;
+  const statusEl = document.getElementById('refFixStatus') || document.createElement('div');
+  const qr = item.qrCode || item.code || '';
+  const _d = qr.indexOf('-');
+  const _base = _d !== -1 ? qr.slice(0, _d) : qr;
+  const _stones = _d !== -1 ? qr.slice(_d + 1).split('+').filter(Boolean) : [];
+  const lines = [_base];
+  _stones.forEach((p, i) => lines.push((i === 0 ? '-' : '+') + p));
+  const data = { fullQR: qr, baseQR: _base, greekCode: _base, lines,
+                 hasStones: _stones.length > 0, refCode: itemRefCode(item) };
+  await _printAsRefTag(id, data, statusEl);
+  renderRefFixList();   // re-derive: a split piece drops out, a printed one greys
 }
 
 // ─── TAG TEST — TEMPORARY (see REF_TAG_DESIGN.md) ─────────────────────────────
@@ -13536,6 +13631,67 @@ function refTypeMismatch(item) {
 // and public website all follow) and prints the new code; "Keep" prints the existing
 // frozen code unchanged. No mismatch → prints straight away. doPrint(refCode) performs
 // the actual print with whichever code was chosen.
+// ─── REF TAGS (see REF_TAG_DESIGN.md) ─────────────────────────────────────────
+// How a piece LOOKS / weighs. Two records may share one ref code only while they are
+// interchangeable; the moment they differ, one printed code can no longer identify a
+// piece — not for a scan, not for OCR, not for typing.
+function _refIdentityKey(it) {
+  return [String(it.weight || ''), it.color || '', it.goldColor || ''].join('|');
+}
+
+// Other in-stock pieces printing the SAME ref code but which are NOT the same piece.
+// invAddSimilar deliberately copies seqId (one product, one code) — correct for true
+// twins, wrong once a variant differs. Those are the ones that need splitting.
+function _refSharedWithDifferent(id, item) {
+  if (!item.seqId || !_inventoryCache) return [];
+  const ref = itemRefCode(item);
+  const mine = _refIdentityKey(item);
+  return Object.entries(_inventoryCache).filter(([oid, it]) =>
+    oid !== id && it.status === 'in_stock' && !it.isBulk && it.seqId &&
+    itemRefCode(it) === ref && _refIdentityKey(it) !== mine);
+}
+
+// Print a piece's tag with the REFERENCE code in the QR, and remember that we did
+// (`tagRef`) so later edits know the tag can't go stale.
+// If this piece shares its ref with a piece that differs, the ref must be split first —
+// otherwise the ref tag would be exactly as ambiguous as the code it replaces.
+async function _printAsRefTag(id, data, statusEl) {
+  const item = _inventoryCache[id];
+  if (!item) return;
+  const isEl = lang === 'el';
+  const clash = _refSharedWithDifferent(id, item);
+
+  const doPrint = async () => {
+    data.refCode = itemRefCode(item);
+    const ok = await printLabel(data, statusEl, false, 1, true);
+    if (!ok) return;
+    item.tagRef = true;
+    _inventoryCache[id] = item;
+    await saveInventoryItem(id, item);
+    renderInvList();
+  };
+
+  if (!clash.length) { await doPrint(); return; }
+
+  // Shared with something different → mint this piece its own number before printing.
+  const newSeq = await getNextSeqId();
+  const preview = formatSeqId(newSeq, item.refType || item.jewelryType);
+  const others = clash.map(([, it]) =>
+    `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
+  showConfirm(isEl
+    ? `Ο κωδικός ${itemRefCode(item)} τυπώνεται και σε ${clash.length} ΔΙΑΦΟΡΕΤΙΚΟ κομμάτι:\n${others}\n\nΜια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Να πάρει αυτό δικό του κωδικό ${preview} και να τυπωθεί;`
+    : `Code ${itemRefCode(item)} is also printed on ${clash.length} DIFFERENT piece:\n${others}\n\nOne tag cannot identify two different pieces. Give this one its own code ${preview} and print it?`,
+    async () => {
+      item.seqId = newSeq;
+      delete item.refType;   // fresh number derives its prefix from the current type
+      _inventoryCache[id] = item;
+      await saveInventoryItem(id, item);
+      await doPrint();
+    }, null,
+    { okLabel: isEl ? ('Νέος κωδικός ' + preview) : ('New code ' + preview),
+      cancelLabel: isEl ? 'Άκυρο' : 'Cancel' });
+}
+
 function _withRefSync(id, item, doPrint) {
   const cur = itemRefCode(item);
   if (!refTypeMismatch(item)) { doPrint(cur); return; }
@@ -19193,6 +19349,7 @@ function invPrintTagFromCard(id) {
         <button id="invPrintTagPrintBtn" style="flex:1;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση':'Print'}</button>
         <button id="invPrintTagCopyBtn" style="flex:1;padding:13px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">📋 ${lang==='el'?'Αντιγραφή':'Copy'}</button>
       </div>
+      <button id="invPrintTagRefBtn" style="width:100%;padding:12px;background:rgba(96,180,120,0.10);border:1px solid rgba(96,180,120,0.45);color:#7fd39b;border-radius:8px;font-family:var(--font-body);font-size:12.5px;cursor:pointer;margin-bottom:8px">🆔 ${lang==='el'?'Εκτύπωση ως ετικέτα κωδικού':'Print as ref tag'}<br><span style="font-size:10px;opacity:.75">${lang==='el'?'το QR δείχνει τον κωδικό αναφοράς — αλλάζετε βάρος/πέτρες χωρίς νέα ετικέτα':'QR carries the reference code — edit weight/stones without reprinting'}</span></button>
       <button id="invPrintTagQrOnlyBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:8px">📟 ${lang==='el'?'Εκτύπωση Μόνο QR':'Print QR Only'}</button>
       <button id="invPrintTagQrBtn" style="width:100%;padding:11px;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.25);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;margin-bottom:8px">🖼️ ${lang==='el'?'Αποθήκευση QR ως Εικόνα':'Save QR as Image'}</button>
       <button onclick="document.getElementById('invPrintTagOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Κλείσιμο':'Close'}</button>
@@ -19228,6 +19385,18 @@ function invPrintTagFromCard(id) {
     _withRefSync(id, item, async (refCode) => {
       data.refCode = refCode;
       await printLabel(data, statusEl);
+      setTimeout(() => { _btn.disabled = false; }, 2000);
+    });
+  });
+
+  document.getElementById('invPrintTagRefBtn').addEventListener('click', async function() {
+    this.disabled = true;
+    const statusEl = document.getElementById('invPrintTagStatus');
+    const _btn = this;
+    // Same ref-type re-sync offer as a normal reprint — the ref code IS the tag now, so
+    // getting the prefix right matters more, not less.
+    _withRefSync(id, item, async () => {
+      await _printAsRefTag(id, data, statusEl);
       setTimeout(() => { _btn.disabled = false; }, 2000);
     });
   });
@@ -19764,8 +19933,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.21', date: 'Ιούλιος 2026', items: [
-        '🔎 Το ζουμ του σαρωτή θυμάται τη ρύθμισή σας. Βάλτε το εκεί που βολεύει την κάμερά σας και θα ανοίγει έτσι κάθε φορά. Αποθηκεύεται ανά συσκευή — το κινητό σας και του υπαλλήλου κρατούν το δικό τους ζουμ.'
+      { version: 'v11.22', date: 'Ιούλιος 2026', items: [
+        '🆔 Νέο κουμπί «Εκτύπωση ως ετικέτα κωδικού» (κάτω από την Εκτύπωση, στην κάρτα του είδους): το QR δείχνει τον κωδικό αναφοράς (RG0110) αντί για τον περιγραφικό. Έτσι η ετικέτα ΔΕΙΧΝΕΙ το κόσμημα αντί να το περιγράφει — και βάρος, πέτρες ή χρώμα αλλάζουν χωρίς νέα εκτύπωση. Οι παλιές ετικέτες συνεχίζουν κανονικά.',
+        '🔗 Ρυθμίσεις → «Κοινοί Κωδικοί»: λίστα με τα κομμάτια που τυπώνουν τον ΙΔΙΟ κωδικό ενώ ΔΕΝ είναι ίδια (άλλο βάρος ή χρώμα). Μια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια — γι΄ αυτό, πληκτρολογώντας ή σκανάροντας τον κωδικό, έβγαινε πάντα το πρώτο. Πατήστε «Εκτύπωση» σε ένα από κάθε ζευγάρι: παίρνει δικό του κωδικό και νέα ετικέτα.'
       ]},
           ]
   },
@@ -19796,8 +19966,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.21', date: 'Jul 2026', items: [
-        '🔎 The scanner zoom now remembers your setting. Put it where your camera likes it and it opens there every time. Saved per device — your phone and your employee\'s keep their own zoom.'
+      { version: 'v11.22', date: 'Jul 2026', items: [
+        '🆔 New "Print as ref tag" button (under Print, on the item card): the QR carries the reference code (RG0110) instead of the descriptive one. The tag then IDENTIFIES the piece instead of describing it — so weight, stones or colour can change without reprinting. Existing tags keep working exactly as before.',
+        '🔗 Settings → "Shared Codes": lists the pieces that print the SAME code while NOT being identical (different weight or colour). One tag cannot identify two different pieces — which is why typing or scanning that code always brought up the first one. Print one of each pair: it gets its own code and a new tag.'
       ]},
           ]
   }
@@ -22803,7 +22974,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.21';
+const APP_VERSION = '11.22';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
