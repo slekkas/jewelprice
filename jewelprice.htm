@@ -13721,6 +13721,13 @@ function _refIdentityKey(it) {
   return [String(it.weight || ''), it.color || '', it.goldColor || ''].join('|');
 }
 
+// "1 κομμάτι" but "4 κομμάτια" — Greek and English both inflect, and these warnings are
+// read in the shop while the owner decides whether to reprint a tag.
+function _piecesWord(n) {
+  const isEl = lang === 'el';
+  return n === 1 ? (isEl ? 'κομμάτι' : 'piece') : (isEl ? 'κομμάτια' : 'pieces');
+}
+
 // Other in-stock pieces printing the SAME ref code but which are NOT the same piece.
 // invAddSimilar deliberately copies seqId (one product, one code) — correct for true
 // twins, wrong once a variant differs. Those are the ones that need splitting.
@@ -13760,9 +13767,10 @@ async function _printAsRefTag(id, data, statusEl) {
   const preview = formatSeqId(newSeq, item.refType || item.jewelryType);
   const others = clash.map(([, it]) =>
     `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
+  const n = clash.length;
   showConfirm(isEl
-    ? `Ο κωδικός ${itemRefCode(item)} τυπώνεται και σε ${clash.length} ΔΙΑΦΟΡΕΤΙΚΟ κομμάτι:\n${others}\n\nΜια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Να πάρει αυτό δικό του κωδικό ${preview} και να τυπωθεί;`
-    : `Code ${itemRefCode(item)} is also printed on ${clash.length} DIFFERENT piece:\n${others}\n\nOne tag cannot identify two different pieces. Give this one its own code ${preview} and print it?`,
+    ? `Ο κωδικός ${itemRefCode(item)} τυπώνεται και σε ${n} ${n === 1 ? 'ΔΙΑΦΟΡΕΤΙΚΟ κομμάτι' : 'ΔΙΑΦΟΡΕΤΙΚΑ κομμάτια'}:\n${others}\n\nΜια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Να πάρει αυτό δικό του κωδικό ${preview} και να τυπωθεί;`
+    : `Code ${itemRefCode(item)} is also printed on ${n} DIFFERENT ${_piecesWord(n)}:\n${others}\n\nOne tag cannot identify two different pieces. Give this one its own code ${preview} and print it?`,
     async () => {
       item.seqId = newSeq;
       delete item.refType;   // fresh number derives its prefix from the current type
@@ -13772,6 +13780,27 @@ async function _printAsRefTag(id, data, statusEl) {
     }, null,
     { okLabel: isEl ? ('Νέος κωδικός ' + preview) : ('New code ' + preview),
       cancelLabel: isEl ? 'Άκυρο' : 'Cancel' });
+}
+
+// After an edit changed a piece's identity, check whether that BROKE a shared ref code.
+// Five 0.2g clasps sharing XX0532 are interchangeable, so one ref tag tells the truth —
+// until one becomes 0.3g and the tag names two different pieces. We only inform and route
+// into the print flow: minting a new number here without printing would be worse than the
+// clash, because the piece's physical tag would still read XX0532 and resolve, silently and
+// confidently, to a piece of the wrong weight. _printAsRefTag mints and prints together.
+function _refCheckSplitAfterEdit(id, item) {
+  const clash = _refSharedWithDifferent(id, item);
+  if (!clash.length) return;
+  const isEl = lang === 'el';
+  const others = clash.map(([, it]) =>
+    `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
+  const n = clash.length;
+  showConfirm(isEl
+    ? `Ο κωδικός ${itemRefCode(item)} τυπώνεται και σε ${n} ακόμη ${_piecesWord(n)} που τώρα ${n === 1 ? 'ΔΙΑΦΕΡΕΙ' : 'ΔΙΑΦΕΡΟΥΝ'}:\n${others}\n\nΜια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Τυπώστε νέα ετικέτα για να πάρει αυτό δικό του κωδικό.`
+    : `Code ${itemRefCode(item)} is also printed on ${n} other ${_piecesWord(n)} that now ${n === 1 ? 'DIFFERS' : 'DIFFER'}:\n${others}\n\nOne tag cannot identify two different pieces. Print a new tag to give this one its own code.`,
+    () => invPrintTagFromCard(id), null,
+    { okLabel: isEl ? '🏷️ Εκτύπωση' : '🏷️ Print tag',
+      cancelLabel: isEl ? 'Αργότερα' : 'Later' });
 }
 
 function _withRefSync(id, item, doPrint) {
@@ -16815,6 +16844,95 @@ function invEditResetInitialPrice(id) {
   }, null, { danger: true });
 }
 
+// ─── EDITING A REF-TAGGED PIECE (REF_TAG_DESIGN.md, step B2) ─────────────────
+// The old descriptive code CONTAINS the vendor, karat, category, weight and stones, so
+// changing any of them makes an already-printed tag lie — there is no safe version of it.
+// A ref tag carries only the reference code, so everything underneath can change freely.
+// Hence the gate: these fields exist only for a ref-tagged, in-stock piece; anything else
+// gets one button to convert. Sold pieces stay locked — their price is history, and a
+// restock prints a new tag anyway, which unlocks them at exactly the right moment.
+function _invEditUnlocked(item) {
+  return !!item.tagRef && item.status === 'in_stock' &&
+         item.metal !== 'other' && !item.isBulk && !item.isCoin && !item.isMetal;
+}
+
+// Rebuild an item's stored descriptive code from its CURRENT vendor/category/weight,
+// keeping its stone suffix. The code still drives pricing when a ref resolves to the
+// record, so it must follow every edit — the printed ref tag never changes.
+// Returns null when it can't be rebuilt; callers must not guess.
+function _rebuildItemQR(item) {
+  if (item.metal === 'other' || item.isBulk || item.isCoin || item.isMetal) return null;
+  const vendor = state.vendors[item.vendorIdx];
+  if (!vendor || item.catIdx == null || item.catIdx < 0) return null;
+  const base = getLatinCodeForCat(vendor, item.catIdx, state.vendors);
+  if (!base) return null;
+  const w = parseFloat(item.weight);
+  if (!(w > 0)) return null;
+  // The stone suffix is everything from the first '-' (or a malformed leading '+', which
+  // legacy codes can have — normalise it so the rebuilt code is well-formed).
+  const existing = (item.qrCode || item.code || '');
+  let d = existing.indexOf('-');
+  if (d === -1) d = existing.indexOf('+');
+  let suffix = d !== -1 ? existing.slice(d) : '';
+  if (suffix.startsWith('+')) suffix = '-' + suffix.slice(1);
+  return base + String(w) + suffix;
+}
+
+// Vendors the owner can move a jewelry piece to: live ones, plus the piece's current
+// vendor even if retired (so an edit never silently re-homes it). «Other»-type vendors are
+// excluded — they price by a multiplier and their categories carry no karat, so a gold
+// piece moved there would lose the karat its price and code are built from.
+function _invEditVendorOptions(curIdx) {
+  return state.vendors.map((v, i) => ({ i, v }))
+    .filter(({ i, v }) => i === curIdx || (!v.deleted && v.vendorType !== 'other'));
+}
+
+// Categories the owner can move a piece to, within one vendor. Restricted to the SAME rate
+// type as the piece has now: a per-item category prices off an itemMargin/laborCost worked
+// out from a Target Retail the owner types in — a field this form only shows when the piece
+// was already per-item. Letting a per-gram piece cross over would price it off a margin
+// nobody ever set. Retired categories stay listed only if the piece is already in one.
+function _invEditCatOptions(vendor, curIdx, rateType) {
+  const cats = vendor ? getVendorCategories(vendor) : [];
+  const _rt = c => c.rateType || 'pergram';
+  return cats.map((c, i) => ({ i, c }))
+    .filter(({ i, c }) => i === curIdx || (!c.deleted && _rt(c) === rateType));
+}
+
+function _invEditPopulateCats(vendorIdx, selectIdx) {
+  const sel = document.getElementById('invEditCatSelect');
+  if (!sel) return;
+  const vendor = state.vendors[vendorIdx];
+  const opts = _invEditCatOptions(vendor, selectIdx, sel.dataset.rateType || 'pergram');
+  sel.innerHTML = opts.map(({ i, c }) =>
+    `<option value="${i}"${i === selectIdx ? ' selected' : ''}>${catOptionLabel(c, false)}</option>`
+  ).join('');
+  // A vendor with no category of this rate type leaves the list empty — say so rather
+  // than showing a blank box the owner can't act on.
+  if (!opts.length) {
+    sel.innerHTML = `<option value="-1">${lang==='el'?'— καμία συμβατή κατηγορία —':'— no compatible category —'}</option>`;
+  } else if (selectIdx != null && opts.some(o => o.i === selectIdx)) {
+    sel.value = String(selectIdx);
+  }
+}
+
+function _invEditVendorChanged() {
+  const vSel = document.getElementById('invEditVendorSelect');
+  const cSel = document.getElementById('invEditCatSelect');
+  if (!vSel || !cSel) return;
+  // A new vendor brings its own categories; there is nothing sensible to carry over, so
+  // land on its first compatible one.
+  const _first = _invEditCatOptions(state.vendors[parseInt(vSel.value)], -1, cSel.dataset.rateType || 'pergram')[0];
+  _invEditPopulateCats(parseInt(vSel.value), _first ? _first.i : -1);
+}
+
+// Close the edit form and take the owner straight to the tag print, where "Print as ref
+// tag" converts the piece. Reopening Edit then shows the fields unlocked.
+function _invEditUnlock(id) {
+  document.getElementById('invEditOverlay')?.remove();
+  invPrintTagFromCard(id);
+}
+
 function invEdit(id) {
   const item = _inventoryCache[id];
   if (!item) return;
@@ -16899,11 +17017,47 @@ function invEdit(id) {
     '</div>'
   );
 
+  // Weight / vendor / category are only editable on a ref-tagged piece — see
+  // _invEditUnlocked. Otherwise they stay the read-only rows they have always been, with
+  // one button that explains the path.
+  const _unlocked = _invEditUnlocked(item);
+  const _lockable = !isOtherEdit && !item.isBulk && !item.isCoin && !item.isMetal;
+  const _lbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px';
+  const _editableRows = `
+    <div style="margin-bottom:12px">
+      <label style="${_lbl}">${t('rWeight')} (g)</label>
+      <input type="number" id="invEditWeight" step="0.01" min="0" inputmode="decimal" value="${parseFloat(item.weight)}"
+        style="width:100%;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:15px;box-sizing:border-box;outline:none">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="${_lbl}">${t('invFilterVendor')}</label>
+      <select id="invEditVendorSelect" onchange="_invEditVendorChanged()" style="width:100%">
+        ${_invEditVendorOptions(item.vendorIdx).map(({ i, v }) =>
+          `<option value="${i}"${i === item.vendorIdx ? ' selected' : ''}>${v.name}${v.deleted ? ' (' + (lang==='el'?'αποσύρθηκε':'retired') + ')' : ''}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="${_lbl}">${t('laborCat')}</label>
+      <select id="invEditCatSelect" data-rate-type="${_ieCat?.rateType || 'pergram'}" style="width:100%"></select>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:5px">${lang==='el'
+        ? 'Η κατηγορία ορίζει το καράτι και την τιμή εργασίας — αλλάξτε κατηγορία για να διορθώσετε καράτι.'
+        : 'The category sets the karat and the labour rate — change the category to correct a karat.'}</div>
+    </div>`;
+  const _lockedRows = `
+    ${!isOtherEdit ? `<div class="inv-modal-row"><span class="inv-modal-key">${t('rWeight')}</span><span class="inv-modal-val">${parseFloat(item.weight).toFixed(2)}g</span></div>` : ''}
+    <div class="inv-modal-row"><span class="inv-modal-key">${t('invFilterVendor')}</span><span class="inv-modal-val">${item.vendorName || '—'}</span></div>
+    <div class="inv-modal-row" style="border-bottom:none"><span class="inv-modal-key">${t('laborCat')}</span><span class="inv-modal-val">${item.catName || '—'}</span></div>
+    ${(_lockable && item.status === 'in_stock') ? `
+    <button onclick="_invEditUnlock('${id}')" style="width:100%;margin-top:10px;padding:12px;background:rgba(96,180,120,0.10);border:1px solid rgba(96,180,120,0.45);color:#7fd39b;border-radius:8px;font-family:var(--font-body);font-size:12.5px;cursor:pointer">
+      🆔 ${lang==='el' ? 'Εκτύπωση ετικέτας κωδικού για επεξεργασία' : 'Print ref tag to unlock editing'}<br>
+      <span style="font-size:10px;opacity:.75">${lang==='el'
+        ? 'Η παλιά ετικέτα περιέχει βάρος, προμηθευτή και κατηγορία — δεν αλλάζουν χωρίς νέα ετικέτα'
+        : 'The old tag contains the weight, vendor and category — they cannot change without a new tag'}</span>
+    </button>` : ''}`;
+
   box.innerHTML = `
     <div class="inv-modal-title">${t('invEditTitle')}</div>
-    ${!isOtherEdit ? `<div class="inv-modal-row"><span class="inv-modal-key">${t('rWeight')}</span><span class="inv-modal-val">${parseFloat(item.weight).toFixed(2)}g</span></div>` : ''}
-    <div class="inv-modal-row"><span class="inv-modal-key">${t('navVendors')}</span><span class="inv-modal-val">${item.vendorName || '—'}</span></div>
-    <div class="inv-modal-row" style="border-bottom:none"><span class="inv-modal-key">${t('laborCat')}</span><span class="inv-modal-val">${item.catName || '—'}</span></div>
+    ${_unlocked ? _editableRows : _lockedRows}
     <div class="inv-modal-price">${priceStr}</div>
     <div class="inv-modal-price-lbl" style="margin-bottom:16px">${priceLbl}</div>
     <div style="margin-bottom:12px">
@@ -17069,6 +17223,9 @@ function invEdit(id) {
       _addStoneBtn.addEventListener('click', () => _invEditAddStoneRow());
     }
   }
+
+  // The category list depends on the vendor, so it can only be filled once the form exists.
+  if (_unlocked) _invEditPopulateCats(item.vendorIdx, item.catIdx);
 
   // Handmade toggle
   const _invEditHmBtn = document.getElementById('invEditHandmadeToggle');
@@ -17393,6 +17550,46 @@ RETAIL: \u20ac[integer]`;
   }
 
   document.getElementById('invEditSaveBtn').addEventListener('click', async () => {
+    // ── Weight / vendor / category — ref-tagged pieces only (see _invEditUnlocked) ──
+    // These three define the piece's price, so measure retail and metal value BEFORE
+    // touching anything: the baselines are rescaled by the same ratio at the end. Both
+    // readings sit at one instant, so the whole difference is the correction and none of
+    // it is gold-price movement — the same reasoning as the v10.17 restock fix.
+    let _idChanged = false, _ieTargetSet = false;
+    const _beforePx = _unlocked ? calcInvItemPrice(item) : null;
+    if (_unlocked) {
+      const _newW = parseFloat(document.getElementById('invEditWeight')?.value);
+      const _newV = parseInt(document.getElementById('invEditVendorSelect')?.value);
+      const _newC = parseInt(document.getElementById('invEditCatSelect')?.value);
+      if (!(_newW > 0)) { showToast('⚠️ ' + (lang==='el' ? 'Συμπληρώστε βάρος' : 'Enter a weight')); return; }
+      const _nv = state.vendors[_newV];
+      const _nc = _nv ? getVendorCategories(_nv)[_newC] : null;
+      if (!_nv || !_nc) { showToast('⚠️ ' + (lang==='el' ? 'Επιλέξτε προμηθευτή και κατηγορία' : 'Pick a vendor and category')); return; }
+      _idChanged = parseFloat(item.weight) !== _newW || item.vendorIdx !== _newV || item.catIdx !== _newC;
+      if (_idChanged) {
+        item.weight = _newW;
+        item.vendorIdx = _newV; item.vendorName = _nv.name;
+        item.catIdx = _newC;   item.catName = _nc.name;
+        // The category is karat-specific and so decides the metal and karat the piece is
+        // priced at — the same rule syncKaratToCat applies in the calc, and the reason
+        // there is no karat field of its own here. A category with no karat («—») has
+        // nothing to say, so the piece keeps what it had.
+        const _rawK = String(_nc.karat || '');
+        if (_rawK && _rawK !== '—') {
+          item.metal = _rawK.endsWith('s') ? 'silver' : 'gold';
+          item.karat = karatCode(_rawK);
+        }
+        // Follow the identity with the stored descriptive code. The printed tag carries
+        // the ref code, so it cannot go stale — but this code still prices the piece when
+        // that ref resolves here, and the stone block below rebuilds its suffix onto it.
+        const _rq = _rebuildItemQR(item);
+        if (_rq) {
+          item.qrCode = _rq;
+          const _lb = getLatinCodeForCat(_nv, _newC, state.vendors);
+          if (_lb) item.code = _lb + String(_newW);
+        }
+      }
+    }
     const _editDescEl = (document.getElementById('invEditDescElInput')?.value || '').trim();
     const _editDescEn = (document.getElementById('invEditDescEnInput')?.value || '').trim();
     item.descEl = _editDescEl;
@@ -17475,6 +17672,7 @@ RETAIL: \u20ac[integer]`;
         }
         // Update initialRetail to the new manually-set target (user corrected the price)
         item.initialRetail = _tR;
+        _ieTargetSet = true;   // an explicit baseline — never rescale it below
       }
       const _pc = parseFloat(document.getElementById('invEditPurchaseCostInput')?.value);
       if (!isNaN(_pc) && _pc > 0) {
@@ -17563,6 +17761,25 @@ RETAIL: \u20ac[integer]`;
       _editPendingPhoto = null;
     }
     if (!('photoUrl' in item)) item.photoUrl = '';
+
+    // ── Re-baseline after a weight/vendor/category correction ─────────────────────
+    // The gain line compares live retail against initialRetail (captured on the day the
+    // piece was added). Correcting 4 g → 3 g drops retail ~25% while the baseline still
+    // reflects 4 g, so the card would cry a 25% loss that never happened. Scale both
+    // baselines by the ratio the correction itself caused; real gold-price movement
+    // since the piece was added is untouched, because both readings share one instant.
+    if (_unlocked && _idChanged && _beforePx) {
+      const _afterPx = calcInvItemPrice(item);
+      if (_afterPx) {
+        if (!_ieTargetSet && item.initialRetail > 0 && _beforePx.retail > 0) {
+          item.initialRetail = parseFloat((item.initialRetail * (_afterPx.retail / _beforePx.retail)).toFixed(2));
+        }
+        if (item.initialMetalValue > 0 && _beforePx.metalValue > 0) {
+          item.initialMetalValue = parseFloat((item.initialMetalValue * (_afterPx.metalValue / _beforePx.metalValue)).toFixed(2));
+        }
+      }
+    }
+
     const ok = await saveInventoryItem(id, item);
     if (ok) {
       overlay.remove();
@@ -17571,6 +17788,10 @@ RETAIL: \u20ac[integer]`;
       if (_stoneTagStale && _newFullQRForStones) {
         _promptStoneTagReprint(id, item, _newFullQRForStones);
       }
+      // A correction can BREAK a shared ref code: five 0.2 g clasps sharing XX0532 are
+      // interchangeable, so one ref tag is honest — until one of them becomes 0.3 g. Then
+      // the ref is ambiguous and the piece needs its own. Same rule as _printAsRefTag.
+      if (_idChanged) _refCheckSplitAfterEdit(id, item);
     } else {
       showToast('⚠️ ' + t('invSaveFail'));
     }
@@ -20067,8 +20288,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.28', date: 'Ιούλιος 2026', items: [
-        '🖨️ Το QR στην ετικέτα κατέβηκε λίγο (0,875 χιλ.) και είναι πλέον ακριβώς στο κέντρο. Καθόταν 7 κουκκίδες πιο ψηλά από το κέντρο — δεν φαινόταν όσο κάθε κωδικός είχε άλλο μέγεθος, αλλά τώρα που το QR είναι πάντα ίδιο, το λίγο περιθώριο στην κορυφή έκοβε περίπου 1 στις 6 εκτυπώσεις. Ο κωδικός αναφοράς δίπλα ΔΕΝ άλλαξε καθόλου.'
+      { version: 'v11.29', date: 'Ιούλιος 2026', items: [
+        '✏️ Επεξεργασία: τώρα αλλάζετε ΒΑΡΟΣ, ΠΡΟΜΗΘΕΥΤΗ και ΚΑΤΗΓΟΡΙΑ σε κομμάτια που έχουν ετικέτα με κωδικό αναφοράς (π.χ. RG0110). Η ετικέτα δείχνει μόνο τον κωδικό, οπότε δεν χρειάζεται νέα εκτύπωση — τέλος το «διαγραφή και ξανά απ΄ την αρχή» για ένα λάθος βάρος.',
+        '💎 Το καράτι αλλάζει μέσω της κατηγορίας (π.χ. Σκουλαρίκια 14κ → Σκουλαρίκια 18κ), όπως ακριβώς και στην Αριθμομηχανή. Η κατηγορία ορίζει πάντα καράτι και τιμή εργασίας, ώστε να μην μπορούν να διαφωνήσουν.',
+        '📊 Μια διόρθωση βάρους δεν χαλάει πλέον το ποσοστό κέρδους: η αρχική τιμή προσαρμόζεται μαζί, οπότε το «+x%» δείχνει μόνο την πραγματική κίνηση του χρυσού.',
+        '🔒 Κομμάτια με παλιά ετικέτα (που περιέχει το βάρος) παραμένουν κλειδωμένα με το κουμπί «Εκτύπωση ετικέτας κωδικού» — ένα πάτημα τα ξεκλειδώνει για πάντα. Τα πουλημένα ξεκλειδώνουν μόνα τους στο restock.'
       ]},
           ]
   },
@@ -20099,8 +20323,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.28', date: 'Jul 2026', items: [
-        '🖨️ The QR on the tag moved down slightly (0.875mm) and is now exactly centred. It sat 7 dots above centre — invisible while every code was a different size, but now that the QR is always the same, that thin top margin was clipping about 1 print in 6. The reference code beside it is completely unchanged.'
+      { version: 'v11.29', date: 'Jul 2026', items: [
+        '✏️ Edit Item can now change the WEIGHT, VENDOR and CATEGORY of any piece whose tag carries a reference code (e.g. RG0110). The tag only shows that code, so nothing on it goes stale and no reprint is needed — no more delete-and-start-over for one wrong weight.',
+        '💎 Karat changes through the category (e.g. Earrings 14k → Earrings 18k), exactly as in the Calculator. The category always decides the karat and the labour rate, so the two can never disagree.',
+        '📊 Correcting a weight no longer wrecks the gain %: the initial price is adjusted by the same amount, so the +x% keeps showing only real gold-price movement.',
+        '🔒 Pieces with an old tag (which has the weight printed into its code) stay locked behind a "Print ref tag to unlock editing" button — one print frees them for good. Sold pieces unlock by themselves at restock.'
       ]},
           ]
   }
@@ -23106,7 +23333,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.28';
+const APP_VERSION = '11.29';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
