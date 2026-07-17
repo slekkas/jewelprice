@@ -7312,10 +7312,16 @@ let _scanVariants = [];             // [[id, item], …] in-stock pieces sharing
 let _scanChosenInvId = null;        // id picked in the variant chooser (null = not asked/answered)
 // A scan that arrived as a REF code (a ref tag, OCR, or typed) already names the exact
 // record — the ref code is unique per piece. lookupCode's ref path then re-runs the lookup
-// with that item's descriptive qrCode, and twins can share THAT, so without this the
-// chooser would pop up asking a question we already know the answer to. Consumed once by
-// _checkInvStatusForCalc.
+// with that item's descriptive qrCode, and twins (or an unrelated SOLD piece the weight was
+// just edited to collide with) can share THAT — so without this the app would resolve the
+// wrong record. The pin is STICKY, tied to the descriptive code it resolved (_refPinnedForCode):
+// it survives passive re-checks of the same code (a spot-price tick, a re-render, a language
+// toggle all re-call _checkInvStatusForCalc), and is cleared only by a fresh, non-recursive
+// lookupCode (a new scan) or a calc reset. Making it single-use was a real bug: a ref-tagged
+// piece is excluded from the descriptive pool (its tag prints the ref, not the code), so once
+// the pin was gone its own code resolved to a DIFFERENT piece.
 let _refPinnedInvId = null;
+let _refPinnedForCode = null;   // the descriptive code the pin applies to (upper-cased)
 
 function todayStr() {
   const d = new Date();
@@ -11637,7 +11643,10 @@ async function _checkInvStatusForCalc(raw) {
   // NOT the jewelry type, so a pendant and a pair of earrings from the same category at the
   // same weight get the IDENTICAL code (NOH14L2.8 = both PE0396 and ER0509). Only the ref
   // prefix separates them. Scanning ER0613's ref tag was landing on the pendant.
-  const _pinnedEntry = (_refPinnedInvId && _inventoryCache[_refPinnedInvId])
+  // The pin only applies to the exact descriptive code it resolved (a ref scan sets both).
+  // Tying it to the code lets it stay sticky across passive re-checks of the SAME code while
+  // never leaking onto a different one.
+  const _pinnedEntry = (_refPinnedInvId && _inventoryCache[_refPinnedInvId] && _refPinnedForCode === rawNorm)
     ? [_refPinnedInvId, _inventoryCache[_refPinnedInvId]] : null;
 
   // A piece whose tag was reprinted as a REF tag no longer carries this descriptive code —
@@ -11658,7 +11667,10 @@ async function _checkInvStatusForCalc(raw) {
     _lastScannedRaw = rawNorm; // rawNorm = raw.trim().toUpperCase()
 
     const _wasPinned = !!_pinnedEntry;
-    _refPinnedInvId = null;   // single use: a later plain-QR scan must ask again
+    // Do NOT clear the pin here — it must survive passive re-checks of the same code (see
+    // _refPinnedInvId). A fresh scan clears it at the top of lookupCode; a calc reset clears
+    // it too. Clearing it here was the single-use bug that flipped a ref-scanned piece onto a
+    // sold collision on the next re-render.
     if (_wasPinned) {
       // The ref code named this piece: the sale, the photo and the hold all follow `found`.
       _scanChosenInvId = fbKey;
@@ -11812,7 +11824,12 @@ function _lookupCodeOtherType(raw, match, foundBanner) {
   _checkInvStatusForCalc(raw);
 }
 
-function lookupCode(raw) {
+function lookupCode(raw, opts) {
+  // A fresh, user-initiated lookup starts with no ref pin — only the ref branch's own
+  // recursive re-run (opts.fromRef) is allowed to keep the pin it just set. This is what
+  // makes the pin reset on a genuinely new scan while surviving passive re-checks (which
+  // call _checkInvStatusForCalc directly, never lookupCode).
+  if (!opts || !opts.fromRef) { _refPinnedInvId = null; _refPinnedForCode = null; }
   // ── Ref code lookup — e.g. PE0142 or pe0142 ──────────────────────────────
   if (raw && /^[A-Za-z]{2}\d{4}$/.test(raw.trim())) {
     const refNorm = raw.trim().toUpperCase();
@@ -11827,13 +11844,15 @@ function lookupCode(raw) {
         const [fbKey, item] = found;
         const qr = item.qrCode || item.code || '';
         if (qr) {
-          // A ref code names ONE piece. Remember which, so the re-run below (which goes in
-          // by the descriptive code — possibly shared with a twin) doesn't have to guess.
+          // A ref code names ONE piece. Remember which — AND the descriptive code it maps to
+          // — so the re-run below (which goes in by that code, possibly shared with a twin or
+          // a sold collision) resolves this exact piece, now and on every later re-check.
           _refPinnedInvId = fbKey;
+          _refPinnedForCode = qr.trim().toUpperCase();
           // Populate the input with the real QR and run normal lookup
           const inp = document.getElementById('codeInput');
           if (inp) inp.value = qr;
-          lookupCode(qr);
+          lookupCode(qr, { fromRef: true });
         }
       } else {
         const notFound = document.getElementById('codeNotFound');
@@ -20288,11 +20307,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.29', date: 'Ιούλιος 2026', items: [
-        '✏️ Επεξεργασία: τώρα αλλάζετε ΒΑΡΟΣ, ΠΡΟΜΗΘΕΥΤΗ και ΚΑΤΗΓΟΡΙΑ σε κομμάτια που έχουν ετικέτα με κωδικό αναφοράς (π.χ. RG0110). Η ετικέτα δείχνει μόνο τον κωδικό, οπότε δεν χρειάζεται νέα εκτύπωση — τέλος το «διαγραφή και ξανά απ΄ την αρχή» για ένα λάθος βάρος.',
-        '💎 Το καράτι αλλάζει μέσω της κατηγορίας (π.χ. Σκουλαρίκια 14κ → Σκουλαρίκια 18κ), όπως ακριβώς και στην Αριθμομηχανή. Η κατηγορία ορίζει πάντα καράτι και τιμή εργασίας, ώστε να μην μπορούν να διαφωνήσουν.',
-        '📊 Μια διόρθωση βάρους δεν χαλάει πλέον το ποσοστό κέρδους: η αρχική τιμή προσαρμόζεται μαζί, οπότε το «+x%» δείχνει μόνο την πραγματική κίνηση του χρυσού.',
-        '🔒 Κομμάτια με παλιά ετικέτα (που περιέχει το βάρος) παραμένουν κλειδωμένα με το κουμπί «Εκτύπωση ετικέτας κωδικού» — ένα πάτημα τα ξεκλειδώνει για πάντα. Τα πουλημένα ξεκλειδώνουν μόνα τους στο restock.'
+      { version: 'v11.30', date: 'Ιούλιος 2026', items: [
+        '🐞 ΣΗΜΑΝΤΙΚΗ διόρθωση: μετά από αλλαγή βάρους σε κομμάτι με ετικέτα κωδικού, το σκανάρισμα μπορούσε να δείξει ΑΛΛΟ κόσμημα. Αν το νέο βάρος έδινε εσωτερικό κωδικό ίδιο με πουλημένο κομμάτι, η οθόνη «γλιστρούσε» στο πουλημένο (λάθος φωτογραφία, ένδειξη «Πουλήθηκε»). Ο κωδικός αναφοράς κρατά τώρα ΠΑΝΤΑ το σωστό κομμάτι — και στις επόμενες ανανεώσεις της οθόνης.'
       ]},
           ]
   },
@@ -20323,11 +20339,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.29', date: 'Jul 2026', items: [
-        '✏️ Edit Item can now change the WEIGHT, VENDOR and CATEGORY of any piece whose tag carries a reference code (e.g. RG0110). The tag only shows that code, so nothing on it goes stale and no reprint is needed — no more delete-and-start-over for one wrong weight.',
-        '💎 Karat changes through the category (e.g. Earrings 14k → Earrings 18k), exactly as in the Calculator. The category always decides the karat and the labour rate, so the two can never disagree.',
-        '📊 Correcting a weight no longer wrecks the gain %: the initial price is adjusted by the same amount, so the +x% keeps showing only real gold-price movement.',
-        '🔒 Pieces with an old tag (which has the weight printed into its code) stay locked behind a "Print ref tag to unlock editing" button — one print frees them for good. Sold pieces unlock by themselves at restock.'
+      { version: 'v11.30', date: 'Jul 2026', items: [
+        '🐞 IMPORTANT fix: after changing the weight of a ref-tagged piece, scanning it could show a DIFFERENT item. If the new weight produced an internal code identical to a sold piece, the screen would "slip" onto the sold one (wrong photo, "Sold" label). The reference code now always keeps the right piece — including on later screen refreshes.'
       ]},
           ]
   }
@@ -20796,6 +20809,8 @@ function clearCalc() {
   _lastScannedInvEntry = null;
   _lastScannedRaw = null;
   _lastChipRaw = null;
+  _refPinnedInvId = null;
+  _refPinnedForCode = null;
   _resetScanVariants();
   const cpbThumb = document.getElementById('cpbPhotoThumb');
   if (cpbThumb) { cpbThumb.removeAttribute('data-src'); cpbThumb.src = ''; cpbThumb.style.display = 'none'; }
@@ -23333,7 +23348,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.29';
+const APP_VERSION = '11.30';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
