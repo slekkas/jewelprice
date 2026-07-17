@@ -1740,6 +1740,19 @@
         <button onclick="openInvExportSheet()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="exportBtn">📊 Εξαγωγή σε CSV</button>
       </div>
 
+      <!-- TAG TEST — TEMPORARY (see REF_TAG_DESIGN.md). Delete once the cell size is chosen. -->
+      <div class="settings-section" id="tagTestSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0">🧪 Δοκιμή Ετικέτας / Tag Test</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6">Τυπώνει δοκιμαστικές ετικέτες για να συγκρίνετε μέγεθος QR και ευκολία σάρωσης. Βάλτε έναν αληθινό κωδικό αναφοράς (π.χ. RG0110) ώστε να ελέγξετε και το σκανάρισμα.<br>Prints test tags so you can compare QR size and how easily each scans. Use a real reference code so the scan resolves.</p>
+        <input type="text" id="tagTestCode" value="RG0110" placeholder="RG0110" style="width:100%;margin-bottom:8px;text-align:center;font-family:'DM Mono',monospace;letter-spacing:0.12em;text-transform:uppercase">
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <button onclick="_printTestTag('ref2')" style="flex:1;padding:11px 6px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer">REF · CELL 2<br><span style="opacity:.6">ECC H</span></button>
+          <button onclick="_printTestTag('ref3')" style="flex:1;padding:11px 6px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer">REF · CELL 3<br><span style="opacity:.6">ECC H</span></button>
+          <button onclick="_printTestTag('now')" style="flex:1;padding:11px 6px;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer">ΤΩΡΑ / NOW<br><span style="opacity:.6">cell 2 · M</span></button>
+        </div>
+        <div id="tagTestStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;font-family:'DM Mono',monospace"></div>
+      </div>
+
       <!-- INVENTORY CHECK (stocktake) -->
       <div class="settings-section" id="stocktakeSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stkTitle">🔍 Έλεγχος Απογραφής</h4>
@@ -4395,6 +4408,7 @@ function applyRoleUI() {
   const _stk = document.getElementById('stocktakeSection'); if (_stk) _stk.style.display = isOwnerMgr ? '' : 'none';
   const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
   const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
+  const _tts = document.getElementById('tagTestSection'); if (_tts) _tts.style.display = isOwnerMgr ? '' : 'none';
   const _staleBtn = document.getElementById('invStaleBtn'); if (_staleBtn) _staleBtn.style.display = isOwnerMgr ? 'flex' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -6457,6 +6471,51 @@ async function printLabel(data, statusEl, qrOnly, copies) {
   } catch(e) {
     statusEl.textContent = t('labelPrintError') + ': ' + e.message;
     statusEl.style.color = 'var(--error, #e57373)';
+  }
+}
+
+// ─── TAG TEST — TEMPORARY (see REF_TAG_DESIGN.md) ─────────────────────────────
+// Prints sample tags so the owner can compare QR size / scannability before we commit to
+// a payload + cell size. Deliberately builds its own TSPL rather than touching buildTSPL,
+// so nothing about production printing changes while we're still deciding.
+// Delete this + #tagTestSection + the applyRoleUI line once the choice is made.
+async function _printTestTag(mode) {
+  const statusEl = document.getElementById('tagTestStatus');
+  const setStatus = (t, c) => { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || 'var(--text-muted)'; } };
+  const ref = (document.getElementById('tagTestCode')?.value || '').trim().toUpperCase();
+  if (!ref) { setStatus('⚠️ ' + (lang === 'el' ? 'Βάλτε κωδικό' : 'Enter a code'), 'var(--danger)'); return; }
+  const fbBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
+  if (!fbBase) { setStatus('❌ ' + t('labelPrintError'), 'var(--danger)'); return; }
+
+  // mode → [payload, ECC, cell]. 'now' reproduces today's tag for a side-by-side.
+  const cfg = {
+    ref2: [ref, 'H', 2],
+    ref3: [ref, 'H', 3],
+    now:  [(lastCalcResult && lastCalcResult.labelCode) || 'ALO14D2.6-ZIR', 'M', 2]
+  }[mode];
+  if (!cfg) return;
+  const [payload, ecc, cell] = cfg;
+  const label = `${mode.toUpperCase()} ${payload} ${ecc}/${cell}`;
+
+  const cmds = [
+    'SIZE 65 mm, 12 mm', 'GAP 3 mm, 0 mm', 'DIRECTION 1', 'CODEPAGE 1252', 'REFERENCE 0,0',
+    'OFFSET 0 mm', 'SPEED 2', 'DENSITY 4', 'SET PEEL OFF', 'SET CUTTER OFF', 'CLS',
+    // Two lines: the code as it would print, plus which test this is (so the strips are
+    // identifiable once they're lying on the bench together).
+    `TEXT 228,34,"1",0,1,1,"${payload}"`,
+    `TEXT 228,50,"1",0,1,1,"${ecc}/cell${cell}"`,
+    `QRCODE ${395},${20},${ecc},${cell},A,0,M2,S7,"${payload}"`,
+    'PRINT 1,1'
+  ];
+  setStatus(t('labelPrintSending'));
+  try {
+    const r = await fetch(fbUrl('/jewelprice_print_job.json'), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tspl: cmds.join('\n') + '\n', qrData: payload, qrX: 395, qrY: 20, createdAt: Date.now(), status: 'pending' })
+    });
+    setStatus(r.ok ? '✓ ' + label : t('labelPrintError') + ' (' + r.status + ')', r.ok ? 'var(--success, #81c784)' : 'var(--danger)');
+  } catch (e) {
+    setStatus('❌ ' + e.message, 'var(--danger)');
   }
 }
 
@@ -19643,9 +19702,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.17', date: 'Ιούλιος 2026', items: [
-        '🎨 «Ποιο κρατάτε;» — Κομμάτια της ίδιας ομάδας με ίδιο βάρος έχουν ΙΔΙΑ ετικέτα (ίδιο QR και ίδιο κωδικό αναφοράς), οπότε το σκανάρισμα δεν μπορεί να ξέρει ποιο έχετε στο χέρι. Αν διαφέρουν στο χρώμα, ανοίγει τώρα ένα καθαρό παράθυρο με ΛΙΣΤΑ (φωτογραφία + χρώμα, το ένα κάτω από το άλλο): διαλέγετε, κλείνει, και ο υπολογισμός δείχνει το σωστό δαχτυλίδι. Χωράει άνετα 8+ παραλλαγές. Η επιλογή σας καθορίζει τη φωτογραφία, την ΠΩΛΗΣΗ και την κράτηση — πριν έδειχνε πάντα το πρώτο, οπότε πουλώντας το ροζ σημειωνόταν πουλημένο το λευκόχρυσο.',
-        '📦 Επίσης: αν σκανάρετε κωδικό που έχει και πουλημένο και διαθέσιμο κομμάτι, η ένδειξη έλεγε λανθασμένα «Πουλήθηκε». Τώρα δείχνει το κομμάτι που είναι πράγματι σε απόθεμα.'
+      { version: 'v11.18', date: 'Ιούλιος 2026', items: [
+        '🧪 Ρυθμίσεις → «Δοκιμή Ετικέτας»: τυπώνει δοκιμαστικές ετικέτες για να συγκρίνετε μέγεθος QR και ευκολία σάρωσης — κωδικός αναφοράς σε cell 2 και cell 3 (με 30% διόρθωση σφάλματος), και τη σημερινή ετικέτα για σύγκριση. Κάθε δοκιμαστική ετικέτα τυπώνει επάνω της τις ρυθμίσεις της. Προσωρινό εργαλείο — θα αφαιρεθεί μόλις αποφασίσουμε.'
       ]},
           ]
   },
@@ -19676,9 +19734,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.17', date: 'Jul 2026', items: [
-        '🎨 "Which one are you holding?" — Pieces in a group with the same weight carry the SAME tag (same QR and same reference code), so a scan cannot know which one is in your hand. When they differ in colour, a clean sheet now opens with them LISTED one under another (photo + colour): you pick, it closes, and the calculator shows the right ring. It fits 8+ variants comfortably. Your choice drives the photo, the SALE and the reservation — before it always took the first, so selling the rose one marked the white one sold.',
-        '📦 Also: scanning a code that has both a sold and an in-stock piece wrongly showed "Sold". It now shows the piece that is actually in stock.'
+      { version: 'v11.18', date: 'Jul 2026', items: [
+        '🧪 Settings → "Tag Test": prints sample tags so you can compare QR size and how easily each scans — a reference code at cell 2 and cell 3 (with 30% error correction), plus today\'s tag for comparison. Each test strip prints its own settings on it. Temporary tool — it comes out once we decide.'
       ]},
           ]
   }
@@ -22684,7 +22741,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.17';
+const APP_VERSION = '11.18';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
