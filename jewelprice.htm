@@ -7012,7 +7012,10 @@ function _openLabelModalInner(data, modal, content) {
   const printBtn = document.getElementById('lblPrintBtn');
   printBtn.addEventListener('click', async function() {
     this.disabled = true;
-    await printLabel(data, document.getElementById('lblPrintStatus'));
+    // Every NEW tag is a ref tag (REF_TAG_DESIGN.md): the QR carries the reference code,
+    // so the piece's weight/stones/colour stay editable for the rest of its life.
+    // _printedRef tells saveToInventoryFromLabel to stamp tagRef on the saved record.
+    if (await printLabel(data, document.getElementById('lblPrintStatus'), false, 1, true)) data._printedRef = true;
     saveToInventoryFromLabel(data);
     setTimeout(() => { this.disabled = false; }, 2000);
   });
@@ -7022,7 +7025,7 @@ function _openLabelModalInner(data, modal, content) {
     this.disabled = true;
     this.textContent = lang === 'el' ? '⏳ Αποστολή...' : '⏳ Sending...';
     const status = document.getElementById('lblPrintStatus');
-    await printLabel(data, status, true);
+    if (await printLabel(data, status, true, 1, true)) data._printedRef = true;
     saveToInventoryFromLabel(data);
     setTimeout(() => {
       this.disabled = false;
@@ -7298,6 +7301,12 @@ let _lastChipRaw = null;            // raw QR string last shown in invStatusChip
 // _scanChosenInvId the owner's pick — the id every downstream path prefers.
 let _scanVariants = [];             // [[id, item], …] in-stock pieces sharing the scanned QR
 let _scanChosenInvId = null;        // id picked in the variant chooser (null = not asked/answered)
+// A scan that arrived as a REF code (a ref tag, OCR, or typed) already names the exact
+// record — the ref code is unique per piece. lookupCode's ref path then re-runs the lookup
+// with that item's descriptive qrCode, and twins can share THAT, so without this the
+// chooser would pop up asking a question we already know the answer to. Consumed once by
+// _checkInvStatusForCalc.
+let _refPinnedInvId = null;
 
 function todayStr() {
   const d = new Date();
@@ -11618,14 +11627,22 @@ async function _checkInvStatusForCalc(raw) {
     _lastScannedInvEntry = item;
     _lastScannedRaw = rawNorm; // rawNorm = raw.trim().toUpperCase()
 
-    // Do the in-stock twins LOOK different? Then the tag alone can't identify the piece —
-    // ask. Identical twins stay silent (any of them will do).
-    const _inStock = _matches.filter(([, it]) => it.status === 'in_stock' && !it.isBulk);
-    if (_inStock.length > 1 && new Set(_inStock.map(([, it]) => _variantKey(it))).size > 1) {
-      _scanVariants = _inStock;
-      _scanChosenInvId = null;
-      _renderScanVariantPicker();
-      openScanVariantSheet();   // ask straight away — the answer gates the photo and the sale
+    // Came in by ref code? Then we already know the exact piece — never ask.
+    const _pinned = _refPinnedInvId && _inventoryCache[_refPinnedInvId] ? _refPinnedInvId : null;
+    _refPinnedInvId = null;   // single use: a later plain-QR scan must ask again
+    if (_pinned) {
+      _lastScannedInvEntry = _inventoryCache[_pinned];
+      _scanChosenInvId = _pinned;
+    } else {
+      // Do the in-stock twins LOOK different? Then the tag alone can't identify the piece —
+      // ask. Identical twins stay silent (any of them will do).
+      const _inStock = _matches.filter(([, it]) => it.status === 'in_stock' && !it.isBulk);
+      if (_inStock.length > 1 && new Set(_inStock.map(([, it]) => _variantKey(it))).size > 1) {
+        _scanVariants = _inStock;
+        _scanChosenInvId = null;
+        _renderScanVariantPicker();
+        openScanVariantSheet();   // ask straight away — the answer gates the photo and the sale
+      }
     }
 
     // Populate secondary metal UI from inventory item so calculate() picks it up
@@ -11774,6 +11791,9 @@ function lookupCode(raw) {
         const [fbKey, item] = found;
         const qr = item.qrCode || item.code || '';
         if (qr) {
+          // A ref code names ONE piece. Remember which, so the re-run below (which goes in
+          // by the descriptive code — possibly shared with a twin) doesn't have to guess.
+          _refPinnedInvId = fbKey;
           // Populate the input with the real QR and run normal lookup
           const inp = document.getElementById('codeInput');
           if (inp) inp.value = qr;
@@ -14153,6 +14173,9 @@ async function _saveToInventoryFromLabel(labelData) {
 
   // Assign sequential reference ID (use pre-fetched one from label modal if available)
   item.seqId = labelData._pendingSeqId || await getNextSeqId();
+  // The modal prints ref tags, so a piece whose tag actually went to the printer carries
+  // one. Set only on a real print: Copy / Save-QR-image save the piece without a tag.
+  if (labelData._printedRef) item.tagRef = true;
 
   const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
   const ok = await saveInventoryItem(id, item);
@@ -17420,7 +17443,6 @@ RETAIL: \u20ac[integer]`;
       const _baselineSuffix = _invEditStoneRowsEl?.dataset.baselineSuffix || '';
       const _newSuffix = _buildStoneQRSuffix(_editedRows);
       if (_existingQR && _newSuffix !== _baselineSuffix) {
-        _stoneTagStale = true;
         // Find where the stone suffix starts. Normally that's the '-'; but a malformed
         // legacy code (leading stone skipped) may have a '+' there instead, with no '-'
         // at all — treat that first '+' as the boundary so we regenerate a correct '-'
@@ -17429,6 +17451,15 @@ RETAIL: \u20ac[integer]`;
         if (_dashIdx === -1) _dashIdx = _existingQR.indexOf('+');
         const _baseQR = _dashIdx !== -1 ? _existingQR.slice(0, _dashIdx) : _existingQR;
         _newFullQRForStones = _baseQR + _newSuffix;
+        if (item.tagRef) {
+          // A ref tag encodes the reference code, not the stones, so it CANNOT go stale —
+          // this is the whole point of REF_TAG_DESIGN.md. But the stored descriptive code
+          // still drives pricing when the ref resolves to this record, so keep it in step
+          // here (it saves with the item below) and never nag for a reprint.
+          item.qrCode = _newFullQRForStones;
+        } else {
+          _stoneTagStale = true;   // printed tag encodes the old stones — must be reprinted
+        }
       }
     }
     const _escSave = document.getElementById('invEditStoneCostInput');
@@ -19959,9 +19990,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.23', date: 'Ιούλιος 2026', items: [
-        '🆔 Νέο κουμπί «Εκτύπωση ως ετικέτα κωδικού» (κάτω από την Εκτύπωση, στην κάρτα του είδους): το QR δείχνει τον κωδικό αναφοράς (RG0110) αντί για τον περιγραφικό. Έτσι η ετικέτα ΔΕΙΧΝΕΙ το κόσμημα αντί να το περιγράφει — και βάρος, πέτρες ή χρώμα αλλάζουν χωρίς νέα εκτύπωση. Οι παλιές ετικέτες συνεχίζουν κανονικά.',
-        '🔗 Ρυθμίσεις → «Κοινοί Κωδικοί»: δείχνει ΜΟΝΟ τις ετικέτες που πρέπει να τυπώσετε — το παλαιότερο κομμάτι κάθε ζευγαριού κρατά τον κωδικό του, τα υπόλοιπα παίρνουν δικό τους. Κάθε γραμμή = μία ετικέτα. Πατήστε τη φωτογραφία για μεγέθυνση, ώστε να ξεχωρίζετε σίγουρα το κομμάτι.'
+      { version: 'v11.24', date: 'Ιούλιος 2026', items: [
+        '🆔 Κάθε ΝΕΑ ετικέτα τυπώνεται πλέον με τον κωδικό αναφοράς στο QR. Η ετικέτα δείχνει το κόσμημα αντί να το περιγράφει — άρα δεν «παλιώνει» ποτέ. Οι παλιές ετικέτες διαβάζονται κανονικά όπως πάντα.',
+        '💎 Αλλάζετε πέτρες σε κόσμημα με ετικέτα κωδικού; Καμία επανεκτύπωση — η εφαρμογή ενημερώνει μόνη της τα στοιχεία και η ετικέτα παραμένει σωστή. (Στις παλιές ετικέτες ζητά επανεκτύπωση, όπως πριν.)',
+        '🎯 Όταν σκανάρετε ετικέτα κωδικού, η εφαρμογή ξέρει ακριβώς ποιο κομμάτι κρατάτε — δεν ρωτά πια «ποιο κρατάτε;» άδικα, ακόμα κι αν δύο κομμάτια έχουν ίδιο βάρος.'
       ]},
           ]
   },
@@ -19992,9 +20024,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.23', date: 'Jul 2026', items: [
-        '🆔 New "Print as ref tag" button (under Print, on the item card): the QR carries the reference code (RG0110) instead of the descriptive one. The tag then IDENTIFIES the piece instead of describing it — so weight, stones or colour can change without reprinting. Existing tags keep working exactly as before.',
-        '🔗 Settings → "Shared Codes" now lists ONLY the tags you need to print — the oldest piece of each pair keeps its code, the rest get their own. Every row is one label. Tap a photo to enlarge it, so you can be sure which piece you are holding.'
+      { version: 'v11.24', date: 'Jul 2026', items: [
+        '🆔 Every NEW tag now prints the reference code in the QR. The tag identifies the piece instead of describing it — so it can never go stale. Old tags keep scanning exactly as before.',
+        '💎 Change the stones on a piece with a ref tag? No reprint — the app keeps its details in step by itself and the tag stays correct. (Old tags still ask for a reprint, as before.)',
+        '🎯 When you scan a ref tag the app knows exactly which piece you are holding — so it no longer asks "which one?" for nothing, even when two pieces weigh the same.'
       ]},
           ]
   }
@@ -23000,7 +23033,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.23';
+const APP_VERSION = '11.24';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
