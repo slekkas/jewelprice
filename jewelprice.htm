@@ -1763,13 +1763,6 @@
         <div class="status-bar" id="stkStatusBar"></div>
       </div>
 
-      <!-- STONE PRICE AUDIT (temporary — remove once cleanup is done, see v10.19) -->
-      <div class="settings-section" id="stoneAuditSection" style="display:none;margin-top:18px">
-        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stoneAuditTitle">💎 Έλεγχος Τιμών Πετρών</h4>
-        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="stoneAuditDesc">Βρίσκει είδη με πέτρα των οποίων η τιμή μοιάζει να προστέθηκε αυτόματα από παλιό σφάλμα (όχι από εσάς). Ελέγξτε το καθένα· «Μηδενισμός πέτρας» βάζει την τιμή πέτρας στο 0 και διορθώνει την υπεραξία. Δεν αγγίζει τιμές που καταχωρήσατε εσείς χωρίς να το εγκρίνετε.</p>
-        <button onclick="runStonePriceAudit()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="stoneAuditRun">🔍 Σάρωση Αποθέματος</button>
-        <div id="stoneAuditList" style="display:none;margin-top:12px"></div>
-      </div>
     </div>
   </div>
 
@@ -3293,9 +3286,6 @@ const T = {
     shareQuoteBtn:'📤 Αποστολή',
     clientSyncOk:'Πελάτες αποθηκεύτηκαν ✓',
     clientSyncFail:'Αποτυχία αποθήκευσης',
-    stoneAuditTitle:'💎 Έλεγχος Τιμών Πετρών',
-    stoneAuditDesc:'Βρίσκει είδη με πέτρα των οποίων η τιμή μοιάζει να προστέθηκε αυτόματα από παλιό σφάλμα (όχι από εσάς). Ελέγξτε το καθένα· «Μηδενισμός πέτρας» βάζει την τιμή πέτρας στο 0 και διορθώνει την υπεραξία. Δεν αλλάζει καμία τιμή χωρίς την έγκρισή σας.',
-    stoneAuditRun:'🔍 Σάρωση Αποθέματος',
     backupTitle:'💾 Αντίγραφο Ασφαλείας',
     backupDesc:'Κατεβάστε όλα τα δεδομένα (ρυθμίσεις, αποσπάσματα, πελάτες, πωλήσεις, πέτρες) σε ένα αρχείο JSON.',
     backupBtn:'⬇️ Εξαγωγή JSON',
@@ -3727,9 +3717,6 @@ const T = {
     shareQuoteBtn:'📤 Share',
     clientSyncOk:'Clients saved ✓',
     clientSyncFail:'Save failed',
-    stoneAuditTitle:'💎 Stone Price Audit',
-    stoneAuditDesc:'Finds stone items whose price looks like it was auto-added by the old bug (not by you). Review each — "Set stone free" puts the stone price to 0 and fixes the gain. It never changes a price without your confirmation.',
-    stoneAuditRun:'🔍 Scan Inventory',
     backupTitle:'💾 Data Backup',
     backupDesc:'Download all your data (settings, quotes, clients, sales, stones) as a single JSON file.',
     backupBtn:'⬇️ Export JSON',
@@ -4190,19 +4177,6 @@ function setSyncStatus(type, msg) {
   document.getElementById('syncIndicatorText').textContent = msg;
 }
 
-function resetCredentials() {
-  showConfirm(lang === 'el' ? 'Θα διαγραφεί το τρέχον Storage ID. Συνέχεια;' : 'This will clear the current Storage ID and create a new one on next push. Continue?', () => {
-  creds.binId = '';
-  creds.apiKey = '';
-  saveCreds();
-  document.getElementById('binIdDisplay').style.display = 'none';
-  document.getElementById('binIdOut').value = '';
-  document.getElementById('empBinId').value = '';
-  setSyncStatus('pending', t('notConfigured'));
-  showStatus('ownerStatus', 'Reset OK — tap Save & Push to create new storage', 'ok');
-  }, null, { danger: false });
-}
-
 async function ownerSaveAndPush() {
   const url = document.getElementById('firebaseUrl').value.trim();
   if (!url) { showStatus('ownerStatus', t('firebaseUrlRequired'), 'error'); return; }
@@ -4402,7 +4376,6 @@ function applyRoleUI() {
   const _es = document.getElementById('exportSection'); if (_es) _es.style.display = isOwnerMgr ? '' : 'none';
   const _stk = document.getElementById('stocktakeSection'); if (_stk) _stk.style.display = isOwnerMgr ? '' : 'none';
   const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
-  const _sas = document.getElementById('stoneAuditSection'); if (_sas) _sas.style.display = isOwnerMgr ? '' : 'none';
   const _staleBtn = document.getElementById('invStaleBtn'); if (_staleBtn) _staleBtn.style.display = isOwnerMgr ? 'flex' : 'none';
   document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -12963,111 +12936,6 @@ async function backupNowToCloud() {
   } catch(e) { showStatus('backupStatus', t('backupFail'), 'error'); }
 }
 
-// ── TEMPORARY (v10.19): Stone Price Audit ──────────────────────────────────
-// Finds in-stock stone items whose stone price looks like it was auto-added by
-// the old background self-heal (removed in v10.19) rather than typed by the
-// owner. Definitive signal: the item's stored initial price matches the
-// STONE-FREE retail more closely than the with-stone retail — i.e. the baseline
-// was captured before the stone cost appeared, which only happens when the
-// self-heal added it. (Prices the owner typed always had the stone in the
-// baseline.) Read-only until the owner taps a per-row fix. Remove this whole
-// block, the Settings section, and the stoneAudit* i18n keys once cleanup is done.
-let _stoneAuditCandidates = {};
-async function runStonePriceAudit() {
-  const listEl = document.getElementById('stoneAuditList');
-  if (!listEl) return;
-  listEl.style.display = 'block';
-  listEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);padding:8px">⏳ ${lang==='el'?'Σάρωση…':'Scanning…'}</div>`;
-  const cur = state.currency || '€';
-  const entries = Object.entries(_inventoryCache || {}).filter(([id, it]) =>
-    it && it.status !== 'sold' && it.metal !== 'other' && it.stonesDesc &&
-    (parseFloat(it.stoneCost) || 0) > 0 && it.initialRetail);
-  _stoneAuditCandidates = {};
-  const candidates = [];
-  for (const [id, it] of entries) {
-    const pWith = calcInvItemPrice(it);
-    const pNo = calcInvItemPrice(Object.assign({}, it, { stoneCost: 0 }));
-    if (!pWith || !pNo) continue;
-    const initR = parseFloat(it.initialRetail);
-    const stoneContribution = pWith.retail - pNo.retail;
-    if (!(stoneContribution > 0.5)) continue;
-    const diffNo = pNo.retail > 0 ? Math.abs(initR - pNo.retail) / pNo.retail : 1;
-    const diffWith = pWith.retail > 0 ? Math.abs(initR - pWith.retail) / pWith.retail : 1;
-    const gainPct = initR > 0 ? (pWith.retail - initR) / initR * 100 : 0;
-    // Initial matches the stone-FREE price better than the with-stone price →
-    // the stone cost was added after the baseline was set → likely auto-filled.
-    const initialExcludesStone = (diffNo + 0.001 < diffWith) && diffNo < 0.08;
-    if (!initialExcludesStone) continue;
-    // Extra context: does the stored stone cost exactly equal the cache wholesale?
-    let cacheMatch = false;
-    try {
-      const parsed = parseCodeInput(it.qrCode || it.code || '');
-      const norm = (parsed.stones || []).map(s => ({ type: s.stoneType||'Diamond', qty: s.qty||1, carat: s.carat||'', clarity: s.clarity||'', color: s.color||'' }));
-      if (norm.length) {
-        const hit = await lookupStonePriceCache(norm);
-        if (hit && hit.entry) {
-          const w = hit.entry.wholesale !== undefined ? hit.entry.wholesale : (hit.entry.price || 0);
-          if (Math.abs((parseFloat(it.stoneCost)||0) - w) < 0.01) cacheMatch = true;
-        }
-      }
-    } catch(e) {}
-    candidates.push({ id, it, gainPct, cacheMatch, currentRetail: pWith.retail, freeRetail: pNo.retail, initR });
-  }
-  candidates.sort((a, b) => b.gainPct - a.gainPct);
-
-  if (!candidates.length) {
-    listEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:#4caf84;padding:10px;text-align:center">${lang==='el'?'✓ Δεν βρέθηκαν ύποπτα είδη':'✓ No suspicious items found'}</div>`;
-    return;
-  }
-  const rows = candidates.map(c => {
-    _stoneAuditCandidates[c.id] = c;
-    const it = c.it;
-    const ref = it.seqId ? itemRefCode(it) : (it.qrCode || it.code || c.id);
-    const desc = _itemDesc(it) || (it.jewelryType ? invTypeLabel(it.jewelryType) : '') || ref;
-    const cacheTag = c.cacheMatch ? ` · ${lang==='el'?'ίδιο με cache':'= cache'}` : '';
-    return `<div style="border:1px solid var(--wa10);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--wa02)">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
-        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gold-light)">${ref}</span>
-        <span style="font-family:var(--font-body);font-size:10px;color:#e05a5a">+${c.gainPct.toFixed(1)}%</span>
-      </div>
-      <div style="font-family:var(--font-body);font-size:12px;color:var(--text-light);margin:2px 0 6px">${desc}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.7">
-        ${lang==='el'?'Τιμή πέτρας':'Stone price'}: ${cur}${(parseFloat(it.stoneCost)||0).toFixed(2)}${cacheTag}<br>
-        ${lang==='el'?'Τώρα':'Now'}: ${cur}${c.currentRetail.toFixed(2)} · ${lang==='el'?'Χωρίς πέτρα':'No stone'}: ${cur}${c.freeRetail.toFixed(2)} · ${lang==='el'?'Αρχική':'Initial'}: ${cur}${c.initR.toFixed(2)}
-      </div>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button onclick="stoneAuditFix('${c.id}')" style="flex:1;padding:8px;background:rgba(80,180,120,0.12);border:1px solid rgba(80,180,120,0.4);color:#6fce9a;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer;text-transform:uppercase">${lang==='el'?'Μηδενισμός πέτρας':'Set stone free'}</button>
-        <button onclick="stoneAuditOpen('${c.id}')" style="flex:1;padding:8px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.06em;cursor:pointer;text-transform:uppercase">${lang==='el'?'Άνοιγμα':'Open'}</button>
-      </div>
-    </div>`;
-  }).join('');
-  listEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-bottom:8px">${candidates.length} ${lang==='el'?'είδη προς έλεγχο':'items to review'}</div>` + rows;
-}
-
-// Set an item's stone price to 0 (free) and re-baseline its initial price to the
-// stone-free retail, so both the price and the gain % return to what the owner intended.
-function stoneAuditFix(id) {
-  const it = (_inventoryCache || {})[id];
-  if (!it) return;
-  showConfirm(
-    lang==='el' ? 'Μηδενισμός τιμής πέτρας και επαναφορά αρχικής τιμής;' : 'Set this stone price to €0 and re-baseline the initial price?',
-    async () => {
-      it.stoneCost = 0;
-      const p = calcInvItemPrice(it);
-      if (p && it.metal !== 'other') it.initialRetail = parseFloat(p.retail.toFixed(2));
-      _inventoryCache[id] = it;
-      await saveInventoryItem(id, it);
-      showToast(lang==='el' ? '✅ Μηδενίστηκε' : '✅ Stone set free');
-      runStonePriceAudit();
-      if (typeof renderInvList === 'function') renderInvList();
-    }
-  );
-}
-
-function stoneAuditOpen(id) {
-  if (typeof invEdit === 'function') invEdit(id);
-}
-
 function _countNode(n) {
   if (Array.isArray(n)) return n.length;
   if (n && typeof n === 'object') return Object.keys(n).length;
@@ -15846,14 +15714,6 @@ function _invRestoreSelectMode(container) {
   });
   container.querySelectorAll('.inv-share-btn').forEach(b => b.style.display = 'none');
   updateInvShareBar();
-}
-
-// Scan existing QR into inventory (for pieces already tagged before inventory system)
-let _invScanMode = false;
-
-function openInvScanner() {
-  _invScanMode = true;
-  openQrScanner();
 }
 
 async function prepareInvConfirm(raw) {
@@ -19744,7 +19604,7 @@ function updateScanModeUi() {
   if (wrap) { wrap.classList.toggle('textmode', _scanMode === 'text'); wrap.classList.remove('aligned'); }
   // The toggle only makes sense where QR can also work, and inventory scanning
   // stays QR-only — so hide it on iOS/Safari (no QR) and during inventory scans.
-  if (modeBtn) modeBtn.style.display = (canDecodeQr() && !_invScanMode) ? '' : 'none';
+  if (modeBtn) modeBtn.style.display = canDecodeQr() ? '' : 'none';
   if (title) title.textContent = _scanMode === 'text'
     ? (lang === 'el' ? 'Σάρωση Κωδικού (κείμενο)' : 'Scan Code (text)')
     : (lang === 'el' ? 'Σάρωση QR Κωδικού' : 'Scan QR Code');
@@ -19761,7 +19621,7 @@ async function openQrScanner() {
   status.textContent = lang === 'el' ? 'Ανοίγει κάμερα...' : 'Opening camera...';
   // Default to QR where it works; on iOS/Safari (no QR decode) start in text mode
   // so the camera button still does something. Inventory scanning stays QR-only.
-  _scanMode = (_invScanMode || canDecodeQr()) ? 'qr' : 'text';
+  _scanMode = canDecodeQr() ? 'qr' : 'text';
   updateScanModeUi();
   // Desktop uses the software jsQR fallback, which benefits from more pixels and
   // an autofocus nudge. Mobile keeps the native BarcodeDetector path unchanged.
@@ -19849,18 +19709,14 @@ async function decodeQrFromCanvas(canvas) {
   return null;
 }
 
-// Route a decoded QR value to the right place (inventory-scan confirm vs. Calc lookup).
+// Route a decoded QR value to Calc lookup. (Scan-to-inventory is a separate path,
+// reached from the "add to inventory?" chip on an unknown-QR scan → prepareInvConfirm.)
 function handleScannedCode(raw) {
   let code = raw;
   try { const u = new URL(raw); const p = u.searchParams.get('code'); if (p) code = p; } catch(e) {}
-  if (_invScanMode) {
-    _invScanMode = false;
-    prepareInvConfirm(code);
-  } else {
-    const input = document.getElementById('codeInput');
-    input.value = code;
-    setTimeout(() => { lookupCode(code); }, 300);
-  }
+  const input = document.getElementById('codeInput');
+  input.value = code;
+  setTimeout(() => { lookupCode(code); }, 300);
 }
 
 function startQrDecode(video, status) {
@@ -19977,9 +19833,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.32', date: 'Ιούλιος 2026', items: [
-        '✅ Τέλος η προειδοποίηση «Διπλότυπος Κωδικός QR». Με το σύστημα κωδικών αναφοράς, δύο κομμάτια ίδιου βάρους/προμηθευτή/κατηγορίας ξεχωρίζουν από τον κωδικό αναφοράς τους (RG0624, RG0625) — οπότε πλέον κρατάτε το ΑΚΡΙΒΕΣ βάρος χωρίς να χρειάζεται να το αλλάξετε σε 1,301. Σκανάροντας κάθε ετικέτα βγαίνει το σωστό κομμάτι (επιβεβαιωμένο).',
-        '🧹 Εσωτερική εκκαθάριση: αφαιρέθηκαν τα προσωρινά εργαλεία δοκιμών (η λίστα «Κοινοί Κωδικοί» και το «Tag Test») που δεν χρειάζονται πια, καθώς και παλιός αχρησιμοποίητος κώδικας.'
+      { version: 'v11.33', date: 'Ιούλιος 2026', items: [
+        '🧹 Ολοκλήρωση εκκαθάρισης: αφαιρέθηκε το προσωρινό εργαλείο «Έλεγχος Τιμών Πετρών» από τις Ρυθμίσεις (δεν χρειάζεται πια) και λίγος παλιός αχρησιμοποίητος κώδικας. Καμία αλλαγή στη λειτουργία — η εφαρμογή είναι απλώς πιο καθαρή.'
       ]},
           ]
   },
@@ -20010,9 +19865,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.32', date: 'Jul 2026', items: [
-        '✅ No more "Duplicate QR Code" warning. With the reference-code system, two pieces of the same weight/vendor/category are told apart by their reference codes (RG0624, RG0625) — so you now keep the EXACT weight instead of nudging it to 1.301. Scanning each tag brings up the right piece (verified).',
-        '🧹 Internal tidy-up: removed the temporary test tools (the "Shared Codes" list and "Tag Test") that are no longer needed, plus some old unused code.'
+      { version: 'v11.33', date: 'Jul 2026', items: [
+        '🧹 Finished the tidy-up: removed the temporary "Stone Price Audit" tool from Settings (no longer needed) and a little more old unused code. No change to how anything works — the app is just cleaner.'
       ]},
           ]
   }
@@ -22750,16 +22604,6 @@ async function toggleUserActive(slug) {
   renderTeamList(users);
 }
 
-async function deleteUser(slug) {
-  showConfirm(lang==='el' ? 'Διαγραφή μέλους; Τα δεδομένα παραμένουν.' : 'Remove member? Their data is kept.', async () => {
-    const users = await getUsers();
-    delete users[slug];
-    _usersCache = users;
-    await pushUsersToCloud(users);
-    renderTeamList(users);
-  });
-}
-
 function shareUserLink(slug, name, nameEn, role) {
   const appUrl = window.location.origin + '/jewelprice.htm';
   const firebaseUrl = creds.binId;
@@ -23016,7 +22860,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.32';
+const APP_VERSION = '11.33';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
