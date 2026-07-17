@@ -11619,7 +11619,18 @@ async function _checkInvStatusForCalc(raw) {
   // shares its code. Prefer an IN-STOCK one (matching a sold twin first showed a "Sold"
   // chip for a piece that is actually on the shelf).
   const _matches = entries.filter(([, it]) => it.qrCode && it.qrCode.trim().toUpperCase() === rawNorm);
-  const found = _matches.find(([, it]) => it.status === 'in_stock') || _matches[0];
+  // A ref-code scan already named the exact record, so it OUTRANKS any qrCode match — and
+  // must be consulted here, before `found` is chosen, because `found` drives everything
+  // downstream: the status chip, the "View →" jump, the secondary-metal fields, the photo
+  // and which piece the SOLD button marks.
+  //
+  // This matters beyond twins: a descriptive code carries vendor+karat+category+weight but
+  // NOT the jewelry type, so a pendant and a pair of earrings from the same category at the
+  // same weight get the IDENTICAL code (NOH14L2.8 = both PE0396 and ER0509). Only the ref
+  // prefix separates them. Scanning ER0613's ref tag was landing on the pendant.
+  const _pinnedEntry = (_refPinnedInvId && _inventoryCache[_refPinnedInvId])
+    ? [_refPinnedInvId, _inventoryCache[_refPinnedInvId]] : null;
+  const found = _pinnedEntry || _matches.find(([, it]) => it.status === 'in_stock') || _matches[0];
   const isEl = lang === 'el';
   if (found) {
     const [fbKey, item] = found;
@@ -11627,12 +11638,11 @@ async function _checkInvStatusForCalc(raw) {
     _lastScannedInvEntry = item;
     _lastScannedRaw = rawNorm; // rawNorm = raw.trim().toUpperCase()
 
-    // Came in by ref code? Then we already know the exact piece — never ask.
-    const _pinned = _refPinnedInvId && _inventoryCache[_refPinnedInvId] ? _refPinnedInvId : null;
+    const _wasPinned = !!_pinnedEntry;
     _refPinnedInvId = null;   // single use: a later plain-QR scan must ask again
-    if (_pinned) {
-      _lastScannedInvEntry = _inventoryCache[_pinned];
-      _scanChosenInvId = _pinned;
+    if (_wasPinned) {
+      // The ref code named this piece: the sale, the photo and the hold all follow `found`.
+      _scanChosenInvId = fbKey;
     } else {
       // Do the in-stock twins LOOK different? Then the tag alone can't identify the piece —
       // ask. Identical twins stay silent (any of them will do).
@@ -19990,10 +20000,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.24', date: 'Ιούλιος 2026', items: [
-        '🆔 Κάθε ΝΕΑ ετικέτα τυπώνεται πλέον με τον κωδικό αναφοράς στο QR. Η ετικέτα δείχνει το κόσμημα αντί να το περιγράφει — άρα δεν «παλιώνει» ποτέ. Οι παλιές ετικέτες διαβάζονται κανονικά όπως πάντα.',
-        '💎 Αλλάζετε πέτρες σε κόσμημα με ετικέτα κωδικού; Καμία επανεκτύπωση — η εφαρμογή ενημερώνει μόνη της τα στοιχεία και η ετικέτα παραμένει σωστή. (Στις παλιές ετικέτες ζητά επανεκτύπωση, όπως πριν.)',
-        '🎯 Όταν σκανάρετε ετικέτα κωδικού, η εφαρμογή ξέρει ακριβώς ποιο κομμάτι κρατάτε — δεν ρωτά πια «ποιο κρατάτε;» άδικα, ακόμα κι αν δύο κομμάτια έχουν ίδιο βάρος.'
+      { version: 'v11.25', date: 'Ιούλιος 2026', items: [
+        '🐞 ΣΗΜΑΝΤΙΚΟ: σκανάροντας ετικέτα κωδικού μπορούσε να εμφανιστεί ΑΛΛΟ κόσμημα. Ο παλιός περιγραφικός κωδικός δεν περιέχει τον τύπο του κοσμήματος, οπότε ένα μενταγιόν κι ένα ζευγάρι σκουλαρίκια του ίδιου προμηθευτή/κατηγορίας/βάρους έχουν ΤΟΝ ΙΔΙΟ κωδικό (NOH14L2.8). Τώρα ο κωδικός αναφοράς υπερισχύει πάντα και δείχνει ακριβώς το σωστό κομμάτι — και η ΠΩΛΗΣΗ σημειώνει το σωστό.'
       ]},
           ]
   },
@@ -20024,10 +20032,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.24', date: 'Jul 2026', items: [
-        '🆔 Every NEW tag now prints the reference code in the QR. The tag identifies the piece instead of describing it — so it can never go stale. Old tags keep scanning exactly as before.',
-        '💎 Change the stones on a piece with a ref tag? No reprint — the app keeps its details in step by itself and the tag stays correct. (Old tags still ask for a reprint, as before.)',
-        '🎯 When you scan a ref tag the app knows exactly which piece you are holding — so it no longer asks "which one?" for nothing, even when two pieces weigh the same.'
+      { version: 'v11.25', date: 'Jul 2026', items: [
+        '🐞 IMPORTANT: scanning a ref tag could show a DIFFERENT piece. The old descriptive code does not include the jewelry type, so a pendant and a pair of earrings from the same vendor/category/weight share the SAME code (NOH14L2.8). The reference code now always wins and resolves the exact piece — and the SALE marks the right one.'
       ]},
           ]
   }
@@ -23033,7 +23039,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.24';
+const APP_VERSION = '11.25';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
