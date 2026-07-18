@@ -1987,11 +1987,19 @@
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:9px">
           <div style="flex:1">
             <label style="display:block;font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px" data-i18n="clientDateFrom">Από</label>
-            <input type="date" id="clientDateFrom" onchange="renderClients()" style="width:100%;background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px">
+            <!-- Invisible native picker over our own fmtDate display, so the date
+                 reads DD/MM/YYYY instead of the phone's locale. -->
+            <div style="position:relative">
+              <div id="clientDateFromDisp" style="width:100%;box-sizing:border-box;background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px">—</div>
+              <input type="date" id="clientDateFrom" onchange="document.getElementById('clientDateFromDisp').textContent=this.value?fmtDate(this.value):'—';renderClients()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+            </div>
           </div>
           <div style="flex:1">
             <label style="display:block;font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px" data-i18n="clientDateTo">Έως</label>
-            <input type="date" id="clientDateTo" onchange="renderClients()" style="width:100%;background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px">
+            <div style="position:relative">
+              <div id="clientDateToDisp" style="width:100%;box-sizing:border-box;background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px">—</div>
+              <input type="date" id="clientDateTo" onchange="document.getElementById('clientDateToDisp').textContent=this.value?fmtDate(this.value):'—';renderClients()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+            </div>
           </div>
         </div>
         <div style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px" data-i18n="clientSeasons">Σεζόν</div>
@@ -4739,6 +4747,46 @@ function deskShow(which) {
   if (seg === 'gift' && typeof renderGiftCards === 'function') renderGiftCards();
 }
 
+// ─── DESK: hide finished work ─────────────────────────────────────────────────
+// Over the years these lists fill with completed work and the few live records
+// get buried. Only open work shows by default; finished records stay one tap
+// away. Identical behaviour in all three lists — one helper, one control.
+//
+// Display filter only: nothing is archived, moved or rewritten on the server.
+function _deskIsFinished(kind, r) {
+  if (!r) return false;
+  if (kind === 'repairs') return r.status === 'collected' || r.status === 'cancelled';
+  if (kind === 'reservations') return r.status === 'completed' || r.status === 'cancelled' || r.status === 'expired';
+  if (kind === 'gift') {
+    if (r.status === 'redeemed' || r.status === 'cancelled') return true;
+    // An EXPIRED certificate with money still on it is NOT finished — it needs
+    // the owner to book the balance or extend it. Hiding it would bury exactly
+    // the thing that still wants a decision.
+    if (r.status === 'expired') return gcBalance(r) <= 0 || !!r.breakageSaleId;
+  }
+  return false;
+}
+function _deskShowFinished(kind) {
+  try { return localStorage.getItem('jpro_showFinished_' + kind) === '1'; } catch (e) { return false; }
+}
+function _deskToggleFinished(kind) {
+  try { localStorage.setItem('jpro_showFinished_' + kind, _deskShowFinished(kind) ? '0' : '1'); } catch (e) {}
+  if (kind === 'gift') renderGiftCards();
+  else if (kind === 'repairs') renderRepairs();
+  else renderReservations();
+}
+// The shared control. `hidden` is how many finished records are being withheld,
+// so it's obvious something is there rather than the list simply looking short.
+function _deskFinishedToggleHtml(kind, hidden) {
+  const isEl = lang === 'el';
+  const on = _deskShowFinished(kind);
+  if (!on && !hidden) return ''; // nothing finished yet — no need for the control
+  const label = on
+    ? (isEl ? 'Απόκρυψη ολοκληρωμένων' : 'Hide finished')
+    : (isEl ? `Εμφάνιση ολοκληρωμένων (${hidden})` : `Show finished (${hidden})`);
+  return `<button onclick="_deskToggleFinished('${kind}')" style="width:100%;padding:9px;margin-bottom:10px;background:${on ? 'rgba(201,168,76,0.12)' : 'transparent'};border:1px solid ${on ? 'rgba(201,168,76,0.4)' : 'var(--card-border)'};border-radius:8px;color:${on ? 'var(--gold-light)' : 'var(--text-muted)'};font-size:12px;font-family:var(--font-body);cursor:pointer">${on ? '🙈' : '👁'} ${label}</button>`;
+}
+
 // ═══ GIFT CERTIFICATES ═══════════════════════════════════════════════════════
 // A customer pays now; someone redeems for jewelry later. Money model (decided,
 // see GIFT_CERTIFICATES_DESIGN.md §1): NOTHING is logged in Sales when the
@@ -4915,13 +4963,20 @@ function renderGiftCards() {
   list.sort((a, b) => rank(a) - rank(b) || String(a.expiresAt || '').localeCompare(String(b.expiresAt || '')) || (b.dateCreated || 0) - (a.dateCreated || 0));
   if (q) list = list.filter(g => (g.buyerName || '').toLowerCase().includes(q) || gcNoFmt(g).toLowerCase().includes(q) || (g.toName || '').toLowerCase().includes(q));
 
+  // Hide finished certificates unless asked for — but a SEARCH always reaches
+  // them, since searching a name or number is exactly how you look for one from
+  // last season (same rule the Stock list uses for coins/metal).
+  const _finished = list.filter(g => _deskIsFinished('gift', g));
+  if (!q && !_deskShowFinished('gift')) list = list.filter(g => !_deskIsFinished('gift', g));
+  const _toggle = q ? '' : _deskFinishedToggleHtml('gift', _finished.length);
+
   if (!list.length) {
-    box.innerHTML = `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία δωροεπιταγή ακόμη' : 'No gift certificates yet'}</div>`;
+    box.innerHTML = _toggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία δωροεπιταγή ακόμη' : 'No gift certificates yet'}</div>`;
     _gcUpdateBadges();
     return;
   }
 
-  box.innerHTML = list.map(g => {
+  box.innerHTML = _toggle + list.map(g => {
     const bal = gcBalance(g);
     const days = gcDaysLeft(g);
     const soon = gcIsSpendable(g) && days !== null && days >= 0 && days <= GC_EXPIRY_WARN_DAYS;
@@ -5222,6 +5277,7 @@ function openGiftCardDetail(id) {
     <div style="display:flex;gap:7px;margin-top:14px">
       <button onclick="openGiftEdit('${g.id}')" style="flex:1;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--font-body);cursor:pointer">✏️ ${isEl ? 'Επεξεργασία' : 'Edit'}</button>
       ${(g.status === 'active' || g.status === 'expired') ? `<button onclick="_gcCancel('${g.id}')" style="flex:1;padding:11px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.35);border-radius:8px;color:var(--danger);font-size:13px;font-family:var(--font-body);cursor:pointer">${isEl ? 'Ακύρωση' : 'Cancel'}</button>` : ''}
+      ${_gcCanDelete(g) ? `<button onclick="_gcDelete('${g.id}')" style="flex:1;padding:11px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.35);border-radius:8px;color:var(--danger);font-size:13px;font-family:var(--font-body);cursor:pointer">🗑 ${isEl ? 'Διαγραφή' : 'Delete'}</button>` : ''}
     </div>` : ''}
   </div>`;
   document.body.appendChild(ov);
@@ -5484,6 +5540,34 @@ async function _recordGiftBreakage(amount, note) {
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
   try { await pushSalesToCloud(sales); } catch (e) {}
   return rec;
+}
+
+// Deletable ONLY once cancelled, and only if it was never redeemed. Cancelling
+// is already the deliberate "this was a mistake" step, so a delete behind it
+// can't fire by accident — and a certificate that has been spent is referenced
+// by real sale records (giftCardId), which _gcUnapplyForSale and the sale
+// detail's certificate line both read back. Those must never be orphaned.
+function _gcCanDelete(g) {
+  return !!g && g.status === 'cancelled' && !((g.redemptions || []).length);
+}
+
+function _gcDelete(id) {
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  const g = gcFindById(id);
+  if (!_gcCanDelete(g)) return;
+  const isEl = lang === 'el';
+  showConfirm(
+    isEl ? `Οριστική διαγραφή της ${gcNoFmt(g)}; Δεν αναιρείται.`
+         : `Permanently delete ${gcNoFmt(g)}? This can't be undone.`,
+    async () => {
+      const list = getGiftCards().filter(x => x.id !== id);
+      saveGiftCardsLocal(list);
+      await pushGiftCardsToCloud(list);
+      document.getElementById('giftDetailOverlay')?.remove();
+      renderGiftCards();
+      showToast(isEl ? 'Διαγράφηκε' : 'Deleted');
+    }, null, { danger: true }
+  );
 }
 
 function _gcCancel(id) {
@@ -5889,8 +5973,12 @@ function renderReservations() {
   list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || resNoFmt(r).toLowerCase().includes(q) ||
     (r.items || r.itemsSnapshot || []).some(it => ((it.ref || '') + ' ' + (it.desc || '')).toLowerCase().includes(q)));
-  if (!list.length) { box.innerHTML = `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία κράτηση ακόμη' : 'No reservations yet'}</div>`; return; }
-  box.innerHTML = list.map(r => {
+  // Completed/cancelled/expired holds are hidden unless asked for; a search still finds them.
+  const _resFinished = list.filter(r => _deskIsFinished('reservations', r));
+  if (!q && !_deskShowFinished('reservations')) list = list.filter(r => !_deskIsFinished('reservations', r));
+  const _resToggle = q ? '' : _deskFinishedToggleHtml('reservations', _resFinished.length);
+  if (!list.length) { box.innerHTML = _resToggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία κράτηση ακόμη' : 'No reservations yet'}</div>`; return; }
+  box.innerHTML = _resToggle + list.map(r => {
     const bal = resBalance(r);
     const chip = r.status === 'active' ? (bal <= 0 ? `<span style="color:#7fd6b0">${isEl ? 'Πληρωμένη' : 'Paid'}</span>` : `<span style="color:#e0a85a">${isEl ? 'Ενεργή' : 'Active'}</span>`)
       : r.status === 'completed' ? `<span style="color:#7fd6b0">${isEl ? 'Ολοκληρώθηκε' : 'Completed'}</span>`
@@ -6475,8 +6563,12 @@ function renderRepairs() {
   const rank = s => s === 'in_progress' ? 0 : (s === 'ready' ? 1 : (s === 'collected' ? 2 : 3));
   list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || repNoFmt(r).toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q));
-  if (!list.length) { box.innerHTML = `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Κανένα δελτίο ακόμη' : 'No tickets yet'}</div>`; return; }
-  box.innerHTML = list.map(r => {
+  // Collected/cancelled tickets are hidden unless asked for; a search still finds them.
+  const _repFinished = list.filter(r => _deskIsFinished('repairs', r));
+  if (!q && !_deskShowFinished('repairs')) list = list.filter(r => !_deskIsFinished('repairs', r));
+  const _repToggle = q ? '' : _deskFinishedToggleHtml('repairs', _repFinished.length);
+  if (!list.length) { box.innerHTML = _repToggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Κανένα δελτίο ακόμη' : 'No tickets yet'}</div>`; return; }
+  box.innerHTML = _repToggle + list.map(r => {
     const statusChip = r.status === 'in_progress' ? `<span style="color:#e0a85a">${isEl ? 'Σε εξέλιξη' : 'In progress'}</span>`
       : r.status === 'ready' ? `<span style="color:#7fd6b0">${isEl ? 'Έτοιμο' : 'Ready'}</span>`
       : r.status === 'collected' ? `<span style="color:var(--text-dim)">${isEl ? 'Παραλήφθηκε' : 'Collected'}</span>`
@@ -13699,8 +13791,12 @@ async function openInvExportSheet() {
     <div style="${secStyle}"><div style="${lbl}">${t('exportDateLabel')}</div>
       <div id="ieSeasonChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px"></div>
       <div style="display:flex;gap:8px">
-        <div style="flex:1"><div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">${t('exportFrom')}</div><input type="date" id="ieDateFrom" onchange="_invExportSeasonChips()" style="${dateInput}"></div>
-        <div style="flex:1"><div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">${t('exportTo')}</div><input type="date" id="ieDateTo" onchange="_invExportSeasonChips()" style="${dateInput}"></div>
+        <div style="flex:1"><div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">${t('exportFrom')}</div>
+          <div style="position:relative"><div id="ieDateFromDisp" style="${dateInput}">—</div>
+          <input type="date" id="ieDateFrom" onchange="_syncIeDateDisplays();_invExportSeasonChips()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer"></div></div>
+        <div style="flex:1"><div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">${t('exportTo')}</div>
+          <div style="position:relative"><div id="ieDateToDisp" style="${dateInput}">—</div>
+          <input type="date" id="ieDateTo" onchange="_syncIeDateDisplays();_invExportSeasonChips()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer"></div></div>
       </div>
     </div>
     <div style="font-size:10px;color:var(--text-muted);margin-top:10px;line-height:1.5">${t('exportFmtNote')}</div>`;
@@ -13725,12 +13821,22 @@ function _invExportSeasonChips() {
   }).join('');
 }
 
+// Native pickers are invisible here too — setting .value doesn't fire onchange,
+// so the fmtDate display has to be refreshed explicitly.
+function _syncIeDateDisplays() {
+  [['ieDateFrom','ieDateFromDisp'], ['ieDateTo','ieDateToDisp']].forEach(([inId, dispId]) => {
+    const inp = document.getElementById(inId), disp = document.getElementById(dispId);
+    if (inp && disp) disp.textContent = inp.value ? fmtDate(inp.value) : '—';
+  });
+}
+
 function pickInvExportSeason(y) {
   const from = document.getElementById('ieDateFrom'), to = document.getElementById('ieDateTo');
   if (!from || !to) return;
   const f = `${y}-04-01`, tt = `${y}-11-30`;
   if (from.value === f && to.value === tt) { from.value = ''; to.value = ''; } // toggle off
   else { from.value = f; to.value = tt; }
+  _syncIeDateDisplays();
   _invExportSeasonChips();
 }
 
@@ -19090,8 +19196,11 @@ function openBulkSellSheet(id) {
       </div>
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Ημερομηνία':'Date'}</label>
-      <input type="date" id="bulkSellDate" value="${todayStr()}"
-        style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:16px">
+      <div style="position:relative;margin-bottom:16px">
+        <div id="bulkSellDateDisp" style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;box-sizing:border-box">${fmtDate(todayStr())}</div>
+        <input type="date" id="bulkSellDate" value="${todayStr()}" onchange="var _d=document.getElementById('bulkSellDateDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'"
+          style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+      </div>
 
       <button id="bulkSellCashBtn" data-cash-btn="1" onclick="toggleManualCash('bulkSellCashBtn')"
         style="width:100%;padding:11px;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;margin-bottom:24px">
@@ -21261,9 +21370,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.44', date: 'Ιούλιος 2026', items: [
-        '📷 Κουμπί σάρωσης μέσα στην επιλογή δωροεπιταγής. Η λίστα έλεγε «ή σαρώστε τον κωδικό» χωρίς να υπάρχει πουθενά κουμπί — τώρα σαρώνετε την επιταγή απευθείας από το παράθυρο της πώλησης.',
-        '📄 Διόρθωση: η δωροεπιταγή που στέλνατε με «Αποστολή» ήταν κομμένη στη μέση. Το PDF δημιουργούνταν πάντα σε κατακόρυφη σελίδα, ενώ η επιταγή είναι οριζόντια — χανόταν η σφραγίδα και το QR. Τώρα βγαίνει ολόκληρη.'
+      { version: 'v11.45', date: 'Ιούλιος 2026', items: [
+        '👁 Ο Πάγκος δείχνει πλέον μόνο τις ΑΝΟΙΧΤΕΣ εργασίες. Ολοκληρωμένες κρατήσεις, παραληφθέντα δελτία και εξαργυρωμένες δωροεπιταγές κρύβονται — με ένα πάτημα «Εμφάνιση ολοκληρωμένων (Ν)» τα βλέπετε όλα. Ισχύει και στις τρεις λίστες.',
+        '🔎 Η αναζήτηση βρίσκει πάντα και τα κρυμμένα — έτσι ψάχνετε κάτι από περασμένη σεζόν.',
+        '⚠️ Μια ληγμένη δωροεπιταγή που έχει ακόμη υπόλοιπο ΔΕΝ κρύβεται — περιμένει απόφαση (καταχώρηση ή παράταση).',
+        '🗑 Διαγραφή δωροεπιταγής: εμφανίζεται μόνο αφού την ακυρώσετε, και μόνο αν δεν έχει χρησιμοποιηθεί ποτέ σε πώληση.',
+        '📅 Οι τελευταίες ημερομηνίες που έδειχναν τη μορφή του κινητού διορθώθηκαν σε ΗΗ/ΜΜ/ΕΕΕΕ: φίλτρο Πελατών, εξαγωγή αποθέματος και πώληση αλυσίδας με το γραμμάριο.'
       ]},
           ]
   },
@@ -21294,9 +21406,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.44', date: 'Jul 2026', items: [
-        '📷 Scan button inside the gift certificate picker. The list said "or scan the certificate code" with no button anywhere — you can now scan a certificate straight from the sale dialog.',
-        '📄 Fixed: the gift certificate sent with "Share" was cut in half. The PDF was always built on a portrait page while the certificate is landscape, so the stamp box and QR fell off the edge. It now comes out whole.'
+      { version: 'v11.45', date: 'Jul 2026', items: [
+        '👁 The Desk now shows only OPEN work. Completed reservations, collected tickets and redeemed gift certificates are tucked away — one tap on "Show finished (N)" brings them back. Same in all three lists.',
+        '🔎 A search always reaches the hidden ones, so you can still find something from last season.',
+        '⚠️ An expired gift certificate that still has a balance is NOT hidden — it\'s waiting on a decision (book it or extend it).',
+        '🗑 Delete a gift certificate: appears only after you cancel it, and only if it was never used in a sale.',
+        '📅 The last date fields still showing your phone\'s format now read DD/MM/YYYY: the Clients filter, the inventory export range, and the by-the-gram chain sale.'
       ]},
           ]
   }
@@ -23289,9 +23404,20 @@ function toggleClientDateFilter() {
   if (show) renderClientSeasonChips();
 }
 
+// The native inputs are invisible (their value is shown by a sibling div), so
+// anything that sets .value programmatically must refresh the display too —
+// setting .value does not fire onchange.
+function _syncClientDateDisplays() {
+  [['clientDateFrom','clientDateFromDisp'], ['clientDateTo','clientDateToDisp']].forEach(([inId, dispId]) => {
+    const inp = document.getElementById(inId), disp = document.getElementById(dispId);
+    if (inp && disp) disp.textContent = inp.value ? fmtDate(inp.value) : '—';
+  });
+}
+
 function clearClientDateFilter() {
   const from = document.getElementById('clientDateFrom'); if (from) from.value = '';
   const to = document.getElementById('clientDateTo'); if (to) to.value = '';
+  _syncClientDateDisplays();
   renderClients();
 }
 
@@ -23303,6 +23429,7 @@ function pickClientSeason(y) {
   const f = `${y}-04-01`, tt = `${y}-11-30`;
   if (from.value === f && to.value === tt) { from.value = ''; to.value = ''; } // toggle off
   else { from.value = f; to.value = tt; }
+  _syncClientDateDisplays();
   renderClients();
 }
 
@@ -24367,7 +24494,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.44';
+const APP_VERSION = '11.45';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
