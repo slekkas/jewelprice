@@ -6205,11 +6205,22 @@ function stoneLabel(type) { return stoneLabelFor(type, lang === 'el'); }
 // Helper: translate full stonesDesc string for display (keeps carats/clarity/color intact)
 function stonesDescDisplay(desc) {
   if (!desc || lang !== 'el') return desc;
-  // Replace English stone names with Greek — longest first to avoid partial matches (e.g. "Pearl" inside "Black Pearl")
-  const sorted = Object.keys(STONE_TRANSLATIONS).sort((a,b) => b.length - a.length);
   let result = desc;
-  sorted.forEach(k => { result = result.split(k).join(STONE_TRANSLATIONS[k]); });
+  // Shapes FIRST, parked behind placeholders. "Emerald Cut" contains the stone name
+  // "Emerald", so translating stones first would turn it into «Σμαράγδι Cut»; parking the
+  // shape keeps the stone pass from ever seeing it. Longest key first, same reason.
+  const parked = [];
+  Object.keys(STONE_SHAPE_TRANSLATIONS).sort((a, b) => b.length - a.length).forEach(k => {
+    if (result.indexOf(k) === -1) return;
+    const token = '@@SHP' + parked.length + '@@';
+    parked.push(STONE_SHAPE_TRANSLATIONS[k]);
+    result = result.split(k).join(token);
+  });
+  // Stone names — longest first to avoid partial matches (e.g. "Pearl" inside "Black Pearl")
+  Object.keys(STONE_TRANSLATIONS).sort((a, b) => b.length - a.length)
+    .forEach(k => { result = result.split(k).join(STONE_TRANSLATIONS[k]); });
   result = result.split('melee').join('Μελέ');
+  parked.forEach((v, i) => { result = result.split('@@SHP' + i + '@@').join(v); });
   return result;
 }
 // Customer-facing version of a stone description. "melee" is an INTERNAL purchasing term —
@@ -6236,7 +6247,25 @@ function stonesDescPublic(desc) {
 const PEARL_TYPES = ['Pearl','Baroque Pearl','Black Pearl','Keshi Pearl','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
 const CLARITY_GRADES = ['FL','IF','VVS1','VVS2','VS1','VS2','SI1','SI2','I1','I2','I3'];
 const COLOR_GRADES = ['D','E','F','G','H','I','J','K','L','M'];
-const STONE_SHAPES = ['Round','Princess','Oval','Cushion','Emerald Cut','Pear','Marquise','Heart','Radiant','Asscher'];
+const STONE_SHAPES = ['Round','Princess','Oval','Cushion','Emerald Cut','Pear','Marquise','Heart','Radiant','Asscher','Baguette'];
+
+// Greek shape names as Greek jewellers and diamond dealers actually say them (owner-supplied).
+// Princess / Cushion / Emerald / Radiant / Asscher stay in English on purpose — they are
+// international trade names, not translated in professional Greek catalogs. Anything absent
+// from this map is shown unchanged.
+const STONE_SHAPE_TRANSLATIONS = {
+  'Round':       'Στρογγυλή κοπή',
+  'Oval':        'Οβάλ',
+  'Pear':        'Δάκρυ',
+  'Marquise':    'Μαρκίζ',
+  'Heart':       'Καρδιά',
+  'Baguette':    'Μπαγκέτα',
+  'Emerald Cut': 'Emerald'
+};
+function shapeLabelFor(shape, isEl) {
+  return (isEl && STONE_SHAPE_TRANSLATIONS[shape]) ? STONE_SHAPE_TRANSLATIONS[shape] : shape;
+}
+function shapeLabel(shape) { return shapeLabelFor(shape, lang === 'el'); }
 
 function toggleStoneSection() {
   const body = document.getElementById('stoneSectionBody');
@@ -19942,9 +19971,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.38', date: 'Ιούλιος 2026', items: [
-        '🇬🇷 Ελληνικά ονόματα πετρών σε ό,τι βλέπει ο πελάτης. Σε ελληνική προσφορά, πιστοποιητικό ή κατάλογο η πέτρα γράφεται πλέον «Ζιρκόνιο», «Τυρκουάζ», «Ρουμπίνι» — όχι στα αγγλικά.',
-        '🏷️ Το παράθυρο ετικέτας καθάρισε: έφυγαν οι «Γραμμή 1 / 2 / 3» (και ο ελληνικός κωδικός) που χρειάζονταν στο παλιό σύστημα. Μένουν ο πλήρης κωδικός QR και ο Κωδικός Αναφοράς. Η εκτύπωση δεν άλλαξε καθόλου.'
+      { version: 'v11.39', date: 'Ιούλιος 2026', items: [
+        '💎 Ελληνικά ονόματα κοπής στα έγγραφα του πελάτη: Στρογγυλή κοπή, Οβάλ, Δάκρυ, Μαρκίζ, Καρδιά, Μπαγκέτα. Οι διεθνείς εμπορικές ονομασίες (Princess, Cushion, Emerald, Radiant, Asscher) μένουν σκόπιμα στα αγγλικά, όπως στους επαγγελματικούς καταλόγους.',
+        '✨ Προστέθηκε η κοπή «Μπαγκέτα» στις επιλογές πετρών.'
       ]},
           ]
   },
@@ -19975,9 +20004,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.38', date: 'Jul 2026', items: [
-        '🇬🇷 Greek stone names everywhere a customer looks. On a Greek quote, certificate or catalog the stone now reads «Ζιρκόνιο», «Τυρκουάζ», «Ρουμπίνι» instead of English.',
-        '🏷️ The label window is tidier: "Line 1 / 2 / 3" (and the Greek code row) are gone — they were needed by the old tag system. Only the full QR code and the Reference Code remain. Printing is completely unchanged.'
+      { version: 'v11.39', date: 'Jul 2026', items: [
+        '💎 Greek cut names on customer documents: Στρογγυλή κοπή, Οβάλ, Δάκρυ, Μαρκίζ, Καρδιά, Μπαγκέτα. The international trade names (Princess, Cushion, Emerald, Radiant, Asscher) deliberately stay in English, as they do in professional catalogs.',
+        '✨ Added the Baguette cut to the stone shape options.'
       ]},
           ]
   }
@@ -20286,7 +20315,7 @@ function togglePriceFullscreen() {
       if (s.carat) label += ' ' + s.carat + 'ct';
       if (s.clarity) label += ' ' + s.clarity;
       if (s.color) label += ' ' + s.color;
-      if (s.shape) label += ' ' + s.shape;
+      if (s.shape) label += ' ' + shapeLabel(s.shape);
       return label;
     });
     rows.push([stones.length > 1 ? t('pfsStones') : t('pfsStone'), stoneLines]);
@@ -20862,7 +20891,7 @@ ${r.stones && r.stones.length > 0 ? `
     if (s.carat) parts.push(`${s.carat} ct`);
     if (s.clarity) parts.push(s.clarity);
     if (s.color) parts.push(`${isEl ? 'Χρώμα' : 'Color'} ${s.color}`);
-    if (s.shape) parts.push(s.shape);
+    if (s.shape) parts.push(shapeLabelFor(s.shape, isEl));
     return `<div style="font-size:9pt;color:#1a1a1a;line-height:1.8">${parts.join(' · ')}</div>`;
   }).join('')}
 </div>` : ''}
@@ -21314,7 +21343,7 @@ ${r.stones && r.stones.length > 0 ? `
     if (s.carat) parts.push(`${s.carat} ct`);
     if (s.clarity) parts.push(s.clarity);
     if (s.color) parts.push(`${isEl ? 'Χρώμα' : 'Color'} ${s.color}`);
-    if (s.shape) parts.push(s.shape);
+    if (s.shape) parts.push(shapeLabelFor(s.shape, isEl));
     return `<div style="font-size:9pt;color:#1a1a1a;line-height:1.8">${parts.join(' · ')}</div>`;
   }).join('')}
 </div>` : ''}
@@ -23031,7 +23060,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.38';
+const APP_VERSION = '11.39';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
