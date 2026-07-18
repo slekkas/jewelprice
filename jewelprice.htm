@@ -701,6 +701,18 @@
   }
   @keyframes notifPop { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
   .nav-notif-badge.pop { animation: notifPop 0.3s ease forwards; }
+  /* Gift-certificate expiry badge — GREEN, so it never reads as an employee
+     message (red). Same geometry as .nav-notif-badge. */
+  .nav-gift-badge { background:#2E9E63 !important; }
+  .gift-badge {
+    position:absolute; top:2px; right:4px;
+    background:#2E9E63; color:#fff;
+    font-size:9px; font-weight:700; font-family:var(--font-mono);
+    min-width:16px; height:16px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 4px; line-height:1; pointer-events:none;
+    box-shadow:0 1px 4px rgba(0,0,0,0.4);
+  }
 
   /* ── SALES PANEL ─────────────────────────────────────────── */
   .sales-panel-inner { padding: 16px 16px 24px; }
@@ -3019,6 +3031,7 @@
     <div style="display:flex;gap:6px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:5px;margin-bottom:14px">
       <button id="deskTabRes" class="desk-seg active" onclick="deskShow('reservations')">🔒 <span data-i18n="deskReservations">Κρατήσεις</span></button>
       <button id="deskTabRep" class="desk-seg" onclick="deskShow('repairs')">🔧 <span data-i18n="deskRepairs">Επισκευές</span></button>
+      <button id="deskTabGift" class="desk-seg" onclick="deskShow('gift')" style="position:relative">🎁 <span data-i18n="deskGift">Δωροεπιταγές</span><span id="deskGiftBadge" class="gift-badge" style="display:none"></span></button>
     </div>
 
     <!-- RESERVATIONS VIEW -->
@@ -3033,6 +3046,14 @@
       <button onclick="openRepairModal()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="repNewTicket">Νέο δελτίο</span></button>
       <input type="search" id="repSearchInput" oninput="renderRepairs()" data-i18n-ph="repSearchPh" placeholder="Αναζήτηση — πελάτης, δελτίο…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
       <div id="repairsList"></div>
+    </div>
+
+    <!-- GIFT CERTIFICATES VIEW -->
+    <div id="deskGiftView" style="display:none">
+      <button onclick="openGiftModal()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="gcNew">Νέα δωροεπιταγή</span></button>
+      <div id="gcOutstanding" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:9px 12px;background:rgba(212,175,55,0.05);border:1px solid rgba(212,175,55,0.15);border-radius:8px"></div>
+      <input type="search" id="gcSearchInput" oninput="renderGiftCards()" data-i18n-ph="gcSearchPh" placeholder="Αναζήτηση — πελάτης, αριθμός…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
+      <div id="giftCardsList"></div>
     </div>
   </div>
 </div>
@@ -3059,6 +3080,7 @@
   <button class="nav-btn" id="nav-desk" onclick="showPanel('desk')" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3h6a2 2 0 0 1 2 2v0h2a1 1 0 0 1 1 1v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h2v0a2 2 0 0 1 2-2z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
     <span data-i18n="navDesk">Πάγκος</span>
+    <span id="navGiftBadge" class="nav-notif-badge nav-gift-badge" style="display:none"></span>
   </button>
 </nav>
 
@@ -4172,6 +4194,10 @@ async function autoSync() {
   try { await _resCheckExpiry(); } catch(e) { /* silent */ }
   // Pull repairs / custom orders from cloud (all roles — counter staff manage tickets).
   try { await pullRepairsFromCloud(); } catch(e) { /* silent */ }
+  // Pull gift certificates (all roles — anyone at the counter may redeem one),
+  // then flag any that have expired and warn about those expiring soon.
+  try { await pullGiftCardsFromCloud(); } catch(e) { /* silent */ }
+  try { await _gcCheckExpiry(); } catch(e) { /* silent */ }
   // Pull sales from cloud (all roles — employees see leaderboard)
   if (creds.binId) {
     try { await pullSalesFromCloud(); } catch(e) { /* silent */ }
@@ -4667,17 +4693,622 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// ─── DESK TAB (Reservations | Repairs segmented view) ─────────────────────────
+// ─── DESK TAB (Reservations | Repairs | Gift certificates) ────────────────────
 function deskShow(which) {
-  const isRes = which !== 'repairs';
-  const rv = document.getElementById('deskReservationsView');
-  const pv = document.getElementById('deskRepairsView');
-  if (rv) rv.style.display = isRes ? '' : 'none';
-  if (pv) pv.style.display = isRes ? 'none' : '';
-  document.getElementById('deskTabRes')?.classList.toggle('active', isRes);
-  document.getElementById('deskTabRep')?.classList.toggle('active', !isRes);
-  if (isRes && typeof renderReservations === 'function') renderReservations();
-  if (!isRes && typeof renderRepairs === 'function') renderRepairs();
+  // Anything unrecognised falls back to reservations (the original default).
+  const seg = (which === 'repairs' || which === 'gift') ? which : 'reservations';
+  const views = {
+    reservations: ['deskReservationsView', 'deskTabRes'],
+    repairs:      ['deskRepairsView',      'deskTabRep'],
+    gift:         ['deskGiftView',         'deskTabGift']
+  };
+  for (const key in views) {
+    const [viewId, tabId] = views[key];
+    const v = document.getElementById(viewId);
+    if (v) v.style.display = (key === seg) ? '' : 'none';
+    document.getElementById(tabId)?.classList.toggle('active', key === seg);
+  }
+  if (seg === 'reservations' && typeof renderReservations === 'function') renderReservations();
+  if (seg === 'repairs' && typeof renderRepairs === 'function') renderRepairs();
+  if (seg === 'gift' && typeof renderGiftCards === 'function') renderGiftCards();
+}
+
+// ═══ GIFT CERTIFICATES ═══════════════════════════════════════════════════════
+// A customer pays now; someone redeems for jewelry later. Money model (decided,
+// see GIFT_CERTIFICATES_DESIGN.md §1): NOTHING is logged in Sales when the
+// certificate is issued — that money is not earned yet. The sale is recorded at
+// full value when the certificate is redeemed, and any balance left unspent at
+// expiry is booked as pure profit by an explicit tap. Counting at both ends
+// would double the revenue.
+//
+// Private node — never published, contains customer PII.
+let _giftCards = null;
+let _gcLoaded = false; // true once pulled from cloud this session
+
+function getGiftCards() {
+  if (_giftCards) return _giftCards;
+  try { _giftCards = JSON.parse(localStorage.getItem('jpro_giftcards') || '[]'); } catch (e) { _giftCards = []; }
+  if (!Array.isArray(_giftCards)) _giftCards = Object.values(_giftCards || {});
+  return _giftCards;
+}
+function saveGiftCardsLocal(list) { _giftCards = list; localStorage.setItem('jpro_giftcards', JSON.stringify(list)); }
+async function pushGiftCardsToCloud(list) {
+  if (!creds.binId) return;
+  try { await fetch(fbUrl('/jewelprice_giftcards.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(list || getGiftCards()) }); } catch (e) {}
+}
+async function pullGiftCardsFromCloud() {
+  if (!creds.binId) return;
+  try {
+    const r = await fetch(fbUrl('/jewelprice_giftcards.json'), { cache: 'no-store' });
+    if (!r.ok) return;
+    const d = await r.json();
+    _giftCards = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+    saveGiftCardsLocal(_giftCards);
+    _gcLoaded = true;
+  } catch (e) {}
+}
+async function getNextGiftCardNo() {
+  try {
+    const url = fbUrl('/jewelprice_giftcard_counter.json');
+    const res = await fetch(url, { cache: 'no-store' });
+    const cur = res.ok ? (await res.json() || 0) : 0;
+    const next = cur + 1;
+    await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+    return next;
+  } catch (e) { return Date.now() % 100000; }
+}
+
+// ── Derived values ───────────────────────────────────────────────────────────
+// Balance is ALWAYS derived from the redemption log, never stored — a stored
+// balance is one more thing that can drift out of sync with the truth.
+function gcRedeemed(g) { return Math.round((g.redemptions || []).reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) * 100) / 100; }
+function gcBalance(g) { return Math.round(((parseFloat(g.amount) || 0) - gcRedeemed(g)) * 100) / 100; }
+// The printed number. The HYPHEN MATTERS: reference codes are 2 letters + 4
+// digits and GC0510 is a COIN, so 'G-0004' can never be mistaken for one when
+// scanned. Do not "tidy" the hyphen away.
+function gcNoFmt(g) { return 'G-' + String(g.cardNo || 0).padStart(4, '0'); }
+function gcIsSpendable(g) { return g && g.status === 'active' && gcBalance(g) > 0; }
+// Days until expiry (negative = already past). No expiry set → null.
+function gcDaysLeft(g) {
+  if (!g || !g.expiresAt) return null;
+  const today = new Date(todayStr() + 'T00:00:00');
+  const exp = new Date(g.expiresAt + 'T00:00:00');
+  if (isNaN(exp)) return null;
+  return Math.round((exp - today) / 86400000);
+}
+function gcFindById(id) { return getGiftCards().find(g => g.id === id) || null; }
+// Resolve a scanned/typed 'G-0004' (case- and space-insensitive) to a card.
+function gcFindByCode(raw) {
+  const m = String(raw || '').trim().toUpperCase().match(/^G-(\d{1,6})$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return getGiftCards().find(g => (g.cardNo || 0) === n) || null;
+}
+const GC_EXPIRY_WARN_DAYS = 30;   // how far ahead the bell warns
+const GC_DEFAULT_TERM_DAYS = 365; // default validity offered on the issue form
+const _gcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+
+// ── Expiry sweep ─────────────────────────────────────────────────────────────
+// Flags past-expiry cards and raises a bell notification for those expiring
+// soon. Deliberately does NOT book the unused balance as income — that stays an
+// explicit tap (see _gcBookBreakage). Money enters the books only when a person
+// puts it there.
+async function _gcCheckExpiry() {
+  const list = getGiftCards();
+  if (!list.length) return;
+  let changed = false;
+  for (const g of list) {
+    if (g.status !== 'active') continue;
+    // Self-heal: a card with nothing left on it is redeemed by definition. Guards
+    // against a redemption that wrote its log entry but failed before setting the
+    // status — otherwise it would sit "active" at zero forever.
+    if (gcBalance(g) <= 0) { g.status = 'redeemed'; changed = true; continue; }
+    const days = gcDaysLeft(g);
+    if (days === null) continue;
+    if (days < 0) {
+      g.status = 'expired';
+      changed = true;
+    } else if (days <= GC_EXPIRY_WARN_DAYS && !g.expiryNotifSent) {
+      // Only mark it warned if the push actually landed. Setting the flag
+      // regardless would lose the warning forever on a device that happened to
+      // be offline (or not signed in) when the card entered its final month.
+      let sent = false;
+      try { sent = await _gcPushExpiryNotif(g, days); } catch (e) {}
+      if (sent) { g.expiryNotifSent = true; changed = true; }
+    }
+  }
+  if (changed) { saveGiftCardsLocal(list); pushGiftCardsToCloud(list); }
+  _gcUpdateBadges();
+}
+
+// Raise the expiry warning on the existing notification bell, for everyone who
+// can act on it (owner/manager). Deterministic id => re-running is idempotent.
+// Returns true only if the warning actually reached at least one person, so the
+// caller knows whether it may mark the card as warned.
+async function _gcPushExpiryNotif(g, days) {
+  if (!creds.binId) return false;
+  // getUsers() is async and returns an object keyed by slug (not an array).
+  const users = await getUsers() || {};
+  const targets = Object.keys(users).filter(slug => {
+    const u = users[slug];
+    return u && u.active !== false && (u.role === 'owner' || u.role === 'manager');
+  });
+  if (!targets.length) return false;
+  const notifId = 'gcexp_' + g.id;
+  const payload = {
+    kind: 'gift_expiry',
+    giftCardId: g.id,
+    cardNo: g.cardNo || 0,
+    buyerName: g.buyerName || '',
+    balance: gcBalance(g),
+    expiresAt: g.expiresAt || '',
+    days,
+    sentAt: new Date().toISOString()
+  };
+  let delivered = 0;
+  for (const slug of targets) {
+    try {
+      const r = await fetch(fbUrl(`/jewelprice_notifications/${slug}/${notifId}.json`), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      if (r.ok) delivered++;
+    } catch (e) {}
+  }
+  return delivered > 0;
+}
+
+// Green counters: how many cards are expiring soon (drives the Desk tab + segment badges).
+function gcExpiringSoon() {
+  return getGiftCards().filter(g => {
+    if (!gcIsSpendable(g)) return false;
+    const d = gcDaysLeft(g);
+    return d !== null && d >= 0 && d <= GC_EXPIRY_WARN_DAYS;
+  });
+}
+// ── List ─────────────────────────────────────────────────────────────────────
+function renderGiftCards() {
+  const box = document.getElementById('giftCardsList'); if (!box) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const q = (document.getElementById('gcSearchInput')?.value || '').toLowerCase().trim();
+  let list = getGiftCards().slice();
+
+  // Outstanding total — the liability, shown here rather than in Sales (money
+  // taken but not yet earned never belongs in a revenue figure).
+  const outstanding = list.filter(gcIsSpendable).reduce((s, g) => s + gcBalance(g), 0);
+  const outBox = document.getElementById('gcOutstanding');
+  if (outBox) {
+    if (outstanding > 0) {
+      outBox.style.display = '';
+      outBox.innerHTML = `🎁 ${isEl ? 'Σε κυκλοφορία' : 'Outstanding'}: <strong style="color:var(--gold-light)">${cur}${outstanding.toFixed(2)}</strong> — ${isEl ? 'αξία που χρωστάτε σε κοσμήματα' : 'value you owe in jewelry'}`;
+    } else outBox.style.display = 'none';
+  }
+
+  // Active first (soonest expiry first), then everything settled.
+  const rank = g => g.status === 'active' ? 0 : (g.status === 'expired' ? 1 : (g.status === 'redeemed' ? 2 : 3));
+  list.sort((a, b) => rank(a) - rank(b) || String(a.expiresAt || '').localeCompare(String(b.expiresAt || '')) || (b.dateCreated || 0) - (a.dateCreated || 0));
+  if (q) list = list.filter(g => (g.buyerName || '').toLowerCase().includes(q) || gcNoFmt(g).toLowerCase().includes(q) || (g.toName || '').toLowerCase().includes(q));
+
+  if (!list.length) {
+    box.innerHTML = `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία δωροεπιταγή ακόμη' : 'No gift certificates yet'}</div>`;
+    _gcUpdateBadges();
+    return;
+  }
+
+  box.innerHTML = list.map(g => {
+    const bal = gcBalance(g);
+    const days = gcDaysLeft(g);
+    const soon = gcIsSpendable(g) && days !== null && days >= 0 && days <= GC_EXPIRY_WARN_DAYS;
+    const statusChip =
+      g.status === 'active'   ? (soon
+        ? `<span style="color:#7fd6b0">${isEl ? `Λήγει σε ${days}${days === 1 ? ' μέρα' : ' μέρες'}` : `Expires in ${days} day${days === 1 ? '' : 's'}`}</span>`
+        : `<span style="color:#7fd6b0">${isEl ? 'Ενεργή' : 'Active'}</span>`)
+      : g.status === 'redeemed' ? `<span style="color:var(--text-dim)">${isEl ? 'Εξαργυρώθηκε' : 'Redeemed'}</span>`
+      : g.status === 'expired'  ? `<span style="color:#e0a85a">${isEl ? 'Έληξε' : 'Expired'}</span>`
+      : `<span style="color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</span>`;
+    // A partly-spent card shows what is left against what it started as.
+    const amtLine = (bal !== (parseFloat(g.amount) || 0) && g.status !== 'cancelled')
+      ? `${cur}${bal.toFixed(2)} <span style="color:var(--text-dim);font-size:11px">${isEl ? 'από' : 'of'} ${cur}${(parseFloat(g.amount) || 0).toFixed(2)}</span>`
+      : `${cur}${(parseFloat(g.amount) || 0).toFixed(2)}`;
+    const soonDot = soon ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2E9E63;margin-right:5px;vertical-align:middle"></span>` : '';
+    return `<div onclick="openGiftCardDetail('${g.id}')" style="display:flex;gap:11px;align-items:center;background:var(--dark-2);border:1px solid ${soon ? 'rgba(46,158,99,0.45)' : 'var(--card-border)'};border-radius:12px;padding:11px 13px;margin-bottom:9px;cursor:pointer">
+      <div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎁</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
+          <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.buyerName || '—')}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0">${gcNoFmt(g)}</span>
+        </div>
+        ${g.toName ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">${isEl ? 'Προς' : 'To'}: ${_gcEsc(g.toName)}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+          <span style="color:var(--text);font-weight:600">${amtLine}</span>
+          <span>${soonDot}${statusChip}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  _gcUpdateBadges();
+}
+
+// ── Issue a new certificate ──────────────────────────────────────────────────
+// All roles may issue one (an employee has to be able to sell a certificate).
+function openGiftModal() {
+  if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const dflt = new Date(Date.now() + GC_DEFAULT_TERM_DAYS * 864e5).toISOString().slice(0, 10);
+  document.getElementById('giftModalOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'giftModalOverlay';
+  ov.dataset.pay = 'cash';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${isEl ? 'Νέα δωροεπιταγή' : 'New gift certificate'}</div>
+      <button onclick="document.getElementById('giftModalOverlay').remove()" class="modal-x">✕</button>
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Ποσό' : 'Amount'}</div>
+    <input id="gcAmount" type="number" step="0.01" inputmode="decimal" style="${_resInp};font-size:20px;font-weight:700;color:var(--gold-light)" placeholder="${cur}0.00">
+
+    <div style="${_resLbl}">${isEl ? 'Αγοραστής' : 'Buyer'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <input id="gcBuyerName" autocomplete="off" oninput="_gcClientAutocomplete(this.value)" onblur="setTimeout(_gcHideClientSug,200)" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+      <div id="gcClientSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;z-index:6;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+    </div>
+    <div style="margin-bottom:10px">${_phoneFieldHtml('gcBuyerPhoneCode', 'gcBuyerPhone', '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+    <input id="gcBuyerEmail" type="email" style="${_resInp}" placeholder="Email">
+
+    <div style="${_resLbl}">${isEl ? 'Προς (προαιρετικό)' : 'To (optional)'}</div>
+    <input id="gcToName" style="${_resInp}" placeholder="${isEl ? 'Όνομα παραλήπτη — τυπώνεται στην επιταγή' : "Recipient's name — printed on the certificate"}">
+    <input id="gcMessage" maxlength="80" style="${_resInp}" placeholder="${isEl ? 'Σύντομη αφιέρωση (προαιρετικό)' : 'Short dedication (optional)'}">
+
+    <div style="${_resLbl}">${isEl ? 'Τρόπος πληρωμής' : 'Payment method'}</div>
+    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:10px">
+      <button id="gcPayCash" class="desk-seg active" onclick="_gcSetPay('cash')">💵 ${isEl ? 'Μετρητά' : 'Cash'}</button>
+      <button id="gcPayCard" class="desk-seg" onclick="_gcSetPay('card')">💳 ${isEl ? 'Κάρτα' : 'Card'}</button>
+      <button id="gcPayBank" class="desk-seg" onclick="_gcSetPay('bank')">🏦 ${isEl ? 'Τράπεζα' : 'Bank'}</button>
+    </div>
+    ${_cashToggleHtml('gcCashToggle')}
+    <div id="gcCashNote" style="display:none;font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.45"></div>
+
+    <div style="${_resLbl};margin-top:12px">${isEl ? 'Ισχύει έως' : 'Valid until'}</div>
+    <input id="gcExpires" type="date" value="${dflt}" style="${_resInp}">
+    <div style="font-size:11px;color:var(--text-muted);margin:-4px 0 12px;line-height:1.45">${isEl ? 'Προεπιλογή 1 έτος — αλλάξτε το ελεύθερα.' : 'Defaults to 1 year — change it freely.'}</div>
+
+    <button id="gcSaveBtn" onclick="_gcSave()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Έκδοση' : 'Issue'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+  _gcSetPay('cash');
+}
+
+// Card and bank transfer always leave a trace, so they force a receipt: the cash
+// toggle is switched off and locked rather than left to say something the bank
+// statement would contradict.
+function _gcSetPay(method) {
+  const ov = document.getElementById('giftModalOverlay'); if (!ov) return;
+  ov.dataset.pay = method;
+  const isEl = lang === 'el';
+  [['gcPayCash', 'cash'], ['gcPayCard', 'card'], ['gcPayBank', 'bank']].forEach(([id, m]) => {
+    document.getElementById(id)?.classList.toggle('active', m === method);
+  });
+  const toggle = document.getElementById('gcCashToggle');
+  const note = document.getElementById('gcCashNote');
+  const traceable = (method === 'card' || method === 'bank');
+  if (toggle) {
+    if (traceable) {
+      _setCashBtnState(toggle, false);
+      toggle.disabled = true;
+      toggle.style.opacity = '0.45';
+      toggle.style.cursor = 'not-allowed';
+    } else {
+      toggle.disabled = false;
+      toggle.style.opacity = '';
+      toggle.style.cursor = 'pointer';
+    }
+  }
+  if (note) {
+    if (traceable) {
+      note.style.display = '';
+      note.textContent = isEl
+        ? (method === 'card' ? 'Η πληρωμή με κάρτα αφήνει ίχνος στην τράπεζα — εκδίδεται πάντα απόδειξη.'
+                             : 'Το έμβασμα αφήνει ίχνος στην τράπεζα — εκδίδεται πάντα απόδειξη.')
+        : (method === 'card' ? 'A card payment leaves a trace at the bank — always issued with a receipt.'
+                             : 'A bank transfer leaves a trace — always issued with a receipt.');
+    } else note.style.display = 'none';
+  }
+}
+
+function _gcClientAutocomplete(val) {
+  const box = document.getElementById('gcClientSug'); if (!box) return;
+  const q = (val || '').trim().toLowerCase();
+  if (q.length < 1) { box.style.display = 'none'; return; }
+  const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(c => `<div onclick="_gcSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--wa05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_gcEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_gcEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.style.display = 'block';
+}
+function _gcSelectClient(id) {
+  const c = getClients().find(cl => cl.id === id); if (!c) return;
+  const nm = document.getElementById('gcBuyerName'); if (nm) nm.value = c.name || '';
+  _setPhoneField('gcBuyerPhoneCode', 'gcBuyerPhone', c.phone || '');
+  const em = document.getElementById('gcBuyerEmail'); if (em) em.value = c.email || '';
+  _gcHideClientSug();
+}
+function _gcHideClientSug() { const b = document.getElementById('gcClientSug'); if (b) b.style.display = 'none'; }
+
+async function _gcSave() {
+  const isEl = lang === 'el';
+  const ov = document.getElementById('giftModalOverlay'); if (!ov) return;
+  const amount = parseFloat(document.getElementById('gcAmount').value);
+  const buyerName = (document.getElementById('gcBuyerName').value || '').trim();
+  if (!amount || amount <= 0) { showToast(isEl ? '⚠️ Εισάγετε έγκυρο ποσό' : '⚠️ Enter a valid amount'); return; }
+  if (!buyerName) { showToast(isEl ? '⚠️ Εισάγετε όνομα αγοραστή' : '⚠️ Enter the buyer\'s name'); return; }
+
+  const btn = document.getElementById('gcSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  const payMethod = ov.dataset.pay || 'cash';
+  const phone = _readPhoneField('gcBuyerPhoneCode', 'gcBuyerPhone');
+  const email = (document.getElementById('gcBuyerEmail').value || '').trim();
+  const cardNo = await getNextGiftCardNo();
+  const g = {
+    id: 'gc_' + Date.now(),
+    cardNo,
+    amount: parseFloat(amount.toFixed(2)),
+    buyerName, buyerPhone: phone, buyerEmail: email,
+    toName: (document.getElementById('gcToName').value || '').trim(),
+    message: (document.getElementById('gcMessage').value || '').trim(),
+    redeemerName: '', redeemerPhone: '', redeemerEmail: '',
+    payMethod,
+    // Card/bank can never be off-receipt, whatever the toggle happens to show.
+    cashSale: (payMethod === 'cash') ? _isCashBtn('gcCashToggle') : false,
+    expiresAt: document.getElementById('gcExpires').value || '',
+    status: 'active',
+    redemptions: [],
+    breakageSaleId: null,
+    notifiedAt: null,
+    expiryNotifSent: false,
+    dateCreated: Date.now(),
+    createdBy: creds.userName || ''
+  };
+  const list = getGiftCards();
+  list.push(g);
+  saveGiftCardsLocal(list);
+  await pushGiftCardsToCloud(list);
+  try { await upsertClientFromSale(buyerName, phone, email); } catch (e) {}
+
+  ov.remove();
+  renderGiftCards();
+  // NO sale record is written here — see the money model at the top of this
+  // module. The money is not earned until the certificate is redeemed.
+  showToast((isEl ? '🎁 Εκδόθηκε ' : '🎁 Issued ') + gcNoFmt(g));
+  openGiftCardDetail(g.id);
+}
+
+// ── Detail sheet ─────────────────────────────────────────────────────────────
+function openGiftCardDetail(id) {
+  const g = gcFindById(id); if (!g) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const bal = gcBalance(g), spent = gcRedeemed(g), face = parseFloat(g.amount) || 0;
+  const days = gcDaysLeft(g);
+  const soon = gcIsSpendable(g) && days !== null && days >= 0 && days <= GC_EXPIRY_WARN_DAYS;
+  const canAdmin = can('desk_admin');
+
+  const payLabel = g.payMethod === 'card' ? (isEl ? '💳 Κάρτα' : '💳 Card')
+    : g.payMethod === 'bank' ? (isEl ? '🏦 Τράπεζα' : '🏦 Bank transfer')
+    : (isEl ? '💵 Μετρητά' : '💵 Cash');
+  const receiptLabel = g.cashSale ? (isEl ? 'χωρίς απόδειξη' : 'no receipt') : (isEl ? 'με απόδειξη' : 'with receipt');
+
+  const row = (label, value, color) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${label}</span><span style="color:${color || 'var(--text)'};font-weight:600;text-align:right">${value}</span></div>`;
+
+  const redemptionLog = (g.redemptions || []).length
+    ? `<div style="${_resLbl};margin-top:14px">${isEl ? 'Εξαργυρώσεις' : 'Redemptions'}</div>
+       <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 11px">
+       ${(g.redemptions || []).map(r => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--wa05)"><span style="color:var(--text-muted)">${fmtDate(r.date)}${r.by ? ' · ' + _gcEsc(r.by) : ''}</span><span style="color:var(--text)">−${cur}${(parseFloat(r.amount) || 0).toFixed(2)}</span></div>`).join('')}
+       </div>` : '';
+
+  const contactBtns = (g.buyerPhone || g.buyerEmail) ? `
+    <div style="${_resLbl};margin-top:14px">${isEl ? 'Επικοινωνία με τον αγοραστή' : 'Contact the buyer'}</div>
+    <div style="display:flex;gap:7px;margin-bottom:4px">
+      ${g.buyerPhone ? `<button onclick="_gcNotify('${g.id}','whatsapp')" style="flex:1;padding:10px;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.4);border-radius:8px;color:#25D366;font-size:12px;font-family:var(--font-body);cursor:pointer">WhatsApp</button>` : ''}
+      ${g.buyerPhone ? `<button onclick="_gcNotify('${g.id}','sms')" style="flex:1;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font-body);cursor:pointer">SMS</button>` : ''}
+      ${g.buyerEmail ? `<button onclick="_gcNotify('${g.id}','email')" style="flex:1;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font-body);cursor:pointer">Email</button>` : ''}
+    </div>
+    ${g.notifiedAt ? `<div style="font-size:10px;color:var(--text-dim)">${isEl ? 'Ειδοποιήθηκε' : 'Notified'}: ${fmtDate(new Date(g.notifiedAt).toISOString().slice(0, 10))}</div>` : ''}` : '';
+
+  // Expired with money left on it — the owner decides, with one tap, whether
+  // that becomes income. Never automatic.
+  const breakageBlock = (g.status === 'expired' && bal > 0 && !g.breakageSaleId && canAdmin) ? `
+    <div style="margin-top:14px;padding:11px 13px;background:rgba(224,168,90,0.08);border:1px solid rgba(224,168,90,0.35);border-radius:10px">
+      <div style="font-size:12px;color:var(--text);line-height:1.5;margin-bottom:9px">${isEl
+        ? `Έληξε με ${cur}${bal.toFixed(2)} αδιάθετα. Μπορείτε να το καταχωρήσετε ως καθαρό κέρδος — ή να παρατείνετε την ισχύ για έναν καλό πελάτη.`
+        : `Expired with ${cur}${bal.toFixed(2)} unspent. You can book it as pure profit — or extend it for a good customer.`}</div>
+      <div style="display:flex;gap:7px">
+        <button onclick="_gcBookBreakage('${g.id}')" style="flex:1;padding:10px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:8px;font-size:12px;font-weight:700;font-family:var(--font-body);cursor:pointer">${isEl ? `Καταχώρηση ${cur}${bal.toFixed(2)}` : `Book ${cur}${bal.toFixed(2)}`}</button>
+        <button onclick="_gcExtend('${g.id}')" style="flex:1;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font-body);cursor:pointer">${isEl ? 'Παράταση' : 'Extend'}</button>
+      </div>
+    </div>` : '';
+
+  document.getElementById('giftDetailOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'giftDetailOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${gcNoFmt(g)}</div>
+      <button onclick="document.getElementById('giftDetailOverlay').remove()" class="modal-x">✕</button>
+    </div>
+
+    <div style="text-align:center;padding:14px 0 10px">
+      <div style="font-family:var(--font-heading);font-size:34px;color:var(--gold-light);line-height:1">${cur}${bal.toFixed(2)}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${spent > 0
+        ? (isEl ? `υπόλοιπο από ${cur}${face.toFixed(2)}` : `remaining of ${cur}${face.toFixed(2)}`)
+        : (isEl ? 'διαθέσιμο' : 'available')}</div>
+      ${soon ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:rgba(46,158,99,0.15);border:1px solid rgba(46,158,99,0.45);border-radius:20px;font-size:11px;color:#7fd6b0">${isEl ? `Λήγει σε ${days}${days === 1 ? ' μέρα' : ' μέρες'}` : `Expires in ${days} day${days === 1 ? '' : 's'}`}</div>` : ''}
+      ${g.status === 'expired' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:rgba(224,168,90,0.15);border:1px solid rgba(224,168,90,0.45);border-radius:20px;font-size:11px;color:#e0a85a">${isEl ? 'Έληξε' : 'Expired'}</div>` : ''}
+      ${g.status === 'redeemed' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:20px;font-size:11px;color:var(--text-dim)">${isEl ? 'Εξαργυρώθηκε πλήρως' : 'Fully redeemed'}</div>` : ''}
+      ${g.status === 'cancelled' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:20px;font-size:11px;color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</div>` : ''}
+    </div>
+
+    <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:11px 13px">
+      ${row(isEl ? 'Αγοραστής' : 'Buyer', _gcEsc(g.buyerName || '—'))}
+      ${g.buyerPhone ? row(isEl ? 'Τηλέφωνο' : 'Phone', `<a href="#" onclick="_callPhone('${_gcEsc(g.buyerPhone)}');return false" style="color:var(--gold-light);text-decoration:none">${_gcEsc(g.buyerPhone)}</a>`) : ''}
+      ${g.buyerEmail ? row('Email', _gcEsc(g.buyerEmail)) : ''}
+      ${g.toName ? row(isEl ? 'Προς' : 'To', _gcEsc(g.toName)) : ''}
+      ${g.message ? row(isEl ? 'Αφιέρωση' : 'Message', _gcEsc(g.message)) : ''}
+      ${row(isEl ? 'Αξία' : 'Face value', cur + face.toFixed(2))}
+      ${spent > 0 ? row(isEl ? 'Εξαργυρώθηκε' : 'Redeemed', '−' + cur + spent.toFixed(2)) : ''}
+      ${row(isEl ? 'Πληρώθηκε με' : 'Paid by', payLabel + ' · ' + receiptLabel)}
+      ${g.expiresAt ? row(isEl ? 'Ισχύει έως' : 'Valid until', fmtDate(g.expiresAt)) : ''}
+      ${row(isEl ? 'Εκδόθηκε' : 'Issued', fmtDate(new Date(g.dateCreated || Date.now()).toISOString().slice(0, 10)))}
+    </div>
+
+    ${redemptionLog}
+    ${breakageBlock}
+    ${contactBtns}
+
+    ${canAdmin && (g.status === 'active' || g.status === 'expired') ? `
+    <button onclick="_gcCancel('${g.id}')" style="width:100%;margin-top:14px;padding:11px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.35);border-radius:8px;color:var(--danger);font-size:13px;font-family:var(--font-body);cursor:pointer">${isEl ? 'Ακύρωση δωροεπιταγής' : 'Cancel certificate'}</button>` : ''}
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+// Pre-filled bilingual reminder to the BUYER (never the recipient — telling
+// someone their present is about to run out is not our message to send).
+function _gcNotify(id, channel) {
+  const g = gcFindById(id); if (!g) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const bal = gcBalance(g);
+  const until = g.expiresAt ? fmtDate(g.expiresAt) : '';
+  const msg = isEl
+    ? `Γεια σας ${g.buyerName || ''}! Στο Lekkas Jewelry, η δωροεπιταγή ${gcNoFmt(g)} αξίας ${cur}${bal.toFixed(2)} ισχύει έως ${until}. Θα χαρούμε να σας δούμε! 💍`
+    : `Hello ${g.buyerName || ''}! At Lekkas Jewelry, gift certificate ${gcNoFmt(g)} for ${cur}${bal.toFixed(2)} is valid until ${until}. We'd love to see you! 💍`;
+  const enc = encodeURIComponent(msg);
+  if (channel === 'whatsapp') {
+    const num = (g.buyerPhone || '').replace(/[^0-9]/g, '');
+    if (!num) { showToast(isEl ? 'Χωρίς αριθμό' : 'No number'); return; }
+    window.open('https://wa.me/' + num + '?text=' + enc, '_blank');
+  } else if (channel === 'sms') {
+    const num = (g.buyerPhone || '').replace(/[^0-9+]/g, '');
+    if (!num) { showToast(isEl ? 'Χωρίς αριθμό' : 'No number'); return; }
+    window.location.href = 'sms:' + num + '?&body=' + enc;
+  } else if (channel === 'email') {
+    if (!g.buyerEmail) { showToast(isEl ? 'Χωρίς email' : 'No email'); return; }
+    const subj = encodeURIComponent(isEl ? 'Lekkas Jewelry — η δωροεπιταγή σας' : 'Lekkas Jewelry — your gift certificate');
+    window.location.href = 'mailto:' + g.buyerEmail + '?subject=' + subj + '&body=' + enc;
+  }
+  if (!g.notifiedAt) {
+    const list = getGiftCards();
+    const rec = list.find(x => x.id === id);
+    if (rec) { rec.notifiedAt = Date.now(); saveGiftCardsLocal(list); pushGiftCardsToCloud(list); }
+    setTimeout(() => { if (document.getElementById('giftDetailOverlay')) openGiftCardDetail(id); }, 400);
+  }
+}
+
+// Give an expired certificate more time instead of pocketing the balance.
+function _gcExtend(id) {
+  const g = gcFindById(id); if (!g) return;
+  const isEl = lang === 'el';
+  const next = new Date(Date.now() + GC_DEFAULT_TERM_DAYS * 864e5).toISOString().slice(0, 10);
+  showConfirm(
+    isEl ? `Παράταση της ${gcNoFmt(g)} έως ${fmtDate(next)};` : `Extend ${gcNoFmt(g)} until ${fmtDate(next)}?`,
+    () => {
+      const list = getGiftCards();
+      const rec = list.find(x => x.id === id); if (!rec) return;
+      rec.expiresAt = next;
+      rec.status = 'active';
+      rec.expiryNotifSent = false; // let it warn again near the new date
+      saveGiftCardsLocal(list); pushGiftCardsToCloud(list);
+      document.getElementById('giftDetailOverlay')?.remove();
+      renderGiftCards();
+      showToast(isEl ? 'Παρατάθηκε' : 'Extended');
+    }
+  );
+}
+
+// Book an expired certificate's unused balance as pure profit. Explicit, never
+// automatic: money enters the books only when a person puts it there.
+async function _gcBookBreakage(id) {
+  const g = gcFindById(id); if (!g) return;
+  if (!can('desk_admin')) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const bal = gcBalance(g);
+  if (bal <= 0) return;
+  showConfirm(
+    isEl ? `Καταχώρηση ${cur}${bal.toFixed(2)} ως έσοδο από τη ληγμένη ${gcNoFmt(g)};`
+         : `Book ${cur}${bal.toFixed(2)} as income from expired ${gcNoFmt(g)}?`,
+    async () => {
+      const note = (isEl ? '🎁 Ληγμένη δωροεπιταγή — ' : '🎁 Expired gift certificate — ') + gcNoFmt(g)
+        + (g.buyerName ? ' (' + g.buyerName + ')' : '');
+      const rec = await _recordGiftBreakage(bal, note);
+      const list = getGiftCards();
+      const card = list.find(x => x.id === id);
+      if (card) {
+        card.breakageSaleId = rec ? rec.id : null;
+        // Log it as a redemption so the balance goes to zero and the money can
+        // never be booked twice.
+        card.redemptions = card.redemptions || [];
+        card.redemptions.push({ saleId: rec ? rec.id : null, amount: bal, date: todayStr(), by: creds.displayName || creds.userName || '', breakage: true });
+        saveGiftCardsLocal(list); pushGiftCardsToCloud(list);
+      }
+      document.getElementById('giftDetailOverlay')?.remove();
+      renderGiftCards();
+      showToast(isEl ? '✓ Καταχωρήθηκε στις πωλήσεις' : '✓ Booked to sales');
+    }
+  );
+}
+
+// Pure-profit sale record: the money came in long ago and no goods ever left.
+async function _recordGiftBreakage(amount, note) {
+  const sales = await getSales();
+  const g = parseFloat(amount.toFixed(2));
+  const rec = {
+    id: Date.now(),
+    amount: g, note: note || '', date: todayStr(), ts: Date.now(),
+    vendor: '', customer: '', email: '',
+    employee: creds.userName || '', employeeName: creds.displayName || '',
+    bonusAmt: 0, bonusPct: 0, invQr: '',
+    cost: null, profit: g, cashSale: true,
+    salePhotoUrl: '', salePhotoName: '', seqRef: '', giftBreakage: true
+  };
+  sales.push(rec);
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  try { await pushSalesToCloud(sales); } catch (e) {}
+  return rec;
+}
+
+function _gcCancel(id) {
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  const isEl = lang === 'el';
+  showConfirm(isEl ? 'Ακύρωση αυτής της δωροεπιταγής;' : 'Cancel this gift certificate?', () => {
+    const list = getGiftCards();
+    const g = list.find(x => x.id === id); if (!g) return;
+    g.status = 'cancelled';
+    saveGiftCardsLocal(list); pushGiftCardsToCloud(list);
+    document.getElementById('giftDetailOverlay')?.remove();
+    renderGiftCards();
+    showToast(isEl ? 'Ακυρώθηκε' : 'Cancelled');
+  }, null, { danger: true });
+}
+
+function _gcUpdateBadges() {
+  const n = gcExpiringSoon().length;
+  // Desk nav tab (green — distinct from the red employee-message badge on Stock)
+  const navB = document.getElementById('navGiftBadge');
+  if (navB) {
+    if (n > 0) { navB.textContent = n > 9 ? '9+' : String(n); navB.style.display = 'flex'; }
+    else navB.style.display = 'none';
+  }
+  // Gift segment inside the Desk tab
+  const segB = document.getElementById('deskGiftBadge');
+  if (segB) {
+    if (n > 0) { segB.textContent = n > 9 ? '9+' : String(n); segB.style.display = 'flex'; }
+    else segB.style.display = 'none';
+  }
 }
 
 // ═══ RESERVATIONS / LAYAWAY ══════════════════════════════════════════════════
@@ -12168,6 +12799,7 @@ const BACKUP_PATHS = [
   ['inventory',   '/jewelprice_inventory.json'],
   ['reservations','/jewelprice_reservations.json'],
   ['repairs',     '/jewelprice_repairs.json'],
+  ['giftcards',   '/jewelprice_giftcards.json'],
 ];
 
 // Fetch every node and bundle it into one object.
