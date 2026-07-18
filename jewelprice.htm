@@ -5166,6 +5166,12 @@ function openGiftCardDetail(id) {
 
     ${redemptionLog}
     ${breakageBlock}
+
+    <div style="display:flex;gap:7px;margin-top:14px">
+      <button onclick="printGiftCert('${g.id}')" style="flex:1;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--font-body);cursor:pointer">🖨 ${isEl ? 'Εκτύπωση' : 'Print'}</button>
+      <button onclick="shareGiftCert('${g.id}')" style="flex:1;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--font-body);cursor:pointer">📤 ${isEl ? 'Αποστολή' : 'Share'}</button>
+    </div>
+
     ${contactBtns}
 
     ${canAdmin && (g.status === 'active' || g.status === 'expired') ? `
@@ -5293,6 +5299,122 @@ function _gcCancel(id) {
     renderGiftCards();
     showToast(isEl ? 'Ακυρώθηκε' : 'Cancelled');
   }, null, { danger: true });
+}
+
+// ── The printed certificate ──────────────────────────────────────────────────
+// Unlike the quote and reservation forms, this is handed to a customer AS A
+// GIFT — it's the thing someone unwraps — so it's laid out as a certificate
+// rather than paperwork: landscape, gold double rule, the amount set large.
+// The QR carries the certificate number so it can be scanned at the counter.
+// No emojis: it's a printed document.
+function buildGiftCertHTML(g) {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const esc = _gcEsc;
+  const amount = parseFloat(g.amount) || 0;
+  const issued = fmtDate(new Date(g.dateCreated || Date.now()).toISOString().slice(0, 10));
+  const address = isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00';
+  // Payload is the certificate number only — see gcFindByCode. The hyphen is
+  // what keeps it distinct from an item/coin reference code.
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=' + encodeURIComponent(gcNoFmt(g));
+
+  // lang MUST be set: several classes here are text-transform:uppercase, and Greek
+  // typography drops the tonos in all-caps (ΔΩΡΟΕΠΙΤΑΓΗ, not ΔΩΡΟΕΠΙΤΑΓΉ). The
+  // browser only applies Greek casing rules when it knows the content is Greek.
+  return `<!DOCTYPE html>
+<html lang="${isEl ? 'el' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<title>${isEl ? 'Δωροεπιταγή' : 'Gift Certificate'} — ${gcNoFmt(g)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap');
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'DM Mono',monospace; background:#fff; color:#1a1a1a; width:297mm; height:210mm; padding:10mm; }
+  .frame { width:100%; height:100%; border:2px solid #C9A84C; padding:4mm; }
+  .inner { width:100%; height:100%; border:1px solid rgba(201,168,76,0.45); padding:11mm 14mm;
+           display:flex; flex-direction:column; align-items:center; text-align:center; position:relative; }
+  .store-name { font-family:'Cormorant Garamond',serif; font-size:26pt; color:#0E0C08; letter-spacing:4px; }
+  .store-name span { color:#C9A84C; }
+  .store-sub { font-size:7pt; letter-spacing:5px; color:#999; text-transform:uppercase; margin-top:3px; }
+  .rule { width:56mm; height:1px; background:#C9A84C; opacity:0.55; margin:7mm 0 6mm; }
+  .doc-title { font-family:'Cormorant Garamond',serif; font-size:15pt; font-weight:600;
+               letter-spacing:0.42em; text-transform:uppercase; color:#C9A84C; }
+  .amount { font-family:'Cormorant Garamond',serif; font-size:64pt; font-weight:500; color:#C9A84C;
+            line-height:1; margin:6mm 0 2mm; }
+  .amount-words { font-size:8pt; letter-spacing:0.22em; text-transform:uppercase; color:#999; }
+  .to-line { font-family:'Cormorant Garamond',serif; font-size:19pt; color:#0E0C08; margin-top:8mm; }
+  .to-label { font-size:7.5pt; letter-spacing:0.24em; text-transform:uppercase; color:#aaa; margin-bottom:1.5mm; }
+  .message { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13pt; color:#666; margin-top:3mm; max-width:150mm; }
+  .spacer { flex:1; }
+  .foot { width:100%; display:flex; justify-content:space-between; align-items:flex-end; gap:10mm; }
+  .sign-line { width:70mm; }
+  .sign-line .ln { border-bottom:1px solid #ccc; height:13mm; }
+  .sign-line .lbl { font-size:7.5pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:2mm; }
+  .meta { text-align:center; font-size:8pt; color:#888; line-height:2; }
+  .meta .no { font-family:'DM Mono',monospace; color:#C9A84C; letter-spacing:0.14em; font-size:10pt; }
+  .stamp-and-qr { display:flex; align-items:flex-end; gap:7mm; }
+  .stamp-box { width:44mm; height:26mm; border:2px dashed #C9A84C; border-radius:3px;
+               display:flex; align-items:center; justify-content:center; }
+  .stamp-box span { font-size:7pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
+  .qr-wrap { text-align:center; }
+  .qr-wrap img { width:22mm; height:22mm; display:block; }
+  .qr-wrap .qlbl { font-size:6.5pt; color:#bbb; letter-spacing:0.1em; margin-top:1.5mm; }
+  .terms { font-size:7pt; color:#b0b0b0; font-style:italic; line-height:1.7; margin-top:5mm; max-width:190mm; }
+</style>
+</head>
+<body>
+<div class="frame"><div class="inner">
+  <div class="store-name">LEKKAS <span>JEWELRY</span></div>
+  <div class="store-sub">${isEl ? 'Κάρπαθος' : 'Karpathos'}</div>
+  <div class="rule"></div>
+
+  <div class="doc-title">${isEl ? 'Δωροεπιταγή' : 'Gift Certificate'}</div>
+  <div class="amount">${cur}${amount.toFixed(2)}</div>
+  <div class="amount-words">${isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice'}</div>
+
+  ${g.toName ? `<div style="margin-top:8mm">
+    <div class="to-label">${isEl ? 'Προς' : 'To'}</div>
+    <div class="to-line">${esc(g.toName)}</div>
+  </div>` : ''}
+  ${g.message ? `<div class="message">"${esc(g.message)}"</div>` : ''}
+
+  <div class="spacer"></div>
+
+  <div class="foot">
+    <div class="sign-line">
+      <div class="ln"></div>
+      <div class="lbl">${isEl ? 'Υπογραφή' : 'Authorised signature'}</div>
+    </div>
+    <div class="meta">
+      <div class="no">${gcNoFmt(g)}</div>
+      <div>${isEl ? 'Εκδόθηκε' : 'Issued'}: ${issued}${g.expiresAt ? ` &nbsp;·&nbsp; ${isEl ? 'Ισχύει έως' : 'Valid until'}: ${fmtDate(g.expiresAt)}` : ''}</div>
+    </div>
+    <div class="stamp-and-qr">
+      <div class="stamp-box"><span>${isEl ? 'Σφραγίδα' : 'Stamp'}</span></div>
+      <div class="qr-wrap">
+        <img src="${qrUrl}" alt="${gcNoFmt(g)}">
+        <div class="qlbl">${gcNoFmt(g)}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="terms">${isEl
+    ? `Η παρούσα δωροεπιταγή εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
+    : `Redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this certificate when redeeming.`}</div>
+</div></div>
+</body>
+</html>`;
+}
+
+function printGiftCert(id) {
+  const g = gcFindById(id); if (!g) return;
+  openQuoteWindow(buildGiftCertHTML(g), false, null);
+}
+function shareGiftCert(id) {
+  const g = gcFindById(id); if (!g) return;
+  const title = (lang === 'el' ? 'Δωροεπιταγή' : 'Gift Certificate') + ' — ' + gcNoFmt(g);
+  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, 'gift-' + gcNoFmt(g) + '.pdf');
 }
 
 function _gcUpdateBadges() {
@@ -5806,7 +5928,7 @@ function buildReservationHTML(r) {
   }).join('');
 
   return `<!DOCTYPE html>
-<html>
+<html lang="${isEl ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
 <title>${isEl ? 'Κράτηση' : 'Reservation'} — ${resNoFmt(r)}</title>
@@ -12679,7 +12801,7 @@ function doPrintRefCard(showPrices) {
   const rateHeader = showPrices ? `<th>${t('refCardRate')}</th>` : '';
 
   const html = `<!DOCTYPE html>
-<html>
+<html lang="${lang === 'el' ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
 <title>${t('refCardTitle')}</title>
@@ -21412,7 +21534,7 @@ function closeQuoteModal() {
 
 function buildQuoteHTML(r, cur, isEl, qrUrl, address, photoDataUrl, title, customer, date, time, servedBy, jewelQrUrl) {
   return `<!DOCTYPE html>
-<html>
+<html lang="${isEl ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
 <title>${isEl ? 'Προσφορά' : 'Quote'} — ${title}</title>
@@ -21591,7 +21713,7 @@ function buildMultiQuoteHTML(cartItems, extraDiscPct, roundTarget, cur, isEl, qr
   const autoTitle = cartItems.map(ci => ci.name).join(' + ');
 
   return `<!DOCTYPE html>
-<html>
+<html lang="${isEl ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
 <title>${isCert ? (isEl ? 'Πιστοποιητικό' : 'Certificate') : (isEl ? 'Προσφορά' : 'Quote')} — ${autoTitle}</title>
@@ -21885,7 +22007,7 @@ function buildCertificateHTML(r, cur, isEl, qrUrl, address, photoDataUrl, title,
   const stampLineStyle = 'font-size:8pt;color:#bbb;letter-spacing:0.1em;text-transform:uppercase';
 
   return `<!DOCTYPE html>
-<html>
+<html lang="${isEl ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
 <title>${isEl ? 'Πιστοποιητικό' : 'Certificate'} — ${title}</title>
