@@ -5535,10 +5535,19 @@ function openGiftPickerForSale() {
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${isEl ? 'Επιλογή δωροεπιταγής' : 'Choose a gift certificate'}</div>
       <button onclick="document.getElementById('giftPickerOverlay').remove()" class="modal-x">✕</button>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">${isEl ? 'Ή σαρώστε τον κωδικό της επιταγής.' : 'Or scan the certificate code.'}</div>
+    <button onclick="_gcScanForSale()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.35);border-radius:8px;color:var(--gold-light);font-size:13px;font-family:var(--font-body);cursor:pointer">📷 ${isEl ? 'Σάρωση κωδικού' : 'Scan certificate code'}</button>
     ${rows}
   </div>`;
   document.body.appendChild(ov);
+}
+
+// Scan a certificate from inside the picker. The sheet sits at z-index 999995
+// and the scanner at 99999, so the sheet MUST close first or the camera would
+// open behind it. The sale dialog stays open underneath, which is what
+// handleScannedCode looks for to attach the scanned certificate to this sale.
+function _gcScanForSale() {
+  document.getElementById('giftPickerOverlay')?.remove();
+  try { openQrScanner(); } catch (e) {}
 }
 
 function _pickGiftForSale(id) {
@@ -5767,7 +5776,9 @@ function printGiftCert(id) {
 function shareGiftCert(id) {
   const g = gcFindById(id); if (!g) return;
   const title = (lang === 'el' ? 'Δωροεπιταγή' : 'Gift Certificate') + ' — ' + gcNoFmt(g);
-  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, 'gift-' + gcNoFmt(g) + '.pdf');
+  // The certificate is A4 LANDSCAPE — without this the shared PDF is clipped at
+  // 210mm and loses the stamp box and QR.
+  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, 'gift-' + gcNoFmt(g) + '.pdf', { landscape: true });
 }
 
 function _gcUpdateBadges() {
@@ -21250,10 +21261,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.43', date: 'Ιούλιος 2026', items: [
-        '💵 Επιλέγοντας «Μετρητά» στη δωροεπιταγή ενεργοποιείται πλέον αυτόματα και ο διακόπτης «χωρίς απόδειξη». Τα δύο κουμπιά έγραφαν και τα δύο «Μετρητά» αλλά σήμαιναν διαφορετικά πράγματα, οπότε η επιταγή μπορούσε να καταχωρηθεί με απόδειξη κατά λάθος — και να χρεωθεί ΦΠΑ σε χρήματα που δεν πέρασαν ποτέ από απόδειξη.',
-        '📝 Νέο κουμπί «Επεξεργασία» στη δωροεπιταγή: διορθώστε ποσό, στοιχεία, τρόπο πληρωμής, μετρητά/απόδειξη και ημερομηνία λήξης. Αν η επιταγή έχει ήδη χρησιμοποιηθεί σε πώληση, ο ΦΠΑ και το κέρδος εκείνης της πώλησης υπολογίζονται ξανά (με επιβεβαίωση πρώτα).',
-        '🔒 Το ποσό δεν μπορεί να πέσει κάτω από όσα έχουν ήδη εξαργυρωθεί.'
+      { version: 'v11.44', date: 'Ιούλιος 2026', items: [
+        '📷 Κουμπί σάρωσης μέσα στην επιλογή δωροεπιταγής. Η λίστα έλεγε «ή σαρώστε τον κωδικό» χωρίς να υπάρχει πουθενά κουμπί — τώρα σαρώνετε την επιταγή απευθείας από το παράθυρο της πώλησης.',
+        '📄 Διόρθωση: η δωροεπιταγή που στέλνατε με «Αποστολή» ήταν κομμένη στη μέση. Το PDF δημιουργούνταν πάντα σε κατακόρυφη σελίδα, ενώ η επιταγή είναι οριζόντια — χανόταν η σφραγίδα και το QR. Τώρα βγαίνει ολόκληρη.'
       ]},
           ]
   },
@@ -21284,10 +21294,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.43', date: 'Jul 2026', items: [
-        '💵 Choosing "Cash" on a gift certificate now switches the "no receipt" toggle on automatically. Both buttons said "Cash" but meant different things, so a certificate could be filed as a receipt sale by mistake — charging VAT on money that never went through a receipt.',
-        '📝 New "Edit" button on a gift certificate: correct the amount, details, payment method, cash/receipt setting and expiry date. If the certificate has already been used in a sale, that sale\'s VAT and profit are recalculated (after a confirmation).',
-        '🔒 The amount can\'t drop below what has already been redeemed.'
+      { version: 'v11.44', date: 'Jul 2026', items: [
+        '📷 Scan button inside the gift certificate picker. The list said "or scan the certificate code" with no button anywhere — you can now scan a certificate straight from the sale dialog.',
+        '📄 Fixed: the gift certificate sent with "Share" was cut in half. The PDF was always built on a portrait page while the certificate is landscape, so the stamp box and QR fell off the edge. It now comes out whole.'
       ]},
           ]
   }
@@ -23569,15 +23578,24 @@ function copyGreetingText() {
 }
 
 // ─── SHARE QUOTE AS PDF (html2canvas → jsPDF) ───────────────────────────────
-async function shareQuoteAsPDF(html, shareTitle, isCert, fileName) {
+// opts.landscape — for A4-landscape documents (the gift certificate). The whole
+// pipeline was hardcoded to portrait: a 794px-wide iframe and a 210mm page. A
+// 297mm-wide document rendered into that overflowed and was clipped on the
+// right (losing the stamp box and QR). Portrait stays the default so every
+// existing caller is untouched.
+async function shareQuoteAsPDF(html, shareTitle, isCert, fileName, opts) {
   if (!window.jspdf) { showToast('⚠️ PDF library not ready'); return; }
   const { jsPDF } = window.jspdf;
   showToast(lang === 'el' ? 'Δημιουργία PDF...' : 'Generating PDF...');
+  const _landscape = !!(opts && opts.landscape);
+  // A4 at 96dpi: portrait 794×1123, landscape 1123×794.
+  const _pxW = _landscape ? 1123 : 794;
+  const _pxH = _landscape ? 794 : 1123;
 
   try {
     // Render HTML into a hidden off-screen iframe
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none;background:#fff;';
+    iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${_pxW}px;height:${_pxH}px;border:none;background:#fff;`;
     document.body.appendChild(iframe);
 
     await new Promise((resolve) => {
@@ -23622,9 +23640,9 @@ async function shareQuoteAsPDF(html, shareTitle, isCert, fileName) {
       useCORS: true,
       allowTaint: false,
       backgroundColor: '#ffffff',
-      width: 794,
+      width: _pxW,
       height: fullH,
-      windowWidth: 794,
+      windowWidth: _pxW,
       windowHeight: fullH,
       logging: false,
       scrollX: 0,
@@ -23633,11 +23651,11 @@ async function shareQuoteAsPDF(html, shareTitle, isCert, fileName) {
 
     document.body.removeChild(iframe);
 
-    // Build PDF — A4 portrait
+    // Build PDF — A4, portrait unless the caller asked for landscape
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageW = 210;
-    const pageH = 297;
+    const doc = new jsPDF({ orientation: _landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = _landscape ? 297 : 210;
+    const pageH = _landscape ? 210 : 297;
     const imgW = pageW;
     const imgH = (canvas.height * pageW) / canvas.width;
 
@@ -24349,7 +24367,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.43';
+const APP_VERSION = '11.44';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [

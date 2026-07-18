@@ -289,3 +289,46 @@ commit (per repo rules). Push only when asked.
 2. **Nav restructure** — 5-tab bottom + top "☰ More" menu + empty **Desk** shell.
 3. **Repairs & Custom Orders** — + phone on the client model + notify action.
 4. **Reservations & Layaway** — into Desk; completion → sale conversion.
+
+---
+
+## Queued: archive finished records across all three Desk features (requested)
+
+Not built. Requested while testing gift certificates (v11.43). Over the years
+the Desk lists will fill with finished work — completed reservations, collected
+repairs, redeemed and expired gift certificates — and the few live ones will be
+buried. **Only open work should be visible by default; finished records stay
+reachable on demand.**
+
+Must behave **identically in all three lists** (the house rule: same control,
+same wording, same place — don't invent three variants).
+
+**What counts as finished**
+
+| List | Open (shown) | Finished (hidden) |
+|---|---|---|
+| Reservations | `active` | `completed`, `cancelled`, `expired` |
+| Repairs | `in_progress`, `ready` | `collected`, `cancelled` |
+| Gift certificates | `active` | `redeemed`, `expired`, `cancelled` |
+
+Note an **expired gift certificate with a balance still owing is NOT finished** —
+it needs the owner to book or extend it, so it must stay visible until
+`breakageSaleId` is set or the balance is zero. Same spirit for an expired
+reservation whose items haven't been released.
+
+**How to reveal them**
+
+- A single toggle at the top of each list: `👁 Show finished (23)` — with the
+  count, so it's obvious what's hidden. Persist per list in `localStorage`
+  (`jpro_showFinished_gift` etc.) so the owner's choice survives a reload.
+- **A search must always cover finished records, hidden or not.** Searching a
+  name or number is exactly how you look for something from last season; if the
+  filter swallowed it the search would look broken. Precedent already in the
+  app: `renderInvList` hides coins/metal unless their type filter is selected
+  **or a search is active** — reuse that rule.
+
+**Implementation sketch:** one shared helper (e.g. `_deskIsFinished(kind, rec)`)
+plus the same toggle markup in `renderReservations` / `renderRepairs` /
+`renderGiftCards`, applied after sorting and before the empty-state check. Purely
+a display filter — no data changes, no status rewrites, nothing archived on the
+server.

@@ -417,6 +417,31 @@ owner/manager.
 
 - Mixed-regime redemption: split the VAT/profit calculation by portion (§3)
 
+## 8b. Requested, not yet built
+
+Held deliberately — the owner is still testing and may find more, so these are
+queued rather than shipped piecemeal.
+
+- **Delete a cancelled certificate.** Cancelling sets `status: 'cancelled'` and
+  leaves the record in the list forever; there is no way to remove it. Wanted: a
+  Delete button shown **only on a cancelled certificate** — cancelling is
+  already the deliberate "this was a mistake" step, so a delete behind it can't
+  fire by accident. Owner/manager only, `showConfirm`-gated.
+  **Rule (owner, confirmed): cancelled → deletable; redeemed → never.** A
+  redeemed certificate is referenced by real sale records via `giftCardId`, and
+  deleting it would leave those sales pointing at nothing — `_gcUnapplyForSale`
+  and the sale detail's certificate line both read it back. So gate the button
+  on `status === 'cancelled' && !(g.redemptions || []).length`; a cancelled card
+  that was partly spent before cancelling keeps its history and stays.
+
+### Verified while testing (no change needed)
+
+Issuing a certificate adds the **buyer** to Clients (`upsertClientFromSale` in
+`_gcSave`), and redeeming adds the **recipient** through the ordinary sale path,
+with `redeemerName` stamped on the card. Both confirmed end-to-end. Matching is
+by name, so a repeat buyer updates their existing client record (and gains a
+missing phone/email) rather than duplicating.
+
 ## 9. Fix first — unrelated VAT defaults
 
 Found while checking this feature's maths. Not part of gift certificates; should
