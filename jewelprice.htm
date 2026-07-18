@@ -2274,6 +2274,22 @@
         </button>
       </div>
     </div>
+    <!-- GIFT CERTIFICATE. The amount above is NEVER reduced — it is the sale
+         record. The certificate is shown as its own deduction with the cash
+         still due, so the books keep the true sale value. -->
+    <div style="margin-bottom:14px">
+      <button id="saleGiftBtn" onclick="openGiftPickerForSale()" style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🎁 <span data-i18n="gcUseOnSale">Δωροεπιταγή</span></button>
+      <div id="saleGiftApplied" style="display:none;margin-top:8px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:9px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px">
+          <span id="saleGiftLabel" style="color:var(--gold-light);font-family:var(--font-mono)"></span>
+          <button onclick="clearGiftFromSale()" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,76,0.2)">
+          <span style="color:var(--text-muted)" data-i18n="gcCashDue">Να εισπραχθούν</span>
+          <span id="saleGiftDue" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
+        </div>
+      </div>
+    </div>
     <!-- Bonus preview — only shown if current user has a bonus set -->
     <div id="saleBonusPreview" style="display:none;margin-bottom:14px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.25);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
       <span style="font-family:var(--font-body);font-size:11px;color:var(--text-muted)">🎁 <span data-i18n="bonusLabel">Bonus</span> <span id="saleBonusPct"></span></span>
@@ -3368,6 +3384,11 @@ const T = {
     navDesk:'Πάγκος',
     deskReservations:'Κρατήσεις',
     deskRepairs:'Επισκευές',
+    deskGift:'Δωροεπιταγές',
+    gcNew:'Νέα δωροεπιταγή',
+    gcSearchPh:'Αναζήτηση — πελάτης, αριθμός…',
+    gcUseOnSale:'Δωροεπιταγή',
+    gcCashDue:'Να εισπραχθούν',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
     repSearchPh:'Αναζήτηση — πελάτης, δελτίο…',
@@ -3799,6 +3820,11 @@ const T = {
     navDesk:'Desk',
     deskReservations:'Reservations',
     deskRepairs:'Repairs',
+    deskGift:'Gift Cards',
+    gcNew:'New gift certificate',
+    gcSearchPh:'Search — customer, number…',
+    gcUseOnSale:'Gift certificate',
+    gcCashDue:'Cash due',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
     repSearchPh:'Search — customer, ticket…',
@@ -5301,6 +5327,159 @@ function _gcCancel(id) {
   }, null, { danger: true });
 }
 
+// ── Redeeming against a sale ─────────────────────────────────────────────────
+// window._saleGiftCard = { id, cardNo, use, wasCash } while a sale is being
+// written. `use` is how much of THIS sale the certificate covers.
+//
+// CRITICAL: the sale's amount field is never reduced by the certificate. That
+// field IS the sale record — deducting it would log a €160 piece as a €60 sale
+// and destroy €100 of revenue and profit on every redemption. The certificate
+// is shown as its own line with the cash still due.
+function openGiftPickerForSale() {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const cards = getGiftCards().filter(gcIsSpendable)
+    .sort((a, b) => String(a.expiresAt || '').localeCompare(String(b.expiresAt || '')));
+  document.getElementById('giftPickerOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'giftPickerOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999995;background:rgba(0,0,0,0.85);display:flex;align-items:flex-end;justify-content:center';
+  const rows = cards.length
+    ? cards.map(g => {
+        const bal = gcBalance(g);
+        const d = gcDaysLeft(g);
+        return `<div onclick="_pickGiftForSale('${g.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 4px;border-bottom:1px solid var(--wa06);cursor:pointer">
+          <div style="min-width:0">
+            <div style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.buyerName || '—')}</div>
+            <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${gcNoFmt(g)}${d !== null && d >= 0 ? ` · ${isEl ? 'λήγει σε' : 'expires in'} ${d}${isEl ? (d === 1 ? ' μέρα' : ' μέρες') : (d === 1 ? ' day' : ' days')}` : ''}</div>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:16px;color:var(--text);font-weight:700;flex-shrink:0">${cur}${bal.toFixed(2)}</div>
+        </div>`;
+      }).join('')
+    : `<div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία ενεργή δωροεπιταγή' : 'No active gift certificates'}</div>`;
+  ov.innerHTML = `<div style="background:var(--dark-2);border-top:1px solid var(--card-border);border-radius:16px 16px 0 0;padding:18px;width:100%;max-width:480px;max-height:76vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${isEl ? 'Επιλογή δωροεπιταγής' : 'Choose a gift certificate'}</div>
+      <button onclick="document.getElementById('giftPickerOverlay').remove()" class="modal-x">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">${isEl ? 'Ή σαρώστε τον κωδικό της επιταγής.' : 'Or scan the certificate code.'}</div>
+    ${rows}
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+function _pickGiftForSale(id) {
+  const g = gcFindById(id);
+  if (!g || !gcIsSpendable(g)) return;
+  const sel = { id: g.id, cardNo: g.cardNo, use: 0, wasCash: !!g.cashSale };
+  document.getElementById('giftPickerOverlay')?.remove();
+  // The same picker serves the sale dialog and a custom-order collection.
+  if (window._gcPickTarget === 'repair') {
+    window._gcPickTarget = null;
+    window._repGiftCard = sel;
+    _repUpdateGiftDisplay();
+    return;
+  }
+  window._saleGiftCard = sel;
+  _updateSaleGiftDisplay();
+}
+
+function clearGiftFromSale() {
+  window._saleGiftCard = null;
+  _updateSaleGiftDisplay();
+}
+
+// Recomputes how much of the certificate this sale actually uses (capped at both
+// the balance and the sale total) and refreshes the "cash due" line.
+function _updateSaleGiftDisplay() {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const sel = window._saleGiftCard;
+  const box = document.getElementById('saleGiftApplied');
+  const btn = document.getElementById('saleGiftBtn');
+  if (!box || !btn) return;
+  if (!sel) {
+    box.style.display = 'none';
+    btn.style.display = '';
+    return;
+  }
+  const g = gcFindById(sel.id);
+  if (!g) { window._saleGiftCard = null; box.style.display = 'none'; btn.style.display = ''; return; }
+  const amt = parseFloat(document.getElementById('saleAmountInput')?.value) || 0;
+  const bal = gcBalance(g);
+  const use = Math.min(bal, amt);
+  sel.use = parseFloat(use.toFixed(2));
+  sel.wasCash = !!g.cashSale;
+  const due = parseFloat(Math.max(0, amt - use).toFixed(2));
+  document.getElementById('saleGiftLabel').textContent =
+    `${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
+  document.getElementById('saleGiftDue').textContent = cur + due.toFixed(2);
+  box.style.display = '';
+  btn.style.display = 'none';
+}
+
+// ── Same picker, for a CUSTOM ORDER collection ───────────────────────────────
+// (Repairs are excluded: labour on the customer's own item, not jewelry sold.)
+function _repOpenGiftPicker() {
+  window._gcPickTarget = 'repair';
+  openGiftPickerForSale();
+}
+function _repClearGift() { window._repGiftCard = null; _repUpdateGiftDisplay(); }
+function _repUpdateGiftDisplay() {
+  const cur = state.currency || '€';
+  const sel = window._repGiftCard;
+  const box = document.getElementById('repGiftApplied');
+  const btn = document.getElementById('repGiftBtn');
+  if (!box || !btn) return;
+  if (!sel) { box.style.display = 'none'; btn.style.display = ''; return; }
+  const g = gcFindById(sel.id);
+  if (!g) { window._repGiftCard = null; box.style.display = 'none'; btn.style.display = ''; return; }
+  const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
+  const use = Math.min(gcBalance(g), price);
+  sel.use = parseFloat(use.toFixed(2));
+  document.getElementById('repGiftLabel').textContent = `${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
+  document.getElementById('repGiftDue').textContent = cur + Math.max(0, price - use).toFixed(2);
+  box.style.display = '';
+  btn.style.display = 'none';
+}
+
+// Record the redemption on the card and settle its status.
+async function _gcApplyRedemption(cardId, amount, saleId) {
+  const list = getGiftCards();
+  const g = list.find(x => x.id === cardId);
+  if (!g) return;
+  g.redemptions = g.redemptions || [];
+  g.redemptions.push({
+    saleId: saleId || null,
+    amount: parseFloat((amount || 0).toFixed(2)),
+    date: todayStr(),
+    by: creds.displayName || creds.userName || ''
+  });
+  if (gcBalance(g) <= 0) g.status = 'redeemed';
+  saveGiftCardsLocal(list);
+  await pushGiftCardsToCloud(list);
+  _gcUpdateBadges();
+}
+
+// Give the balance back when a sale that used a certificate is deleted.
+async function _gcUnapplyForSale(saleId) {
+  if (saleId == null) return;
+  const list = getGiftCards();
+  let touched = false;
+  for (const g of list) {
+    const before = (g.redemptions || []).length;
+    if (!before) continue;
+    g.redemptions = g.redemptions.filter(r => r.saleId !== saleId);
+    if (g.redemptions.length !== before) {
+      touched = true;
+      // It has money on it again, so it is spendable again — unless it was
+      // cancelled, which is a deliberate decision the refund must not undo.
+      if (g.status === 'redeemed' && gcBalance(g) > 0) g.status = 'active';
+    }
+  }
+  if (touched) { saveGiftCardsLocal(list); await pushGiftCardsToCloud(list); _gcUpdateBadges(); }
+}
+
 // ── The printed certificate ──────────────────────────────────────────────────
 // Unlike the quote and reservation forms, this is handed to a customer AS A
 // GIFT — it's the thing someone unwraps — so it's laid out as a certificate
@@ -6362,7 +6541,7 @@ function _repairCollectOpen(id) {
     <div style="display:flex;gap:10px">
       <div style="flex:1 1 0;min-width:0">
         <div style="${_resLbl}">${isEl ? 'Τελική τιμή' : 'Final price'} (€)</div>
-        <input id="repFinalPrice" type="number" step="0.01" inputmode="decimal" value="${suggested > 0 ? suggested.toFixed(2) : ''}" style="${_resInp}">
+        <input id="repFinalPrice" type="number" step="0.01" inputmode="decimal" oninput="_repUpdateGiftDisplay()" value="${suggested > 0 ? suggested.toFixed(2) : ''}" style="${_resInp}">
       </div>
       <div style="flex:1 1 0;min-width:0">
         <div style="${_resLbl}">${isEl ? 'Κόστος' : 'Cost'} (€)</div>
@@ -6370,6 +6549,22 @@ function _repairCollectOpen(id) {
       </div>
     </div>
     <div style="margin-bottom:12px">${_cashToggleHtml('repCollectCashToggle')}</div>
+    ${r.type === 'custom' ? `
+    <!-- A custom order is a piece of jewelry being made, so a gift certificate
+         may pay for it. A repair is labour on the customer's own item — excluded. -->
+    <div style="margin-bottom:12px">
+      <button id="repGiftBtn" onclick="_repOpenGiftPicker('${r.id}')" style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🎁 ${isEl ? 'Δωροεπιταγή' : 'Gift certificate'}</button>
+      <div id="repGiftApplied" style="display:none;margin-top:8px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:9px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px">
+          <span id="repGiftLabel" style="color:var(--gold-light);font-family:var(--font-mono)"></span>
+          <button onclick="_repClearGift()" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,76,0.2)">
+          <span style="color:var(--text-muted)">${isEl ? 'Να εισπραχθούν' : 'Cash due'}</span>
+          <span id="repGiftDue" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
+        </div>
+      </div>
+    </div>` : ''}
     <button type="button" id="repLogBtn" onclick="_repCollectToggleLog()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(76,175,132,0.18);border:1px solid rgba(76,175,132,0.5);color:#7fd6b0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✓ ${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</button>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('repCollectOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
@@ -6378,6 +6573,7 @@ function _repairCollectOpen(id) {
   </div>`;
   document.body.appendChild(ov);
   ov.dataset.log = '1';  // default: log as income
+  window._repGiftCard = null; // never inherit a certificate from a previous ticket
 }
 function _repCollectToggleLog() {
   const ov = document.getElementById('repCollectOverlay'); if (!ov) return;
@@ -6402,22 +6598,46 @@ async function _repairCollectConfirm(id) {
   r.cashSale = cashSale;
   saveRepairsLocal(list); pushRepairsToCloud(list);
   ov?.remove();
+  // Gift certificate (custom orders only) — re-derived from the card, not the
+  // on-screen figure, so a stale dialog can't overdraw it.
+  const _rgSel = window._repGiftCard || null;
+  const _rgCard = (r.type === 'custom' && _rgSel) ? gcFindById(_rgSel.id) : null;
+  const _rgUse = (_rgCard && gcIsSpendable(_rgCard)) ? Math.min(gcBalance(_rgCard), price) : 0;
+  if (_rgUse > 0) {
+    r.giftCardId = _rgCard.id;
+    r.giftCardAmt = parseFloat(_rgUse.toFixed(2));
+    saveRepairsLocal(list); pushRepairsToCloud(list); // persist the link (set after the save above)
+  }
   if (logIt && price > 0) {
     const note = (r.type === 'custom' ? (isEl ? 'Παραγγελία' : 'Custom order') : (isEl ? 'Επισκευή' : 'Repair')) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
-    try { await _recordRepairIncome(price, cost, cashSale, note); } catch (e) {}
+    try {
+      const _inc = await _recordRepairIncome(price, cost, cashSale, note,
+        _rgUse > 0 ? { giftAmt: _rgUse, giftWasCash: !!_rgCard.cashSale, giftCardId: _rgCard.id, giftCardNo: _rgCard.cardNo } : undefined);
+      if (_rgUse > 0) await _gcApplyRedemption(_rgCard.id, _rgUse, _inc ? _inc.id : null);
+    } catch (e) {}
+  } else if (_rgUse > 0) {
+    // Not logged as income, but the certificate was still handed over and spent.
+    try { await _gcApplyRedemption(_rgCard.id, _rgUse, null); } catch (e) {}
   }
+  window._repGiftCard = null;
   openRepairDetail(id); renderRepairs();
   showToast(isEl ? '✓ Παραλήφθηκε' : '✓ Collected');
 }
 
 // Book a repair/custom-order collection as a normal income record. Profit mirrors a
 // sale: cash → full ex-VAT amount kept; receipt → VAT extracted first; minus the cost.
-async function _recordRepairIncome(amount, cost, cashSale, note) {
+async function _recordRepairIncome(amount, cost, cashSale, note, giftOpts) {
   const sales = await getSales();
   const g = parseFloat(amount.toFixed(2));
   const c = parseFloat((cost || 0).toFixed(2));
   const vat = parseFloat(state.vat) || 0;
-  const exVat = cashSale ? g : g / (1 + vat / 100);
+  // Same portion split as a sale: a certificate half arrived under its own
+  // regime months ago. With no certificate this is the original formula.
+  const _go = giftOpts || {};
+  const _giftPart = Math.min(Math.max(parseFloat(_go.giftAmt) || 0, 0), g);
+  const _cashPart = g - _giftPart;
+  const _pex = (v, isCash) => isCash ? v : v / (1 + vat / 100);
+  const exVat = _pex(_giftPart, !!_go.giftWasCash) + _pex(_cashPart, cashSale);
   const profit = parseFloat((exVat - c).toFixed(2));
   const rec = {
     id: Date.now(),
@@ -6428,6 +6648,12 @@ async function _recordRepairIncome(amount, cost, cashSale, note) {
     cost: c > 0 ? c : null, profit, cashSale: !!cashSale,
     salePhotoUrl: '', salePhotoName: '', seqRef: '', repairIncome: true
   };
+  if (_giftPart > 0) {
+    rec.giftCardId = _go.giftCardId || null;
+    rec.giftCardNo = _go.giftCardNo || null;
+    rec.giftCardAmt = parseFloat(_giftPart.toFixed(2));
+    rec.giftCardWasCash = !!_go.giftWasCash;
+  }
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
@@ -7962,12 +8188,37 @@ async function getSales() {
   return await pullSalesFromCloud();
 }
 
-async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, invQr, customer, email, cost, cashSale, salePhotoUrl, salePhotoName, seqRef) {
+// Ex-VAT value of a stored sale record. A sale part-paid by a gift certificate
+// arrived under two regimes, so it cannot be derived from cashSale alone — this
+// is the ONE place that knows the rule, so displays can never drift from the
+// profit that addSaleRecord actually stored.
+function _saleExVat(s, vat) {
+  const amt = parseFloat(s.amount) || 0;
+  const g = Math.min(Math.max(parseFloat(s.giftCardAmt) || 0, 0), amt);
+  const c = amt - g;
+  const pex = (v, isCash) => isCash ? v : v / (1 + (vat || 0) / 100);
+  return parseFloat((pex(g, !!s.giftCardWasCash) + pex(c, s.cashSale)).toFixed(2));
+}
+
+async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, invQr, customer, email, cost, cashSale, salePhotoUrl, salePhotoName, seqRef, opts) {
   const sales = await getSales();
   const _cost = (cost !== undefined && cost !== null && cost > 0) ? parseFloat(cost) : null;
   // profit: cash sales use full amount (no VAT deducted); normal sales deduct VAT first
   const _vat = parseFloat(state.vat) || 0;
-  const _amtExVat = cashSale ? parseFloat(amount) : parseFloat(amount) / (1 + _vat / 100);
+  const _amt = parseFloat(amount);
+  // A sale part-paid by a gift certificate arrived under TWO regimes, months
+  // apart: the certificate portion as it was taken back then, the rest as it is
+  // being taken now. One flag cannot describe that, so each portion is treated
+  // as it actually happened.
+  //   e.g. €160 piece, €100 certificate taken as cash, €60 by card, VAT 17%:
+  //        exVat = 100 + 60/1.17 = 151.28  (not 160, and not 160/1.17 = 136.75)
+  // With no certificate (every pre-existing caller) _giftPart is 0 and this
+  // reduces EXACTLY to the original formula.
+  const _o = opts || {};
+  const _giftPart = Math.min(Math.max(parseFloat(_o.giftAmt) || 0, 0), _amt);
+  const _cashPart = _amt - _giftPart;
+  const _portionExVat = (v, isCash) => isCash ? v : v / (1 + _vat / 100);
+  const _amtExVat = _portionExVat(_giftPart, !!_o.giftWasCash) + _portionExVat(_cashPart, cashSale);
   const _profit = _cost !== null ? parseFloat((_amtExVat - _cost).toFixed(2)) : null;
   const rec = {
     id: Date.now(),
@@ -7990,6 +8241,14 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
     salePhotoName: salePhotoName || '',
     seqRef: seqRef || ''
   };
+  // Only stamped when a certificate was actually used, so existing records and
+  // ordinary sales are byte-identical to before.
+  if (_giftPart > 0) {
+    rec.giftCardId = _o.giftCardId || null;
+    rec.giftCardNo = _o.giftCardNo || null;
+    rec.giftCardAmt = parseFloat(_giftPart.toFixed(2));
+    rec.giftCardWasCash = !!_o.giftWasCash;   // the regime that half arrived under
+  }
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
@@ -8004,6 +8263,9 @@ async function deleteSaleRecord(id) {
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
   await pushSalesToCloud(filtered);
+  // Hand the balance back if this sale drew on a gift certificate — same
+  // principle as restoring the sold inventory piece below.
+  if (target && target.giftCardId) { try { await _gcUnapplyForSale(id); } catch (e) {} }
   // Restore inventory item to In Stock if this sale was linked to one. Prefer the EXACT
   // record id (invId, stored on newer sales) so a group of identical same-QR pieces — or a
   // coin batch — restores the piece that was actually sold, not a still-in-stock twin. Older
@@ -8194,7 +8456,9 @@ async function _toggleGroupCash() {
   members.forEach(m => {
     m.cashSale = newCash;
     if (m.cost != null) {
-      const base = newCash ? parseFloat(m.amount) : parseFloat(m.amount) / (1 + _vat / 100);
+      // Only today's portion changes. The gift-certificate half was settled
+      // months ago under its own regime and must not be rewritten by this toggle.
+      const base = _saleExVat(m, _vat);
       m.profit = parseFloat((base - parseFloat(m.cost)).toFixed(2));
     }
   });
@@ -8261,6 +8525,9 @@ function closeSaleModal() {
   delete window._saleFromInvId;   // clean up if opened from inventory
   delete window._saleFromInvQr;
   window._cartSaleItems = null;   // clear multi-sale state so a cancelled cart sale can't leak into the next sale
+  // A cancelled sale must not leave a certificate armed for the next one.
+  window._saleGiftCard = null;
+  _updateSaleGiftDisplay();
 }
 
 // Open the sale modal pre-filled from a quote history entry
@@ -8398,7 +8665,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     bk.appendChild(row);
   };
   if (isOwnerMgr) {
-    const amtExVat = members.reduce((a, x) => a + (x.cashSale ? x.amount : x.amount / (1 + vat / 100)), 0);
+    const amtExVat = members.reduce((a, x) => a + _saleExVat(x, vat), 0);
     const vatAmt = parseFloat((total - amtExVat).toFixed(2));
     const anyCost = members.some(x => x.cost != null);
     const totCost = anyCost ? members.reduce((a, x) => a + (x.cost != null ? parseFloat(x.cost) : 0), 0) : null;
@@ -8520,13 +8787,15 @@ async function showSaleDetail(id, forceSingle) {
     bk.appendChild(row);
   };
   if (isOwnerMgr) {
-    const amtExVat = s.cashSale ? s.amount : parseFloat((s.amount / (1 + vat / 100)).toFixed(2));
-    const vatAmt = s.cashSale ? 0 : parseFloat((s.amount - amtExVat).toFixed(2));
+    // Mirror addSaleRecord's portion split, or the ex-VAT shown here would
+    // contradict the profit stored on a certificate-part-paid sale.
+    const amtExVat = _saleExVat(s, vat);
+    const vatAmt = parseFloat(((parseFloat(s.amount) || 0) - amtExVat).toFixed(2));
     mkRow(lang === 'el' ? 'Ποσό (χωρίς ΦΠΑ)' : 'Amount excl. VAT', cur + amtExVat.toFixed(2));
-    if (!s.cashSale && vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
+    if (vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
     if (s.cost != null) mkRow(lang === 'el' ? 'Κόστος' : 'Cost', cur + parseFloat(s.cost).toFixed(2));
     if (s.profit != null) {
-      const base = s.cashSale ? s.amount : parseFloat((s.amount / (1 + vat / 100)).toFixed(2));
+      const base = amtExVat;
       const profitPct = base > 0 ? ' (' + ((s.profit / base) * 100).toFixed(1) + '%)' : '';
       mkRow(lang === 'el' ? 'Κέρδος' : 'Profit',
         cur + parseFloat(s.profit).toFixed(2) + profitPct,
@@ -8548,6 +8817,16 @@ async function showSaleDetail(id, forceSingle) {
   };
   if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
   if (s.email) mkMeta('✉️', 'Email', s.email);
+  // Spell out a split payment rather than showing one misleading cash badge.
+  if (s.giftCardAmt > 0) {
+    const _gNo = 'G-' + String(s.giftCardNo || 0).padStart(4, '0');
+    const _rest = parseFloat(((parseFloat(s.amount) || 0) - parseFloat(s.giftCardAmt)).toFixed(2));
+    const _gWord = s.giftCardWasCash ? (lang === 'el' ? 'μετρητά' : 'cash') : (lang === 'el' ? 'απόδειξη' : 'receipt');
+    const _rWord = s.cashSale ? (lang === 'el' ? 'μετρητά' : 'cash') : (lang === 'el' ? 'απόδειξη' : 'receipt');
+    mkMeta('🎁', lang === 'el' ? 'Δωροεπιταγή' : 'Gift certificate',
+      `${_gNo} · ${cur}${parseFloat(s.giftCardAmt).toFixed(2)} (${_gWord})`
+      + (_rest > 0 ? ` + ${cur}${_rest.toFixed(2)} (${_rWord})` : ''));
+  }
   if (s.vendor) mkMeta('🏷️', lang === 'el' ? 'Προμηθευτής' : 'Vendor', s.vendor);
   if (s.employeeName) mkMeta('🧑‍💼', lang === 'el' ? 'Πωλητής' : 'Salesperson', s.employeeName);
   if (s.note) mkMeta('📝', lang === 'el' ? 'Σημείωση' : 'Note', s.note);
@@ -8776,6 +9055,21 @@ async function confirmSale() {
     if (_qrMatch?.seqId) _saleSeqRef = itemRefCode(_qrMatch);
   }
   const _isCashSale = document.getElementById('saleCashToggle')?.classList.contains('cash-active') || false;
+  // ── Gift certificate ──
+  // Re-derive the usable amount from the CARD (not the on-screen figure), so a
+  // stale dialog or a card spent on another device can't overdraw it.
+  const _gcSel = window._saleGiftCard || null;
+  const _gcCard = _gcSel ? gcFindById(_gcSel.id) : null;
+  const _gcUsable = (_gcCard && gcIsSpendable(_gcCard)) ? Math.min(gcBalance(_gcCard), amt) : 0;
+  const _gcWasCash = _gcCard ? !!_gcCard.cashSale : false;
+  // Spread the certificate across the cart in proportion to each item's value,
+  // so every record's VAT split is right and the parts still sum to the whole.
+  const _gcShare = v => (_gcUsable > 0 && amt > 0)
+    ? parseFloat(Math.min(_gcUsable * (parseFloat(v) || 0) / amt, parseFloat(v) || 0).toFixed(2))
+    : 0;
+  const _gcOpts = v => _gcUsable > 0
+    ? { giftAmt: _gcShare(v), giftWasCash: _gcWasCash, giftCardId: _gcCard.id, giftCardNo: _gcCard.cardNo }
+    : undefined;
   // Upload sale photo if captured
   let _saleImgUrl = '';
   let _saleImgName = '';
@@ -8788,7 +9082,7 @@ async function confirmSale() {
   }
   // Bulk chain: always use the sold-portion cost (never the whole-batch cost derived above)
   if (_firstBulkInfo) _saleCost = _firstBulkInfo.cost;
-  const _firstSaleRec = await addSaleRecord(_effectiveAmt, note, date, saleVendor, bonusAmt, _currentUserBonus, invQr, saleCustomer, saleEmail, _saleCost, _isCashSale, _saleImgUrl, _saleImgName, _saleSeqRef);
+  const _firstSaleRec = await addSaleRecord(_effectiveAmt, note, date, saleVendor, bonusAmt, _currentUserBonus, invQr, saleCustomer, saleEmail, _saleCost, _isCashSale, _saleImgUrl, _saleImgName, _saleSeqRef, _gcOpts(_effectiveAmt));
   if (_firstSaleRec) {
     let _linkChanged = false;
     if (_firstBulkInfo) {
@@ -8808,6 +9102,27 @@ async function confirmSale() {
     }
   }
   if (_saleGroupId && _firstSaleRec) _groupRecs.push(_firstSaleRec);
+  // Draw the certificate down ONCE for the whole transaction, linked to the first
+  // record so deleting that sale hands the balance back (_gcUnapplyForSale).
+  if (_gcUsable > 0 && _firstSaleRec) {
+    try {
+      await _gcApplyRedemption(_gcCard.id, _gcUsable, _firstSaleRec.id);
+      // The person redeeming is often not the buyer — this is the moment they
+      // become a real customer, so capture them on the card.
+      if (saleCustomer) {
+        const _gl = getGiftCards();
+        const _gr = _gl.find(x => x.id === _gcCard.id);
+        if (_gr && !_gr.redeemerName) {
+          _gr.redeemerName = saleCustomer;
+          _gr.redeemerPhone = salePhone || '';
+          _gr.redeemerEmail = saleEmail || '';
+          saveGiftCardsLocal(_gl);
+          await pushGiftCardsToCloud(_gl);
+        }
+      }
+    } catch (e) { console.warn('gift redemption error:', e); }
+  }
+  window._saleGiftCard = null;
   if (saleCustomer) autoSaveClientFromQuote(saleCustomer, saleEmail);
 
   // If opened from inventory card — mark that specific item as sold directly
@@ -8918,7 +9233,7 @@ async function confirmSale() {
             _bIt.weight = parseFloat(_nw.toFixed(2));
             await saveInventoryItem(id, _bIt);
           }
-          const _bRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, (cost != null ? cost : null), _isCashSale, null, null, '');
+          const _bRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, (cost != null ? cost : null), _isCashSale, null, null, '', _gcOpts(_restAmt));
           if (_bRec) {
             _bRec.bulkInvId = id;
             _bRec.bulkSoldWeight = soldWeight || 0;
@@ -8941,7 +9256,7 @@ async function confirmSale() {
         const _restCost = item.purchaseCost
           ? parseFloat(item.purchaseCost)
           : (_restCalc && _restCalc.baseCost ? _restCalc.baseCost : null);
-        const _stdRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef);
+        const _stdRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef, _gcOpts(_restAmt));
         // Link to the exact record so a later delete restores THIS piece (identical same-QR
         // group members are otherwise indistinguishable by QR alone). Persisted by the
         // shared-saleGroup push below (_stdRec lives in _salesCache).
@@ -20608,6 +20923,22 @@ async function decodeQrFromCanvas(canvas) {
 function handleScannedCode(raw) {
   let code = raw;
   try { const u = new URL(raw); const p = u.searchParams.get('code'); if (p) code = p; } catch(e) {}
+  // A gift certificate ('G-0004') is checked FIRST. It can't collide with an item
+  // or coin reference code (2 letters + 4 digits, e.g. GC0510) because of the
+  // hyphen — see gcFindByCode.
+  const _gc = gcFindByCode(code);
+  if (_gc) {
+    try { closeQrScanner(); } catch (e) {}
+    // Scanned while writing a sale → select it for that sale. Otherwise just open it.
+    const saleOpen = document.getElementById('saleModal')?.style.display === 'flex';
+    if (saleOpen && gcIsSpendable(_gc)) {
+      _pickGiftForSale(_gc.id);
+      showToast('🎁 ' + gcNoFmt(_gc));
+    } else {
+      openGiftCardDetail(_gc.id);
+    }
+    return;
+  }
   const input = document.getElementById('codeInput');
   input.value = code;
   setTimeout(() => { lookupCode(code); }, 300);
@@ -20727,10 +21058,15 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.40', date: 'Ιούλιος 2026', items: [
-        '🧾 Διορθώθηκε ο ΦΠΑ σε 17% (μειωμένος νησιωτικός συντελεστής Καρπάθου) σε τρία σημεία που είχαν ακόμη 24%: η αρχική τιμή σε καινούρια συσκευή, η ένδειξη στις Ρυθμίσεις, και μια εφεδρική τιμή στις προσφορές πολλαπλών αντικειμένων.',
-        '⚠️ Η εφεδρική τιμή στις προσφορές πολλαπλών αντικειμένων διάβαζε πλέον έναν σταθερό 24% — και θεωρούσε ΦΠΑ 0% ως «λείπει», βάζοντας σιωπηλά 24%. Τώρα χρησιμοποιεί τον ΦΠΑ των Ρυθμίσεων και σέβεται το 0%.',
-        'ℹ️ Οι τιμές και τα κέρδη σας δεν επηρεάζονταν — όλοι οι υπόλοιποι υπολογισμοί διάβαζαν ήδη σωστά τον ΦΠΑ των Ρυθμίσεων.'
+      { version: 'v11.41', date: 'Ιούλιος 2026', items: [
+        '🎁 ΝΕΟ — Δωροεπιταγές. Πάγκος → Δωροεπιταγές: εκδώστε μία με ποσό, στοιχεία αγοραστή, προαιρετικό «Προς» και αφιέρωση. Τυπώστε ή στείλτε την ως κομψό έντυπο A4 (οριζόντιο, χρυσό πλαίσιο, θέση υπογραφής και σφραγίδας, QR).',
+        '💶 Καμία καταχώριση στις Πωλήσεις κατά την έκδοση — τα χρήματα δεν είναι ακόμη κέρδος. Η πώληση καταγράφεται όταν εξαργυρωθεί η επιταγή. Το σύνολο σε κυκλοφορία φαίνεται στη λίστα.',
+        '🛍️ Εξαργύρωση: στο παράθυρο πώλησης πατήστε «Δωροεπιταγή», επιλέξτε την (ή σαρώστε το QR) και εμφανίζεται πόσα μένουν να εισπραχθούν. Το ποσό της πώλησης ΔΕΝ μειώνεται — καταγράφεται ολόκληρο, ώστε τα βιβλία να μένουν σωστά.',
+        '🧮 Μικτή πληρωμή: αν τα €100 της επιταγής είχαν ληφθεί ως μετρητά και τα υπόλοιπα €60 με απόδειξη, ο ΦΠΑ υπολογίζεται χωριστά για κάθε μέρος (σε πώληση €160 με κόστος €50: κέρδος €101.28).',
+        '⏰ Λήξη 1 έτος από προεπιλογή (αλλάζει ελεύθερα). 30 μέρες πριν, πράσινη ειδοποίηση στο καμπανάκι με κουμπί επικοινωνίας (WhatsApp / SMS / Email). Τα μηνύματα συναδέλφων μένουν κόκκινα.',
+        '💰 Ληγμένη επιταγή με υπόλοιπο: με ΕΝΑ πάτημα καταχωρείται ως καθαρό κέρδος — ή δίνετε παράταση. Ποτέ αυτόματα.',
+        '✨ Οι δωροεπιταγές δέχονται και παραγγελίες κατά παραγγελία (όχι επισκευές). Η διαγραφή μιας πώλησης επιστρέφει το υπόλοιπο στην επιταγή.',
+        '🇬🇷 Διόρθωση: τα ελληνικά κεφαλαία στα εκτυπωμένα έντυπα δεν παίρνουν πια τόνο — «ΑΠΟΔΕΙΞΗ ΚΡΑΤΗΣΗΣ», «ΠΙΣΤΟΠΟΙΗΤΙΚΟ ΑΥΘΕΝΤΙΚΟΤΗΤΑΣ», «ΥΠΟΓΡΑΦΗ», «ΣΦΡΑΓΙΔΑ».'
       ]},
           ]
   },
@@ -20761,10 +21097,15 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.40', date: 'Jul 2026', items: [
-        '🧾 Corrected VAT to 17% (Karpathos reduced island rate) in three places that still assumed 24%: the starting value on a brand-new device, the hint in Settings, and a fallback in multi-item quotes.',
-        '⚠️ That multi-item quote fallback used a hardcoded 24% — and treated a VAT of 0% as "missing", silently applying 24%. It now reads your Settings VAT and respects 0%.',
-        'ℹ️ Your prices and profits were never affected — every other calculation already read the VAT from Settings correctly.'
+      { version: 'v11.41', date: 'Jul 2026', items: [
+        '🎁 NEW — Gift certificates. Desk → Gift Cards: issue one with an amount, buyer details, an optional "To" name and a dedication. Print or send it as an elegant A4 certificate (landscape, gold border, signature line and stamp box, QR).',
+        '💶 Nothing is written to Sales when you issue one — that money is not earned yet. The sale is recorded when the certificate is redeemed. The total outstanding shows at the top of the list.',
+        '🛍️ Redeeming: in the sale dialog tap "Gift certificate", pick it (or scan its QR) and it shows what is still due in cash. The sale amount is NOT reduced — the full value is recorded, so your books stay right.',
+        '🧮 Mixed payment: if the €100 certificate was taken as cash and the remaining €60 with a receipt, VAT is worked out separately for each part (on a €160 sale costing €50: profit €101.28).',
+        '⏰ Expiry defaults to 1 year, editable per certificate. 30 days before, a green notification appears on the bell with a contact button (WhatsApp / SMS / Email). Employee messages stay red.',
+        '💰 Expired with a balance left: ONE tap books it as pure profit — or extend it for a good customer. Never automatic.',
+        '✨ Certificates also pay for custom orders (not repairs). Deleting a sale hands the balance back to the certificate.',
+        '🇬🇷 Fixed: Greek capitals on printed documents no longer keep their accent — ΑΠΟΔΕΙΞΗ ΚΡΑΤΗΣΗΣ, ΠΙΣΤΟΠΟΙΗΤΙΚΟ ΑΥΘΕΝΤΙΚΟΤΗΤΑΣ, ΥΠΟΓΡΑΦΗ, ΣΦΡΑΓΙΔΑ.'
       ]},
           ]
   }
@@ -23710,6 +24051,10 @@ async function openSaleModalWithBonus() {
 }
 
 function updateSaleBonusPreview() {
+  // Keep the certificate's "cash due" in step with the amount. Must run BEFORE
+  // the no-bonus early return below, or it would never fire for a user without
+  // a bonus set (i.e. most of the time).
+  try { _updateSaleGiftDisplay(); } catch (e) {}
   if (_currentUserBonus <= 0) return;
   const amt = parseFloat(document.getElementById('saleAmountInput')?.value) || 0;
   const bonus = (amt * _currentUserBonus / 100);
@@ -23822,7 +24167,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.40';
+const APP_VERSION = '11.41';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -24234,10 +24579,17 @@ async function notifCheckAndUpdateBadge() {
     const res = await fetch(fbUrl(`/jewelprice_notifications/${slug}.json`), { cache: 'no-store' });
     const data = res.ok ? await res.json() : null;
     _notifCache = (data && typeof data === 'object') ? data : {};
-    const count = Object.keys(_notifCache).length;
-    // Nav tab badge
+    const _all = Object.values(_notifCache);
+    const count = _all.length;
+    // Split by kind: employee messages are RED and badge the Stock tab; gift
+    // expiries are GREEN and badge Desk (see _gcUpdateBadges). The bell shows
+    // the total and takes its colour from what's in it — red as soon as a
+    // message is waiting, since a person expecting a reply outranks a date.
+    const msgCount = _all.filter(n => n && n.kind !== 'gift_expiry').length;
+    // Nav tab badge — messages only
     const badge = document.getElementById('navNotifBadge');
     if (badge) {
+      const count = msgCount;
       if (count > 0) {
         badge.textContent = count > 9 ? '9+' : String(count);
         if (badge.style.display === 'none') {
@@ -24258,9 +24610,15 @@ async function notifCheckAndUpdateBadge() {
     if (bellBtn) {
       if (count > 0) {
         bellBtn.style.display = 'flex';
-        bellBtn.style.borderColor = 'rgba(229,57,53,0.5)';
-        bellBtn.style.color = '#e57373';
-        if (bellBadge) { bellBadge.textContent = count > 9 ? '9+' : String(count); bellBadge.style.display = 'flex'; }
+        // Green when only gift expiries are waiting; red the moment a message is.
+        const _onlyGift = msgCount === 0;
+        bellBtn.style.borderColor = _onlyGift ? 'rgba(46,158,99,0.5)' : 'rgba(229,57,53,0.5)';
+        bellBtn.style.color = _onlyGift ? '#7fd6b0' : '#e57373';
+        if (bellBadge) {
+          bellBadge.style.background = _onlyGift ? '#2E9E63' : '#e53935';
+          bellBadge.textContent = count > 9 ? '9+' : String(count);
+          bellBadge.style.display = 'flex';
+        }
       } else {
         bellBtn.style.display = 'none';
         if (bellBadge) bellBadge.style.display = 'none';
@@ -24290,6 +24648,30 @@ function openNotifPanel() {
     ? `<div style="text-align:center;color:var(--text-muted);font-family:var(--font-body);font-size:13px;padding:24px 0">${t('notifNone')}</div>`
     : entries.map(([id, n]) => {
         const dt = n.sentAt ? new Date(n.sentAt).toLocaleString(state.dateLocale||'el-GR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+        // Gift-certificate expiry — a different KIND of notification, tinted green
+        // so a glance at the bell tells you what is waiting (messages are red).
+        if (n.kind === 'gift_expiry') {
+          const _isEl = lang === 'el';
+          const _cur = state.currency || '€';
+          const _no = 'G-' + String(n.cardNo || 0).padStart(4, '0');
+          const _bal = (parseFloat(n.balance) || 0).toFixed(2);
+          return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid rgba(46,158,99,0.4);border-radius:12px;padding:14px;margin-bottom:10px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
+              <div>
+                <div style="font-family:var(--font-mono);font-size:12px;color:#7fd6b0;font-weight:600">🎁 ${_no}</div>
+                <div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-top:2px">${_gcEsc(n.buyerName || '')} · ${_cur}${_bal}</div>
+              </div>
+              <button onclick="notifDismissOne('${id}')" style="flex-shrink:0;background:transparent;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">✕</button>
+            </div>
+            <div style="background:rgba(46,158,99,0.1);border-left:3px solid #2E9E63;border-radius:0 6px 6px 0;padding:8px 10px;font-family:var(--font-body);font-size:13px;color:var(--text);margin-bottom:10px;line-height:1.5">${_isEl
+              ? `Λήγει σε ${n.days} ${n.days === 1 ? 'μέρα' : 'μέρες'}${n.expiresAt ? ' (' + fmtDate(n.expiresAt) + ')' : ''}. Επικοινωνήστε με τον πελάτη.`
+              : `Expires in ${n.days} day${n.days === 1 ? '' : 's'}${n.expiresAt ? ' (' + fmtDate(n.expiresAt) + ')' : ''}. Contact the customer.`}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${dt}</div>
+              <button onclick="document.getElementById('notifPanelOverlay')?.remove();openGiftCardDetail('${n.giftCardId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(46,158,99,0.25),rgba(46,158,99,0.1));border:1px solid rgba(46,158,99,0.45);border-radius:8px;color:#7fd6b0;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
+            </div>
+          </div>`;
+        }
         return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid var(--wa08);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
             <div>
