@@ -19927,7 +19927,8 @@ const ABOUT = {
       { version: 'v11.35', date: 'Ιούλιος 2026', items: [
         '🔑 Ο ρόλος «Διευθυντής» έγινε πραγματικός. Μέχρι τώρα ένας διευθυντής είχε ουσιαστικά όλα τα δικαιώματα του ιδιοκτήτη. Πλέον τρέχει κανονικά το μαγαζί (απόθεμα, προμηθευτές, πωλήσεις, κόστη, απογραφή, εξαγωγές) αλλά ΔΕΝ αλλάζει ΦΠΑ/κέρδος, δεν βλέπει τον Συγχρονισμό και δεν κάνει αντίγραφα ασφαλείας.',
         '👥 Η «Ομάδα» απέκτησε δική της οθόνη στο μενού ☰, χωριστά από τον Συγχρονισμό — άλλο η διαχείριση ατόμων, άλλο η ρύθμιση της συσκευής.',
-        '➕ Στην προσθήκη ατόμου διαλέγετε πλέον ρόλο από τρεις σαφείς επιλογές (Ιδιοκτήτης / Διευθυντής / Υπάλληλος), η καθεμία με μια γραμμή που εξηγεί τι μπορεί να κάνει. Ένας διευθυντής μπορεί να προσθέσει μόνο υπαλλήλους.'
+        '➕ Στην προσθήκη ατόμου διαλέγετε πλέον ρόλο από τρεις σαφείς επιλογές (Ιδιοκτήτης / Διευθυντής / Υπάλληλος), η καθεμία με μια γραμμή που εξηγεί τι μπορεί να κάνει. Ένας διευθυντής μπορεί να προσθέσει μόνο υπαλλήλους.',
+        '🛟 Δικλείδα ασφαλείας: μπορείτε να υποβιβάσετε έναν άλλο ιδιοκτήτη σε διευθυντή, αλλά ΟΧΙ τον εαυτό σας — και πρέπει να μένει πάντα τουλάχιστον ένας ιδιοκτήτης, ώστε να μην κλειδωθεί ποτέ κανείς έξω από τις Ρυθμίσεις και τον Συγχρονισμό.'
       ]},
           ]
   },
@@ -19961,7 +19962,8 @@ const ABOUT = {
       { version: 'v11.35', date: 'Jul 2026', items: [
         '🔑 The Manager role is now real. Until now a manager effectively had every owner power. A manager now runs the shop properly (stock, vendors, sales, costs, stocktake, exports) but can NOT change VAT/margin, cannot see the Sync screen, and cannot make or restore backups.',
         '👥 Team moved to its own screen in the ☰ menu, separate from Sync — managing people and setting up this device are two different jobs.',
-        '➕ Adding a person now offers three clear roles (Owner / Manager / Employee), each with one line explaining what they can do. A manager can only add employees.'
+        '➕ Adding a person now offers three clear roles (Owner / Manager / Employee), each with one line explaining what they can do. A manager can only add employees.',
+        '🛟 Safety rail: you can demote another owner to manager, but NOT yourself — and there must always be at least one owner, so nobody can ever be locked out of Settings and Sync.'
       ]},
           ]
   }
@@ -22696,6 +22698,27 @@ async function saveUser() {
   if (!_editingUserSlug && users[slug]) {
     statusEl.textContent = lang==='el' ? 'Το username υπάρχει ήδη' : 'Username already exists';
     return;
+  }
+
+  // ── Never let the shop end up locked out of itself ──
+  // Demoting an owner is fine (that is how you turn a co-owner into a manager), but two
+  // cases must be refused. Demoting YOURSELF would strip Sync/Settings/Backups from your own
+  // device on the next sync — and Sync is exactly where the owner role lives, so there would
+  // be no way back. Demoting the LAST owner would leave nobody who can reach those screens.
+  if (_editingUserSlug && users[_editingUserSlug] && users[_editingUserSlug].role === 'owner' && _addUserRole !== 'owner') {
+    if (_editingUserSlug === creds.userName) {
+      statusEl.textContent = lang === 'el'
+        ? 'Δεν μπορείτε να αφαιρέσετε τα δικά σας δικαιώματα ιδιοκτήτη.'
+        : 'You cannot remove your own owner access.';
+      return;
+    }
+    const otherOwners = Object.entries(users).filter(([sl, u]) => u.role === 'owner' && sl !== _editingUserSlug);
+    if (!otherOwners.length) {
+      statusEl.textContent = lang === 'el'
+        ? 'Πρέπει να υπάρχει πάντα τουλάχιστον ένας ιδιοκτήτης.'
+        : 'There must always be at least one owner.';
+      return;
+    }
   }
 
   const oldSlug = _editingUserSlug;
