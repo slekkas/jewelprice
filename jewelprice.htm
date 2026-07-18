@@ -6197,7 +6197,11 @@ const STONE_TRANSLATIONS = {
   'Zircon':          'Ζιρκόνιο',
 };
 // Helper: translate stone type for display
-function stoneLabel(type) { return (lang === 'el' && STONE_TRANSLATIONS[type]) ? STONE_TRANSLATIONS[type] : type; }
+// Language-explicit stone name. The document builders (quote, certificate) are handed an
+// `isEl` flag rather than reading the global `lang`, so they need this form — a Greek quote
+// must say «Ζιρκόνιο», not "Zircon".
+function stoneLabelFor(type, isEl) { return (isEl && STONE_TRANSLATIONS[type]) ? STONE_TRANSLATIONS[type] : type; }
+function stoneLabel(type) { return stoneLabelFor(type, lang === 'el'); }
 // Helper: translate full stonesDesc string for display (keeps carats/clarity/color intact)
 function stonesDescDisplay(desc) {
   if (!desc || lang !== 'el') return desc;
@@ -6775,24 +6779,18 @@ function _openLabelModalInner(data, modal, content) {
     data.hasStones = true; // triggers multi-line path in buildTSPL and display
   }
 
-  // Build the full text block
-  let lines = [data.fullQR];
-  if (data.hasStones && data.lines.length > 1) {
-    data.lines.forEach(l => lines.push(l));
-  } else {
-    lines.push(data.greekCode);
-  }
-  const fullBlock = lines.join('\n');
+  // Only the full Latin QR code is worth showing. The Greek line-by-line breakdown
+  // (LINE 1 / 2 / 3, or the single "Greek code" row) existed for the old BarTender workflow
+  // where those lines were typed onto the tag — the tag now prints the REFERENCE code, so
+  // they are dead weight on screen. `data.lines` itself is left untouched: buildTSPL still
+  // falls back to it for a legacy item that has no reference code.
+  const fullBlock = data.fullQR;
 
-  const lineLabels = data.hasStones && data.lines.length > 1
-    ? [t('labelFullStr'), t('labelLine1'), t('labelLine2'), t('labelLine3')]
-    : [t('labelFullStr'), t('labelGreekCode')];
-
-  const displayRows = lines.map((line, i) => `
+  const displayRows = `
     <div style="margin-bottom:6px">
-      <div style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">${lineLabels[i] || ''}</div>
-      <div style="background:var(--dark-3);border:1px solid rgba(201,168,76,0.15);border-radius:4px;padding:9px 12px;font-family:'DM Mono',monospace;font-size:15px;letter-spacing:0.08em;color:var(--gold-light)">${line}</div>
-    </div>`).join('');
+      <div style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">${t('labelFullStr')}</div>
+      <div style="background:var(--dark-3);border:1px solid rgba(201,168,76,0.15);border-radius:4px;padding:9px 12px;font-family:'DM Mono',monospace;font-size:15px;letter-spacing:0.08em;color:var(--gold-light);word-break:break-all">${data.fullQR}</div>
+    </div>`;
 
   content.innerHTML = `
     ${displayRows}
@@ -19944,8 +19942,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.37', date: 'Ιούλιος 2026', items: [
-        '💎 Η λέξη «melee» δεν εμφανίζεται πουθενά στον πελάτη. Είναι εσωτερική πληροφορία αγοράς (ότι οι πέτρες αγοράστηκαν με συνολικό βάρος) και είχε μείνει στις προσφορές και τα πιστοποιητικά. Ο πελάτης βλέπει πλέον σκέτο «Ζιρκόνιο». Ελέγχθηκαν όλα τα έγγραφα: προσφορές, πιστοποιητικά, κατάλογοι, φύλλα παραγγελίας, εικόνες προβολής, φόρμες κρατήσεων/επισκευών και η οθόνη τιμής προς τον πελάτη. Στις δικές μας οθόνες παραμένει.'
+      { version: 'v11.38', date: 'Ιούλιος 2026', items: [
+        '🇬🇷 Ελληνικά ονόματα πετρών σε ό,τι βλέπει ο πελάτης. Σε ελληνική προσφορά, πιστοποιητικό ή κατάλογο η πέτρα γράφεται πλέον «Ζιρκόνιο», «Τυρκουάζ», «Ρουμπίνι» — όχι στα αγγλικά.',
+        '🏷️ Το παράθυρο ετικέτας καθάρισε: έφυγαν οι «Γραμμή 1 / 2 / 3» (και ο ελληνικός κωδικός) που χρειάζονταν στο παλιό σύστημα. Μένουν ο πλήρης κωδικός QR και ο Κωδικός Αναφοράς. Η εκτύπωση δεν άλλαξε καθόλου.'
       ]},
           ]
   },
@@ -19976,8 +19975,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.37', date: 'Jul 2026', items: [
-        '💎 The word "melee" no longer appears anywhere a customer can see. It is an internal purchasing detail (that the stones were bought by total weight) and it was still showing on quotes and certificates. Customers now simply read "Zircon". Every customer document was checked: quotes, certificates, catalogs, order sheets, promo images, reservation/repair forms and the customer price display. It stays on our own screens.'
+      { version: 'v11.38', date: 'Jul 2026', items: [
+        '🇬🇷 Greek stone names everywhere a customer looks. On a Greek quote, certificate or catalog the stone now reads «Ζιρκόνιο», «Τυρκουάζ», «Ρουμπίνι» instead of English.',
+        '🏷️ The label window is tidier: "Line 1 / 2 / 3" (and the Greek code row) are gone — they were needed by the old tag system. Only the full QR code and the Reference Code remain. Printing is completely unchanged.'
       ]},
           ]
   }
@@ -20858,7 +20858,7 @@ ${r.stones && r.stones.length > 0 ? `
     const parts = [];
     // "melee" is internal (bought as a parcel by total weight) — never shown to a customer.
     if (s.qty !== 't' && s.qty > 1) parts.push(`${s.qty}×`);
-    parts.push(`<strong>${s.type}</strong>`);
+    parts.push(`<strong>${stoneLabelFor(s.type, isEl)}</strong>`);
     if (s.carat) parts.push(`${s.carat} ct`);
     if (s.clarity) parts.push(s.clarity);
     if (s.color) parts.push(`${isEl ? 'Χρώμα' : 'Color'} ${s.color}`);
@@ -21310,7 +21310,7 @@ ${r.stones && r.stones.length > 0 ? `
     const parts = [];
     // "melee" is internal (bought as a parcel by total weight) — never shown to a customer.
     if (s.qty !== 't' && s.qty > 1) parts.push(`${s.qty}×`);
-    parts.push(`<strong>${s.type}</strong>`);
+    parts.push(`<strong>${stoneLabelFor(s.type, isEl)}</strong>`);
     if (s.carat) parts.push(`${s.carat} ct`);
     if (s.clarity) parts.push(s.clarity);
     if (s.color) parts.push(`${isEl ? 'Χρώμα' : 'Color'} ${s.color}`);
@@ -23031,7 +23031,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.37';
+const APP_VERSION = '11.38';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -24925,10 +24925,11 @@ async function buildSharePDF(items, includePrice, mode) {
       }
     }
 
-    // Stones — English stone names (safe)
+    // Stones — translated for a Greek catalog (this PDF registers Noto Sans and already
+    // prints Greek throughout), with the internal "melee" wording removed.
     if (item.stonesDesc) {
       setRegular(8, 58, 90, 138);
-      const stonesLines = doc.splitTextToSize('\u25C8 ' + stripMelee(item.stonesDesc), textW);
+      const stonesLines = doc.splitTextToSize('\u25C8 ' + stonesDescPublic(item.stonesDesc), textW);
       doc.text(stonesLines[0], textX, curTextY);
       curTextY += 5;
     }
