@@ -177,8 +177,11 @@ function qt(k) { return (QT[QLANG] || QT.en)[k] || QT.en[k] || k; }
     return null;
   }
 
-  // Fallback: scan main quotes array for this id (supports old quotes)
+  // Fallback: scan the main quotes array for this id (supports old quotes).
+  // LEGACY ONLY — this reads EVERY quote, so it is attempted just for old links that still
+  // carry a secret. A modern link has no credentials and reads only its own quote record.
   async function fetchFromArray() {
+    if (!secret) return null;
     try {
       const resp = await fetch(fbUrl('/jewelprice_quotes.json') + (secret ? '&t=' : '?t=') + Date.now(), { cache: 'no-store' });
       if (!resp.ok) return null;

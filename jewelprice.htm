@@ -19924,7 +19924,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.35', date: 'Ιούλιος 2026', items: [
+      { version: 'v11.36', date: 'Ιούλιος 2026', items: [
+        '🔐 Οι σύνδεσμοι προσφορών προς πελάτες ΔΕΝ περιέχουν πλέον το μυστικό κλειδί της βάσης. Μέχρι τώρα κάθε προσφορά που στέλνατε σε πελάτη είχε μέσα στο link ένα κλειδί με πλήρη πρόσβαση σε ΟΛΑ τα δεδομένα σας. Τώρα ο πελάτης βλέπει μόνο τη δική του προσφορά, χωρίς κανένα κλειδί. (Οι παλιοί σύνδεσμοι συνεχίζουν να λειτουργούν.)',
         '🔑 Ο ρόλος «Διευθυντής» έγινε πραγματικός. Μέχρι τώρα ένας διευθυντής είχε ουσιαστικά όλα τα δικαιώματα του ιδιοκτήτη. Πλέον τρέχει κανονικά το μαγαζί (απόθεμα, προμηθευτές, πωλήσεις, κόστη, απογραφή, εξαγωγές) αλλά ΔΕΝ αλλάζει ΦΠΑ/κέρδος, δεν βλέπει τον Συγχρονισμό και δεν κάνει αντίγραφα ασφαλείας.',
         '👥 Η «Ομάδα» απέκτησε δική της οθόνη στο μενού ☰, χωριστά από τον Συγχρονισμό — άλλο η διαχείριση ατόμων, άλλο η ρύθμιση της συσκευής.',
         '➕ Στην προσθήκη ατόμου διαλέγετε πλέον ρόλο από τρεις σαφείς επιλογές (Ιδιοκτήτης / Διευθυντής / Υπάλληλος), η καθεμία με μια γραμμή που εξηγεί τι μπορεί να κάνει. Ένας διευθυντής μπορεί να προσθέσει μόνο υπαλλήλους.',
@@ -19959,7 +19960,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.35', date: 'Jul 2026', items: [
+      { version: 'v11.36', date: 'Jul 2026', items: [
+        '🔐 Customer quote links no longer contain your database secret. Until now every quote you sent a customer carried a key with full access to ALL your data inside the link. A customer now sees only their own quote, with no key at all. (Links you already sent keep working.)',
         '🔑 The Manager role is now real. Until now a manager effectively had every owner power. A manager now runs the shop properly (stock, vendors, sales, costs, stocktake, exports) but can NOT change VAT/margin, cannot see the Sync screen, and cannot make or restore backups.',
         '👥 Team moved to its own screen in the ☰ menu, separate from Sync — managing people and setting up this device are two different jobs.',
         '➕ Adding a person now offers three clear roles (Owner / Manager / Employee), each with one line explaining what they can do. A manager can only add employees.',
@@ -22448,8 +22450,12 @@ async function shareQuote() {
   const isEl = lang === 'el';
   const quoteId = Date.now();
   const firebaseBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
+  // NO secret in a customer-facing link. This URL is sent to customers over WhatsApp/email,
+  // and the database secret grants full read+write to EVERYTHING — the same mistake that was
+  // fixed on the public showroom. `/jewelprice_quotes_html` is world-readable (read-only) in
+  // the Firebase rules, so quote.htm loads the one quote with no credentials at all.
   const viewerUrl = firebaseBase
-    ? window.location.origin + '/quote.htm?id=' + quoteId + '&db=' + encodeURIComponent(firebaseBase) + (creds.dbSecret ? '&secret=' + encodeURIComponent(creds.dbSecret) : '')
+    ? window.location.origin + '/quote.htm?id=' + quoteId + '&db=' + encodeURIComponent(firebaseBase)
     : null;
 
   let title, finalPriceForShare, html;
@@ -23012,7 +23018,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.35';
+const APP_VERSION = '11.36';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
