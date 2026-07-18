@@ -1632,7 +1632,7 @@
     </div>
     <div class="settings-section" id="taxMarginSection">
       <h3 data-i18n="taxMargin">Φόρος & Περιθώριο</h3>
-      <div class="field"><label data-i18n="vat">ΦΠΑ (%)</label><input type="number" id="vatPct" placeholder="24" step="0.1" inputmode="decimal"></div>
+      <div class="field"><label data-i18n="vat">ΦΠΑ (%)</label><input type="number" id="vatPct" placeholder="17" step="0.1" inputmode="decimal"></div>
       <div class="field"><label data-i18n="margin">Περιθώριο Κέρδους (%)</label><input type="number" id="marginPct" placeholder="35" step="0.1" inputmode="decimal"></div>
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
@@ -4056,7 +4056,9 @@ function defaultState() {
       { name: 'Handmade / Artisan', rate: 7.0 },
       { name: 'Custom / Bespoke', rate: 14.0 }
     ]}],
-    vat: 24, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
+    // 17% = Karpathos reduced island VAT rate (not the 24% mainland rate).
+    // Only used until applyCloudConfig loads the owner's saved value.
+    vat: 17, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
     coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3
   };
 }
@@ -19971,9 +19973,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.39', date: 'Ιούλιος 2026', items: [
-        '💎 Ελληνικά ονόματα κοπής στα έγγραφα του πελάτη: Στρογγυλή κοπή, Οβάλ, Δάκρυ, Μαρκίζ, Καρδιά, Μπαγκέτα. Οι διεθνείς εμπορικές ονομασίες (Princess, Cushion, Emerald, Radiant, Asscher) μένουν σκόπιμα στα αγγλικά, όπως στους επαγγελματικούς καταλόγους.',
-        '✨ Προστέθηκε η κοπή «Μπαγκέτα» στις επιλογές πετρών.'
+      { version: 'v11.40', date: 'Ιούλιος 2026', items: [
+        '🧾 Διορθώθηκε ο ΦΠΑ σε 17% (μειωμένος νησιωτικός συντελεστής Καρπάθου) σε τρία σημεία που είχαν ακόμη 24%: η αρχική τιμή σε καινούρια συσκευή, η ένδειξη στις Ρυθμίσεις, και μια εφεδρική τιμή στις προσφορές πολλαπλών αντικειμένων.',
+        '⚠️ Η εφεδρική τιμή στις προσφορές πολλαπλών αντικειμένων διάβαζε πλέον έναν σταθερό 24% — και θεωρούσε ΦΠΑ 0% ως «λείπει», βάζοντας σιωπηλά 24%. Τώρα χρησιμοποιεί τον ΦΠΑ των Ρυθμίσεων και σέβεται το 0%.',
+        'ℹ️ Οι τιμές και τα κέρδη σας δεν επηρεάζονταν — όλοι οι υπόλοιποι υπολογισμοί διάβαζαν ήδη σωστά τον ΦΠΑ των Ρυθμίσεων.'
       ]},
           ]
   },
@@ -20004,9 +20007,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.39', date: 'Jul 2026', items: [
-        '💎 Greek cut names on customer documents: Στρογγυλή κοπή, Οβάλ, Δάκρυ, Μαρκίζ, Καρδιά, Μπαγκέτα. The international trade names (Princess, Cushion, Emerald, Radiant, Asscher) deliberately stay in English, as they do in professional catalogs.',
-        '✨ Added the Baguette cut to the stone shape options.'
+      { version: 'v11.40', date: 'Jul 2026', items: [
+        '🧾 Corrected VAT to 17% (Karpathos reduced island rate) in three places that still assumed 24%: the starting value on a brand-new device, the hint in Settings, and a fallback in multi-item quotes.',
+        '⚠️ That multi-item quote fallback used a hardcoded 24% — and treated a VAT of 0% as "missing", silently applying 24%. It now reads your Settings VAT and respects 0%.',
+        'ℹ️ Your prices and profits were never affected — every other calculation already read the VAT from Settings correctly.'
       ]},
           ]
   }
@@ -20945,7 +20949,11 @@ function buildMultiQuoteHTML(cartItems, extraDiscPct, roundTarget, cur, isEl, qr
   const totalDiscPct = subtotal > 0 ? (extraDiscAmt / subtotal * 100) : 0;
   const showDiscount = totalDiscPct >= 5; // hide discount line if < 5%
   // VAT breakdown: extract from grand total (finalPrice already includes VAT)
-  const vatRate = parseFloat(cartItems[0].result.vat) || 24;
+  // Fall back to the configured VAT, not a hardcoded rate. Checked with isFinite
+  // rather than || so a legitimate 0% VAT stays 0 instead of being treated as
+  // "missing" and silently replaced.
+  const _cqVat = parseFloat(cartItems[0].result.vat);
+  const vatRate = Number.isFinite(_cqVat) ? _cqVat : (parseFloat(state.vat) || 0);
   const preVatTotal = grandTotal / (1 + vatRate / 100);
   const vatAmt = grandTotal - preVatTotal;
   const autoTitle = cartItems.map(ci => ci.name).join(' + ');
@@ -23060,7 +23068,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.39';
+const APP_VERSION = '11.40';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
