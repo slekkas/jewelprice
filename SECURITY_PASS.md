@@ -36,7 +36,42 @@ customers over WhatsApp/email is the same class of mistake already fixed on the 
   is now skipped unless a secret is present, i.e. only for old links. A modern link can read
   exactly one quote record and nothing else.
 
-### Required Firebase rules change — **DO THIS FIRST**
+### ⚠️ CORRECTION (18 Jul 2026, same day) — the rules change was WRONG, revert it
+
+The premise of this section was mistaken. **The quote viewer link is never actually shared.**
+Verified: `viewerUrl` is built in `shareQuote` but never passed anywhere — both
+`openQuoteWindow` call sites pass `null`, and the value is used only as a truthiness guard
+(`if (!viewerUrl) return;`) deciding whether to save the quote to history. Quotes,
+certificates, order sheets and catalogs are all delivered as a **PDF** via `shareQuoteAsPDF`.
+No link, no key, ever left the app.
+
+So the claim "every quote link sent to a customer carries the secret" was **false** — the URL
+was constructed and discarded. Lesson: trace how a thing is actually *delivered* before
+calling it an exposure.
+
+Worse, making `/jewelprice_quotes_html` world-readable to support that link **increased**
+exposure for zero benefit: it published stored quote HTML (customer names + prices) to anyone
+who guesses an id, in service of a link that does not exist. **The rule must be reverted** to:
+
+```json
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "jewelprice_public": { ".read": true, ".write": false }
+  }
+}
+```
+
+Removing the secret from `viewerUrl` is kept — an unused URL is still no place for a master
+key — but it fixes nothing that was actually leaking. The node stays **private**.
+
+**Real follow-up:** the quote-link machinery (`viewerUrl`, `quote.htm`, and writing rendered
+HTML to `/jewelprice_quotes_html`) is effectively dead now that everything ships as PDF.
+Worth removing in a careful pass — note `if (!viewerUrl) return;` guards the history save, so
+that guard's real intent ("is Firebase configured?") must be preserved.
+
+### ~~Required Firebase rules change — DO THIS FIRST~~ *(superseded — see correction above)*
 `/jewelprice_quotes_html` must become world-readable (read-only), exactly like the showroom
 mirror. In Firebase Console → Realtime Database → Rules:
 

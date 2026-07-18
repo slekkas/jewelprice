@@ -22450,10 +22450,11 @@ async function shareQuote() {
   const isEl = lang === 'el';
   const quoteId = Date.now();
   const firebaseBase = creds.binId ? creds.binId.replace(/\/+$/, '') : null;
-  // NO secret in a customer-facing link. This URL is sent to customers over WhatsApp/email,
-  // and the database secret grants full read+write to EVERYTHING — the same mistake that was
-  // fixed on the public showroom. `/jewelprice_quotes_html` is world-readable (read-only) in
-  // the Firebase rules, so quote.htm loads the one quote with no credentials at all.
+  // NOTE: this URL is never actually shared. Quotes, certificates, orders and catalogs all go
+  // out as a PDF (shareQuoteAsPDF); both openQuoteWindow callers pass viewerUrl = null, so the
+  // value below is only used as a "do we have a Firebase base?" guard for saving to history.
+  // The DB secret was removed from it anyway — an unused URL is no place for a master key —
+  // but `/jewelprice_quotes_html` must stay PRIVATE: nothing needs to read it without auth.
   const viewerUrl = firebaseBase
     ? window.location.origin + '/quote.htm?id=' + quoteId + '&db=' + encodeURIComponent(firebaseBase)
     : null;
