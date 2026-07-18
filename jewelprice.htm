@@ -6208,6 +6208,26 @@ function stonesDescDisplay(desc) {
   result = result.split('melee').join('Μελέ');
   return result;
 }
+// Customer-facing version of a stone description. "melee" is an INTERNAL purchasing term —
+// it records that we bought those stones as a parcel priced by total weight rather than
+// counted individually. A customer should simply read the stone. Use this in every document
+// a customer can see (quote, certificate, catalog, order sheet); keep the plain
+// stonesDescDisplay for our own screens.
+// Strips the melee wording only, leaving the language of the text alone (some PDFs
+// deliberately stay in English for font safety).
+function stripMelee(text) {
+  if (!text) return text;
+  return String(text)
+    .replace(/\bmelee(\s+total)?\b/gi, '')
+    .replace(/Μελέ(\s+σύνολο)?/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/·\s*·/g, '·')
+    .replace(/^[\s·]+|[\s·]+$/g, '')
+    .trim();
+}
+function stonesDescPublic(desc) {
+  return desc ? stripMelee(stonesDescDisplay(desc)) : desc;
+}
 // Pearl group for filter subcategories
 const PEARL_TYPES = ['Pearl','Baroque Pearl','Black Pearl','Keshi Pearl','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
 const CLARITY_GRADES = ['FL','IF','VVS1','VVS2','VS1','VS2','SI1','SI2','I1','I2','I3'];
@@ -19924,12 +19944,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.36', date: 'Ιούλιος 2026', items: [
-        '🔐 Οι σύνδεσμοι προσφορών προς πελάτες ΔΕΝ περιέχουν πλέον το μυστικό κλειδί της βάσης. Μέχρι τώρα κάθε προσφορά που στέλνατε σε πελάτη είχε μέσα στο link ένα κλειδί με πλήρη πρόσβαση σε ΟΛΑ τα δεδομένα σας. Τώρα ο πελάτης βλέπει μόνο τη δική του προσφορά, χωρίς κανένα κλειδί. (Οι παλιοί σύνδεσμοι συνεχίζουν να λειτουργούν.)',
-        '🔑 Ο ρόλος «Διευθυντής» έγινε πραγματικός. Μέχρι τώρα ένας διευθυντής είχε ουσιαστικά όλα τα δικαιώματα του ιδιοκτήτη. Πλέον τρέχει κανονικά το μαγαζί (απόθεμα, προμηθευτές, πωλήσεις, κόστη, απογραφή, εξαγωγές) αλλά ΔΕΝ αλλάζει ΦΠΑ/κέρδος, δεν βλέπει τον Συγχρονισμό και δεν κάνει αντίγραφα ασφαλείας.',
-        '👥 Η «Ομάδα» απέκτησε δική της οθόνη στο μενού ☰, χωριστά από τον Συγχρονισμό — άλλο η διαχείριση ατόμων, άλλο η ρύθμιση της συσκευής.',
-        '➕ Στην προσθήκη ατόμου διαλέγετε πλέον ρόλο από τρεις σαφείς επιλογές (Ιδιοκτήτης / Διευθυντής / Υπάλληλος), η καθεμία με μια γραμμή που εξηγεί τι μπορεί να κάνει. Ένας διευθυντής μπορεί να προσθέσει μόνο υπαλλήλους.',
-        '🛟 Δικλείδα ασφαλείας: μπορείτε να υποβιβάσετε έναν άλλο ιδιοκτήτη σε διευθυντή, αλλά ΟΧΙ τον εαυτό σας — και πρέπει να μένει πάντα τουλάχιστον ένας ιδιοκτήτης, ώστε να μην κλειδωθεί ποτέ κανείς έξω από τις Ρυθμίσεις και τον Συγχρονισμό.'
+      { version: 'v11.37', date: 'Ιούλιος 2026', items: [
+        '💎 Η λέξη «melee» δεν εμφανίζεται πουθενά στον πελάτη. Είναι εσωτερική πληροφορία αγοράς (ότι οι πέτρες αγοράστηκαν με συνολικό βάρος) και είχε μείνει στις προσφορές και τα πιστοποιητικά. Ο πελάτης βλέπει πλέον σκέτο «Ζιρκόνιο». Ελέγχθηκαν όλα τα έγγραφα: προσφορές, πιστοποιητικά, κατάλογοι, φύλλα παραγγελίας, εικόνες προβολής, φόρμες κρατήσεων/επισκευών και η οθόνη τιμής προς τον πελάτη. Στις δικές μας οθόνες παραμένει.'
       ]},
           ]
   },
@@ -19960,12 +19976,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.36', date: 'Jul 2026', items: [
-        '🔐 Customer quote links no longer contain your database secret. Until now every quote you sent a customer carried a key with full access to ALL your data inside the link. A customer now sees only their own quote, with no key at all. (Links you already sent keep working.)',
-        '🔑 The Manager role is now real. Until now a manager effectively had every owner power. A manager now runs the shop properly (stock, vendors, sales, costs, stocktake, exports) but can NOT change VAT/margin, cannot see the Sync screen, and cannot make or restore backups.',
-        '👥 Team moved to its own screen in the ☰ menu, separate from Sync — managing people and setting up this device are two different jobs.',
-        '➕ Adding a person now offers three clear roles (Owner / Manager / Employee), each with one line explaining what they can do. A manager can only add employees.',
-        '🛟 Safety rail: you can demote another owner to manager, but NOT yourself — and there must always be at least one owner, so nobody can ever be locked out of Settings and Sync.'
+      { version: 'v11.37', date: 'Jul 2026', items: [
+        '💎 The word "melee" no longer appears anywhere a customer can see. It is an internal purchasing detail (that the stones were bought by total weight) and it was still showing on quotes and certificates. Customers now simply read "Zircon". Every customer document was checked: quotes, certificates, catalogs, order sheets, promo images, reservation/repair forms and the customer price display. It stays on our own screens.'
       ]},
           ]
   }
@@ -20844,8 +20856,8 @@ ${r.stones && r.stones.length > 0 ? `
   <div style="font-size:8pt;letter-spacing:0.08em;text-transform:uppercase;color:#C9A84C;margin-bottom:6px">💎 ${isEl ? 'Λίθος / Πέτρα' : 'Stone'}</div>
   ${r.stones.map(s => {
     const parts = [];
-    if (s.qty === 't') parts.push(`<em>${isEl ? 'Μελέ σύνολο' : 'melee total'}</em>`);
-    else if (s.qty > 1) parts.push(`${s.qty}×`);
+    // "melee" is internal (bought as a parcel by total weight) — never shown to a customer.
+    if (s.qty !== 't' && s.qty > 1) parts.push(`${s.qty}×`);
     parts.push(`<strong>${s.type}</strong>`);
     if (s.carat) parts.push(`${s.carat} ct`);
     if (s.clarity) parts.push(s.clarity);
@@ -21296,8 +21308,8 @@ ${r.stones && r.stones.length > 0 ? `
   <div style="font-size:8pt;letter-spacing:0.08em;text-transform:uppercase;color:#C9A84C;margin-bottom:6px">💎 ${isEl ? 'Λίθος / Πέτρα' : 'Stone'}</div>
   ${r.stones.map(s => {
     const parts = [];
-    if (s.qty === 't') parts.push(`<em>${isEl ? 'Μελέ σύνολο' : 'melee total'}</em>`);
-    else if (s.qty > 1) parts.push(`${s.qty}×`);
+    // "melee" is internal (bought as a parcel by total weight) — never shown to a customer.
+    if (s.qty !== 't' && s.qty > 1) parts.push(`${s.qty}×`);
     parts.push(`<strong>${s.type}</strong>`);
     if (s.carat) parts.push(`${s.carat} ct`);
     if (s.clarity) parts.push(s.clarity);
@@ -23019,7 +23031,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.36';
+const APP_VERSION = '11.37';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -24916,7 +24928,7 @@ async function buildSharePDF(items, includePrice, mode) {
     // Stones — English stone names (safe)
     if (item.stonesDesc) {
       setRegular(8, 58, 90, 138);
-      const stonesLines = doc.splitTextToSize('\u25C8 ' + item.stonesDesc, textW);
+      const stonesLines = doc.splitTextToSize('\u25C8 ' + stripMelee(item.stonesDesc), textW);
       doc.text(stonesLines[0], textX, curTextY);
       curTextY += 5;
     }
