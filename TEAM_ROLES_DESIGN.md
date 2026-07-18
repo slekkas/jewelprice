@@ -133,18 +133,65 @@ grow into rather than commit to up front.
 
 ---
 
-## 5. Open decisions for tomorrow
+## 4b. DECISIONS MADE (18 Jul 2026)
 
-1. **Manager's exact line.** The table in §3.2 is my proposal — which powers should a manager
-   *not* have? (I've drawn it at: no money-rule changes, no sync/secret/PIN, no promoting
-   people.) Adjust to taste.
-2. **Phase 2 or not?** Do you want the per-person checkmarks, or are three solid roles enough?
-3. **Can a manager add people?** My proposal: a manager may add **employees** but not other
-   managers/owners. OK, or should team management be owner-only?
-4. **Backups restore** — owner-only, or managers too? (Restore overwrites everything, so I
-   lean owner-only.)
-5. **The device toggle** — replace the "Owner/Employee" toggle with a clearer "Set up this
-   device" flow, or leave it since the invite link handles most cases? (Employees almost never
-   touch it — the link sets their role automatically.)
+1. **Manager's line** — approved as proposed in §3.2.
+2. **Per-person checkmarks** — **dropped.** Research (below) shows permissions belong on the
+   *role*, not the person. Phase 1 ships three fixed roles; the permission table is built so
+   editable *roles* remain a cheap add later if ever wanted.
+3. **Managers may add employees only** (not other managers/owners). **Backups: create and
+   restore are owner-only.**
+
+### Why not per-person permissions — what comparable systems do
+
+| System | Model |
+|---|---|
+| **Loyverse** (closest to this shop's size — free, small retail) | 4 preset roles: Owner / Administrator / Manager / Cashier. **Owner's rights cannot be changed.** All other roles editable via checkboxes **on the role**. |
+| **Shopify POS** | Roles only — *"You can't assign individual permissions to POS staff, you need to assign a role."* |
+| **Square** | 3 preset templates (Standard / Enhanced / Full); custom permission **sets** are a paid upgrade, free tier gets one. |
+
+RBAC guidance agrees: attach permissions to roles, not users; per-user grants cause
+"role explosion" and roles should describe responsibilities, not exceptions.
+
+**Decisive point for this shop:** with **one employee**, "edit the Employee role" and "edit
+that person" are the same action — so per-person toggles buy nothing until there are two
+employees who must differ. Editable roles start paying off at ~5+ staff with genuinely
+different jobs.
+
+### Implementation consequence (important)
+Phase 1 must put the role→permission mapping in **one table** and gate the UI on
+`can('see_cost')` rather than today's scattered `isOwnerOrManager()` / `role === 'employee'`
+checks (~60 sites). Then "make roles editable" later is a small settings screen that edits
+that table, not a refactor. Owner stays fixed and unrestricted permanently.
+
+```
+ROLE_PERMISSIONS = {
+  owner:    ALL,
+  manager:  { see_cost:1, edit_inventory:1, vendors:1, reservations:1, stocktake:1,
+              export:1, backup_create:1,  settings:0, sync:0, backup_restore:0,
+              team:'employees_only' },
+  employee: { /* everyday counter work only */ }
+}
+```
+
+## 5. Still open
+
+1. **The device toggle** — replace the Sync panel's "👑 Owner / 👤 Employee" toggle with a
+   clearer "Set up this device" flow, or leave it? (Employees almost never touch it — the
+   invite link sets their role automatically, so it's really a first-run owner control.)
+
+## 6. Build order for Phase 1
+
+1. **Permission table + `can()` helper**, and convert the ~60 existing gates
+   (`isOwnerOrManager()`, `role === 'employee'`) to `can('…')`. Behaviour-neutral for owner
+   and employee; this step is what makes Manager real.
+2. **Split the owner-only gates** out of the old owner-or-manager lump: global settings
+   (VAT/margin/currency), the whole Sync panel (Firebase URL / DB secret / PIN), backup
+   restore, and promoting people.
+3. **Move Team to its own screen** in the ☰ More menu; Sync keeps only device/connection setup.
+4. **Add Person → 3-way role choice** with one-line descriptions; managers see only
+   "Employee". Invite-link mechanism unchanged.
+5. Verify against the real backup: owner sees everything as before, employee sees exactly what
+   they see today (no regression), manager sits correctly in between.
 
 *(No code has been changed. This is a plan only.)*

@@ -951,7 +951,7 @@
     #panel-inventory.panel { max-width:1120px; }
     #panel-sales.panel { max-width:1120px; width:1120px; }
     /* Form/list panels stay comfortably readable, centred inside the wide frame */
-    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about, #panel-desk { max-width:560px; margin-left:auto; margin-right:auto; }
+    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about, #panel-desk, #panel-team { max-width:560px; margin-left:auto; margin-right:auto; }
     .sales-panel-inner { max-width:560px; margin-left:auto; margin-right:auto; }
     .customer-price-bar { max-width:560px; width:560px; }
     #cartPanel { max-width:560px !important; }
@@ -1217,6 +1217,10 @@
             <button class="more-item" id="nav-vendors" onclick="showPanel('vendors');closeMoreMenu()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span data-i18n="navVendors">Προμηθευτές</span>
+            </button>
+            <button class="more-item" id="nav-team" onclick="showPanel('team');closeMoreMenu()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span data-i18n="teamTitleShort">Ομάδα</span>
             </button>
             <button class="more-item" id="nav-sync" onclick="showPanel('sync');closeMoreMenu()" style="display:none">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
@@ -1626,7 +1630,7 @@
         <button type="button" id="themeLightBtn" onclick="applyTheme('light')" class="theme-seg">☀️ <span data-i18n="themeLight">Ανοιχτό</span></button>
       </div>
     </div>
-    <div class="settings-section">
+    <div class="settings-section" id="taxMarginSection">
       <h3 data-i18n="taxMargin">Φόρος & Περιθώριο</h3>
       <div class="field"><label data-i18n="vat">ΦΠΑ (%)</label><input type="number" id="vatPct" placeholder="24" step="0.1" inputmode="decimal"></div>
       <div class="field"><label data-i18n="margin">Περιθώριο Κέρδους (%)</label><input type="number" id="marginPct" placeholder="35" step="0.1" inputmode="decimal"></div>
@@ -1663,7 +1667,7 @@
       <button class="save-btn" onclick="saveSettings()" data-i18n="saveSettings">Αποθήκευση Ρυθμίσεων</button>
       <div class="status-bar" id="settingsStatus"></div>
     </div>
-    <div class="settings-section">
+    <div class="settings-section" id="recoverySection">
       <h3 id="recoveryTitle">🔧 Data Recovery</h3>
       <div class="hint" style="margin-bottom:12px" id="recoveryHint">If your vendors disappeared, tap below to see what's stored on this device and restore it.</div>
       <button class="save-btn" onclick="showRawData()" style="margin-bottom:8px" id="recoveryShowBtn">🔍 Show stored data</button>
@@ -1838,19 +1842,26 @@
         <div class="status-bar" id="empStatus"></div>
       </div>
     </div>
-    <!-- TEAM SECTION (owner/manager only) -->
-    <div id="teamSection" class="cloud-box" style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <h3 style="margin:0" data-i18n="teamTitle">👥 Ομάδα</h3>
-        <button onclick="openAddUserModal()" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:20px;padding:6px 14px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer">+ <span data-i18n="addPerson">Πρόσθεσε</span></button>
-      </div>
-      <div id="teamList"></div>
-    </div>
-
     <div class="cloud-box">
       <h3 data-i18n="setupGuide">Οδηγός Εγκατάστασης</h3>
       <p data-i18n="setupGuideDesc" style="margin-bottom:10px">Ακολουθήστε αυτά τα βήματα μία φορά ως ιδιοκτήτης:</p>
       <ul class="step-list" id="setupStepList"></ul>
+    </div>
+  </div>
+
+  <!-- TEAM PANEL (owner: everyone · manager: employees only) -->
+  <!-- Lives on its own rather than inside Sync: managing PEOPLE and setting up THIS DEVICE
+       are two different jobs, and a manager needs the first without the second. -->
+  <div id="panel-team" class="panel">
+    <div class="cloud-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <h3 style="margin:0" data-i18n="teamTitle">👥 Ομάδα</h3>
+        <button onclick="openAddUserModal()" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:20px;padding:6px 14px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer">+ <span data-i18n="addPerson">Πρόσθεσε</span></button>
+      </div>
+      <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);line-height:1.6;margin:0 0 14px 0" data-i18n="teamDesc">Προσθέστε τα άτομα της ομάδας σας και στείλτε τους τον προσωπικό τους σύνδεσμο εγκατάστασης. Ο ρόλος καθορίζει τι βλέπει ο καθένας.</p>
+      <div id="teamSection">
+        <div id="teamList"></div>
+      </div>
     </div>
   </div>
 
@@ -3237,7 +3248,7 @@ const T = {
     saleEditTitle:'Επεξεργασία Πώλησης', saleEditHint:'Επεξεργαστείτε τα στοιχεία της πώλησης.', saleEditEmployee:'Πωλητής',
     salesTitle:'Πωλήσεις', salesToday:'Σήμερα', salesMonth:'Μήνας', salesYear:'Έτος', totalSales:'Συνολικές Πωλήσεις',
     editName:'Αλλαγή Ονόματος', yourName:'Ελληνικά', nameEnLabel:'Αγγλικά — προαιρετικό',
-    teamTitle:'👥 Ομάδα', addPerson:'Πρόσθεσε', saveUser:'Αποθήκευση',
+    teamTitle:'👥 Ομάδα', teamTitleShort:'Ομάδα', teamDesc:'Προσθέστε τα άτομα της ομάδας σας και στείλτε τους τον προσωπικό τους σύνδεσμο εγκατάστασης. Ο ρόλος καθορίζει τι βλέπει ο καθένας.', addPerson:'Πρόσθεσε', saveUser:'Αποθήκευση',
     userDisplayName:'Πλήρες Όνομα', userSlugLabel:'Username (για το link)',
     userRoleLabel:'Ρόλος', manager:'👑 Διευθυντής',
     userBonusLabel:'Bonus Πωλήσεων (%)', userBonusHint:'% σε κάθε πώληση · 0 = χωρίς bonus',
@@ -3628,7 +3639,7 @@ const T = {
     saleEditTitle:'Edit Sale', saleEditHint:'Update the sale details.', saleEditEmployee:'Salesperson',
     salesTitle:'Sales', salesToday:'Today', salesMonth:'Month', salesYear:'Year', totalSales:'Total Sales',
     editName:'Change Name', yourName:'Greek', nameEnLabel:'English — optional',
-    teamTitle:'👥 Team', addPerson:'Add Person', saveUser:'Save',
+    teamTitle:'👥 Team', teamTitleShort:'Team', teamDesc:'Add the people who work with you and send each of them their own install link. Their role decides what they can see.', addPerson:'Add Person', saveUser:'Save',
     userDisplayName:'Full Name', userSlugLabel:'Username (for the link)',
     userRoleLabel:'Role', manager:'👑 Manager',
     userBonusLabel:'Sales Bonus (%)', userBonusHint:'% on each sale · 0 = no bonus',
@@ -4359,39 +4370,110 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ─── ROLE-BASED UI ────────────────────────────────────────────────────────────
+// ─── ROLES & PERMISSIONS ──────────────────────────────────────────────────────
+// One table decides what each role may do; every gate in the app asks can('…') instead of
+// testing the role directly. Two reasons:
+//   1. It makes MANAGER a real middle tier. Before this, isOwnerOrManager() lumped owner and
+//      manager together, so a manager silently had full owner powers.
+//   2. If the owner ever wants to change what "Manager" means, it is an edit to this table —
+//      not a hunt through ~60 scattered checks.
+// Permissions live on the ROLE, never on the person: that is how Shopify POS, Square and
+// Loyverse all do it, and per-person grants are the classic "role explosion" mistake.
+// OWNER is deliberately hard-coded to everything and can never be restricted.
+const PERMISSIONS = [
+  'see_cost',      // cost, profit, margin, gain %, vendor rates, price breakdown
+  'manage_stock',  // add / edit / delete inventory, groups, coins, metal, bulk
+  'vendors',       // vendor & labour-rate management
+  'desk_admin',    // cancel / delete reservations & repair tickets
+  'sales_admin',   // sales dashboard; edit or delete anyone's sale
+  'stocktake',     // run and finish the end-of-season inventory check
+  'export',        // CSV export + stale-stock report
+  'settings',      // global money rules: VAT, margin, currency, data recovery
+  'sync',          // Firebase URL, DB secret, owner PIN
+  'backup'         // create AND restore cloud backups
+];
+
+const ROLE_PERMISSIONS = {
+  // Everything. Never restricted — the owner is the one person who must always get in.
+  owner: Object.fromEntries(PERMISSIONS.map(p => [p, true])),
+  // Runs the shop day to day: full stock, vendors, sales, desk and the numbers — but cannot
+  // change the money rules, touch the sync/secret/PIN, restore a backup, or promote people.
+  manager: {
+    see_cost: true, manage_stock: true, vendors: true, desk_admin: true,
+    sales_admin: true, stocktake: true, export: true,
+    settings: false, sync: false, backup: false
+  },
+  // Everyday counter work only: calc, scan, sell, reserve, look things up, add clients.
+  employee: Object.fromEntries(PERMISSIONS.map(p => [p, false]))
+};
+
+function can(perm) {
+  const table = ROLE_PERMISSIONS[creds.role] || ROLE_PERMISSIONS.employee;
+  return !!table[perm];
+}
+
+// Team management is the one power that is not a plain yes/no: an owner may create anyone,
+// a manager may only add employees (never another manager or a second owner).
+function canManageTeam() { return creds.role === 'owner' || creds.role === 'manager'; }
+function canAssignRole(role) {
+  if (creds.role === 'owner') return true;
+  if (creds.role === 'manager') return role === 'employee';
+  return false;
+}
+
+// Kept for identity/labelling only (which sync message to show, how to sort the team list) —
+// NOT for permission decisions. Use can() for those.
 function isOwnerOrManager() { return creds.role === 'owner' || creds.role === 'manager'; }
 
+// The Settings tab holds several independent sections. A manager still needs some of them
+// (sales, export, stocktake) even though the money rules inside it are owner-only, so the tab
+// itself is shown when the user can see ANY section in it.
+function _canSeeSettingsTab() {
+  return can('settings') || can('sales_admin') || can('export') || can('stocktake') || can('see_cost');
+}
+
 function applyRoleUI() {
-  const isEmployee = creds.role === 'employee';
-  const isOwnerMgr = isOwnerOrManager();
-  document.getElementById('nav-settings').style.display = isOwnerMgr ? '' : 'none';
+  const show = (id, visible, mode) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? (mode || '') : 'none';
+  };
   document.getElementById('nav-sales').style.display = ''; // all roles see Sales tab
   document.getElementById('nav-inventory').style.display = ''; // all roles see Stock tab
   { const _ndk = document.getElementById('nav-desk'); if (_ndk) _ndk.style.display = ''; } // all roles see Desk
-  const _scs = document.getElementById('stoneCacheSection'); if (_scs) _scs.style.display = isOwnerMgr ? '' : 'none';
+
+  // ── Settings tab + its sections ──
+  show('nav-settings', _canSeeSettingsTab());
+  show('taxMarginSection', can('settings'));   // VAT / margin / currency — owner only
+  show('recoverySection',  can('settings'));   // force-restore from device — owner only
+  show('stoneCacheSection', can('see_cost'));
+  show('salesSection',      can('sales_admin'));
+  show('backupSection',     can('backup'));    // create AND restore — owner only
+  show('exportSection',     can('export'));
+  show('stocktakeSection',  can('stocktake'));
+  show('stkOwnerFooter',    can('stocktake') && _stkActive, 'block');
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
-  const _ss = document.getElementById('salesSection'); if (_ss) _ss.style.display = isOwnerMgr ? '' : 'none';
-  const _bs = document.getElementById('backupSection'); if (_bs) _bs.style.display = isOwnerMgr ? '' : 'none';
-  const _es = document.getElementById('exportSection'); if (_es) _es.style.display = isOwnerMgr ? '' : 'none';
-  const _stk = document.getElementById('stocktakeSection'); if (_stk) _stk.style.display = isOwnerMgr ? '' : 'none';
-  const _stkOwnerFooter = document.getElementById('stkOwnerFooter'); if (_stkOwnerFooter) _stkOwnerFooter.style.display = isOwnerMgr && _stkActive ? 'block' : 'none';
-  const _staleBtn = document.getElementById('invStaleBtn'); if (_staleBtn) _staleBtn.style.display = isOwnerMgr ? 'flex' : 'none';
-  document.getElementById('nav-sync').style.display = isOwnerMgr ? '' : 'none';
+
+  // ── Sync tab (Firebase URL / DB secret / PIN) — owner only ──
+  show('nav-sync', can('sync'));
+
+  // ── Team (its own screen in the ☰ menu) ──
+  show('nav-team', canManageTeam());
+
+  // Someone standing on a panel they may no longer open gets moved somewhere safe.
   const activePanel = document.querySelector('.panel.active')?.id;
-  if (isEmployee && (activePanel === 'panel-settings' || activePanel === 'panel-sync')) {
+  if ((activePanel === 'panel-sync' && !can('sync')) ||
+      (activePanel === 'panel-team' && !canManageTeam()) ||
+      (activePanel === 'panel-settings' && !_canSeeSettingsTab())) {
     showPanel('calc');
   }
-  const _ts = document.getElementById('teamSection'); if (_ts) _ts.style.display = isOwnerMgr ? '' : 'none';
-  // Stock tab: hide add-new controls from employees
-  const _invBulkBtn = document.getElementById('invAddBulkBtn');
-  if (_invBulkBtn) _invBulkBtn.style.display = isEmployee ? 'none' : '';
-  const _invGroupBtn = document.getElementById('invGroupBtn');
-  if (_invGroupBtn) _invGroupBtn.style.display = isEmployee ? 'none' : 'flex';
-  const _invAddCoinBtn = document.getElementById('invAddCoinBtn');
-  if (_invAddCoinBtn) _invAddCoinBtn.style.display = isEmployee ? 'none' : '';
-  const _invAddMetalBtn = document.getElementById('invAddMetalBtn');
-  if (_invAddMetalBtn) _invAddMetalBtn.style.display = isEmployee ? 'none' : '';
+
+  // ── Stock tab: creating / restructuring stock ──
+  show('invStaleBtn',    can('export'), 'flex');
+  show('invAddBulkBtn',  can('manage_stock'));
+  show('invGroupBtn',    can('manage_stock'), 'flex');
+  show('invAddCoinBtn',  can('manage_stock'));
+  show('invAddMetalBtn', can('manage_stock'));
+
   const vendorPanel = document.getElementById('panel-vendors');
   if (vendorPanel.classList.contains('active')) renderVendors();
   renderIdentityCard();
@@ -4480,7 +4562,7 @@ function showSpotWarning(show) {
       ? 'Δεν είναι δυνατή η λήψη ζωντανής τιμής χρυσού. Παρακαλώ εισάγετε την τιμή χρυσού και ασημιού χειροκίνητα στις Ρυθμίσεις.'
       : 'Cannot fetch live gold price. Please enter the gold and silver price manually in Settings.';
     document.getElementById('spotWarningBtn').textContent = lang === 'el' ? '→ Ρυθμίσεις' : '→ Settings';
-    document.getElementById('spotWarningBtn').style.display = creds.role === 'employee' ? 'none' : '';
+    document.getElementById('spotWarningBtn').style.display = !can('see_cost') ? 'none' : '';
   } else {
     banner.style.display = 'none';
   }
@@ -4515,18 +4597,19 @@ function showPanel(name) {
   // Refresh notification badge on every tab switch
   notifCheckAndUpdateBadge();
   if (name === 'about') renderAbout();
+  if (name === 'team') loadTeamSection();
   if (name === 'vendors') {
     renderVendors();
     if (document.getElementById('laborList').children.length === 0) addLaborRow();
   }
-  if (name === 'settings') { loadSettingsForm(); if (isOwnerOrManager()) { _stoneCacheMem = null; renderStoneCacheSettings(); renderSalesDashboard(); } }
+  if (name === 'settings') { loadSettingsForm(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); } if (can('sales_admin')) renderSalesDashboard(); }
   if (name === 'sync') {
     const _syncPin = localStorage.getItem('jpro_owner_pin') || '';
     if (_syncPin && creds.role !== 'owner') {
-      openPinOverlay(_syncPin, () => { loadSyncForm(); renderIdentityCard(); loadTeamSection(); });
+      openPinOverlay(_syncPin, () => { loadSyncForm(); renderIdentityCard(); });
       return;
     }
-    loadSyncForm(); renderIdentityCard(); loadTeamSection();
+    loadSyncForm(); renderIdentityCard();
   }
   if (name === 'clients') renderClients();
   if (name === 'inventory') {
@@ -4947,7 +5030,7 @@ async function _resAddPayment(id) {
 
 // Permanently remove a cancelled/expired reservation from the list (owner/manager).
 function _resDelete(id) {
-  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτής της κράτησης;' : 'Permanently delete this reservation?', async () => {
     const gone = getReservations().find(x => x.id === id);
     const list = getReservations().filter(x => x.id !== id);
@@ -4962,7 +5045,7 @@ function _resDelete(id) {
 }
 
 function _resCancel(id) {
-  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Ακύρωση κράτησης; Τα είδη επιστρέφουν στο απόθεμα.' : 'Cancel this reservation? The items return to stock.', async () => {
     const list = getReservations(); const r = list.find(x => x.id === id); if (!r) return;
     r.status = 'cancelled'; r.dateCompleted = Date.now();
@@ -5431,7 +5514,7 @@ async function _repairSave() {
 function openRepairDetail(id) {
   const r = getRepairs().find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el'; const cur = state.currency || '€';
-  const owner = isOwnerOrManager();
+  const owner = can('see_cost');
   document.getElementById('repairDetailOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'repairDetailOverlay';
@@ -5463,7 +5546,7 @@ function openRepairDetail(id) {
       ${r.datePromised ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Έτοιμο έως' : 'Ready by'}</span><span style="color:var(--text)">${fmtDate(r.datePromised)}</span></div>` : ''}
       ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)} ${r.cashSale ? '💵' : '🧾'}</span></div>` : ''}
       ${r.finalCost != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κόστος' : 'Cost'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.finalCost) || 0).toFixed(2)}</span></div>` : ''}
-      ${(r.finalPrice != null && isOwnerOrManager()) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${((r.cashSale ? (parseFloat(r.finalPrice) || 0) : (parseFloat(r.finalPrice) || 0) / (1 + (parseFloat(state.vat) || 0) / 100)) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
+      ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${((r.cashSale ? (parseFloat(r.finalPrice) || 0) : (parseFloat(r.finalPrice) || 0) / (1 + (parseFloat(state.vat) || 0) / 100)) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
     ${notifyRow}
     <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)'}</button>
@@ -5598,7 +5681,7 @@ async function _recordRepairIncome(amount, cost, cashSale, note) {
 }
 
 function _repairCancel(id) {
-  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Ακύρωση αυτού του δελτίου;' : 'Cancel this ticket?', () => {
     const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
     r.status = 'cancelled'; saveRepairsLocal(list); pushRepairsToCloud(list);
@@ -5608,7 +5691,7 @@ function _repairCancel(id) {
   }, null, { danger: true });
 }
 function _repairDelete(id) {
-  if (!isOwnerOrManager()) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτού του δελτίου;' : 'Permanently delete this ticket?', () => {
     const list = getRepairs().filter(x => x.id !== id);
     saveRepairsLocal(list); pushRepairsToCloud(list);
@@ -7321,7 +7404,7 @@ async function _toggleGroupCash() {
     : (lang === 'el' ? 'Ορίστηκε ως κάρτα' : 'Set as card'));
   await showSaleDetail(members[0].id); // re-render the combined view with updated VAT/profit
   await renderSalesPanel();
-  if (isOwnerOrManager()) renderSalesDashboard();
+  if (can('sales_admin')) renderSalesDashboard();
 }
 
 function toggleManualCash(btnId) {
@@ -7603,7 +7686,7 @@ async function showSaleDetail(id, forceSingle) {
   if (!s) return;
   const cur = state.currency || '€';
   const vat = parseFloat(state.vat) || 0;
-  const isOwnerMgr = isOwnerOrManager();
+  const isOwnerMgr = can('see_cost');
 
   // Multi-item transaction → combined view (unless a single line was explicitly requested).
   const groupItems = s.saleGroup ? sales.filter(x => x.saleGroup === s.saleGroup) : [];
@@ -7810,7 +7893,7 @@ async function confirmSaleEdit() {
   await pushSalesToCloud(sales);
   closeSaleEditModal();
   await renderSalesPanel();
-  if (isOwnerOrManager()) renderSalesDashboard();
+  if (can('sales_admin')) renderSalesDashboard();
 }
 
 async function confirmSale() {
@@ -8474,7 +8557,7 @@ async function renderEmployeeView(allSales) {
     const color = vendorAvatarColor(e.slug || 'none');
     const initial = (e.name || '?').charAt(0).toUpperCase();
     const isMe = e.slug === creds.userName;
-    const isOwnerMgr = isOwnerOrManager();
+    const isOwnerMgr = can('see_cost');
     const bonusTag = (e.bonus > 0 && (isOwnerMgr || isMe))
       ? '<span style="background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.25);border-radius:10px;padding:1px 7px;font-family:var(--font-mono);font-size:10px;color:var(--gold)">\ud83c\udf81 ' + cur + e.bonus.toFixed(2) + '</span>' : '';
     return '<div onclick="spDrillEmployee(\'' + (e.slug||'').replace(/'/g, "\\'") + '\')" style="background:linear-gradient(135deg,rgba(212,175,55,' + (isMe ? '0.12' : '0.04') + '),rgba(212,175,55,' + (isMe ? '0.08' : '0.02') + '));border:1px solid ' + (isMe ? 'rgba(212,175,55,0.4)' : 'var(--card-border)') + ';border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:12px">' +
@@ -8523,7 +8606,7 @@ function _showProfit(elId, profit) {
   const el = document.getElementById(elId);
   if (!el) return;
   // Profit is visible to owner and manager only
-  if (creds.role === 'employee') { el.style.display = 'none'; return; }
+  if (!can('see_cost')) { el.style.display = 'none'; return; }
   if (profit === null) { el.style.display = 'none'; return; }
   const cur = state.currency || '€';
   const isEl = lang === 'el';
@@ -8533,7 +8616,7 @@ function _showProfit(elId, profit) {
 
 async function renderSalesPanel() {
   const allSales = await getSales();
-  const isEmp = creds.role === 'employee';
+  const isEmp = !can('see_cost');
   // Employees only see the employee leaderboard view
   if (isEmp && _spView !== 'employee') {
     _spView = 'employee';
@@ -8790,7 +8873,7 @@ function _spRenderSalesList(elId, salesArr) {
     listEl.innerHTML = '<div class="sp-empty">' + t('salesNoSales') + '</div>';
     return;
   }
-  const isEmp = creds.role === 'employee';
+  const isEmp = !can('see_cost');
   const cur = state.currency || '€';
   listEl.innerHTML = entries.map(e => {
     const metaParts = [fmtDate(e.date), e.vendor ? e.vendor : '', e.note ? e.note : ''];
@@ -9543,7 +9626,7 @@ function calculate() {
   } else {
     // Show purchase cost for owner/manager instead
     const _piPurchaseCost = parseFloat(_lastScannedInvEntry?.purchaseCost) || null;
-    if (_piPurchaseCost && creds.role !== 'employee') {
+    if (_piPurchaseCost && can('see_cost')) {
       rows.push([lang==='el'?'💰 Κόστος Αγοράς (χωρίς ΦΠΑ)':'💰 Purchase Cost (ex. VAT)', cur+_piPurchaseCost.toFixed(2)]);
       const _piProfit = preVat - _piPurchaseCost;
       const _piProfitPct = _piPurchaseCost > 0 ? (_piProfit / _piPurchaseCost * 100).toFixed(0) : 0;
@@ -9567,7 +9650,7 @@ function calculate() {
   }
   rows.push([t('rFinalPrice'), cur+finalPrice.toFixed(2)]);
 
-  const isEmployee = creds.role === 'employee';
+  const isEmployee = !can('see_cost');
   const visibleRows = isEmployee
     ? rows.filter((_,i) => {
         const isLast = i === rows.length - 1;
@@ -9849,7 +9932,7 @@ function vendorAvatarColor(name) {
 
 function renderVendors() {
   const cur = state.currency || '€';
-  const isEmployee = creds.role === 'employee';
+  const isEmployee = !can('see_cost');
 
   document.getElementById('vendorList').innerHTML = state.vendors.map((v,i) => {
     const cats = getVendorCategories(v);
@@ -11704,7 +11787,7 @@ function lookupCode(raw, opts) {
           _rows.push([_isEl ? 'Τιμή χωρίς ΦΠΑ' : 'Price before VAT', cur + _preVat.toFixed(2)]);
           _rows.push([_isEl ? `ΦΠΑ ${parseFloat(state.vat)||0}%` : `VAT ${parseFloat(state.vat)||0}%`, cur + _vatAmt.toFixed(2)]);
           _rows.push([_isEl ? 'ΤΕΛΙΚΗ ΤΙΜΗ' : 'FINAL PRICE', cur + _fixedPrice.toFixed(2)]);
-          const _isEmployee = creds.role === 'employee';
+          const _isEmployee = !can('see_cost');
           const _visibleRows = _isEmployee ? [_rows[_rows.length - 1]] : _rows;
           document.getElementById('resultRows').innerHTML = _visibleRows.map(([l,v], i) =>
             `<div class="result-row${i===_visibleRows.length-1?' total':''}"><span class="r-label">${l}</span><span class="r-value">${v}</span></div>`
@@ -11854,7 +11937,7 @@ function lookupCode(raw, opts) {
 }
 
 function printReferenceCard() {
-  if (creds.role === 'employee') {
+  if (!can('see_cost')) {
     doPrintRefCard(false);
   } else {
     // Owner: show options modal
@@ -12113,7 +12196,7 @@ function _staleCollect(threshold) {
   return rows;
 }
 function openStaleReport() {
-  if (!isOwnerOrManager()) return;
+  if (!can('export')) return;
   document.getElementById('staleOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'staleOverlay';
@@ -12251,7 +12334,7 @@ function _iePill(group, val, btn) { const set = _ieOpts[group]; if (set.has(val)
 function _ieGroup(btn) { _ieOpts.group = !_ieOpts.group; btn.classList.toggle('sel', _ieOpts.group); }
 
 async function openInvExportSheet() {
-  if (!isOwnerOrManager()) return;
+  if (!can('export')) return;
   const sheet = document.getElementById('invExportSheet');
   if (!sheet) return;
   const isEl = lang === 'el';
@@ -12551,7 +12634,7 @@ async function stkRefreshBanner() {
     }
   }
   const footer = document.getElementById('stkOwnerFooter');
-  if (footer) footer.style.display = (isOwnerOrManager() && _stkActive) ? 'block' : 'none';
+  if (footer) footer.style.display = (can('stocktake') && _stkActive) ? 'block' : 'none';
 }
 
 async function stkStart() {
@@ -12589,7 +12672,7 @@ async function stkOpenScanner() {
   overlay.style.display = 'flex';
   const myEl = document.getElementById('stkMyCount'); if (myEl) myEl.textContent = _stk.myCount;
   const fb = document.getElementById('stkFeedback'); if (fb) fb.textContent = '';
-  const footer = document.getElementById('stkOwnerFooter'); if (footer) footer.style.display = isOwnerOrManager() ? 'block' : 'none';
+  const footer = document.getElementById('stkOwnerFooter'); if (footer) footer.style.display = can('stocktake') ? 'block' : 'none';
   const status = document.getElementById('stkStatus');
   // The scanner opens straight from the banner, so the Stock tab (which lazily loads
   // the inventory cache) may never have run — load it now, or every scan resolves to
@@ -14193,7 +14276,7 @@ function openInvSortSheet() {
   const sheet = document.getElementById('invSortSheet');
   const opts = document.getElementById('invSortOptions');
   if (!sheet || !opts) return;
-  const _empInv = creds.role === 'employee';
+  const _empInv = !can('see_cost');
   opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv)).map(o => {
     const active = _invSort === o.key;
     return `<button onclick="setInvSort('${o.key}')" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:${active ? 'rgba(212,175,55,0.15)' : 'var(--wa03)'};border:1px solid ${active ? 'rgba(212,175,55,0.5)' : 'var(--wa08)'};border-radius:10px;color:${active ? 'var(--gold-light)' : 'var(--text-light)'};font-family:var(--font-body);font-size:13px;cursor:pointer;text-align:left">
@@ -14345,7 +14428,7 @@ function openInvFilterSheet() {
   // (a type filter otherwise can't match them, since they belong to no type).
   if (items.some(i => !i.jewelryType)) types.push('__notype__');
   // Employees don't handle bullion coins or raw/scrap metal — hide those type filters from them.
-  if (creds.role === 'employee') {
+  if (!can('manage_stock')) {
     for (const k of ['coin', 'metal']) { const _i = types.indexOf(k); if (_i >= 0) types.splice(_i, 1); }
   }
   const vendors = [...new Set(items.map(i => i.vendorName).filter(Boolean))].sort();
@@ -14498,13 +14581,13 @@ function openInvFilterSheet() {
   // Mixed metal toggle pill
   const mixedMetalGroup = `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterMixed')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_invFilters.mixedMetal?' sel':''}" data-group="mixedMetal" data-val="1">${t('invFilterMixed')}</button></div></div>`;
   // Gain % threshold (owner/manager only — mirrors the appreciation line, hidden from employees)
-  const gainGroup = (creds.role === 'employee') ? '' :
+  const gainGroup = (!can('see_cost')) ? '' :
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterGain')}</div><div class="inv-fs-pills">` +
     [3, 5, 10].map(v => `<button class="inv-fs-pill${_invFilters.gainMin===v?' sel':''}" data-group="gain" data-val="${v}">&gt; +${v}%</button>`).join('') +
     `</div></div>`;
 
   // Time in stock (owner/manager only) — spot long-sitting pieces to discount.
-  const seasonGroup = (creds.role === 'employee') ? '' :
+  const seasonGroup = (!can('see_cost')) ? '' :
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterAge')}</div><div class="inv-fs-pills">` +
     [1, 2, 3, 5].map(v => `<button class="inv-fs-pill${_invFilters.seasonMin===v?' sel':''}" data-group="season" data-val="${v}">${v}+ ${t('invSeasonWord')}</button>`).join('') +
     `</div></div>`;
@@ -14886,7 +14969,7 @@ function renderInvSummary(filteredItems) {
     }
   });
   document.getElementById('invStatPieces').textContent = totalFiltered;
-  const _isEmpSummary = creds.role === 'employee';
+  const _isEmpSummary = !can('see_cost');
   document.getElementById('invStatRetail').textContent = _isEmpSummary ? '—' : (totalRetail > 0 ? cur + totalRetail.toFixed(2) : '—');
   document.getElementById('invStatMetal').textContent = _isEmpSummary ? '—' : (totalMetal > 0 ? cur + Math.round(totalMetal).toLocaleString() : '—');
   // Appreciation % on the Retail & Metal totals (owner/manager only). Green up / red down,
@@ -14950,7 +15033,7 @@ function toggleInvStat(idx) {
 
 function renderInvList() {
   const cur = state.currency || '€';
-  const _isEmpInv = creds.role === 'employee';
+  const _isEmpInv = !can('see_cost');
   const container = document.getElementById('invList');
   if (!container) return;
   // Reset windowing state — a real page render below re-populates it.
@@ -16709,7 +16792,7 @@ function invEdit(id) {
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:8px">${lang==='el'?'Φωτογραφία Κοσμήματος':'Jewelry Photo'}</label>
       <div id="invEditPhotoPickerWrap"></div>
     </div>
-    ${(creds.role !== 'employee' && item.status !== 'sold' && !item.isBulk) ? `
+    ${(can('manage_stock') && item.status !== 'sold' && !item.isBulk) ? `
     <button type="button" onclick="invAddSimilar('${id}')" style="width:100%;padding:12px;margin-bottom:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</button>` : ''}
     <div style="display:flex;gap:10px">
       <button id="invEditSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('invEditSave')}</button>
@@ -18354,7 +18437,7 @@ function coinNumistaWeightUrl(weight, metal) {
 }
 
 function openAddCoinModal(prefillKey) {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   document.getElementById('addCoinOverlay')?.remove();
   const isEl = lang === 'el';
   let initMetal = 'gold';
@@ -18587,7 +18670,7 @@ function _addCoinUpdatePreview() {
 }
 
 async function _addCoinConfirm() {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   const isEl = lang === 'el';
   const spec = _addCoinCurrentSpec();
   if (!spec || !(spec.pure > 0)) { showToast(isEl?'⚠️ Συμπληρώστε τα στοιχεία':'⚠️ Fill in the coin details'); return; }
@@ -18737,7 +18820,7 @@ function _metalCurrentSpec() {
 }
 
 function openMetalModal(mode, prefill) {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   prefill = prefill || {};
   document.getElementById('metalOverlay')?.remove();
   const isEl = lang === 'el';
@@ -18896,7 +18979,7 @@ async function _recordScrapGain(gain, note) {
 }
 
 async function _metalConfirm() {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   const isEl = lang === 'el';
   const spec = _metalCurrentSpec();
   if (!spec || !(spec.pure > 0)) { showToast(isEl ? '⚠️ Συμπληρώστε τα στοιχεία' : '⚠️ Fill in the details'); return; }
@@ -18989,7 +19072,7 @@ async function _metalConfirm() {
 // both "start a batch" (from any single item, via Edit) and "＋ Add more" (from a
 // group). Owner/manager only.
 function invAddSimilar(sourceId) {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   const source = _inventoryCache[sourceId];
   if (!source) return;
   // Close any edit / group overlay so the add sheet is on top
@@ -19841,8 +19924,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.34', date: 'Ιούλιος 2026', items: [
-        '➕ Το κουμπί «+» στην κάρτα του κοσμήματος στέλνει τώρα τον ΚΩΔΙΚΟ ΑΝΑΦΟΡΑΣ στην Αριθμομηχανή, όπως ακριβώς αν σκανάρατε την ετικέτα του. Πριν έστελνε τον εσωτερικό κωδικό, οπότε αν άλλα κομμάτια είχαν το ίδιο βάρος εμφανιζόταν άσκοπα η ερώτηση «ποιο κρατάτε;» — ενώ η εφαρμογή ήξερε ήδη ακριβώς ποιο πατήσατε. Τώρα ανοίγει κατευθείαν το σωστό κομμάτι.'
+      { version: 'v11.35', date: 'Ιούλιος 2026', items: [
+        '🔑 Ο ρόλος «Διευθυντής» έγινε πραγματικός. Μέχρι τώρα ένας διευθυντής είχε ουσιαστικά όλα τα δικαιώματα του ιδιοκτήτη. Πλέον τρέχει κανονικά το μαγαζί (απόθεμα, προμηθευτές, πωλήσεις, κόστη, απογραφή, εξαγωγές) αλλά ΔΕΝ αλλάζει ΦΠΑ/κέρδος, δεν βλέπει τον Συγχρονισμό και δεν κάνει αντίγραφα ασφαλείας.',
+        '👥 Η «Ομάδα» απέκτησε δική της οθόνη στο μενού ☰, χωριστά από τον Συγχρονισμό — άλλο η διαχείριση ατόμων, άλλο η ρύθμιση της συσκευής.',
+        '➕ Στην προσθήκη ατόμου διαλέγετε πλέον ρόλο από τρεις σαφείς επιλογές (Ιδιοκτήτης / Διευθυντής / Υπάλληλος), η καθεμία με μια γραμμή που εξηγεί τι μπορεί να κάνει. Ένας διευθυντής μπορεί να προσθέσει μόνο υπαλλήλους.'
       ]},
           ]
   },
@@ -19873,8 +19958,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.34', date: 'Jul 2026', items: [
-        '➕ The "+" button on a stock card now sends the REFERENCE code to the Calculator, exactly as if you had scanned that piece΄s tag. It used to send the internal code, so if other pieces shared the same weight you got the "which one are you holding?" question for no reason — when the app already knew exactly which one you tapped. It now opens the right piece straight away.'
+      { version: 'v11.35', date: 'Jul 2026', items: [
+        '🔑 The Manager role is now real. Until now a manager effectively had every owner power. A manager now runs the shop properly (stock, vendors, sales, costs, stocktake, exports) but can NOT change VAT/margin, cannot see the Sync screen, and cannot make or restore backups.',
+        '👥 Team moved to its own screen in the ☰ menu, separate from Sync — managing people and setting up this device are two different jobs.',
+        '➕ Adding a person now offers three clear roles (Owner / Manager / Employee), each with one line explaining what they can do. A manager can only add employees.'
       ]},
           ]
   }
@@ -21537,7 +21624,7 @@ function renderHistory(search) {
       return;
     }
 
-    const isOwner = isOwnerOrManager();
+    const isOwner = can('see_cost');
     list.innerHTML = filtered.map(e => `
       <div style="background:var(--dark-3);border:1px solid ${e.sold ? 'rgba(39,174,96,0.35)' : 'var(--wa07)'};border-radius:6px;padding:12px 14px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -22510,18 +22597,43 @@ function userNameAutoSlug() {
   slugEl.value = nameToSlug(nameEl.value);
 }
 
+// What each role actually means, in plain language — shown next to the choice so the owner
+// picks by consequence rather than by job title.
+function _roleChoices() {
+  const isEl = lang === 'el';
+  return [
+    { role: 'owner', icon: '👑',
+      name: isEl ? 'Ιδιοκτήτης' : 'Owner',
+      desc: isEl ? 'Πλήρης πρόσβαση, χωρίς κανένα όριο.' : 'Full access, no limits at all.' },
+    { role: 'manager', icon: '🔑',
+      name: isEl ? 'Διευθυντής' : 'Manager',
+      desc: isEl ? 'Τρέχει το μαγαζί καθημερινά: απόθεμα, προμηθευτές, πωλήσεις, κόστη. Δεν αλλάζει ΦΠΑ/κέρδος, συγχρονισμό ή αντίγραφα ασφαλείας.'
+                 : 'Runs the shop day to day: stock, vendors, sales, costs. Cannot change VAT/margin, sync, or backups.' },
+    { role: 'employee', icon: '👤',
+      name: isEl ? 'Υπάλληλος' : 'Employee',
+      desc: isEl ? 'Καθημερινή δουλειά στον πάγκο: υπολογισμός, σάρωση, πώληση, κρατήσεις. Χωρίς κόστη ή διαχείριση.'
+                 : 'Everyday counter work: calc, scan, sell, reserve. No costs or admin.' }
+  ].filter(c => canAssignRole(c.role));
+}
+
+function _renderRoleOptions() {
+  const box = document.getElementById('userRoleOptions');
+  if (!box) return;
+  box.innerHTML = _roleChoices().map(c => {
+    const on = _addUserRole === c.role;
+    return `<button onclick="setUserRole('${c.role}')" style="width:100%;display:block;text-align:left;padding:10px 12px;margin-bottom:6px;border-radius:8px;cursor:pointer;transition:all .15s;
+      background:${on ? 'rgba(212,175,55,0.15)' : 'var(--dark-3)'};
+      border:1px solid ${on ? 'rgba(212,175,55,0.6)' : 'var(--wa10)'}">
+      <div style="font-family:var(--font-body);font-size:12.5px;font-weight:700;color:${on ? 'var(--gold-light)' : 'var(--text)'}">${c.icon} ${c.name}${on ? ' ✓' : ''}</div>
+      <div style="font-family:var(--font-body);font-size:10.5px;color:var(--text-muted);line-height:1.5;margin-top:2px">${c.desc}</div>
+    </button>`;
+  }).join('');
+}
+
 function setUserRole(role) {
+  if (!canAssignRole(role)) return;   // a manager cannot create a manager or an owner
   _addUserRole = role;
-  const empBtn = document.getElementById('userRoleEmployee');
-  const mgrBtn = document.getElementById('userRoleManager');
-  if (empBtn) {
-    empBtn.style.background = _addUserRole === 'employee' ? 'linear-gradient(135deg,#C9A84C,#A8882A)' : 'transparent';
-    empBtn.style.color = _addUserRole === 'employee' ? 'var(--dark)' : 'var(--text-muted)';
-  }
-  if (mgrBtn) {
-    mgrBtn.style.background = _addUserRole === 'manager' ? 'linear-gradient(135deg,#C9A84C,#A8882A)' : 'transparent';
-    mgrBtn.style.color = _addUserRole === 'manager' ? 'var(--dark)' : 'var(--text-muted)';
-  }
+  _renderRoleOptions();
 }
 
 function openAddUserModal(slug) {
@@ -22550,7 +22662,9 @@ function openAddUserModal(slug) {
   } else {
     if (title) title.textContent = lang==='el' ? 'Νέο Μέλος' : 'New Member';
   }
-  setUserRole(_addUserRole);
+  // Render directly (not via setUserRole) so an existing member whose role this user may not
+  // assign — e.g. a manager opening an owner's card — still shows their current role.
+  _renderRoleOptions();
   modal.style.display = 'flex';
   { const _sd=modal.querySelector('div'); if(_sd)_sd.scrollTop=0; }
   setTimeout(() => document.getElementById('userNameInput').focus(), 100);
@@ -22570,6 +22684,11 @@ async function saveUser() {
 
   if (!name) { statusEl.textContent = lang==='el' ? 'Εισάγετε όνομα' : 'Enter a name'; return; }
   if (!slug) { statusEl.textContent = lang==='el' ? 'Εισάγετε username' : 'Enter a username'; return; }
+  // A manager may only ever create or keep an employee — never promote anyone.
+  if (!canAssignRole(_addUserRole)) {
+    statusEl.textContent = lang==='el' ? 'Δεν έχετε δικαίωμα για αυτόν τον ρόλο' : 'You cannot assign that role';
+    return;
+  }
 
   const users = await getUsers();
 
@@ -22616,8 +22735,10 @@ function shareUserLink(slug, name, nameEn, role) {
   const appUrl = window.location.origin + '/jewelprice.htm';
   const firebaseUrl = creds.binId;
   if (!firebaseUrl) { showToast(lang==='el' ? '⚠️ Αποθηκεύστε πρώτα το Firebase URL' : '⚠️ Save Firebase URL first'); return; }
-  const resolvedRole = role === 'manager' ? 'manager' : 'employee';
-  const roleIcon = resolvedRole === 'manager' ? '👑' : '👤';
+  // Owner is a real choice now, so it must survive into the link — collapsing anything that
+  // isn't "manager" to "employee" would have silently invited a co-owner as an employee.
+  const resolvedRole = (role === 'owner' || role === 'manager') ? role : 'employee';
+  const roleIcon = resolvedRole === 'owner' ? '👑' : resolvedRole === 'manager' ? '🔑' : '👤';
   let url = `${appUrl}?firebase=${encodeURIComponent(firebaseUrl)}&role=${resolvedRole}&user=${encodeURIComponent(slug)}&name=${encodeURIComponent(name)}`;
   if (creds.dbSecret) url += `&secret=${encodeURIComponent(creds.dbSecret)}`;
   if (nameEn) url += `&name_en=${encodeURIComponent(nameEn)}`;
@@ -22671,9 +22792,9 @@ function renderTeamList(users) {
           <div style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);margin-top:1px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">${roleLabel} ${bonusTag} ${inactiveTag}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
-          <button onclick="openAddUserModal('${slug}')" style="width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center" title="${lang==='el'?'Επεξεργασία':'Edit'}">✏️</button>
-          <button onclick="shareUserLink('${slug}','${safeName}','${safeNameEn}','${u.role}')" style="width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(61,170,106,0.5);color:#3DAA6A;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center" title="${lang==='el'?'Κοινοποίηση link':'Share link'}">📤</button>
-          ${!isMe ? `<button onclick="toggleUserActive('${slug}')" style="width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(224,80,80,0.4);color:var(--danger);cursor:pointer;font-size:11px;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center" title="${u.active?(lang==='el'?'Απενεργοποίηση':'Deactivate'):(lang==='el'?'Επανενεργοποίηση':'Reactivate')}">${u.active?'⏸':'▶'}</button>` : ''}
+          ${canAssignRole(u.role || 'employee') ? `<button onclick="openAddUserModal('${slug}')" style="width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center" title="${lang==='el'?'Επεξεργασία':'Edit'}">✏️</button>` : ''}
+          ${canAssignRole(u.role || 'employee') ? `<button onclick="shareUserLink('${slug}','${safeName}','${safeNameEn}','${u.role}')" style="width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(61,170,106,0.5);color:#3DAA6A;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center" title="${lang==='el'?'Κοινοποίηση link':'Share link'}">📤</button>` : ''}
+          ${(!isMe && canAssignRole(u.role || 'employee')) ? `<button onclick="toggleUserActive('${slug}')" style="width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(224,80,80,0.4);color:var(--danger);cursor:pointer;font-size:11px;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center" title="${u.active?(lang==='el'?'Απενεργοποίηση':'Deactivate'):(lang==='el'?'Επανενεργοποίηση':'Reactivate')}">${u.active?'⏸':'▶'}</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -22681,7 +22802,7 @@ function renderTeamList(users) {
 }
 
 async function loadTeamSection() {
-  if (!isOwnerOrManager() || !creds.binId) return;
+  if (!canManageTeam() || !creds.binId) return;
   const teamSection = document.getElementById('teamSection');
   if (teamSection) teamSection.style.display = '';
   const users = await pullUsersFromCloud();
@@ -22868,7 +22989,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.34';
+const APP_VERSION = '11.35';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -23579,7 +23700,7 @@ function updateInvShareBar() {
     const n = _invSelected.size;
     count.textContent = n + (lang === 'el' ? ' επιλεγμέν' + (n === 1 ? 'ο' : 'α') : ' selected');
     // Totals — owner/manager only
-    if (totalsRow && creds.role !== 'employee' && n > 0) {
+    if (totalsRow && can('see_cost') && n > 0) {
       const cur = state.currency || '€';
       let totalCost = 0, totalRetail = 0, totalMetal = 0;
       [..._invSelected].forEach(id => {
@@ -23649,7 +23770,7 @@ function invShareSelected() {
 // one Stock card. Reuses an existing groupId already in the selection (so a single
 // item can be folded into an existing group), else mints a new one. Owner/manager only.
 function invGroupSelected() {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   const ids = [..._invSelected].filter(id => {
     const it = (_inventoryCache || {})[id];
     return it && !it.isBulk && it.status !== 'sold';
@@ -23679,7 +23800,7 @@ function openInvGroup(gid) {
   const members = Object.entries(_inventoryCache || {})
     .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
   if (!members.length) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
-  const isEmp = creds.role === 'employee';
+  const isEmp = !can('see_cost');
   const cur = state.currency || '€';
   const rep = members[0][1];
   // Long piece lists (e.g. 107 identical coins) are collapsed by default so the Add /
@@ -23829,7 +23950,7 @@ function invShareGroup(gid) {
 // Delete every in-stock piece of a group in one go (one confirmation), for cleaning up
 // a whole batch (e.g. coins added by mistake) without deleting 30 items one by one.
 function invDeleteGroup(gid) {
-  if (creds.role === 'employee') return;
+  if (!can('manage_stock')) return;
   const members = Object.entries(_inventoryCache || {})
     .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
   if (!members.length) { closeInvGroup(); return; }
@@ -25143,7 +25264,7 @@ function calculateOtherPrice() {
   if (custDiscPct > 0) rows.push([isEl ? `Έκπτωση ${custDiscPct}%` : `Discount ${custDiscPct}%`, '-' + cur + custDiscAmt.toFixed(2)]);
   rows.push([isEl ? 'Τελική Τιμή' : 'Final Price', cur + finalPrice.toFixed(2)]);
 
-  const isEmployee = creds.role === 'employee';
+  const isEmployee = !can('see_cost');
   const visibleRows = isEmployee
     ? rows.filter((_, i) => i === rows.length - 1 || (custDiscPct > 0 && i === rows.length - 2))
     : rows;
@@ -25324,10 +25445,9 @@ function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='') {
 
     <div style="margin-bottom:12px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px" data-i18n="userRoleLabel">Ρόλος</label>
-      <div style="display:flex;gap:0;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;overflow:hidden">
-        <button id="userRoleEmployee" onclick="setUserRole('employee')" style="flex:1;padding:9px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);transition:all 0.2s" data-i18n="employee">👤 Υπάλληλος</button>
-        <button id="userRoleManager" onclick="setUserRole('manager')" style="flex:1;padding:9px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all 0.2s" data-i18n="manager">👑 Διευθυντής</button>
-      </div>
+      <!-- Rendered by _renderRoleOptions(): one row per role, each with a plain-language line.
+           Which roles appear depends on canAssignRole() — a manager may only add employees. -->
+      <div id="userRoleOptions"></div>
     </div>
 
     <div style="margin-bottom:20px">
