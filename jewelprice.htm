@@ -4961,7 +4961,7 @@ function openGiftModal() {
   if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
   const isEl = lang === 'el';
   const cur = state.currency || '€';
-  const dflt = new Date(Date.now() + GC_DEFAULT_TERM_DAYS * 864e5).toISOString().slice(0, 10);
+  const dflt = dateStrInDays(GC_DEFAULT_TERM_DAYS);
   document.getElementById('giftModalOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'giftModalOverlay';
@@ -4998,7 +4998,14 @@ function openGiftModal() {
     <div id="gcCashNote" style="display:none;font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.45"></div>
 
     <div style="${_resLbl};margin-top:12px">${isEl ? 'Ισχύει έως' : 'Valid until'}</div>
-    <input id="gcExpires" type="date" value="${dflt}" style="${_resInp}">
+    <!-- A native date input renders in the DEVICE's locale (an iPhone set to US
+         shows 07/18/2027), which is not ours to control. Same trick as the
+         reservation hold-until: keep the native picker but make it invisible
+         over our own fmtDate display, so the date always reads DD/MM/YYYY. -->
+    <div style="position:relative;margin-bottom:10px">
+      <div id="gcExpiresDisp" style="${_resInp.replace('margin-bottom:10px','margin-bottom:0')}">${fmtDate(dflt)}</div>
+      <input id="gcExpires" type="date" value="${dflt}" onchange="var _d=document.getElementById('gcExpiresDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
     <div style="font-size:11px;color:var(--text-muted);margin:-4px 0 12px;line-height:1.45">${isEl ? 'Προεπιλογή 1 έτος — αλλάξτε το ελεύθερα.' : 'Defaults to 1 year — change it freely.'}</div>
 
     <button id="gcSaveBtn" onclick="_gcSave()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Έκδοση' : 'Issue'}</button>
@@ -5141,7 +5148,7 @@ function openGiftCardDetail(id) {
       ${g.buyerPhone ? `<button onclick="_gcNotify('${g.id}','sms')" style="flex:1;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font-body);cursor:pointer">SMS</button>` : ''}
       ${g.buyerEmail ? `<button onclick="_gcNotify('${g.id}','email')" style="flex:1;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font-body);cursor:pointer">Email</button>` : ''}
     </div>
-    ${g.notifiedAt ? `<div style="font-size:10px;color:var(--text-dim)">${isEl ? 'Ειδοποιήθηκε' : 'Notified'}: ${fmtDate(new Date(g.notifiedAt).toISOString().slice(0, 10))}</div>` : ''}` : '';
+    ${g.notifiedAt ? `<div style="font-size:10px;color:var(--text-dim)">${isEl ? 'Ειδοποιήθηκε' : 'Notified'}: ${fmtDate(localDateStr(new Date(g.notifiedAt)))}</div>` : ''}` : '';
 
   // Expired with money left on it — the owner decides, with one tap, whether
   // that becomes income. Never automatic.
@@ -5187,7 +5194,7 @@ function openGiftCardDetail(id) {
       ${spent > 0 ? row(isEl ? 'Εξαργυρώθηκε' : 'Redeemed', '−' + cur + spent.toFixed(2)) : ''}
       ${row(isEl ? 'Πληρώθηκε με' : 'Paid by', payLabel + ' · ' + receiptLabel)}
       ${g.expiresAt ? row(isEl ? 'Ισχύει έως' : 'Valid until', fmtDate(g.expiresAt)) : ''}
-      ${row(isEl ? 'Εκδόθηκε' : 'Issued', fmtDate(new Date(g.dateCreated || Date.now()).toISOString().slice(0, 10)))}
+      ${row(isEl ? 'Εκδόθηκε' : 'Issued', fmtDate(localDateStr(new Date(g.dateCreated || Date.now()))))}
     </div>
 
     ${redemptionLog}
@@ -5243,7 +5250,7 @@ function _gcNotify(id, channel) {
 function _gcExtend(id) {
   const g = gcFindById(id); if (!g) return;
   const isEl = lang === 'el';
-  const next = new Date(Date.now() + GC_DEFAULT_TERM_DAYS * 864e5).toISOString().slice(0, 10);
+  const next = dateStrInDays(GC_DEFAULT_TERM_DAYS);
   showConfirm(
     isEl ? `Παράταση της ${gcNoFmt(g)} έως ${fmtDate(next)};` : `Extend ${gcNoFmt(g)} until ${fmtDate(next)}?`,
     () => {
@@ -5491,7 +5498,8 @@ function buildGiftCertHTML(g) {
   const cur = state.currency || '€';
   const esc = _gcEsc;
   const amount = parseFloat(g.amount) || 0;
-  const issued = fmtDate(new Date(g.dateCreated || Date.now()).toISOString().slice(0, 10));
+  // Local date — a certificate issued at 22:00 must not print yesterday.
+  const issued = fmtDate(localDateStr(new Date(g.dateCreated || Date.now())));
   const address = isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00';
   // Payload is the certificate number only — see gcFindByCode. The hyphen is
   // what keeps it distinct from an item/coin reference code.
@@ -5779,7 +5787,7 @@ function openReserveDialog(items, source) {
   _resDlgItems = items;
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const sum = items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
-  const dflt = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10); // default hold ~2 weeks
+  const dflt = dateStrInDays(14); // default hold ~2 weeks
   document.getElementById('reserveDialogOverlay')?.remove();
   const itemsHtml = items.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 10px;margin-bottom:5px">
     <div style="min-width:0"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div>
@@ -6321,7 +6329,7 @@ function openRepairModal() {
   if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
   _repPendingPhoto = null; _repPendingPhotoHi = null;
   const isEl = lang === 'el';
-  const dflt = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const dflt = dateStrInDays(7);
   document.getElementById('repairModalOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'repairModalOverlay';
@@ -8142,9 +8150,27 @@ let _scanChosenInvId = null;        // id picked in the variant chooser (null = 
 let _refPinnedInvId = null;
 let _refPinnedForCode = null;   // the descriptive code the pin applies to (upper-cased)
 
+// Today's date as the SHOP sees it. Must be the local calendar date, never
+// toISOString() — that converts to UTC, and Karpathos is UTC+3 in summer, so
+// between 21:00 and midnight it returned YESTERDAY. Every evening sale was
+// being filed on the previous day (and a sale just after midnight on the 1st
+// landed in the previous month). Date inputs also hand back local calendar
+// dates, so this keeps typed dates and "today" on the same footing.
 function todayStr() {
+  return localDateStr(new Date());
+}
+// YYYY-MM-DD for a Date, in local time.
+function localDateStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+// Local calendar date N days from now — for "valid until" / "hold until"
+// defaults, which had the same UTC drift.
+function dateStrInDays(n) {
   const d = new Date();
-  return d.toISOString().slice(0,10); // YYYY-MM-DD
+  d.setDate(d.getDate() + n);
+  return localDateStr(d);
 }
 
 // Central date formatter — uses state.dateLocale, falls back to el-GR
@@ -14125,7 +14151,7 @@ async function pruneCloudBackups() {
 // Runs on app open: makes at most one automatic snapshot per calendar day.
 async function autoBackupIfDue() {
   if (!creds.binId || !creds.dbSecret) return; // only writable (owner/manager) devices
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr(); // local calendar day, so the daily gate rolls at midnight here
   if (localStorage.getItem('jpro_lastAutoBackup') === today) return;
   try {
     await createCloudBackup('auto');
@@ -21058,15 +21084,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.41', date: 'Ιούλιος 2026', items: [
-        '🎁 ΝΕΟ — Δωροεπιταγές. Πάγκος → Δωροεπιταγές: εκδώστε μία με ποσό, στοιχεία αγοραστή, προαιρετικό «Προς» και αφιέρωση. Τυπώστε ή στείλτε την ως κομψό έντυπο A4 (οριζόντιο, χρυσό πλαίσιο, θέση υπογραφής και σφραγίδας, QR).',
-        '💶 Καμία καταχώριση στις Πωλήσεις κατά την έκδοση — τα χρήματα δεν είναι ακόμη κέρδος. Η πώληση καταγράφεται όταν εξαργυρωθεί η επιταγή. Το σύνολο σε κυκλοφορία φαίνεται στη λίστα.',
-        '🛍️ Εξαργύρωση: στο παράθυρο πώλησης πατήστε «Δωροεπιταγή», επιλέξτε την (ή σαρώστε το QR) και εμφανίζεται πόσα μένουν να εισπραχθούν. Το ποσό της πώλησης ΔΕΝ μειώνεται — καταγράφεται ολόκληρο, ώστε τα βιβλία να μένουν σωστά.',
-        '🧮 Μικτή πληρωμή: αν τα €100 της επιταγής είχαν ληφθεί ως μετρητά και τα υπόλοιπα €60 με απόδειξη, ο ΦΠΑ υπολογίζεται χωριστά για κάθε μέρος (σε πώληση €160 με κόστος €50: κέρδος €101.28).',
-        '⏰ Λήξη 1 έτος από προεπιλογή (αλλάζει ελεύθερα). 30 μέρες πριν, πράσινη ειδοποίηση στο καμπανάκι με κουμπί επικοινωνίας (WhatsApp / SMS / Email). Τα μηνύματα συναδέλφων μένουν κόκκινα.',
-        '💰 Ληγμένη επιταγή με υπόλοιπο: με ΕΝΑ πάτημα καταχωρείται ως καθαρό κέρδος — ή δίνετε παράταση. Ποτέ αυτόματα.',
-        '✨ Οι δωροεπιταγές δέχονται και παραγγελίες κατά παραγγελία (όχι επισκευές). Η διαγραφή μιας πώλησης επιστρέφει το υπόλοιπο στην επιταγή.',
-        '🇬🇷 Διόρθωση: τα ελληνικά κεφαλαία στα εκτυπωμένα έντυπα δεν παίρνουν πια τόνο — «ΑΠΟΔΕΙΞΗ ΚΡΑΤΗΣΗΣ», «ΠΙΣΤΟΠΟΙΗΤΙΚΟ ΑΥΘΕΝΤΙΚΟΤΗΤΑΣ», «ΥΠΟΓΡΑΦΗ», «ΣΦΡΑΓΙΔΑ».'
+      { version: 'v11.42', date: 'Ιούλιος 2026', items: [
+        '📅 Η ημερομηνία λήξης στη δωροεπιταγή δείχνει πλέον ΗΗ/ΜΜ/ΕΕΕΕ (19/07/2027), όχι τη μορφή του κινητού (07/19/2027).',
+        '🕛 Διόρθωση: η εφαρμογή έπαιρνε την «σημερινή» ημερομηνία σε ώρα UTC. Η Ελλάδα είναι UTC+3 το καλοκαίρι, οπότε από τα μεσάνυχτα ως τις 03:00 καταχωρούσε τα πάντα στην ΠΡΟΗΓΟΥΜΕΝΗ μέρα — και μια πώληση στη 01:00 της 1ης Αυγούστου έμπαινε στον Ιούλιο. Τώρα χρησιμοποιείται πάντα η τοπική ημερομηνία.',
+        '📄 Το ίδιο ίσχυε για την ημερομηνία έκδοσης που τυπώνεται στη δωροεπιταγή και για τις προεπιλογές «ισχύει έως» / «κράτηση έως».'
       ]},
           ]
   },
@@ -21097,15 +21118,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.41', date: 'Jul 2026', items: [
-        '🎁 NEW — Gift certificates. Desk → Gift Cards: issue one with an amount, buyer details, an optional "To" name and a dedication. Print or send it as an elegant A4 certificate (landscape, gold border, signature line and stamp box, QR).',
-        '💶 Nothing is written to Sales when you issue one — that money is not earned yet. The sale is recorded when the certificate is redeemed. The total outstanding shows at the top of the list.',
-        '🛍️ Redeeming: in the sale dialog tap "Gift certificate", pick it (or scan its QR) and it shows what is still due in cash. The sale amount is NOT reduced — the full value is recorded, so your books stay right.',
-        '🧮 Mixed payment: if the €100 certificate was taken as cash and the remaining €60 with a receipt, VAT is worked out separately for each part (on a €160 sale costing €50: profit €101.28).',
-        '⏰ Expiry defaults to 1 year, editable per certificate. 30 days before, a green notification appears on the bell with a contact button (WhatsApp / SMS / Email). Employee messages stay red.',
-        '💰 Expired with a balance left: ONE tap books it as pure profit — or extend it for a good customer. Never automatic.',
-        '✨ Certificates also pay for custom orders (not repairs). Deleting a sale hands the balance back to the certificate.',
-        '🇬🇷 Fixed: Greek capitals on printed documents no longer keep their accent — ΑΠΟΔΕΙΞΗ ΚΡΑΤΗΣΗΣ, ΠΙΣΤΟΠΟΙΗΤΙΚΟ ΑΥΘΕΝΤΙΚΟΤΗΤΑΣ, ΥΠΟΓΡΑΦΗ, ΣΦΡΑΓΙΔΑ.'
+      { version: 'v11.42', date: 'Jul 2026', items: [
+        '📅 The expiry date on a gift certificate now reads DD/MM/YYYY (19/07/2027), not your phone\'s format (07/19/2027).',
+        '🕛 Fixed: the app took "today\'s" date in UTC. Greece is UTC+3 in summer, so between midnight and 03:00 it filed everything under the PREVIOUS day — and a sale at 01:00 on 1 August landed in July. It now always uses the local date.',
+        '📄 The same applied to the issue date printed on a gift certificate, and to the "valid until" / "hold until" defaults.'
       ]},
           ]
   }
@@ -24167,7 +24183,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.41';
+const APP_VERSION = '11.42';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
