@@ -6557,7 +6557,15 @@ function labelHistoryLoad(code) {
 
 function invLoadToCalc(id) {
   const item = (_inventoryCache || {})[id];
-  const code = (item && (item.qrCode || item.code)) || id;
+  // "+" means "pretend I just scanned this piece's tag" — and every tag carries the
+  // REFERENCE code. Sending the descriptive code instead threw away the one thing we
+  // already know for certain (which record was tapped): that code can legitimately match
+  // several pieces of the same weight/vendor/category, so it popped the "which one are you
+  // holding?" chooser for a piece there was never any doubt about. The ref code resolves
+  // straight to this exact record. A legacy piece with no seqId has no ref code and falls
+  // back to the descriptive one.
+  let code = id;
+  if (item) code = item.seqId ? itemRefCode(item) : (item.qrCode || item.code || id);
   showPanel('calc');
   const inp = document.getElementById('codeInput');
   if (inp) { inp.value = code; inp.focus(); }
@@ -19833,8 +19841,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.33', date: 'Ιούλιος 2026', items: [
-        '🧹 Ολοκλήρωση εκκαθάρισης: αφαιρέθηκε το προσωρινό εργαλείο «Έλεγχος Τιμών Πετρών» από τις Ρυθμίσεις (δεν χρειάζεται πια) και λίγος παλιός αχρησιμοποίητος κώδικας. Καμία αλλαγή στη λειτουργία — η εφαρμογή είναι απλώς πιο καθαρή.'
+      { version: 'v11.34', date: 'Ιούλιος 2026', items: [
+        '➕ Το κουμπί «+» στην κάρτα του κοσμήματος στέλνει τώρα τον ΚΩΔΙΚΟ ΑΝΑΦΟΡΑΣ στην Αριθμομηχανή, όπως ακριβώς αν σκανάρατε την ετικέτα του. Πριν έστελνε τον εσωτερικό κωδικό, οπότε αν άλλα κομμάτια είχαν το ίδιο βάρος εμφανιζόταν άσκοπα η ερώτηση «ποιο κρατάτε;» — ενώ η εφαρμογή ήξερε ήδη ακριβώς ποιο πατήσατε. Τώρα ανοίγει κατευθείαν το σωστό κομμάτι.'
       ]},
           ]
   },
@@ -19865,8 +19873,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.33', date: 'Jul 2026', items: [
-        '🧹 Finished the tidy-up: removed the temporary "Stone Price Audit" tool from Settings (no longer needed) and a little more old unused code. No change to how anything works — the app is just cleaner.'
+      { version: 'v11.34', date: 'Jul 2026', items: [
+        '➕ The "+" button on a stock card now sends the REFERENCE code to the Calculator, exactly as if you had scanned that piece΄s tag. It used to send the internal code, so if other pieces shared the same weight you got the "which one are you holding?" question for no reason — when the app already knew exactly which one you tapped. It now opens the right piece straight away.'
       ]},
           ]
   }
@@ -22860,7 +22868,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.33';
+const APP_VERSION = '11.34';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
