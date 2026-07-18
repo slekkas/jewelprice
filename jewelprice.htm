@@ -5034,20 +5034,31 @@ function _gcSetPay(method) {
       toggle.style.opacity = '0.45';
       toggle.style.cursor = 'not-allowed';
     } else {
+      // Picking Cash arms the no-receipt toggle. The two controls both say
+      // "Cash" and picking the tender reads as "this is a cash sale" — having
+      // them disagree by default silently charged VAT on money that never saw
+      // a receipt. Still un-pressable if a receipt WAS given for cash.
       toggle.disabled = false;
       toggle.style.opacity = '';
       toggle.style.cursor = 'pointer';
+      _setCashBtnState(toggle, true);
     }
   }
   if (note) {
+    note.style.display = '';
     if (traceable) {
-      note.style.display = '';
       note.textContent = isEl
         ? (method === 'card' ? 'Η πληρωμή με κάρτα αφήνει ίχνος στην τράπεζα — εκδίδεται πάντα απόδειξη.'
                              : 'Το έμβασμα αφήνει ίχνος στην τράπεζα — εκδίδεται πάντα απόδειξη.')
         : (method === 'card' ? 'A card payment leaves a trace at the bank — always issued with a receipt.'
                              : 'A bank transfer leaves a trace — always issued with a receipt.');
-    } else note.style.display = 'none';
+    } else {
+      // Spell out what the toggle means — it sits right under a payment-method
+      // row that also says "Cash", so its purpose has to be unmistakable.
+      note.textContent = isEl
+        ? 'Πατημένο = χωρίς απόδειξη. Πατήστε το ξανά αν δώσατε απόδειξη.'
+        : 'Pressed = no receipt. Un-press it if you did give a receipt.';
+    }
   }
 }
 
@@ -5207,8 +5218,11 @@ function openGiftCardDetail(id) {
 
     ${contactBtns}
 
-    ${canAdmin && (g.status === 'active' || g.status === 'expired') ? `
-    <button onclick="_gcCancel('${g.id}')" style="width:100%;margin-top:14px;padding:11px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.35);border-radius:8px;color:var(--danger);font-size:13px;font-family:var(--font-body);cursor:pointer">${isEl ? 'Ακύρωση δωροεπιταγής' : 'Cancel certificate'}</button>` : ''}
+    ${canAdmin ? `
+    <div style="display:flex;gap:7px;margin-top:14px">
+      <button onclick="openGiftEdit('${g.id}')" style="flex:1;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--font-body);cursor:pointer">✏️ ${isEl ? 'Επεξεργασία' : 'Edit'}</button>
+      ${(g.status === 'active' || g.status === 'expired') ? `<button onclick="_gcCancel('${g.id}')" style="flex:1;padding:11px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.35);border-radius:8px;color:var(--danger);font-size:13px;font-family:var(--font-body);cursor:pointer">${isEl ? 'Ακύρωση' : 'Cancel'}</button>` : ''}
+    </div>` : ''}
   </div>`;
   document.body.appendChild(ov);
 }
@@ -5243,6 +5257,158 @@ function _gcNotify(id, channel) {
     const rec = list.find(x => x.id === id);
     if (rec) { rec.notifiedAt = Date.now(); saveGiftCardsLocal(list); pushGiftCardsToCloud(list); }
     setTimeout(() => { if (document.getElementById('giftDetailOverlay')) openGiftCardDetail(id); }, 400);
+  }
+}
+
+// ── Edit an issued certificate (owner/manager) ───────────────────────────────
+// Mostly for correcting a mis-set cash/receipt flag, which decides how VAT is
+// worked out on every redemption. The amount can't drop below what has already
+// been spent.
+function openGiftEdit(id) {
+  const g = gcFindById(id); if (!g) return;
+  if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const spent = gcRedeemed(g);
+  document.getElementById('giftEditOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'giftEditOverlay';
+  ov.dataset.pay = g.payMethod || 'cash';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.88);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">✏️ ${gcNoFmt(g)}</div>
+      <button onclick="document.getElementById('giftEditOverlay').remove()" class="modal-x">✕</button>
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Ποσό' : 'Amount'}</div>
+    <input id="gceAmount" type="number" step="0.01" inputmode="decimal" value="${(parseFloat(g.amount)||0).toFixed(2)}" style="${_resInp};font-size:18px;font-weight:700;color:var(--gold-light)">
+    ${spent > 0 ? `<div style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px">${isEl ? `Έχουν ήδη εξαργυρωθεί ${cur}${spent.toFixed(2)} — το ποσό δεν μπορεί να πέσει κάτω από αυτό.` : `${cur}${spent.toFixed(2)} already redeemed — the amount can't go below that.`}</div>` : ''}
+
+    <div style="${_resLbl}">${isEl ? 'Αγοραστής' : 'Buyer'}</div>
+    <input id="gceBuyerName" value="${_gcEsc(g.buyerName || '')}" style="${_resInp}">
+    <div style="margin-bottom:10px">${_phoneFieldHtml('gceBuyerPhoneCode', 'gceBuyerPhone', g.buyerPhone || '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+    <input id="gceBuyerEmail" type="email" value="${_gcEsc(g.buyerEmail || '')}" style="${_resInp}" placeholder="Email">
+
+    <div style="${_resLbl}">${isEl ? 'Προς (προαιρετικό)' : 'To (optional)'}</div>
+    <input id="gceToName" value="${_gcEsc(g.toName || '')}" style="${_resInp}">
+    <input id="gceMessage" maxlength="80" value="${_gcEsc(g.message || '')}" style="${_resInp}" placeholder="${isEl ? 'Αφιέρωση' : 'Dedication'}">
+
+    <div style="${_resLbl}">${isEl ? 'Τρόπος πληρωμής' : 'Payment method'}</div>
+    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:10px">
+      <button id="gcePayCash" class="desk-seg" onclick="_gceSetPay('cash')">💵 ${isEl ? 'Μετρητά' : 'Cash'}</button>
+      <button id="gcePayCard" class="desk-seg" onclick="_gceSetPay('card')">💳 ${isEl ? 'Κάρτα' : 'Card'}</button>
+      <button id="gcePayBank" class="desk-seg" onclick="_gceSetPay('bank')">🏦 ${isEl ? 'Τράπεζα' : 'Bank'}</button>
+    </div>
+    ${_cashToggleHtml('gceCashToggle')}
+    <div id="gceCashNote" style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.45"></div>
+
+    <div style="${_resLbl};margin-top:12px">${isEl ? 'Ισχύει έως' : 'Valid until'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="gceExpiresDisp" style="${_resInp.replace('margin-bottom:10px','margin-bottom:0')}">${g.expiresAt ? fmtDate(g.expiresAt) : '—'}</div>
+      <input id="gceExpires" type="date" value="${g.expiresAt || ''}" onchange="var _d=document.getElementById('gceExpiresDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
+
+    <button id="gceSaveBtn" onclick="_gcEditSave('${g.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+  _gceSetPay(g.payMethod || 'cash', true);
+  _setCashBtnState(document.getElementById('gceCashToggle'), !!g.cashSale);
+}
+
+// Same card/bank rule as the issue form. `keep` preserves the stored flag when
+// first populating the form, instead of applying the new-certificate default.
+function _gceSetPay(method, keep) {
+  const ov = document.getElementById('giftEditOverlay'); if (!ov) return;
+  ov.dataset.pay = method;
+  const isEl = lang === 'el';
+  [['gcePayCash','cash'],['gcePayCard','card'],['gcePayBank','bank']].forEach(([id, m]) => {
+    document.getElementById(id)?.classList.toggle('active', m === method);
+  });
+  const toggle = document.getElementById('gceCashToggle');
+  const note = document.getElementById('gceCashNote');
+  const traceable = (method === 'card' || method === 'bank');
+  if (toggle) {
+    if (traceable) {
+      _setCashBtnState(toggle, false);
+      toggle.disabled = true; toggle.style.opacity = '0.45'; toggle.style.cursor = 'not-allowed';
+    } else {
+      toggle.disabled = false; toggle.style.opacity = ''; toggle.style.cursor = 'pointer';
+      if (!keep) _setCashBtnState(toggle, true);
+    }
+  }
+  if (note) {
+    note.textContent = traceable
+      ? (isEl ? 'Κάρτα/τράπεζα αφήνουν ίχνος — πάντα με απόδειξη.' : 'Card/bank leave a trace — always with a receipt.')
+      : (isEl ? 'Πατημένο = χωρίς απόδειξη.' : 'Pressed = no receipt.');
+  }
+}
+
+async function _gcEditSave(id) {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const list = getGiftCards();
+  const g = list.find(x => x.id === id); if (!g) return;
+  const ov = document.getElementById('giftEditOverlay'); if (!ov) return;
+  const spent = gcRedeemed(g);
+  const amount = parseFloat(document.getElementById('gceAmount').value);
+  const buyerName = (document.getElementById('gceBuyerName').value || '').trim();
+  if (!amount || amount <= 0) { showToast(isEl ? '⚠️ Εισάγετε έγκυρο ποσό' : '⚠️ Enter a valid amount'); return; }
+  if (amount < spent) { showToast(isEl ? `⚠️ Έχουν εξαργυρωθεί ${cur}${spent.toFixed(2)}` : `⚠️ ${cur}${spent.toFixed(2)} already redeemed`); return; }
+  if (!buyerName) { showToast(isEl ? '⚠️ Εισάγετε όνομα' : '⚠️ Enter a name'); return; }
+
+  const payMethod = ov.dataset.pay || 'cash';
+  const newCash = (payMethod === 'cash') ? _isCashBtn('gceCashToggle') : false;
+  const cashChanged = !!g.cashSale !== !!newCash;
+
+  // Sales already written with this certificate carry the OLD regime, and their
+  // stored profit was computed from it. Changing the flag without re-deriving
+  // them would leave the books disagreeing with the card.
+  const sales = await getSales();
+  const affected = cashChanged ? sales.filter(s => s.giftCardId === id && s.giftCardAmt > 0) : [];
+
+  const apply = async () => {
+    g.amount = parseFloat(amount.toFixed(2));
+    g.buyerName = buyerName;
+    g.buyerPhone = _readPhoneField('gceBuyerPhoneCode', 'gceBuyerPhone');
+    g.buyerEmail = (document.getElementById('gceBuyerEmail').value || '').trim();
+    g.toName = (document.getElementById('gceToName').value || '').trim();
+    g.message = (document.getElementById('gceMessage').value || '').trim();
+    g.payMethod = payMethod;
+    g.cashSale = newCash;
+    g.expiresAt = document.getElementById('gceExpires').value || '';
+    // A raised amount can revive a fully-spent card; a lowered one can settle it.
+    if (g.status === 'redeemed' && gcBalance(g) > 0) g.status = 'active';
+    if (g.status === 'active' && gcBalance(g) <= 0) g.status = 'redeemed';
+    g.expiryNotifSent = false; // let it warn again against the new date
+    saveGiftCardsLocal(list);
+    await pushGiftCardsToCloud(list);
+
+    if (affected.length) {
+      const vat = parseFloat(state.vat) || 0;
+      affected.forEach(s => {
+        s.giftCardWasCash = newCash;
+        if (s.cost != null) s.profit = parseFloat((_saleExVat(s, vat) - parseFloat(s.cost)).toFixed(2));
+      });
+      _salesCache = sales;
+      localStorage.setItem('jpro_sales', JSON.stringify(sales));
+      await pushSalesToCloud(sales);
+    }
+    ov.remove();
+    document.getElementById('giftDetailOverlay')?.remove();
+    renderGiftCards();
+    openGiftCardDetail(id);
+    showToast(isEl ? '✓ Αποθηκεύτηκε' : '✓ Saved');
+  };
+
+  if (affected.length) {
+    showConfirm(
+      isEl ? `${affected.length} ${affected.length === 1 ? 'πώληση χρησιμοποίησε' : 'πωλήσεις χρησιμοποίησαν'} αυτή τη δωροεπιταγή. Ο ΦΠΑ και το κέρδος τους θα υπολογιστούν ξανά. Συνέχεια;`
+           : `${affected.length} ${affected.length === 1 ? 'sale uses' : 'sales use'} this certificate. Their VAT and profit will be recalculated. Continue?`,
+      apply
+    );
+  } else {
+    await apply();
   }
 }
 
@@ -21084,10 +21250,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.42', date: 'Ιούλιος 2026', items: [
-        '📅 Η ημερομηνία λήξης στη δωροεπιταγή δείχνει πλέον ΗΗ/ΜΜ/ΕΕΕΕ (19/07/2027), όχι τη μορφή του κινητού (07/19/2027).',
-        '🕛 Διόρθωση: η εφαρμογή έπαιρνε την «σημερινή» ημερομηνία σε ώρα UTC. Η Ελλάδα είναι UTC+3 το καλοκαίρι, οπότε από τα μεσάνυχτα ως τις 03:00 καταχωρούσε τα πάντα στην ΠΡΟΗΓΟΥΜΕΝΗ μέρα — και μια πώληση στη 01:00 της 1ης Αυγούστου έμπαινε στον Ιούλιο. Τώρα χρησιμοποιείται πάντα η τοπική ημερομηνία.',
-        '📄 Το ίδιο ίσχυε για την ημερομηνία έκδοσης που τυπώνεται στη δωροεπιταγή και για τις προεπιλογές «ισχύει έως» / «κράτηση έως».'
+      { version: 'v11.43', date: 'Ιούλιος 2026', items: [
+        '💵 Επιλέγοντας «Μετρητά» στη δωροεπιταγή ενεργοποιείται πλέον αυτόματα και ο διακόπτης «χωρίς απόδειξη». Τα δύο κουμπιά έγραφαν και τα δύο «Μετρητά» αλλά σήμαιναν διαφορετικά πράγματα, οπότε η επιταγή μπορούσε να καταχωρηθεί με απόδειξη κατά λάθος — και να χρεωθεί ΦΠΑ σε χρήματα που δεν πέρασαν ποτέ από απόδειξη.',
+        '📝 Νέο κουμπί «Επεξεργασία» στη δωροεπιταγή: διορθώστε ποσό, στοιχεία, τρόπο πληρωμής, μετρητά/απόδειξη και ημερομηνία λήξης. Αν η επιταγή έχει ήδη χρησιμοποιηθεί σε πώληση, ο ΦΠΑ και το κέρδος εκείνης της πώλησης υπολογίζονται ξανά (με επιβεβαίωση πρώτα).',
+        '🔒 Το ποσό δεν μπορεί να πέσει κάτω από όσα έχουν ήδη εξαργυρωθεί.'
       ]},
           ]
   },
@@ -21118,10 +21284,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.42', date: 'Jul 2026', items: [
-        '📅 The expiry date on a gift certificate now reads DD/MM/YYYY (19/07/2027), not your phone\'s format (07/19/2027).',
-        '🕛 Fixed: the app took "today\'s" date in UTC. Greece is UTC+3 in summer, so between midnight and 03:00 it filed everything under the PREVIOUS day — and a sale at 01:00 on 1 August landed in July. It now always uses the local date.',
-        '📄 The same applied to the issue date printed on a gift certificate, and to the "valid until" / "hold until" defaults.'
+      { version: 'v11.43', date: 'Jul 2026', items: [
+        '💵 Choosing "Cash" on a gift certificate now switches the "no receipt" toggle on automatically. Both buttons said "Cash" but meant different things, so a certificate could be filed as a receipt sale by mistake — charging VAT on money that never went through a receipt.',
+        '📝 New "Edit" button on a gift certificate: correct the amount, details, payment method, cash/receipt setting and expiry date. If the certificate has already been used in a sale, that sale\'s VAT and profit are recalculated (after a confirmation).',
+        '🔒 The amount can\'t drop below what has already been redeemed.'
       ]},
           ]
   }
@@ -24183,7 +24349,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.42';
+const APP_VERSION = '11.43';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
