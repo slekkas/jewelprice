@@ -8844,6 +8844,13 @@ async function processReturn(origId, opts) {
   rec.restocked = !!restock;
   rec.returnReason = (o.reason || '').trim();
   rec.returnOfDate = orig.date || '';
+  // Small sales are often recorded with no customer. Whoever is standing there
+  // getting money back is captured at THIS moment, so the return record (and the
+  // credit) knows who — without rewriting the original sale's history.
+  if (o.customer && o.customer.name) {
+    rec.customer = o.customer.name;
+    if (o.customer.email) rec.email = o.customer.email;
+  }
   const _rw = lang === 'el' ? 'Επιστροφή' : 'Return';
   rec.note = '↩️ ' + _rw
     + (orig.note ? ' · ' + orig.note : '')
@@ -8871,7 +8878,7 @@ async function processReturn(origId, opts) {
     // Issued BEFORE the return is written: a stray credit note is visible and
     // cancellable, whereas a return promising a credit that never got created
     // would be invisible.
-    card = await _gcIssueReturnCredit(orig, rec, creditAmt);
+    card = await _gcIssueReturnCredit(orig, rec, creditAmt, o.customer);
     if (card) { rec.creditCardId = card.id; rec.creditCardNo = card.cardNo; }
   }
 
@@ -8936,22 +8943,29 @@ async function processReturnGroup(groupId, opts) {
 // The credit note. It IS a gift certificate (RETURNS_DESIGN.md §3) — same
 // numbering, picker, scanning, expiry, breakage and printed document — so the
 // only new thing here is where it came from.
-async function _gcIssueReturnCredit(orig, retRec, amount) {
+async function _gcIssueReturnCredit(orig, retRec, amount, cust) {
   const cardNo = await getNextGiftCardNo();
-  // Best-effort phone, so the expiry reminder can actually reach them.
-  let phone = '';
-  try {
-    const _c = getClients().find(c => c && c.name && orig.customer &&
-      c.name.trim().toLowerCase() === orig.customer.trim().toLowerCase());
-    if (_c) phone = _c.phone || '';
-  } catch (e) {}
+  // Whoever is standing there getting their money back — captured in the return
+  // dialog, which REQUIRES a name before it will issue a credit. Falls back to
+  // the original sale's customer for any caller that doesn't supply one.
+  const _name = (cust && cust.name) ? cust.name : (orig.customer || '');
+  const _email = (cust && cust.email) ? cust.email : (orig.email || '');
+  let phone = (cust && cust.phone) ? cust.phone : '';
+  // Best-effort phone from the client book, so the expiry reminder can reach them.
+  if (!phone) {
+    try {
+      const _c = getClients().find(c => c && c.name && _name &&
+        c.name.trim().toLowerCase() === _name.trim().toLowerCase());
+      if (_c) phone = _c.phone || '';
+    } catch (e) {}
+  }
   const g = {
     id: 'gc_' + Date.now(),
     cardNo,
     amount: parseFloat(amount.toFixed(2)),
-    buyerName: orig.customer || '',
+    buyerName: _name,
     buyerPhone: phone,
-    buyerEmail: orig.email || '',
+    buyerEmail: _email,
     toName: '', message: '',
     redeemerName: '', redeemerPhone: '', redeemerEmail: '',
     payMethod: 'credit',
@@ -9350,6 +9364,23 @@ async function openReturnDialog(saleId, groupId) {
 
     <div id="retNotice" style="display:none;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:11px;color:var(--gold-light);line-height:1.45"></div>
 
+    <!-- Who is getting the money back. A credit is a DEBT the shop owes, and an
+         anonymous debt is untraceable: you can't warn them before it expires and
+         you can't help them if they lose the card. Small sales often have no
+         customer on them, so this is the moment to capture it. -->
+    <div id="retCustBlock">
+      <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'} <span id="retCustReq" style="color:#e0a85a"></span></div>
+      <div style="position:relative;margin-bottom:10px">
+        <input id="retCustName" autocomplete="off" value="${_gcEsc(s.customer || '')}"
+          oninput="_retClientAutocomplete(this.value)" onblur="setTimeout(_retHideClientSug,200)"
+          style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+        <div id="retClientSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;z-index:6;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+      </div>
+      <div style="margin-bottom:10px">${_phoneFieldHtml('retCustPhoneCode', 'retCustPhone', '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+      <input id="retCustEmail" type="email" autocomplete="off" value="${_gcEsc(s.email || '')}"
+        oninput="_retSyncNotice()" style="${_resInp}" placeholder="Email">
+    </div>
+
     <div style="${_resLbl}">${isEl ? 'Ημερομηνία' : 'Date'}</div>
     <div style="position:relative;margin-bottom:12px">
       <div onclick="document.getElementById('retDate').showPicker?document.getElementById('retDate').showPicker():document.getElementById('retDate').focus()"
@@ -9374,6 +9405,19 @@ async function openReturnDialog(saleId, groupId) {
   </div>`;
   document.body.appendChild(ov);
   ov.dataset.gift = String(gift);
+  // The sale record has no phone on it, so pull one from the client book if we
+  // already know this customer — saves re-typing what the shop already has.
+  if (s.customer) {
+    try {
+      const _c = getClients().find(c => c && c.name &&
+        c.name.trim().toLowerCase() === s.customer.trim().toLowerCase());
+      if (_c) {
+        _setPhoneField('retCustPhoneCode', 'retCustPhone', _c.phone || '');
+        const _em = document.getElementById('retCustEmail');
+        if (_em && !_em.value) _em.value = _c.email || '';
+      }
+    } catch (e) {}
+  }
   _retSyncNotice();
 }
 
@@ -9414,6 +9458,37 @@ function _retToggleRestock() {
   _retSyncNotice();
 }
 
+// Customer autocomplete in the return dialog (fills name + phone + email).
+function _retClientAutocomplete(val) {
+  const box = document.getElementById('retClientSug'); if (!box) return;
+  const q = (val || '').trim().toLowerCase();
+  _retSyncNotice();
+  if (q.length < 1) { box.style.display = 'none'; return; }
+  const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(c => `<div onclick="_retSelectClient('${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--wa05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_gcEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_gcEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.style.display = 'block';
+}
+function _retSelectClient(id) {
+  const c = getClients().find(cl => cl.id === id); if (!c) return;
+  const nm = document.getElementById('retCustName'); if (nm) nm.value = c.name || '';
+  _setPhoneField('retCustPhoneCode', 'retCustPhone', c.phone || '');
+  const em = document.getElementById('retCustEmail'); if (em) em.value = c.email || '';
+  _retHideClientSug();
+  _retSyncNotice();
+}
+function _retHideClientSug() { const b = document.getElementById('retClientSug'); if (b) b.style.display = 'none'; }
+
+// Will this return put value on a card? Either the owner chose store credit, or
+// part of the sale was paid by certificate and must go back as credit.
+function _retWillIssueCredit() {
+  const ov = document.getElementById('returnDlgOverlay');
+  if (!ov || !_retDlg) return false;
+  if (_retDlg.method === 'credit') return true;
+  const gift = parseFloat(ov.dataset.gift) || 0;
+  return gift > 0;
+}
+
 // Spells out anything the owner would otherwise have to work out in their head:
 // the forced gift-certificate split, and what "not back in stock" costs.
 function _retSyncNotice() {
@@ -9425,6 +9500,22 @@ function _retSyncNotice() {
   const gift = parseFloat(ov.dataset.gift) || 0;
   const refund = parseFloat(document.getElementById('retAmount')?.value) || 0;
   const msgs = [];
+
+  // Mark the customer as required the moment a card is in play, and nudge for a
+  // way to reach them — the expiry warning has to go somewhere.
+  const _needCust = _retWillIssueCredit();
+  const _reqEl = document.getElementById('retCustReq');
+  if (_reqEl) _reqEl.textContent = _needCust ? (isEl ? '— απαιτείται' : '— required') : '';
+  if (_needCust) {
+    const _nm = (document.getElementById('retCustName')?.value || '').trim();
+    const _ph = _readPhoneField('retCustPhoneCode', 'retCustPhone');
+    const _em = (document.getElementById('retCustEmail')?.value || '').trim();
+    if (_nm && !_ph && !_em) {
+      msgs.push(isEl
+        ? '📇 Χωρίς τηλέφωνο ή email δεν θα μπορείτε να τον ειδοποιήσετε πριν λήξει η πίστωση.'
+        : '📇 With no phone or email you won\'t be able to warn them before the credit expires.');
+    }
+  }
   if (gift > 0 && _retDlg.method !== 'credit') {
     const part = Math.min(gift, refund);
     msgs.push(isEl
@@ -9447,13 +9538,29 @@ async function _returnDlgConfirm() {
   const st = document.getElementById('retDlgStatus');
   const refundAmt = parseFloat(document.getElementById('retAmount')?.value) || 0;
   if (refundAmt <= 0) { if (st) st.textContent = isEl ? 'Εισάγετε ποσό' : 'Enter an amount'; return; }
+
+  // A credit is a debt the shop owes — it must never be anonymous, or nobody can
+  // be warned before it expires and a lost card can't be matched to anyone.
+  const _cust = {
+    name: (document.getElementById('retCustName')?.value || '').trim(),
+    phone: _readPhoneField('retCustPhoneCode', 'retCustPhone'),
+    email: (document.getElementById('retCustEmail')?.value || '').trim()
+  };
+  if (_retWillIssueCredit() && !_cust.name) {
+    if (st) st.textContent = isEl
+      ? '⚠️ Βάλτε όνομα πελάτη — η πίστωση δεν μπορεί να είναι ανώνυμη'
+      : '⚠️ Enter a customer name — a credit can\'t be anonymous';
+    document.getElementById('retCustName')?.focus();
+    return;
+  }
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   const _opts = {
     refundAmt,
     method: _retDlg.method,
     date: document.getElementById('retDate')?.value || todayStr(),
     reason: document.getElementById('retReason')?.value || '',
-    restock: _retDlg.restock
+    restock: _retDlg.restock,
+    customer: _cust
   };
   let res = null;
   try {
@@ -9468,6 +9575,8 @@ async function _returnDlgConfirm() {
   }
   document.getElementById('returnDlgOverlay')?.remove();
   _retDlg = null;
+  // Keep them in the client book, so the next visit already knows them.
+  if (_cust.name) { try { await upsertClientFromSale(_cust.name, _cust.phone, _cust.email); } catch (e) {} }
   showToast('↩️ ' + (isEl ? 'Επιστροφή καταχωρήθηκε' : 'Return recorded'));
   try { await renderSalesPanel(); } catch (e) {}
   try { renderInvList(); } catch (e) {}
@@ -22448,9 +22557,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.50', date: 'Ιούλιος 2026', items: [
-        "📐 Το πλαίσιο της σφραγίδας στη δωροεπιταγή / κάρτα αλλαγής μεγάλωσε από 4,4×2,6 εκ. σε 7×3,5 εκ., στην ίδια αναλογία 2:1 με το αρχικό πλαίσιο του πιστοποιητικού — η σφραγίδα είναι επιμήκης, όχι τετράγωνη.",
-        "📄 Η κάρτα εξακολουθεί να χωράει σε ΕΝΑ φύλλο A4 οριζόντιο, ακόμη και με μεγάλη αφιέρωση.",
+      { version: 'v11.51', date: 'Ιούλιος 2026', items: [
+        "👤 Η επιστροφή ζητά πλέον ΟΝΟΜΑ, τηλέφωνο και email του πελάτη. Σε μικρές πωλήσεις συνήθως δεν κρατάτε στοιχεία — αλλά μια πίστωση είναι χρέος που χρωστάτε, και δεν πρέπει ποτέ να είναι ανώνυμη.",
+        "🔒 Χωρίς όνομα δεν εκδίδεται πίστωση. Σε επιστροφή με μετρητά ή κάρτα δεν απαιτείται τίποτα — δεν μένει χρέος.",
+        "📇 Αν βάλετε όνομα χωρίς τηλέφωνο ή email, σας προειδοποιεί: δεν θα μπορείτε να τον ειδοποιήσετε πριν λήξει η πίστωση.",
+        "🔎 Αυτόματη συμπλήρωση από τους Πελάτες, και ο πελάτης αποθηκεύεται στη λίστα σας με την καταχώριση. Η αρχική πώληση δεν αλλάζει.",
       ]},
           ]
   },
@@ -22481,9 +22592,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.50', date: 'Jul 2026', items: [
-        "📐 The stamp box on the gift certificate / exchange card grew from 4.4×2.6 cm to 7×3.5 cm, keeping the same 2:1 proportion as the original box on the certificate — the shop stamp is oblong, not square.",
-        "📄 The card still fits on ONE A4 landscape sheet, even with a long dedication.",
+      { version: 'v11.51', date: 'Jul 2026', items: [
+        "👤 A return now asks for the customer's NAME, phone and email. Small sales usually have no details on them — but a credit is a debt you owe, and it should never be anonymous.",
+        "🔒 No name, no credit. A cash or card refund asks for nothing — no debt is left behind.",
+        "📇 Enter a name with no phone or email and it warns you: you won't be able to reach them before the credit expires.",
+        "🔎 Autocompletes from your Clients, and saves the customer to that list on recording. The original sale is left untouched.",
       ]},
           ]
   }
@@ -25569,7 +25682,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.50';
+const APP_VERSION = '11.51';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
