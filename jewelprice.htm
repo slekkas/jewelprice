@@ -2296,6 +2296,10 @@
           <span id="saleGiftLabel" style="color:var(--gold-light);font-family:var(--font-mono)"></span>
           <button onclick="clearGiftFromSale()" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
         </div>
+        <!-- Shown only when the card has already been partly spent. The customer
+             is holding a paper that still says its FACE value, so the difference
+             has to be visible here rather than buried in the Desk list. -->
+        <div id="saleGiftPartial" style="display:none;font-size:11px;color:#e0a85a;margin-top:5px;line-height:1.45"></div>
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,76,0.2)">
           <span style="color:var(--text-muted)" data-i18n="gcCashDue">Να εισπραχθούν</span>
           <span id="saleGiftDue" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
@@ -5696,7 +5700,10 @@ function openGiftPickerForSale() {
             <div style="font-size:11px;color:${gcIsCredit(g) ? '#7fd6b0' : 'var(--text-muted)'};letter-spacing:0.04em">${gcKindLabel(g)}</div>
             <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${gcNoFmt(g)}${d !== null && d >= 0 ? ` · ${isEl ? 'λήγει σε' : 'expires in'} ${d}${isEl ? (d === 1 ? ' μέρα' : ' μέρες') : (d === 1 ? ' day' : ' days')}` : ''}</div>
           </div>
-          <div style="font-family:var(--font-mono);font-size:16px;color:var(--text);font-weight:700;flex-shrink:0">${cur}${bal.toFixed(2)}</div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:var(--font-mono);font-size:16px;color:var(--text);font-weight:700">${cur}${bal.toFixed(2)}</div>
+            ${gcRedeemed(g) > 0 ? `<div style="font-size:10px;color:#e0a85a;margin-top:1px">${isEl ? 'από' : 'of'} ${cur}${(parseFloat(g.amount) || 0).toFixed(2)}</div>` : ''}
+          </div>
         </div>`;
       }).join('')
     : `<div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία ενεργή δωροεπιταγή' : 'No active gift certificates'}</div>`;
@@ -5767,6 +5774,25 @@ function _updateSaleGiftDisplay() {
   // is a present someone bought or a customer's own money coming back.
   document.getElementById('saleGiftLabel').textContent =
     `${gcKindIcon(g)} ${gcKindLabel(g)} · ${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
+  // The card keeps its number and its remaining balance for life — no second
+  // card is ever issued for the change. But the paper in the customer's hand
+  // still shows the FACE value, so when it has been partly spent, say so: the
+  // amount, the date it was used, and what is left.
+  const _pBox = document.getElementById('saleGiftPartial');
+  if (_pBox) {
+    const _spent = gcRedeemed(g);
+    if (_spent > 0) {
+      const _face = parseFloat(g.amount) || 0;
+      const _last = (g.redemptions || [])[g.redemptions.length - 1];
+      const _when = _last && _last.date ? fmtDate(_last.date) : '';
+      _pBox.innerHTML = `⚠️ ${isEl ? 'Χρησιμοποιημένη' : 'Partly used'} — ${isEl ? 'υπόλοιπο' : 'balance'} <strong>${cur}${bal.toFixed(2)}</strong> ${isEl ? 'από' : 'of'} ${cur}${_face.toFixed(2)}`
+        + `<br>${isEl ? 'Έχουν εξαργυρωθεί' : 'Already redeemed'}: ${cur}${_spent.toFixed(2)}${_when ? ` (${isEl ? 'τελευταία' : 'last'} ${_when})` : ''}`;
+      _pBox.style.display = '';
+    } else {
+      _pBox.style.display = 'none';
+      _pBox.innerHTML = '';
+    }
+  }
   document.getElementById('saleGiftDue').textContent = cur + due.toFixed(2);
   box.style.display = '';
   btn.style.display = 'none';
@@ -22405,7 +22431,13 @@ function handleScannedCode(raw) {
     const saleOpen = document.getElementById('saleModal')?.style.display === 'flex';
     if (saleOpen && gcIsSpendable(_gc)) {
       _pickGiftForSale(_gc.id);
-      showToast('🎁 ' + gcNoFmt(_gc));
+      // Call out a partly-spent card the moment it is scanned — the paper being
+      // handed over still shows the face value.
+      const _sp = gcRedeemed(_gc);
+      const _cur2 = state.currency || '€';
+      showToast(gcKindIcon(_gc) + ' ' + gcNoFmt(_gc) + (_sp > 0
+        ? ` — ${lang === 'el' ? 'υπόλοιπο' : 'balance'} ${_cur2}${gcBalance(_gc).toFixed(2)} ${lang === 'el' ? 'από' : 'of'} ${_cur2}${(parseFloat(_gc.amount) || 0).toFixed(2)}`
+        : ''));
     } else {
       openGiftCardDetail(_gc.id);
     }
@@ -22570,11 +22602,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.55', date: 'Ιούλιος 2026', items: [
-        "🔖 Το πλαίσιο σφραγίδας είναι πλέον 10×5 εκ. — το πραγματικό μέγεθος της σφραγίδας — και ΙΔΙΟ και στα τρία έντυπα: προσφορά/πιστοποιητικό, κράτηση και δωροεπιταγή/κάρτα αλλαγής.",
-        "📄 Στην κάρτα αλλαγής ο αριθμός και οι ημερομηνίες μετακινήθηκαν σε δική τους γραμμή, ώστε να χωρέσει η σφραγίδα σε πλήρες μέγεθος. Χωράει ακόμη σε ΕΝΑ φύλλο A4.",
-        "🔤 Μεταφράστηκαν 9 κείμενα που έβγαιναν στα Αγγλικά ενώ η εφαρμογή ήταν στα Ελληνικά — μεταξύ τους η προειδοποίηση «δεν λαμβάνεται ζωντανή τιμή» και όλο το δεύτερο μέταλλο.",
-        "🗂️ Η ταξινόμηση στους Πελάτες θυμάται πλέον την επιλογή σας, όπως και στο Απόθεμα. Διαλέγετε «Πιο πρόσφατοι» και έτσι μένει μετά την ανανέωση.",
+      { version: 'v11.56', date: 'Ιούλιος 2026', items: [
+        "⚠️ Όταν σαρώνετε δωροεπιταγή ή πίστωση που έχει ΗΔΗ χρησιμοποιηθεί, σας το λέει καθαρά: «υπόλοιπο €50.00 από €200.00», πόσα έχουν εξαργυρωθεί και πότε.",
+        "🧾 Χρήσιμο γιατί το χαρτί στο χέρι του πελάτη γράφει πάντα το αρχικό ποσό. Τώρα το βλέπετε πριν καν χρεώσετε.",
+        "📋 Το ίδιο και στη λίστα επιλογής: κάτω από το υπόλοιπο γράφει «από €200.00» όταν έχει χρησιμοποιηθεί.",
+        "ℹ️ Υπενθύμιση: ΔΕΝ εκδίδεται νέα επιταγή για τα ρέστα. Η ίδια κάρτα κρατά τον αριθμό και το υπόλοιπό της μέχρι να εξαντληθεί.",
       ]},
           ]
   },
@@ -22605,11 +22637,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.55', date: 'Jul 2026', items: [
-        "🔖 The stamp box is now 10×5 cm — the real size of the shop stamp — and IDENTICAL on all three documents: quote/certificate, reservation, and gift certificate / exchange card.",
-        "📄 On the exchange card the number and dates moved to their own line to make room for the full-size stamp. It still fits on ONE A4 sheet.",
-        "🔤 Translated 9 labels that appeared in English while the app was set to Greek — including the “cannot fetch live price” warning and the whole secondary-metal section.",
-        "🗂️ The Clients sort now remembers your choice, like Stock does. Pick “Newest first” and it stays that way after a refresh.",
+      { version: 'v11.56', date: 'Jul 2026', items: [
+        "⚠️ Scanning a gift certificate or credit that has ALREADY been partly used now says so plainly: “balance €50.00 of €200.00”, how much was redeemed and when.",
+        "🧾 It matters because the paper in the customer's hand always shows the original amount. Now you see it before you charge anything.",
+        "📋 Same in the picker list: it shows “of €200.00” under the balance once a card has been used.",
+        "ℹ️ Reminder: no new certificate is issued for the change. The same card keeps its number and its remaining balance until it runs out.",
       ]},
           ]
   }
@@ -25845,7 +25877,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.55';
+const APP_VERSION = '11.56';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
