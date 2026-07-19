@@ -5237,8 +5237,10 @@ async function _gcSave() {
 }
 
 // ── Detail sheet ─────────────────────────────────────────────────────────────
-function openGiftCardDetail(id) {
+async function openGiftCardDetail(id) {
   const g = gcFindById(id); if (!g) return;
+  // Sales carry the item descriptions the redemption statement below resolves.
+  if (gcRedeemed(g) > 0) { try { await getSales(); } catch (e) {} }
   const isEl = lang === 'el';
   const cur = state.currency || '€';
   const bal = gcBalance(g), spent = gcRedeemed(g), face = parseFloat(g.amount) || 0;
@@ -5253,10 +5255,23 @@ function openGiftCardDetail(id) {
 
   const row = (label, value, color) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${label}</span><span style="color:${color || 'var(--text)'};font-weight:600;text-align:right">${value}</span></div>`;
 
-  const redemptionLog = (g.redemptions || []).length
-    ? `<div style="${_resLbl};margin-top:14px">${isEl ? 'Εξαργυρώσεις' : 'Redemptions'}</div>
+  // Same statement as the printed card: WHAT each redemption bought, not just
+  // the amount — so "where did my €150 go?" is answerable on the spot.
+  const _rLines = _gcRedemptionLines(g);
+  const redemptionLog = _rLines.length
+    ? `<div style="${_resLbl};margin-top:14px">${isEl ? 'Κινήσεις' : 'Used for'}</div>
        <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 11px">
-       ${(g.redemptions || []).map(r => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--wa05)"><span style="color:var(--text-muted)">${fmtDate(r.date)}${r.by ? ' · ' + _gcEsc(r.by) : ''}</span><span style="color:var(--text)">−${cur}${(parseFloat(r.amount) || 0).toFixed(2)}</span></div>`).join('')}
+       ${_rLines.map((l, i) => `<div style="padding:6px 0;border-bottom:1px solid var(--wa05)">
+         <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
+           <span style="color:var(--text-muted);font-family:'DM Mono',monospace">${l.date ? fmtDate(l.date) : '—'}${(g.redemptions[i] && g.redemptions[i].by) ? ' · ' + _gcEsc(g.redemptions[i].by) : ''}</span>
+           <span style="color:var(--text);font-family:var(--font-mono);flex-shrink:0">−${cur}${l.amount.toFixed(2)}</span>
+         </div>
+         ${l.desc ? `<div style="font-size:11.5px;color:var(--gold-light);margin-top:2px;line-height:1.35">${_gcEsc(l.desc)}</div>` : ''}
+       </div>`).join('')}
+       <div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:7px 0 1px;font-weight:600">
+         <span style="color:var(--text-muted)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span>
+         <span style="color:var(--gold-light);font-family:var(--font-mono)">${cur}${bal.toFixed(2)}</span>
+       </div>
        </div>` : '';
 
   const contactBtns = (g.buyerPhone || g.buyerEmail) ? `
@@ -5875,6 +5890,23 @@ function buildGiftCertHTML(g) {
   // QR, but it is not a gift and must not read like one — it is the customer's
   // own money back, waiting for them to choose again.
   const _isCred = gcIsCredit(g);
+  // A partly-used card reprints as a STATEMENT: the remaining balance set large,
+  // the original amount beneath it, and every purchase it has paid for — item,
+  // date and amount. The customer can then throw the old paper away and the
+  // question "where did my €150 go?" answers itself.
+  const _spent = gcRedeemed(g);
+  const _bal = gcBalance(g);
+  const _allLines = _spent > 0 ? _gcRedemptionLines(g) : [];
+  // A4 landscape has a fixed budget, and the 10x5cm stamp takes a large fixed
+  // bite of it. Measured: 4 rows is what fits without spilling to a second page.
+  // Show the most RECENT four in order and count the rest — anyone wanting the
+  // full history has it in the app.
+  const _GC_STMT_MAX = 4;
+  const _lines = _allLines.slice(-_GC_STMT_MAX);
+  const _moreLines = _allLines.length - _lines.length;
+  // Once a card is part-spent it is a balance statement, not a present — the
+  // "To" and dedication have done their job and their space is needed.
+  const _showGiftExtras = _spent === 0;
   // Local date — a certificate issued at 22:00 must not print yesterday.
   const issued = fmtDate(localDateStr(new Date(g.dateCreated || Date.now())));
   const address = isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00';
@@ -5907,6 +5939,27 @@ function buildGiftCertHTML(g) {
   .amount { font-family:'Cormorant Garamond',serif; font-size:64pt; font-weight:500; color:#C9A84C;
             line-height:1; margin:6mm 0 2mm; }
   .amount-words { font-size:8pt; letter-spacing:0.22em; text-transform:uppercase; color:#999; }
+  .amount-orig { font-size:8pt; color:#b3a887; margin-top:1.5mm; letter-spacing:0.06em; }
+  /* Statement of what the card has already paid for — only on a partly-used card. */
+  .stmt { width:100%; max-width:190mm; margin-top:4mm; }
+  .stmt-h { font-size:7pt; letter-spacing:0.2em; text-transform:uppercase; color:#b3a887; text-align:left;
+            border-bottom:1px solid #e6dfcb; padding-bottom:1mm; margin-bottom:0.5mm; }
+  .stmt-row { display:flex; align-items:baseline; gap:5mm; font-size:8.5pt; color:#6b6250;
+              padding:0.9mm 0; border-bottom:1px dotted #ece6d6; }
+  .stmt-more { color:#b3a887; font-style:italic; }
+  /* A part-spent card is a working balance statement, so its presentation half
+     gives up some grandeur to make room for the purchase list. Applied via a
+     body class so an untouched gift certificate is completely unaffected.
+     Measured: this is what keeps the whole thing on ONE sheet with 4 rows. */
+  .stmt-mode .amount { font-size:46pt; }
+  .stmt-mode .store-name { font-size:21pt; }
+  .stmt-mode .rule { margin:4mm 0 3.5mm; }
+  .stmt-mode .terms { margin-top:3mm; line-height:1.5; }
+  .stmt-row .d { width:24mm; flex:0 0 auto; font-family:'DM Mono',monospace; color:#9a9078; }
+  .stmt-row .i { flex:1; text-align:left; }
+  .stmt-row .a { width:24mm; flex:0 0 auto; text-align:right; font-family:'DM Mono',monospace; }
+  .stmt-tot { border-bottom:none; color:#1a1a1a; font-weight:600; }
+  .stmt-tot .a { color:#8C7E60; }
   .to-line { font-family:'Cormorant Garamond',serif; font-size:19pt; color:#0E0C08; margin-top:8mm; }
   .to-label { font-size:7.5pt; letter-spacing:0.24em; text-transform:uppercase; color:#aaa; margin-bottom:1.5mm; }
   .message { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13pt; color:#666; margin-top:3mm; max-width:150mm; }
@@ -5932,25 +5985,43 @@ function buildGiftCertHTML(g) {
   .terms { font-size:7pt; color:#b0b0b0; font-style:italic; line-height:1.7; margin-top:5mm; max-width:190mm; }
 </style>
 </head>
-<body>
+<body class="${_spent > 0 ? 'stmt-mode' : ''}">
 <div class="frame"><div class="inner">
   <div class="store-name">LEKKAS <span>JEWELRY</span></div>
   <div class="store-sub">${isEl ? 'Κάρπαθος' : 'Karpathos'}</div>
   <div class="rule"></div>
 
   <div class="doc-title">${_isCred ? (isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card') : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')}</div>
-  <div class="amount">${cur}${amount.toFixed(2)}</div>
-  <div class="amount-words">${_isCred
-    ? (isEl ? 'για αλλαγή με κόσμημα της επιλογής σας' : 'towards an exchange for jewelry of your choice')
-    : (isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice')}</div>
+  <div class="amount">${cur}${(_spent > 0 ? _bal : amount).toFixed(2)}</div>
+  <div class="amount-words">${_spent > 0
+    ? (isEl ? 'υπόλοιπο διαθέσιμο' : 'remaining balance')
+    : (_isCred
+      ? (isEl ? 'για αλλαγή με κόσμημα της επιλογής σας' : 'towards an exchange for jewelry of your choice')
+      : (isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice'))}</div>
+  ${_spent > 0 ? `<div class="amount-orig">${isEl ? 'αρχικό ποσό' : 'original amount'} ${cur}${amount.toFixed(2)}</div>` : ''}
 
-  ${g.toName ? `<div style="margin-top:8mm">
+  ${(_showGiftExtras && g.toName) ? `<div style="margin-top:8mm">
     <div class="to-label">${isEl ? 'Προς' : 'To'}</div>
     <div class="to-line">${esc(g.toName)}</div>
   </div>` : ''}
-  ${g.message ? `<div class="message">"${esc(g.message)}"</div>` : ''}
+  ${(_showGiftExtras && g.message) ? `<div class="message">"${esc(g.message)}"</div>` : ''}
 
   <div class="spacer"></div>
+
+  ${_spent > 0 ? `<div class="stmt">
+    <div class="stmt-h">${isEl ? 'Κινήσεις' : 'Used for'}</div>
+    ${_moreLines > 0 ? `<div class="stmt-row stmt-more"><span class="d"></span><span class="i">${isEl ? `…και ${_moreLines} ακόμη παλαιότερες` : `…and ${_moreLines} earlier`}</span><span class="a"></span></div>` : ''}
+    ${_lines.map(l => `<div class="stmt-row">
+      <span class="d">${l.date ? fmtDate(l.date) : '—'}</span>
+      <span class="i">${esc(l.desc || (isEl ? 'Αγορά' : 'Purchase'))}</span>
+      <span class="a">−${cur}${l.amount.toFixed(2)}</span>
+    </div>`).join('')}
+    <div class="stmt-row stmt-tot">
+      <span class="d"></span>
+      <span class="i">${isEl ? 'Υπόλοιπο' : 'Balance'}</span>
+      <span class="a">${cur}${_bal.toFixed(2)}</span>
+    </div>
+  </div>` : ''}
 
   <div class="meta-line">
     <span class="no">${gcNoFmt(g)}</span>${isEl ? 'Εκδόθηκε' : 'Issued'}: ${issued}${g.expiresAt ? ` &nbsp;·&nbsp; ${isEl ? 'Ισχύει έως' : 'Valid until'}: ${fmtDate(g.expiresAt)}` : ''}
@@ -5979,12 +6050,16 @@ function buildGiftCertHTML(g) {
 </html>`;
 }
 
-function printGiftCert(id) {
+// Sales must be loaded before building: the statement resolves each redemption's
+// item description through its saleId.
+async function printGiftCert(id) {
   const g = gcFindById(id); if (!g) return;
+  if (gcRedeemed(g) > 0) { try { await getSales(); } catch (e) {} }
   openQuoteWindow(buildGiftCertHTML(g), false, null);
 }
-function shareGiftCert(id) {
+async function shareGiftCert(id) {
   const g = gcFindById(id); if (!g) return;
+  if (gcRedeemed(g) > 0) { try { await getSales(); } catch (e) {} }
   const _cred = gcIsCredit(g);
   const title = (_cred
     ? (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card')
@@ -9029,6 +9104,25 @@ async function _gcIssueReturnCredit(orig, retRec, amount, cust) {
   return g;
 }
 function gcIsCredit(g) { return !!g && g.origin === 'return'; }
+
+// What each redemption was actually spent ON, for the printed statement.
+// A redemption stores only the saleId, so the description is resolved from the
+// sale — and from its whole saleGroup, since a cart sale draws the certificate
+// down once against its first record while the other items are siblings.
+function _gcRedemptionLines(g) {
+  const sales = _salesCache || [];
+  return (g.redemptions || []).map(r => {
+    let desc = '';
+    if (r.saleId != null) {
+      const s = sales.find(x => x.id === r.saleId);
+      if (s) {
+        const members = s.saleGroup ? sales.filter(x => x.saleGroup === s.saleGroup) : [s];
+        desc = members.map(m => (m.note || m.seqRef || '').trim()).filter(Boolean).join(' · ');
+      }
+    }
+    return { date: r.date || '', desc, amount: parseFloat(r.amount) || 0 };
+  });
+}
 // A bought gift certificate and a credit from a return behave identically, but
 // they are NOT the same thing to the person at the counter — one is a present
 // someone paid for, the other is a customer's own money waiting to be spent.
@@ -22602,11 +22696,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.56', date: 'Ιούλιος 2026', items: [
-        "⚠️ Όταν σαρώνετε δωροεπιταγή ή πίστωση που έχει ΗΔΗ χρησιμοποιηθεί, σας το λέει καθαρά: «υπόλοιπο €50.00 από €200.00», πόσα έχουν εξαργυρωθεί και πότε.",
-        "🧾 Χρήσιμο γιατί το χαρτί στο χέρι του πελάτη γράφει πάντα το αρχικό ποσό. Τώρα το βλέπετε πριν καν χρεώσετε.",
-        "📋 Το ίδιο και στη λίστα επιλογής: κάτω από το υπόλοιπο γράφει «από €200.00» όταν έχει χρησιμοποιηθεί.",
-        "ℹ️ Υπενθύμιση: ΔΕΝ εκδίδεται νέα επιταγή για τα ρέστα. Η ίδια κάρτα κρατά τον αριθμό και το υπόλοιπό της μέχρι να εξαντληθεί.",
+      { version: 'v11.57', date: 'Ιούλιος 2026', items: [
+        "🧾 Δωροεπιταγή ή πίστωση που έχει χρησιμοποιηθεί τυπώνεται πλέον ως ΚΑΤΑΣΤΑΣΗ: μεγάλο το υπόλοιπο, από κάτω το αρχικό ποσό, και αναλυτικά τι αγόρασε — είδος, ημερομηνία, ποσό.",
+        "🗑 Έτσι πετάτε το παλιό χαρτί και του δίνετε ένα νέο που τα λέει όλα: «€80 σκουλαρίκια 12/05, €70 δαχτυλίδι 30/06, υπόλοιπο €50». Καμία απορία για το πού πήγαν τα λεφτά.",
+        "📱 Τα ίδια φαίνονται και μέσα στην εφαρμογή, στην καρτέλα της επιταγής στον Πάγκο.",
+        "🎁 Μια ΑΧΡΗΣΙΜΟΠΟΙΗΤΗ δωροεπιταγή δεν αλλάζει σε τίποτα — κρατά την αφιέρωση και το «Προς», όπως πρέπει για δώρο.",
       ]},
           ]
   },
@@ -22637,11 +22731,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.56', date: 'Jul 2026', items: [
-        "⚠️ Scanning a gift certificate or credit that has ALREADY been partly used now says so plainly: “balance €50.00 of €200.00”, how much was redeemed and when.",
-        "🧾 It matters because the paper in the customer's hand always shows the original amount. Now you see it before you charge anything.",
-        "📋 Same in the picker list: it shows “of €200.00” under the balance once a card has been used.",
-        "ℹ️ Reminder: no new certificate is issued for the change. The same card keeps its number and its remaining balance until it runs out.",
+      { version: 'v11.57', date: 'Jul 2026', items: [
+        "🧾 A gift certificate or credit that has been used now prints as a STATEMENT: the balance large, the original amount beneath it, and an itemised list of what it bought — item, date, amount.",
+        "🗑 So you throw the old paper away and hand over a new one that explains itself: “€80 earrings 12/05, €70 ring 30/06, €50 left”. No doubt about where the money went.",
+        "📱 The same breakdown appears in the app, on the card's page under Desk.",
+        "🎁 An UNUSED gift certificate is completely unchanged — it keeps its dedication and “To”, as a present should.",
       ]},
           ]
   }
@@ -25877,7 +25971,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.56';
+const APP_VERSION = '11.57';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
