@@ -20643,9 +20643,12 @@ function openBulkRestockSheet(id) {
 
   const overlay = document.createElement('div');
   overlay.id = 'bulkRestockOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-end;justify-content:center';
+  // Top-anchored: you type a weight in here, and the keyboard rises from the
+  // bottom. It also had no max-height, so a tall sheet could clip with no way to
+  // scroll to the buttons.
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-start;justify-content:center;padding-top:env(safe-area-inset-top,0px)';
   overlay.innerHTML = `
-    <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:24px 20px 40px;max-width:480px;width:100%">
+    <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:0 0 20px 20px;padding:24px 20px 32px;max-width:480px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch">
       <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold-light);margin-bottom:4px">${t('bulkRestockTitle')}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${lang==='el'?'Τρέχον υπόλοιπο':'Current stock'}: <strong style="color:var(--gold-light)">${parseFloat(item.weight).toFixed(1)}g</strong></div>
@@ -22559,9 +22562,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.53', date: 'Ιούλιος 2026', items: [
-        "⬆️ Η επιλογή χώρας άνοιγε από κάτω, οπότε μόλις γράφατε, το πληκτρολόγιο σκέπαζε ακριβώς τη λίστα που ψάχνατε. Τώρα ανοίγει από ΠΑΝΩ: αναζήτηση και αποτελέσματα μένουν πάντα ορατά.",
-        "⌨️ Ανοίγει κατευθείαν με το πληκτρολόγιο έτοιμο — πατάτε τη σημαία και γράφετε αμέσως τη χώρα. Η Ελλάδα παραμένει πρώτη για τη συνηθισμένη περίπτωση.",
+      { version: 'v11.54', date: 'Ιούλιος 2026', items: [
+        "⬆️ Και τα υπόλοιπα παράθυρα με πληκτρολόγηση ανοίγουν πλέον από ΠΑΝΩ, όχι από κάτω: ανεφοδιασμός αλυσίδας, καρτέλα ομάδας (πώληση πολλών) και αποστολή σε συνεργάτη.",
+        "📜 Το παράθυρο ανεφοδιασμού δεν είχε καθόλου όριο ύψους — σε μικρή οθόνη μπορούσε να κοπεί χωρίς να φτάνετε στα κουμπιά. Τώρα κυλάει κανονικά.",
+        "📐 Όλα κρατούν το ύψος τους μέσα στην οθόνη ακόμη κι όταν είναι ανοιχτό το πληκτρολόγιο.",
       ]},
           ]
   },
@@ -22592,9 +22596,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.53', date: 'Jul 2026', items: [
-        "⬆️ The country picker opened from the bottom, so the moment you typed, the keyboard covered the very list you were reading. It now opens from the TOP: search and results stay visible.",
-        "⌨️ It opens with the keyboard ready — tap the flag and start typing the country. Greece stays first for the usual case.",
+      { version: 'v11.54', date: 'Jul 2026', items: [
+        "⬆️ The remaining windows you type into now open from the TOP instead of the bottom: bulk chain restock, the group card (sell several) and share-to-team.",
+        "📜 The restock window had no height limit at all — on a small screen it could be cut off with no way to reach the buttons. It scrolls properly now.",
+        "📐 They all keep their height inside the screen even while the keyboard is up.",
       ]},
           ]
   }
@@ -25811,7 +25816,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.53';
+const APP_VERSION = '11.54';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -26747,10 +26752,12 @@ function openInvGroup(gid) {
   }).join('');
   const overlay = document.createElement('div');
   overlay.id = 'invGroupOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:99996;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;padding:0';
+  // Top-anchored: the "sell several" stepper is a typing field, and dvh keeps the
+  // sheet inside the shrunken viewport while the keyboard is up.
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99996;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
   overlay.onclick = (e) => { if (e.target === overlay) closeInvGroup(); };
   overlay.innerHTML = `
-    <div style="background:var(--dark-2,#14110c);border-top-left-radius:18px;border-top-right-radius:18px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;padding:18px 18px 24px;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
         <div style="flex:1;min-width:0">
           <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">🔗 ${title}</div>
@@ -27384,7 +27391,8 @@ async function invShareToTeam(qrInput) {
   const overlay = document.createElement('div');
   overlay.id = 'notifSendOverlay';
   overlay._qrCodes = qrCodes; // safe store — no inline JSON
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center;padding:0';
+  // Top-anchored: this sheet has a message field to type into.
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.8);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
 
   const memberRows = allSlugs.length === 0
     ? `<div style="color:var(--text-muted);font-family:var(--font-body);font-size:13px;text-align:center;padding:16px">${t('notifNoTeam')}</div>`
@@ -27400,7 +27408,7 @@ async function invShareToTeam(qrInput) {
       }).join('');
 
   overlay.innerHTML = `
-    <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:24px 20px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
+    <div style="background:var(--dark-2);border-radius:0 0 20px 20px;border-bottom:1px solid var(--card-border);padding:24px 20px 32px;max-width:480px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch">
       <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">📤 ${t('notifSendTitle')}</div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);margin-bottom:4px">${isSingleItem ? (firstItem && firstItem.seqId ? itemRefCode(firstItem) + ' · ' : '') + qrCodes[0] : qrCodes.length + (lang==='el'?' αντικείμενα επιλεγμένα':' items selected')}</div>
