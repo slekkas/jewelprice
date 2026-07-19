@@ -22559,10 +22559,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.52', date: 'Ιούλιος 2026', items: [
-        "🌍 Νέα επιλογή χώρας στο τηλέφωνο. Πατάτε τη σημαία και ανοίγει λίστα με τα ΟΝΟΜΑΤΑ των χωρών, αλφαβητικά — η Ελλάδα πρώτη.",
-        "🔎 Πεδίο αναζήτησης: γράφετε «no» και βγαίνει η Norway. Ψάχνει και με κωδικό κλήσης — «47» βγάζει το ίδιο.",
-        "⚡ Τέλος το ατέλειωτο σκρολάρισμα σε 50 σημαιάκια χωρίς ονόματα. Ισχύει παντού: πώληση, πελάτες, κρατήσεις, επισκευές, δωροεπιταγές, επιστροφές.",
+      { version: 'v11.53', date: 'Ιούλιος 2026', items: [
+        "⬆️ Η επιλογή χώρας άνοιγε από κάτω, οπότε μόλις γράφατε, το πληκτρολόγιο σκέπαζε ακριβώς τη λίστα που ψάχνατε. Τώρα ανοίγει από ΠΑΝΩ: αναζήτηση και αποτελέσματα μένουν πάντα ορατά.",
+        "⌨️ Ανοίγει κατευθείαν με το πληκτρολόγιο έτοιμο — πατάτε τη σημαία και γράφετε αμέσως τη χώρα. Η Ελλάδα παραμένει πρώτη για τη συνηθισμένη περίπτωση.",
       ]},
           ]
   },
@@ -22593,10 +22592,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.52', date: 'Jul 2026', items: [
-        "🌍 New country picker on every phone field. Tap the flag and you get a list of country NAMES, alphabetical — Greece first.",
-        "🔎 With a search box: type “no” and Norway comes up. It searches dial codes too — “47” finds the same.",
-        "⚡ No more scrolling 50 nameless flags. Applies everywhere: sales, clients, reservations, repairs, gift certificates, returns.",
+      { version: 'v11.53', date: 'Jul 2026', items: [
+        "⬆️ The country picker opened from the bottom, so the moment you typed, the keyboard covered the very list you were reading. It now opens from the TOP: search and results stay visible.",
+        "⌨️ It opens with the keyboard ready — tap the flag and start typing the country. Greece stays first for the usual case.",
       ]},
           ]
   }
@@ -24559,10 +24557,15 @@ function _openCountryPicker(codeId) {
   const ov = document.createElement('div');
   ov.id = 'countryPickerOverlay';
   ov.dataset.target = codeId;
+  // Anchored to the TOP, not the bottom. This sheet has a search field, and the
+  // keyboard rises from the bottom — a bottom sheet puts the results directly
+  // under the search box, i.e. exactly where the keyboard lands, so typing hides
+  // the very list you are reading. (dvh so the box tracks the shrunken viewport
+  // while the keyboard is up; vh first as the fallback.)
   // Above every dialog that contains a phone field (sale, reserve, repair, return…).
-  ov.style.cssText = 'position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,0.85);display:flex;align-items:flex-end;justify-content:center';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding-top:env(safe-area-inset-top,0px)';
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
-  ov.innerHTML = `<div style="background:var(--dark-2);border-top:1px solid var(--card-border);border-radius:16px 16px 0 0;padding:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column">
+  ov.innerHTML = `<div style="background:var(--dark-2);border-bottom:1px solid var(--card-border);border-radius:0 0 16px 16px;padding:16px;width:100%;max-width:480px;max-height:92vh;max-height:92dvh;display:flex;flex-direction:column;box-shadow:0 12px 32px rgba(0,0,0,0.55)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🌍 ${isEl ? 'Χώρα' : 'Country'}</div>
       <button onclick="document.getElementById('countryPickerOverlay').remove()" class="modal-x">✕</button>
@@ -24574,8 +24577,10 @@ function _openCountryPicker(codeId) {
   </div>`;
   document.body.appendChild(ov);
   _cpRender(_countryList(), cur);
-  // Don't autofocus: on a phone the keyboard would cover the list, and most of
-  // the time the country wanted is Greece, right at the top.
+  // Safe to autofocus now the sheet is top-anchored: the keyboard opens below
+  // the results instead of on top of them, so you can open it and start typing
+  // the country straight away. Greece is still the first row for the common case.
+  setTimeout(() => { try { document.getElementById('cpSearch')?.focus(); } catch (e) {} }, 60);
 }
 
 function _cpRender(list, cur) {
@@ -25806,7 +25811,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.52';
+const APP_VERSION = '11.53';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
