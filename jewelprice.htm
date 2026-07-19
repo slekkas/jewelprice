@@ -5770,6 +5770,9 @@ function _pickGiftForSale(id) {
 
 function clearGiftFromSale() {
   window._saleGiftCard = null;
+  // Removing it by hand is a deliberate "not this sale" — it must not reappear
+  // the next time the sale box opens.
+  _pendingReturnCredit = null;
   _updateSaleGiftDisplay();
 }
 
@@ -9850,20 +9853,28 @@ function _returnCreditSheet(card) {
 let _pendingReturnCredit = null;
 
 function _armCreditForNextSale(cardId) {
+  const g = gcFindById(cardId);
+  if (!g || !gcIsSpendable(g)) return;
   _pendingReturnCredit = { cardId, ts: Date.now() };
   const isEl = lang === 'el';
-  showToast('🔄 ' + (isEl
-    ? 'Επιλέξτε το νέο κόσμημα — η πίστωση θα εφαρμοστεί'
-    : 'Now pick the new piece — the credit will be applied'));
+  const cur = state.currency || '€';
+  showToast(gcKindIcon(g) + ' ' + gcNoFmt(g) + ' · ' + cur + gcBalance(g).toFixed(2) + ' — ' + (isEl
+    ? 'θα μπει στην επόμενη πώληση'
+    : 'will be applied to the next sale'));
 }
 
 function _consumePendingCredit() {
   if (!_pendingReturnCredit) return;
   const { cardId, ts } = _pendingReturnCredit;
-  _pendingReturnCredit = null;                       // single use, always
-  if (Date.now() - ts > 30 * 60 * 1000) return;      // and never a stale one
+  if (Date.now() - ts > 30 * 60 * 1000) { _pendingReturnCredit = null; return; } // never a stale one
   const g = gcFindById(cardId);
-  if (!g || !gcIsSpendable(g)) return;
+  if (!g || !gcIsSpendable(g)) { _pendingReturnCredit = null; return; }
+  // Deliberately NOT cleared here. The customer hands the card over first and
+  // then takes her time choosing — the owner may open and cancel the sale box
+  // several times, or open it on a piece she then rejects. Losing the card on
+  // the first open would mean re-scanning it every time. It is cleared when a
+  // sale is actually RECORDED, when the owner removes it with the ✕, or after
+  // 30 minutes.
   window._saleGiftCard = { id: g.id, cardNo: g.cardNo, use: 0, wasCash: !!g.cashSale };
   try { _updateSaleGiftDisplay(); } catch (e) {}
 }
@@ -10081,7 +10092,10 @@ function closeSaleModal() {
   delete window._saleFromInvId;   // clean up if opened from inventory
   delete window._saleFromInvQr;
   window._cartSaleItems = null;   // clear multi-sale state so a cancelled cart sale can't leak into the next sale
-  // A cancelled sale must not leave a certificate armed for the next one.
+  // Clears the certificate APPLIED to this dialog. A card the customer handed
+  // over (_pendingReturnCredit) deliberately survives — she is still choosing,
+  // and this box may open and close several times before she settles. That is
+  // cleared on a recorded sale, on the ✕, or after 30 minutes.
   window._saleGiftCard = null;
   _updateSaleGiftDisplay();
   // Nor a "this one's a gift" flag, which would print a card for the next sale.
@@ -10779,6 +10793,8 @@ async function confirmSale() {
     } catch (e) { console.warn('gift redemption error:', e); }
   }
   window._saleGiftCard = null;
+  // The sale is recorded, so a card held for "the next sale" has now had it.
+  _pendingReturnCredit = null;
   if (saleCustomer) autoSaveClientFromQuote(saleCustomer, saleEmail);
 
   // If opened from inventory card — mark that specific item as sold directly
@@ -14385,6 +14401,16 @@ function _lookupCodeOtherType(raw, match, foundBanner) {
 }
 
 function lookupCode(raw, opts) {
+  // A TYPED 'G-0004' or 'X-0001' means the same thing as a scanned one — the
+  // camera path is not the only way in (a QR gets scratched, or you simply have
+  // the number). Only the scanner reached these resolvers before, so typing a
+  // card code fell through and reported "code not found".
+  // opts.noSpecial is set when handleScannedCode itself falls back to here, so
+  // an unknown card number can't bounce between the two forever.
+  if ((!opts || !opts.noSpecial) && /^[GX]-\d{1,6}$/i.test(String(raw || '').trim())) {
+    handleScannedCode(String(raw).trim());
+    return;
+  }
   // A fresh, user-initiated lookup starts with no ref pin — only the ref branch's own
   // recursive re-run (opts.fromRef) is allowed to keep the pin it just set. This is what
   // makes the pin reset on a genuinely new scan while surviving passive re-checks (which
@@ -22613,9 +22639,18 @@ async function decodeQrFromCanvas(canvas) {
 
 // Route a decoded QR value to Calc lookup. (Scan-to-inventory is a separate path,
 // reached from the "add to inventory?" chip on an unknown-QR scan → prepareInvConfirm.)
-function handleScannedCode(raw) {
+async function handleScannedCode(raw) {
   let code = raw;
   try { const u = new URL(raw); const p = u.searchParams.get('code'); if (p) code = p; } catch(e) {}
+  // An exchange card resolves through the SALES list, and unlike gift cards
+  // (whose getGiftCards() self-loads from storage) that cache is empty until
+  // something has touched Sales this session. So scanning X-0001 right after
+  // opening the app silently found nothing and fell through as an unknown item
+  // code. Load it on demand — only for an X- code, so an ordinary item scan
+  // never pays for it.
+  if (/^X-\d{1,6}$/i.test(String(code).trim()) && (!_salesCache || !_salesCache.length)) {
+    try { await getSales(); } catch (e) {}
+  }
   // A gift certificate ('G-0004') is checked FIRST. It can't collide with an item
   // or coin reference code (2 letters + 4 digits, e.g. GC0510) because of the
   // hyphen — see gcFindByCode.
@@ -22634,6 +22669,11 @@ function handleScannedCode(raw) {
         ? ` — ${lang === 'el' ? 'υπόλοιπο' : 'balance'} ${_cur2}${gcBalance(_gc).toFixed(2)} ${lang === 'el' ? 'από' : 'of'} ${_cur2}${(parseFloat(_gc.amount) || 0).toFixed(2)}`
         : ''));
     } else {
+      // No sale in progress. This is the normal counter order: the customer
+      // hands the card over FIRST, then browses. Hold it for the sale that is
+      // coming, so pressing SOLD after showing her six pieces still applies it
+      // — and show the card so its balance can be read out.
+      if (gcIsSpendable(_gc)) _armCreditForNextSale(_gc.id);
       openGiftCardDetail(_gc.id);
     }
     return;
@@ -22680,7 +22720,9 @@ function handleScannedCode(raw) {
   }
   const input = document.getElementById('codeInput');
   input.value = code;
-  setTimeout(() => { lookupCode(code); }, 300);
+  // noSpecial: we already tried the card resolvers above and this is not one, so
+  // lookupCode must not hand it straight back to us.
+  setTimeout(() => { lookupCode(code, { noSpecial: true }); }, 300);
 }
 
 function startQrDecode(video, status) {
@@ -22797,12 +22839,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.58', date: 'Ιούλιος 2026', items: [
-        "🧾 Οι κινήσεις της δωροεπιταγής δείχνουν πλέον κωδικό αναφοράς και περιγραφή («ER0664 Σκουλαρίκια · 14K»), όχι τους παλιούς κωδικούς QR. Στις πολλαπλές πωλήσεις δεν διπλογράφονται πια τα είδη.",
-        "👆 Πατώντας μια κίνηση ανοίγει κατευθείαν η πώληση.",
-        "💍 ΣΗΜΑΝΤΙΚΟ: το «Pearl» εμφανιζόταν στα ελληνικά ως «Δάκρυl» — το σχήμα «Pear» έτρωγε τη λέξη. Ίσχυε παντού: προσφορές, πιστοποιητικά, καταλόγους. Διορθώθηκε· τώρα «Μαργαριτάρι».",
-        "🔖 Το πλαίσιο της σφραγίδας έφυγε. Μένει ο ίδιος χώρος 10×5 εκ. με μια γραμμή και «ΣΦΡΑΓΙΔΑ» από κάτω, στο ίδιο ύψος με την υπογραφή — ξέρετε πού να σφραγίσετε χωρίς άσχημο κουτί.",
-        "📄 Διόρθωση: όταν η δωροεπιταγή είχε αφιέρωση, το κείμενο στο κάτω μέρος έβγαινε έξω από το πλαίσιο. Τώρα χωράει πάντα, σε κάθε περίπτωση.",
+      { version: 'v11.60', date: 'Ιούλιος 2026', items: [
+        "🛒 Σαρώνετε τη δωροεπιταγή ή την πίστωση ΠΡΙΝ την πώληση και κρατιέται. Η πελάτισσα δοκιμάζει έξι κομμάτια, εσείς πατάτε ΠΩΛΗΘΗΚΕ και μπαίνει μόνη της — δεν χρειάζεται να τη σαρώσετε ξανά.",
+        "👀 Με τη σάρωση ανοίγει και η καρτέλα της, για να δείτε αμέσως το υπόλοιπο.",
+        "🔒 Δεν ξεφεύγει: φεύγει μόλις καταχωρηθεί η πώληση, μόλις πατήσετε το ✕ δίπλα της, ή μετά από 30 λεπτά. Δεν μπορεί να μπει κατά λάθος στον επόμενο πελάτη.",
       ]},
           ]
   },
@@ -22833,12 +22873,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.58', date: 'Jul 2026', items: [
-        "🧾 A certificate's history now shows the reference code and description (“ER0664 Earrings · 14K”) instead of raw QR codes, and a multi-item sale no longer lists its items twice.",
-        "👆 Tap any line to open that sale.",
-        "💍 IMPORTANT: “Pearl” was rendering in Greek as “Δάκρυl” — the shape “Pear” was eating the word. It affected quotes, certificates and catalogues everywhere. Fixed; it now reads «Μαργαριτάρι».",
-        "🔖 The stamp box is gone. The same 10×5 cm of room remains, closed by a line with “STAMP” beneath it, level with the signature — so you know where to stamp without an ugly box.",
-        "📄 Fixed: when a certificate carried a dedication, the text at the bottom spilled outside the frame. It now fits in every case.",
+      { version: 'v11.60', date: 'Jul 2026', items: [
+        "🛒 Scan a gift certificate or credit BEFORE the sale and it is held. The customer tries six pieces, you press SOLD and it applies itself — no need to scan it again.",
+        "👀 Scanning also opens its card, so you can read the balance out straight away.",
+        "🔒 It can't escape: it's released once the sale is recorded, the moment you press the ✕ beside it, or after 30 minutes. It cannot land on the next customer by accident.",
       ]},
           ]
   }
@@ -26080,7 +26118,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.58';
+const APP_VERSION = '11.60';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
