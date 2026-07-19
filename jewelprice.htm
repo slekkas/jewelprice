@@ -5240,7 +5240,14 @@ async function _gcSave() {
 async function openGiftCardDetail(id) {
   const g = gcFindById(id); if (!g) return;
   // Sales carry the item descriptions the redemption statement below resolves.
-  if (gcRedeemed(g) > 0) { try { await getSales(); } catch (e) {} }
+  // Sales carry the redemption→sale link; inventory carries the ref code and
+  // description each line is built from.
+  if (gcRedeemed(g) > 0) {
+    try { await getSales(); } catch (e) {}
+    try {
+      if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
+    } catch (e) {}
+  }
   const isEl = lang === 'el';
   const cur = state.currency || '€';
   const bal = gcBalance(g), spent = gcRedeemed(g), face = parseFloat(g.amount) || 0;
@@ -5261,12 +5268,15 @@ async function openGiftCardDetail(id) {
   const redemptionLog = _rLines.length
     ? `<div style="${_resLbl};margin-top:14px">${isEl ? 'Κινήσεις' : 'Used for'}</div>
        <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 11px">
-       ${_rLines.map((l, i) => `<div style="padding:6px 0;border-bottom:1px solid var(--wa05)">
+       ${_rLines.map((l, i) => `<div ${l.saleId != null ? `onclick="_gcOpenRedemptionSale(${l.saleId})" style="cursor:pointer;` : 'style="'}padding:6px 0;border-bottom:1px solid var(--wa05)">
          <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
            <span style="color:var(--text-muted);font-family:'DM Mono',monospace">${l.date ? fmtDate(l.date) : '—'}${(g.redemptions[i] && g.redemptions[i].by) ? ' · ' + _gcEsc(g.redemptions[i].by) : ''}</span>
            <span style="color:var(--text);font-family:var(--font-mono);flex-shrink:0">−${cur}${l.amount.toFixed(2)}</span>
          </div>
-         ${l.desc ? `<div style="font-size:11.5px;color:var(--gold-light);margin-top:2px;line-height:1.35">${_gcEsc(l.desc)}</div>` : ''}
+         ${l.items.length
+           ? l.items.map(it => `<div style="font-size:11.5px;color:var(--gold-light);margin-top:2px;line-height:1.35">${it.ref ? `<span style="font-family:'DM Mono',monospace">${_gcEsc(it.ref)}</span> ` : ''}${_gcEsc(it.label)}</div>`).join('')
+           : (l.desc ? `<div style="font-size:11.5px;color:var(--gold-light);margin-top:2px;line-height:1.35">${_gcEsc(l.desc)}</div>` : '')}
+         ${l.saleId != null ? `<div style="font-size:10.5px;color:var(--text-muted);margin-top:3px">${isEl ? 'Άνοιγμα πώλησης' : 'Open sale'} ›</div>` : ''}
        </div>`).join('')}
        <div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:7px 0 1px;font-weight:600">
          <span style="color:var(--text-muted)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span>
@@ -5901,7 +5911,7 @@ function buildGiftCertHTML(g) {
   // bite of it. Measured: 4 rows is what fits without spilling to a second page.
   // Show the most RECENT four in order and count the rest — anyone wanting the
   // full history has it in the app.
-  const _GC_STMT_MAX = 4;
+  const _GC_STMT_MAX = 3;
   const _lines = _allLines.slice(-_GC_STMT_MAX);
   const _moreLines = _allLines.length - _lines.length;
   // Once a card is part-spent it is a balance statement, not a present — the
@@ -5951,10 +5961,24 @@ function buildGiftCertHTML(g) {
      gives up some grandeur to make room for the purchase list. Applied via a
      body class so an untouched gift certificate is completely unaffected.
      Measured: this is what keeps the whole thing on ONE sheet with 4 rows. */
-  .stmt-mode .amount { font-size:46pt; }
-  .stmt-mode .store-name { font-size:21pt; }
-  .stmt-mode .rule { margin:4mm 0 3.5mm; }
-  .stmt-mode .terms { margin-top:3mm; line-height:1.5; }
+  .stmt-mode .amount { font-size:40pt; margin-top:3mm; }
+  .stmt-mode .store-name { font-size:19pt; }
+  .stmt-mode .rule { margin:3mm 0 2.5mm; }
+  .stmt-mode .terms { margin-top:2.5mm; line-height:1.45; }
+  .stmt-mode .stmt { margin-top:2.5mm; }
+  .stmt-mode .meta-line { margin-bottom:3mm; }
+  .to-block { margin-top:8mm; }
+  /* A dedication adds ~104px to a page whose height is FIXED and whose stamp
+     already takes 189px of it — without this the terms paragraph spilled out
+     through the bottom of the frame (measured: 67px past it). Scoped to this
+     class so a card WITHOUT a dedication keeps the exact proportions it has. */
+  .has-ded .rule { margin:5mm 0 4mm; }
+  .has-ded .amount { font-size:48pt; margin-top:3mm; }
+  .has-ded .to-block { margin-top:4mm; }
+  .has-ded .to-line { font-size:17pt; }
+  .has-ded .message { font-size:12pt; margin-top:2mm; }
+  .has-ded .meta-line { margin-bottom:3.5mm; }
+  .has-ded .terms { margin-top:3.5mm; }
   .stmt-row .d { width:24mm; flex:0 0 auto; font-family:'DM Mono',monospace; color:#9a9078; }
   .stmt-row .i { flex:1; text-align:left; }
   .stmt-row .a { width:24mm; flex:0 0 auto; text-align:right; font-family:'DM Mono',monospace; }
@@ -5973,11 +5997,15 @@ function buildGiftCertHTML(g) {
      they moved to their own centred line just above it. */
   .meta-line { width:100%; text-align:center; font-size:8pt; color:#888; margin-bottom:5mm; }
   .meta-line .no { font-family:'DM Mono',monospace; color:#C9A84C; letter-spacing:0.14em; font-size:10pt; margin-right:3mm; }
-  /* THE REAL SHOP STAMP: 10 x 5 cm, oblong. Same box as the quote/certificate —
-     the owner supplied these dimensions, so all three documents use them. Do not
-     shrink this to make a layout fit; rearrange the layout instead. */
-  .stamp-box { width:100mm; height:50mm; border:2px dashed #C9A84C; border-radius:3px;
-               display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  /* THE REAL SHOP STAMP: 10 x 5 cm. The dashed box was ugly on a printed
+     document, so all that survives is the ROOM for it — 50mm of clear space —
+     closed by a rule and a caption, exactly like the signature line beside it.
+     Same idea, same baseline: it shows where to stamp without drawing a box
+     around it. Keep the 50mm; that IS the stamp's height. */
+  .stamp-box { width:100mm; flex:0 0 auto; }
+  .stamp-box .ln { border-bottom:1px solid #ccc; height:50mm; }
+  .stamp-box .lbl { font-size:7.5pt; color:#999; letter-spacing:0.1em; text-transform:uppercase;
+                    margin-top:2mm; text-align:center; }
   .stamp-box span { font-size:7pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
   .qr-wrap { text-align:center; }
   .qr-wrap img { width:22mm; height:22mm; display:block; }
@@ -5985,7 +6013,7 @@ function buildGiftCertHTML(g) {
   .terms { font-size:7pt; color:#b0b0b0; font-style:italic; line-height:1.7; margin-top:5mm; max-width:190mm; }
 </style>
 </head>
-<body class="${_spent > 0 ? 'stmt-mode' : ''}">
+<body class="${_spent > 0 ? 'stmt-mode' : ''}${(_showGiftExtras && (g.toName || g.message)) ? ' has-ded' : ''}">
 <div class="frame"><div class="inner">
   <div class="store-name">LEKKAS <span>JEWELRY</span></div>
   <div class="store-sub">${isEl ? 'Κάρπαθος' : 'Karpathos'}</div>
@@ -6000,7 +6028,7 @@ function buildGiftCertHTML(g) {
       : (isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice'))}</div>
   ${_spent > 0 ? `<div class="amount-orig">${isEl ? 'αρχικό ποσό' : 'original amount'} ${cur}${amount.toFixed(2)}</div>` : ''}
 
-  ${(_showGiftExtras && g.toName) ? `<div style="margin-top:8mm">
+  ${(_showGiftExtras && g.toName) ? `<div class="to-block">
     <div class="to-label">${isEl ? 'Προς' : 'To'}</div>
     <div class="to-line">${esc(g.toName)}</div>
   </div>` : ''}
@@ -6031,7 +6059,7 @@ function buildGiftCertHTML(g) {
       <div class="ln"></div>
       <div class="lbl">${isEl ? 'Υπογραφή' : 'Authorised signature'}</div>
     </div>
-    <div class="stamp-box"><span>${isEl ? 'Σφραγίδα' : 'Stamp'}</span></div>
+    <div class="stamp-box"><div class="ln"></div><div class="lbl">${isEl ? 'Σφραγίδα' : 'Stamp'}</div></div>
     <div class="qr-wrap">
       <img src="${qrUrl}" alt="${gcNoFmt(g)}">
       <div class="qlbl">${gcNoFmt(g)}</div>
@@ -6054,12 +6082,26 @@ function buildGiftCertHTML(g) {
 // item description through its saleId.
 async function printGiftCert(id) {
   const g = gcFindById(id); if (!g) return;
-  if (gcRedeemed(g) > 0) { try { await getSales(); } catch (e) {} }
+  // Sales carry the redemption→sale link; inventory carries the ref code and
+  // description each line is built from.
+  if (gcRedeemed(g) > 0) {
+    try { await getSales(); } catch (e) {}
+    try {
+      if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
+    } catch (e) {}
+  }
   openQuoteWindow(buildGiftCertHTML(g), false, null);
 }
 async function shareGiftCert(id) {
   const g = gcFindById(id); if (!g) return;
-  if (gcRedeemed(g) > 0) { try { await getSales(); } catch (e) {} }
+  // Sales carry the redemption→sale link; inventory carries the ref code and
+  // description each line is built from.
+  if (gcRedeemed(g) > 0) {
+    try { await getSales(); } catch (e) {}
+    try {
+      if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
+    } catch (e) {}
+  }
   const _cred = gcIsCredit(g);
   const title = (_cred
     ? (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card')
@@ -6623,11 +6665,13 @@ function buildReservationHTML(r) {
   .sign-line { width:60mm; flex:0 0 auto; }
   .sign-line .ln { border-bottom:1px solid #ccc; height:34px; }
   .sign-line .lbl { font-size:8pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
-  /* THE REAL SHOP STAMP: 10 x 5 cm, oblong — same box on every document (owner's
-     own dimensions). The signature line was 62% of the row, which left nowhere
-     near enough beside it, so it is now a fixed 60mm. Do not shrink the stamp. */
-  .stamp-box { width:100mm; height:50mm; border:2px dashed #C9A84C; border-radius:4px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
-  .stamp-box span { font-size:7.5pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
+  /* THE REAL SHOP STAMP: 10 x 5 cm of clear room, closed by a rule and a caption
+     like the signature line beside it — no drawn box (it printed ugly). The
+     signature line was 62% of the row, which left nowhere near enough beside it,
+     so it is now a fixed 60mm. Keep the 50mm; that IS the stamp's height. */
+  .stamp-box { width:100mm; flex:0 0 auto; }
+  .stamp-box .ln { border-bottom:1px solid #ccc; height:50mm; }
+  .stamp-box .lbl { font-size:8pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; text-align:center; }
   .footer { margin-top:14px; padding-top:8px; border-top:1px solid #eee; display:flex; justify-content:space-between; font-size:7pt; color:#bbb; }
 </style>
 </head>
@@ -6678,7 +6722,7 @@ ${r.holdUntil ? `<div class="hold-line">${isEl ? 'Κράτηση έως' : 'Held
 
 <div class="sign-section">
   <div class="sign-line"><div class="ln"></div><div class="lbl">${isEl ? 'Υπογραφή πελάτη' : 'Customer signature'}</div></div>
-  <div class="stamp-box"><span>${isEl ? 'Σφραγίδα' : 'Stamp'}</span></div>
+  <div class="stamp-box"><div class="ln"></div><div class="lbl">${isEl ? 'Σφραγίδα' : 'Stamp'}</div></div>
 </div>
 
 <div class="footer">
@@ -7668,6 +7712,15 @@ const STONE_TRANSLATIONS = {
 function stoneLabelFor(type, isEl) { return (isEl && STONE_TRANSLATIONS[type]) ? STONE_TRANSLATIONS[type] : type; }
 function stoneLabel(type) { return stoneLabelFor(type, lang === 'el'); }
 // Helper: translate full stonesDesc string for display (keeps carats/clarity/color intact)
+// Replace a term only when it stands as a WHOLE WORD. Plain substring replacement
+// is what turned every «Pearl» into «Δάκρυl»: the SHAPE "Pear" matched inside the
+// STONE "Pearl", and sorting longest-first cannot help because the two live in
+// different maps and the shape pass runs first.
+function _replaceWholeWord(text, key, val) {
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp('\\b' + esc + '\\b', 'g'), val);
+}
+
 function stonesDescDisplay(desc) {
   if (!desc || lang !== 'el') return desc;
   let result = desc;
@@ -7678,13 +7731,16 @@ function stonesDescDisplay(desc) {
   Object.keys(STONE_SHAPE_TRANSLATIONS).sort((a, b) => b.length - a.length).forEach(k => {
     if (result.indexOf(k) === -1) return;
     const token = '@@SHP' + parked.length + '@@';
-    parked.push(STONE_SHAPE_TRANSLATIONS[k]);
-    result = result.split(k).join(token);
+    const before = result;
+    result = _replaceWholeWord(result, k, token);
+    // Only claim the slot if the word actually matched — "Pear" appearing solely
+    // inside "Pearl" must not consume a placeholder index.
+    if (result !== before) parked.push(STONE_SHAPE_TRANSLATIONS[k]);
   });
-  // Stone names — longest first to avoid partial matches (e.g. "Pearl" inside "Black Pearl")
+  // Stone names — longest first, so "Akoya Pearl" is taken before plain "Pearl".
   Object.keys(STONE_TRANSLATIONS).sort((a, b) => b.length - a.length)
-    .forEach(k => { result = result.split(k).join(STONE_TRANSLATIONS[k]); });
-  result = result.split('melee').join('Μελέ');
+    .forEach(k => { result = _replaceWholeWord(result, k, STONE_TRANSLATIONS[k]); });
+  result = _replaceWholeWord(result, 'melee', 'Μελέ');
   parked.forEach((v, i) => { result = result.split('@@SHP' + i + '@@').join(v); });
   return result;
 }
@@ -9109,24 +9165,69 @@ function gcIsCredit(g) { return !!g && g.origin === 'return'; }
 // A redemption stores only the saleId, so the description is resolved from the
 // sale — and from its whole saleGroup, since a cart sale draws the certificate
 // down once against its first record while the other items are siblings.
+// Each line is built PER ITEM from the inventory record — never from the sale's
+// note. Two reasons the note was wrong: every member of a multi-item sale stores
+// the SAME joined note (so listing the members repeated it, "A, B · A, B"), and
+// that note falls back to the raw qrCode when an item has no description, which
+// prints as ORO14SK0.8-2x2.5PEA instead of a reference code.
 function _gcRedemptionLines(g) {
   const sales = _salesCache || [];
+  const inv = _inventoryCache || {};
+  const findItem = (s) => {
+    if (s.invId && inv[s.invId]) return inv[s.invId];
+    if (s.invQr) {
+      const q = s.invQr.trim().toUpperCase();
+      return Object.values(inv).find(it => it.qrCode && it.qrCode.trim().toUpperCase() === q) || null;
+    }
+    return null;
+  };
+  const itemOf = (s) => {
+    const it = findItem(s);
+    const ref = (s.seqRef || (it && it.seqId ? itemRefCode(it) : '') || '').trim();
+    const bits = [];
+    if (it) {
+      if (it.jewelryType) bits.push(invTypeLabel(it.jewelryType));
+      if (it.karat) bits.push(it.metal === 'gold' ? it.karat + 'K' : it.karat);
+      if (it.stonesDesc) { try { bits.push(stonesDescPublic(it.stonesDesc)); } catch (e) {} }
+      const d = _itemDesc(it);
+      if (d) bits.push(d);
+    }
+    // Nothing resolvable (a manual sale, or the piece was deleted) — the note is
+    // all there is, and for a single sale it is not duplicated.
+    if (!bits.length && !ref) return { ref: '', label: (s.note || '').trim() };
+    return { ref, label: bits.join(' · ') };
+  };
   return (g.redemptions || []).map(r => {
-    let desc = '';
+    let items = [];
+    let saleId = null;
     if (r.saleId != null) {
       const s = sales.find(x => x.id === r.saleId);
       if (s) {
+        saleId = s.id;
         const members = s.saleGroup ? sales.filter(x => x.saleGroup === s.saleGroup) : [s];
-        desc = members.map(m => (m.note || m.seqRef || '').trim()).filter(Boolean).join(' · ');
+        items = members.map(itemOf).filter(i => i.ref || i.label);
       }
     }
-    return { date: r.date || '', desc, amount: parseFloat(r.amount) || 0 };
+    return {
+      date: r.date || '',
+      amount: parseFloat(r.amount) || 0,
+      saleId,
+      items,
+      // Flat one-line form, for the printed card.
+      desc: items.map(i => [i.ref, i.label].filter(Boolean).join(' ')).join(' · ')
+    };
   });
 }
 // A bought gift certificate and a credit from a return behave identically, but
 // they are NOT the same thing to the person at the counter — one is a present
 // someone paid for, the other is a customer's own money waiting to be spent.
 // Every surface that names a card goes through these, so they can never drift.
+// Tap a line in the card's statement to open the sale it paid for.
+function _gcOpenRedemptionSale(saleId) {
+  document.getElementById('giftDetailOverlay')?.remove();
+  try { showSaleDetail(saleId); } catch (e) {}
+}
+
 function gcKindIcon(g) { return gcIsCredit(g) ? '🎟️' : '🎁'; }
 function gcKindLabel(g) {
   const isEl = lang === 'el';
@@ -22696,11 +22797,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.57', date: 'Ιούλιος 2026', items: [
-        "🧾 Δωροεπιταγή ή πίστωση που έχει χρησιμοποιηθεί τυπώνεται πλέον ως ΚΑΤΑΣΤΑΣΗ: μεγάλο το υπόλοιπο, από κάτω το αρχικό ποσό, και αναλυτικά τι αγόρασε — είδος, ημερομηνία, ποσό.",
-        "🗑 Έτσι πετάτε το παλιό χαρτί και του δίνετε ένα νέο που τα λέει όλα: «€80 σκουλαρίκια 12/05, €70 δαχτυλίδι 30/06, υπόλοιπο €50». Καμία απορία για το πού πήγαν τα λεφτά.",
-        "📱 Τα ίδια φαίνονται και μέσα στην εφαρμογή, στην καρτέλα της επιταγής στον Πάγκο.",
-        "🎁 Μια ΑΧΡΗΣΙΜΟΠΟΙΗΤΗ δωροεπιταγή δεν αλλάζει σε τίποτα — κρατά την αφιέρωση και το «Προς», όπως πρέπει για δώρο.",
+      { version: 'v11.58', date: 'Ιούλιος 2026', items: [
+        "🧾 Οι κινήσεις της δωροεπιταγής δείχνουν πλέον κωδικό αναφοράς και περιγραφή («ER0664 Σκουλαρίκια · 14K»), όχι τους παλιούς κωδικούς QR. Στις πολλαπλές πωλήσεις δεν διπλογράφονται πια τα είδη.",
+        "👆 Πατώντας μια κίνηση ανοίγει κατευθείαν η πώληση.",
+        "💍 ΣΗΜΑΝΤΙΚΟ: το «Pearl» εμφανιζόταν στα ελληνικά ως «Δάκρυl» — το σχήμα «Pear» έτρωγε τη λέξη. Ίσχυε παντού: προσφορές, πιστοποιητικά, καταλόγους. Διορθώθηκε· τώρα «Μαργαριτάρι».",
+        "🔖 Το πλαίσιο της σφραγίδας έφυγε. Μένει ο ίδιος χώρος 10×5 εκ. με μια γραμμή και «ΣΦΡΑΓΙΔΑ» από κάτω, στο ίδιο ύψος με την υπογραφή — ξέρετε πού να σφραγίσετε χωρίς άσχημο κουτί.",
+        "📄 Διόρθωση: όταν η δωροεπιταγή είχε αφιέρωση, το κείμενο στο κάτω μέρος έβγαινε έξω από το πλαίσιο. Τώρα χωράει πάντα, σε κάθε περίπτωση.",
       ]},
           ]
   },
@@ -22731,11 +22833,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.57', date: 'Jul 2026', items: [
-        "🧾 A gift certificate or credit that has been used now prints as a STATEMENT: the balance large, the original amount beneath it, and an itemised list of what it bought — item, date, amount.",
-        "🗑 So you throw the old paper away and hand over a new one that explains itself: “€80 earrings 12/05, €70 ring 30/06, €50 left”. No doubt about where the money went.",
-        "📱 The same breakdown appears in the app, on the card's page under Desk.",
-        "🎁 An UNUSED gift certificate is completely unchanged — it keeps its dedication and “To”, as a present should.",
+      { version: 'v11.58', date: 'Jul 2026', items: [
+        "🧾 A certificate's history now shows the reference code and description (“ER0664 Earrings · 14K”) instead of raw QR codes, and a multi-item sale no longer lists its items twice.",
+        "👆 Tap any line to open that sale.",
+        "💍 IMPORTANT: “Pearl” was rendering in Greek as “Δάκρυl” — the shape “Pear” was eating the word. It affected quotes, certificates and catalogues everywhere. Fixed; it now reads «Μαργαριτάρι».",
+        "🔖 The stamp box is gone. The same 10×5 cm of room remains, closed by a line with “STAMP” beneath it, level with the signature — so you know where to stamp without an ugly box.",
+        "📄 Fixed: when a certificate carried a dedication, the text at the bottom spilled outside the frame. It now fits in every case.",
       ]},
           ]
   }
@@ -24011,7 +24114,11 @@ function buildCertificateHTML(r, cur, isEl, qrUrl, address, photoDataUrl, title,
   .price-row .plabel { color:#666; font-size:9pt; }
   .price-row .pvalue { color:#1a1a1a; }
   .stamp-section { margin-top:20px; text-align:center; }
-  .stamp-box { width:10cm; height:5cm; border:2px dashed #C9A84C; border-radius:4px; margin:0 auto; }
+  /* THE REAL SHOP STAMP: 10 x 5 cm of clear room, closed by a rule and a caption
+     to match the signature line below — no drawn box (it printed ugly).
+     Keep the 5cm; that IS the stamp's height. */
+  .stamp-box { width:10cm; margin:0 auto; }
+  .stamp-box .ln { border-bottom:1px solid #ccc; height:5cm; }
   .stamp-line { font-size:8pt; color:#999; letter-spacing:0.12em; text-transform:uppercase; }
   .footer { margin-top:14px; padding-top:8px; border-top:1px solid #eee; display:flex; justify-content:space-between; font-size:7pt; color:#bbb; }
 </style>
@@ -24093,8 +24200,10 @@ ${r.stones && r.stones.length > 0 ? `
 
 <div class="stamp-section" style="page-break-inside:avoid;break-inside:avoid">
   <div class="stamp-box">
+    <div class="ln"></div>
+    <div class="stamp-line" style="margin-top:4px">${isEl ? 'Σφραγίδα' : 'Stamp'}</div>
   </div>
-  <div style="width:10cm;margin:10px auto 0;display:flex;flex-direction:column;align-items:center;gap:4px">
+  <div style="width:10cm;margin:14px auto 0;display:flex;flex-direction:column;align-items:center;gap:4px">
     <div style="width:60%;border-bottom:1px solid #ccc"></div>
     <div class="stamp-line">${isEl ? 'Υπογραφή' : 'Signature'}</div>
   </div>
@@ -25971,7 +26080,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.57';
+const APP_VERSION = '11.58';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
