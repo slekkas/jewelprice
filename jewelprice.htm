@@ -5874,14 +5874,20 @@ function buildGiftCertHTML(g) {
   .to-label { font-size:7.5pt; letter-spacing:0.24em; text-transform:uppercase; color:#aaa; margin-bottom:1.5mm; }
   .message { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13pt; color:#666; margin-top:3mm; max-width:150mm; }
   .spacer { flex:1; }
-  .foot { width:100%; display:flex; justify-content:space-between; align-items:flex-end; gap:10mm; }
-  .sign-line { width:70mm; }
+  .foot { width:100%; display:flex; justify-content:space-between; align-items:flex-end; gap:6mm; }
+  .sign-line { width:50mm; }
   .sign-line .ln { border-bottom:1px solid #ccc; height:13mm; }
   .sign-line .lbl { font-size:7.5pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:2mm; }
   .meta { text-align:center; font-size:8pt; color:#888; line-height:2; }
   .meta .no { font-family:'DM Mono',monospace; color:#C9A84C; letter-spacing:0.14em; font-size:10pt; }
-  .stamp-and-qr { display:flex; align-items:flex-end; gap:7mm; }
-  .stamp-box { width:44mm; height:26mm; border:2px dashed #C9A84C; border-radius:3px;
+  .stamp-and-qr { display:flex; align-items:flex-end; gap:6mm; }
+  /* The shop stamp is OBLONG, 2:1 — same proportion as the original box on the
+     quote/certificate (10x5cm), which was built to the real stamp. It was
+     44x26mm here, too small. This is the largest 2:1 box the landscape foot row
+     can take: that row was already packed edge to edge, so the width comes out
+     of the signature line (50mm is still ample) and the tightened gaps, and the
+     extra height out of the flexible spacer above. */
+  .stamp-box { width:70mm; height:35mm; border:2px dashed #C9A84C; border-radius:3px;
                display:flex; align-items:center; justify-content:center; }
   .stamp-box span { font-size:7pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
   .qr-wrap { text-align:center; }
@@ -22442,11 +22448,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.49', date: 'Ιούλιος 2026', items: [
-        "📜 Το κουτί της πώλησης ΚΥΛΑΕΙ ξανά. Με εφαρμοσμένη πίστωση το περιεχόμενο ξεπερνούσε την οθόνη και κοβόταν πάνω και κάτω, χωρίς να μπορείτε να φτάσετε ούτε στον τίτλο ούτε στο κουμπί καταχώρισης.",
-        "🏷️ Ο Πάγκος λέει πλέον «Επιταγές & Πιστώσεις» — εκεί μέσα δεν είναι μόνο δωροεπιταγές.",
-        "🔄 Το κουμπί «Δώρο — κάρτα αλλαγής» στην πώληση έγινε σκέτο «Κάρτα αλλαγής», με δικό του εικονίδιο. Το δωράκι δίπλα στη λέξη «Δώρο» το έκανε να μοιάζει με το κουμπί της δωροεπιταγής από πάνω.",
-        "🎟️ Μια πίστωση χωρίς όνομα πελάτη δείχνει πλέον «Πίστωση επιστροφής» αντί για μια παύλα, και το σύνολο «Σε κυκλοφορία» δεν βάζει εικονίδιο δώρου όταν είναι όλο πιστώσεις.",
+      { version: 'v11.50', date: 'Ιούλιος 2026', items: [
+        "📐 Το πλαίσιο της σφραγίδας στη δωροεπιταγή / κάρτα αλλαγής μεγάλωσε από 4,4×2,6 εκ. σε 7×3,5 εκ., στην ίδια αναλογία 2:1 με το αρχικό πλαίσιο του πιστοποιητικού — η σφραγίδα είναι επιμήκης, όχι τετράγωνη.",
+        "📄 Η κάρτα εξακολουθεί να χωράει σε ΕΝΑ φύλλο A4 οριζόντιο, ακόμη και με μεγάλη αφιέρωση.",
       ]},
           ]
   },
@@ -22477,11 +22481,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.49', date: 'Jul 2026', items: [
-        "📜 The sale box SCROLLS again. With a credit applied the content ran past the screen and was clipped top and bottom, leaving neither the title nor the record button reachable.",
-        "🏷️ The Desk tab now reads “Gift Cards & Credit” — what's in there isn't only gift certificates.",
-        "🔄 The “Gift — exchange card” button in the sale box is now plainly “Exchange card”, with its own icon. The gift emoji and the word “Gift” made it look like the gift-certificate button above it.",
-        "🎟️ A credit with no customer name now reads “Return credit” instead of a bare dash, and the “Outstanding” total drops the gift icon when it's all credit.",
+      { version: 'v11.50', date: 'Jul 2026', items: [
+        "📐 The stamp box on the gift certificate / exchange card grew from 4.4×2.6 cm to 7×3.5 cm, keeping the same 2:1 proportion as the original box on the certificate — the shop stamp is oblong, not square.",
+        "📄 The card still fits on ONE A4 landscape sheet, even with a long dedication.",
       ]},
           ]
   }
@@ -25567,7 +25569,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.49';
+const APP_VERSION = '11.50';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
