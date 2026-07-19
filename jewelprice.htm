@@ -2266,8 +2266,12 @@
 </div>
 
 <!-- SALE MODAL -->
-<div id="saleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--dark-2);border:1px solid rgba(39,174,96,0.4);border-radius:8px;padding:24px;max-width:380px;width:100%">
+<!-- Scrolls: the content is taller than a phone screen once a certificate is
+     applied (and the bonus preview is showing), and a centred box with no
+     overflow simply clips top AND bottom with no way to reach either. Same
+     flex-start + overflow-y:auto + margin:auto pattern as every other sheet. -->
+<div id="saleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99998;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="background:var(--dark-2);border:1px solid rgba(39,174,96,0.4);border-radius:8px;padding:24px;max-width:380px;width:100%;margin:auto">
     <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:#27AE60;margin-bottom:4px">✓ <span data-i18n="saleModalTitle">Καταχώριση Πώλησης</span></div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:20px" data-i18n="saleModalHint">Επιβεβαιώστε τα στοιχεία της πώλησης.</div>
     <div style="margin-bottom:14px">
@@ -2306,7 +2310,7 @@
          afterwards from the sale itself, for a customer who asks on the way out. -->
     <div style="margin-bottom:14px">
       <button type="button" id="saleExCardToggle" onclick="_toggleSaleExCard()"
-        style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🎁 <span data-i18n="exCardOffer">Δώρο — κάρτα αλλαγής</span></button>
+        style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🔄 <span data-i18n="exCardOffer">Κάρτα αλλαγής</span></button>
     </div>
     <!-- Bonus preview — only shown if current user has a bonus set -->
     <div id="saleBonusPreview" style="display:none;margin-bottom:14px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.25);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
@@ -3402,11 +3406,11 @@ const T = {
     navDesk:'Πάγκος',
     deskReservations:'Κρατήσεις',
     deskRepairs:'Επισκευές',
-    deskGift:'Δωροεπιταγές',
+    deskGift:'Επιταγές & Πιστώσεις',
     gcNew:'Νέα δωροεπιταγή',
     gcSearchPh:'Αναζήτηση — πελάτης, αριθμός…',
     gcUseOnSale:'Δωροεπιταγή ή πίστωση',
-    exCardOffer:'Δώρο — κάρτα αλλαγής',
+    exCardOffer:'Κάρτα αλλαγής',
     gcCashDue:'Να εισπραχθούν',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
@@ -3839,11 +3843,11 @@ const T = {
     navDesk:'Desk',
     deskReservations:'Reservations',
     deskRepairs:'Repairs',
-    deskGift:'Gift Cards',
+    deskGift:'Gift Cards & Credit',
     gcNew:'New gift certificate',
     gcSearchPh:'Search — customer, number…',
     gcUseOnSale:'Gift certificate or credit',
-    exCardOffer:'Gift — exchange card',
+    exCardOffer:'Exchange card',
     gcCashDue:'Cash due',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
@@ -4984,7 +4988,9 @@ function renderGiftCards() {
       const split = (outGift > 0 && outCredit > 0)
         ? `<div style="margin-top:4px;font-size:11px;color:var(--text-muted)">🎁 ${isEl ? 'Δωροεπιταγές' : 'Gift'} ${cur}${outGift.toFixed(2)} · 🎟️ ${isEl ? 'Πιστώσεις' : 'Credit'} ${cur}${outCredit.toFixed(2)}</div>`
         : '';
-      outBox.innerHTML = `🎁 ${isEl ? 'Σε κυκλοφορία' : 'Outstanding'}: <strong style="color:var(--gold-light)">${cur}${outstanding.toFixed(2)}</strong> — ${isEl ? 'αξία που χρωστάτε σε κοσμήματα' : 'value you owe in jewelry'}${split}`;
+      // Don't stamp a 🎁 on a total that is entirely return credit.
+      const _outIcon = (outCredit > 0 && outGift <= 0) ? '🎟️' : '🎁';
+      outBox.innerHTML = `${_outIcon} ${isEl ? 'Σε κυκλοφορία' : 'Outstanding'}: <strong style="color:var(--gold-light)">${cur}${outstanding.toFixed(2)}</strong> — ${isEl ? 'αξία που χρωστάτε σε κοσμήματα' : 'value you owe in jewelry'}${split}`;
     } else outBox.style.display = 'none';
   }
 
@@ -5026,10 +5032,10 @@ function renderGiftCards() {
       <div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${gcIsCredit(g) ? '🎟️' : '🎁'}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
-          <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.buyerName || '—')}</span>
+          <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.buyerName || gcKindLabel(g))}</span>
           <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0">${gcNoFmt(g)}</span>
         </div>
-        ${gcIsCredit(g) ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;letter-spacing:0.06em;text-transform:uppercase">↩️ ${isEl ? 'Πίστωση επιστροφής' : 'Return credit'}</div>` : ''}
+        ${(gcIsCredit(g) && g.buyerName) ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;letter-spacing:0.06em;text-transform:uppercase">↩️ ${isEl ? 'Πίστωση επιστροφής' : 'Return credit'}</div>` : ''}
         ${g.toName ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">${isEl ? 'Προς' : 'To'}: ${_gcEsc(g.toName)}</div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
           <span style="color:var(--text);font-weight:600">${amtLine}</span>
@@ -9249,20 +9255,22 @@ function _toggleSaleExCard() {
 function _syncSaleExCardBtn() {
   const b = document.getElementById('saleExCardToggle');
   if (!b) return;
-  const isEl = lang === 'el';
-  const label = isEl ? 'Δώρο — κάρτα αλλαγής' : 'Gift — exchange card';
+  // Deliberately NOT a 🎁 and not the word "gift": it sits directly under the
+  // "Gift certificate or credit" button and the two read as the same thing.
+  // 🔄 is the exchange icon used throughout this feature.
+  const label = lang === 'el' ? 'Κάρτα αλλαγής' : 'Exchange card';
   if (_saleWantsExCard) {
     b.style.background = 'rgba(201,168,76,0.25)';
     b.style.border = '1px solid var(--gold)';
     b.style.color = 'var(--gold-light)';
     b.style.fontWeight = '600';
-    b.innerHTML = '🎁 ' + label + ' ✓';
+    b.innerHTML = '🔄 ' + label + ' ✓';
   } else {
     b.style.background = 'rgba(201,168,76,0.06)';
     b.style.border = '1px dashed rgba(201,168,76,0.4)';
     b.style.color = 'var(--text-muted)';
     b.style.fontWeight = '400';
-    b.innerHTML = '🎁 <span data-i18n="exCardOffer">' + label + '</span>';
+    b.innerHTML = '🔄 <span data-i18n="exCardOffer">' + label + '</span>';
   }
 }
 
@@ -22434,11 +22442,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.48', date: 'Ιούλιος 2026', items: [
-        "🎟️ Διόρθωση: σαρώνοντας την κάρτα αλλαγής ΜΕΣΑ σε μια πώληση, τώρα μπαίνει κατευθείαν η πίστωση στο ποσό. Πριν σας πήγαινε στην καρτέλα της παλιάς πώλησης και δεν έμπαινε τίποτα.",
-        "💡 Η κάρτα αλλαγής (X-0001) δεν κρατά η ίδια χρήματα — δείχνει ποια πώληση ήταν. Η εφαρμογή ακολουθεί πλέον μόνη της την αλυσίδα και βρίσκει την πίστωση (G-0003) που έβγαλε η επιστροφή.",
-        "⚠️ Αν το κομμάτι δεν έχει επιστραφεί ακόμη, σας το λέει καθαρά αντί να σας πετάξει σε άλλη οθόνη.",
-        "⚠️ Το ίδιο αν η πίστωση έχει ήδη ξοδευτεί.",
+      { version: 'v11.49', date: 'Ιούλιος 2026', items: [
+        "📜 Το κουτί της πώλησης ΚΥΛΑΕΙ ξανά. Με εφαρμοσμένη πίστωση το περιεχόμενο ξεπερνούσε την οθόνη και κοβόταν πάνω και κάτω, χωρίς να μπορείτε να φτάσετε ούτε στον τίτλο ούτε στο κουμπί καταχώρισης.",
+        "🏷️ Ο Πάγκος λέει πλέον «Επιταγές & Πιστώσεις» — εκεί μέσα δεν είναι μόνο δωροεπιταγές.",
+        "🔄 Το κουμπί «Δώρο — κάρτα αλλαγής» στην πώληση έγινε σκέτο «Κάρτα αλλαγής», με δικό του εικονίδιο. Το δωράκι δίπλα στη λέξη «Δώρο» το έκανε να μοιάζει με το κουμπί της δωροεπιταγής από πάνω.",
+        "🎟️ Μια πίστωση χωρίς όνομα πελάτη δείχνει πλέον «Πίστωση επιστροφής» αντί για μια παύλα, και το σύνολο «Σε κυκλοφορία» δεν βάζει εικονίδιο δώρου όταν είναι όλο πιστώσεις.",
       ]},
           ]
   },
@@ -22469,11 +22477,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.48', date: 'Jul 2026', items: [
-        "🎟️ Fixed: scanning the exchange card WHILE writing a sale now puts the credit straight onto the amount. It used to take you to the old sale's card and apply nothing.",
-        "💡 An exchange card (X-0001) holds no money itself — it identifies which sale it was. The app now follows that chain by itself and finds the credit (G-0003) the return produced.",
-        "⚠️ If the piece hasn't been returned yet, it tells you plainly instead of throwing you onto another screen.",
-        "⚠️ Same if the credit has already been spent.",
+      { version: 'v11.49', date: 'Jul 2026', items: [
+        "📜 The sale box SCROLLS again. With a credit applied the content ran past the screen and was clipped top and bottom, leaving neither the title nor the record button reachable.",
+        "🏷️ The Desk tab now reads “Gift Cards & Credit” — what's in there isn't only gift certificates.",
+        "🔄 The “Gift — exchange card” button in the sale box is now plainly “Exchange card”, with its own icon. The gift emoji and the word “Gift” made it look like the gift-certificate button above it.",
+        "🎟️ A credit with no customer name now reads “Return credit” instead of a bare dash, and the “Outstanding” total drops the gift icon when it's all credit.",
       ]},
           ]
   }
@@ -25559,7 +25567,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.48';
+const APP_VERSION = '11.49';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
