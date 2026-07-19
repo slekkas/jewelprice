@@ -5950,13 +5950,19 @@ function _repUpdateGiftDisplay() {
 }
 
 // Record the redemption on the card and settle its status.
-async function _gcApplyRedemption(cardId, amount, saleId) {
+// `saleGroup` is stored so a cart can be unwound line by line: the certificate is
+// drawn down ONCE for the whole transaction and linked to the first record, so
+// without it, deleting any OTHER line of that cart released nothing — and deleting
+// the FIRST line released the whole amount while the other lines stayed on the
+// books, handing back money that had genuinely been spent (v11.63).
+async function _gcApplyRedemption(cardId, amount, saleId, saleGroup) {
   const list = getGiftCards();
   const g = list.find(x => x.id === cardId);
   if (!g) return;
   g.redemptions = g.redemptions || [];
   g.redemptions.push({
     saleId: saleId || null,
+    saleGroup: saleGroup || null,
     amount: parseFloat((amount || 0).toFixed(2)),
     date: todayStr(),
     by: creds.displayName || creds.userName || ''
@@ -5970,21 +5976,51 @@ async function _gcApplyRedemption(cardId, amount, saleId) {
 // Give the balance back when a sale that used a certificate is deleted.
 // Loads the cards first: an unloaded list matches nothing, and this returned
 // quietly having handed nothing back (v11.61).
-async function _gcUnapplyForSale(saleId) {
+// `rec` is the sale record being removed and `remaining` the sales that survive it.
+// Both matter for a CART: one redemption covers several records, so deleting one
+// line must give back only THAT line's share and leave the rest drawn down. With
+// a single-item sale (no group) this removes the redemption outright, exactly as
+// it always did.
+async function _gcUnapplyForSale(saleId, rec, remaining) {
   if (saleId == null) return;
   await ensureGiftCards();
   const list = getGiftCards();
+  const share = rec ? (parseFloat(rec.giftCardAmt) || 0) : 0;
+  const grp = (rec && rec.saleGroup) || null;
+  const sales = Array.isArray(remaining) ? remaining : [];
   let touched = false;
   for (const g of list) {
-    const before = (g.redemptions || []).length;
-    if (!before) continue;
-    g.redemptions = g.redemptions.filter(r => r.saleId !== saleId);
-    if (g.redemptions.length !== before) {
-      touched = true;
-      // It has money on it again, so it is spendable again — unless it was
-      // cancelled, which is a deliberate decision the refund must not undo.
-      if (g.status === 'redeemed' && gcBalance(g) > 0) g.status = 'active';
+    if (!Array.isArray(g.redemptions) || !g.redemptions.length) continue;
+    // The redemption for this sale: linked to it directly, else (a sibling line
+    // of the same cart) linked to the transaction, else — for a cart recorded
+    // before saleGroup was stored on the redemption — linked to a sibling's id.
+    let idx = g.redemptions.findIndex(r => r.saleId === saleId);
+    if (idx === -1 && grp) {
+      idx = g.redemptions.findIndex(r => r.saleGroup === grp);
+      if (idx === -1) {
+        const sibIds = sales.filter(s => s.saleGroup === grp).map(s => s.id);
+        idx = g.redemptions.findIndex(r => sibIds.includes(r.saleId));
+      }
     }
+    if (idx === -1) continue;
+    const r = g.redemptions[idx];
+    const total = parseFloat(r.amount) || 0;
+    // Lines of this same transaction that this card paid for and that are STILL
+    // on the books — if any remain, the certificate is still partly spent.
+    const survivors = grp ? sales.filter(s => s.saleGroup === grp && s.giftCardId === g.id) : [];
+    if (survivors.length && share > 0 && share < total) {
+      r.amount = parseFloat((total - share).toFixed(2));
+      r.saleGroup = grp;
+      // Keep the link pointing at a sale that still exists, or the remainder
+      // reads as money spent on nothing (_gcOrphanRedemptions would flag it).
+      if (r.saleId === saleId) r.saleId = survivors[0].id;
+    } else {
+      g.redemptions.splice(idx, 1);
+    }
+    touched = true;
+    // It has money on it again, so it is spendable again — unless it was
+    // cancelled, which is a deliberate decision the refund must not undo.
+    if (g.status === 'redeemed' && gcBalance(g) > 0) g.status = 'active';
   }
   if (touched) { saveGiftCardsLocal(list); await pushGiftCardsToCloud(list); _gcUpdateBadges(); }
 }
@@ -6004,6 +6040,12 @@ function buildGiftCertHTML(g) {
   // QR, but it is not a gift and must not read like one — it is the customer's
   // own money back, waiting for them to choose again.
   const _isCred = gcIsCredit(g);
+  // The κάρτα αλλαγής (X-…) and this are two different documents and must not
+  // share a name. The exchange card goes WITH a gift, carries no value and just
+  // identifies the sale; the moment the piece actually comes back, what the
+  // customer holds is MONEY — so this prints as a CREDIT, whether it is handed
+  // over on the day or reprinted later with a balance on it (v11.63).
+  const _credTitle = isEl ? 'Πίστωση' : 'Credit';
   // A partly-used card reprints as a STATEMENT: the remaining balance set large,
   // the original amount beneath it, and every purchase it has paid for — item,
   // date and amount. The customer can then throw the old paper away and the
@@ -6035,7 +6077,7 @@ function buildGiftCertHTML(g) {
 <html lang="${isEl ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
-<title>${_isCred ? (isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card') : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')} — ${gcNoFmt(g)}</title>
+<title>${_isCred ? _credTitle : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')} — ${gcNoFmt(g)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap');
   @page { size: A4 landscape; margin: 0; }
@@ -6123,13 +6165,11 @@ function buildGiftCertHTML(g) {
   <div class="store-sub">${isEl ? 'Κάρπαθος' : 'Karpathos'}</div>
   <div class="rule"></div>
 
-  <div class="doc-title">${_isCred ? (isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card') : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')}</div>
+  <div class="doc-title">${_isCred ? _credTitle : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')}</div>
   <div class="amount">${cur}${(_spent > 0 ? _bal : amount).toFixed(2)}</div>
   <div class="amount-words">${_spent > 0
     ? (isEl ? 'υπόλοιπο διαθέσιμο' : 'remaining balance')
-    : (_isCred
-      ? (isEl ? 'για αλλαγή με κόσμημα της επιλογής σας' : 'towards an exchange for jewelry of your choice')
-      : (isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice'))}</div>
+    : (isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice')}</div>
   ${_spent > 0 ? `<div class="amount-orig">${isEl ? 'αρχικό ποσό' : 'original amount'} ${cur}${amount.toFixed(2)}</div>` : ''}
 
   ${(_showGiftExtras && g.toName) ? `<div class="to-block">
@@ -6172,8 +6212,8 @@ function buildGiftCertHTML(g) {
 
   <div class="terms">${_isCred
     ? (isEl
-      ? `Η παρούσα κάρτα αλλαγής εκδόθηκε για επιστροφή κοσμήματος και εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
-      : `Issued for a returned item and redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this card when redeeming.`)
+      ? `Η παρούσα πίστωση εκδόθηκε για επιστροφή κοσμήματος και εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
+      : `Issued for a returned item and redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this credit when redeeming.`)
     : (isEl
       ? `Η παρούσα δωροεπιταγή εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
       : `Redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this certificate when redeeming.`)}</div>
@@ -6208,11 +6248,11 @@ async function shareGiftCert(id) {
   }
   const _cred = gcIsCredit(g);
   const title = (_cred
-    ? (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card')
+    ? (lang === 'el' ? 'Πίστωση' : 'Credit')
     : (lang === 'el' ? 'Δωροεπιταγή' : 'Gift Certificate')) + ' — ' + gcNoFmt(g);
   // The certificate is A4 LANDSCAPE — without this the shared PDF is clipped at
   // 210mm and loses the stamp box and QR.
-  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, (_cred ? 'exchange-' : 'gift-') + gcNoFmt(g) + '.pdf', { landscape: true });
+  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, (_cred ? 'credit-' : 'gift-') + gcNoFmt(g) + '.pdf', { landscape: true });
 }
 
 function _gcUpdateBadges() {
@@ -8974,7 +9014,7 @@ async function deleteSaleRecord(id) {
   await pushSalesToCloud(filtered);
   // Hand the balance back if this sale drew on a gift certificate — same
   // principle as restoring the sold inventory piece below.
-  if (target && target.giftCardId) { try { await _gcUnapplyForSale(id); } catch (e) {} }
+  if (target && target.giftCardId) { try { await _gcUnapplyForSale(id, target, filtered); } catch (e) {} }
   await _restoreStockForSale(target);
 }
 
@@ -10922,7 +10962,7 @@ async function confirmSale() {
   // record so deleting that sale hands the balance back (_gcUnapplyForSale).
   if (_gcUsable > 0 && _firstSaleRec) {
     try {
-      await _gcApplyRedemption(_gcCard.id, _gcUsable, _firstSaleRec.id);
+      await _gcApplyRedemption(_gcCard.id, _gcUsable, _firstSaleRec.id, _saleGroupId || null);
       // The person redeeming is often not the buyer — this is the moment they
       // become a real customer, so capture them on the card.
       if (saleCustomer) {
@@ -23024,11 +23064,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.62', date: 'Ιούλιος 2026', items: [
-        "📦 Σοβαρή διόρθωση: όταν διαγραφόταν μια πώληση, το κομμάτι εμφανιζόταν ως «επαναφέρθηκε σε απόθεμα» ακόμη κι αν η αποθήκευση δεν είχε φτάσει ποτέ στο cloud — και έτσι ξαναγύριζε πουλημένο. Τώρα ελέγχεται αν η εγγραφή όντως αποθηκεύτηκε.",
-        "⚠️ Αν δεν αποθηκευτεί, το βλέπετε αμέσως με σαφές μήνυμα αντί για ψεύτικο «επιτυχία».",
-        "🔧 Αν πατήσετε «Δες Πώληση» σε κομμάτι που είναι πουλημένο αλλά η πώληση δεν υπάρχει πλέον, σας προτείνεται πλέον απευθείας η επαναφορά του σε απόθεμα.",
-        "🎯 Το «Δες Πώληση» βρίσκει τώρα την ακριβή πώληση του συγκεκριμένου κομματιού, κι όχι του πανομοιότυπου διπλανού του.",
+      { version: 'v11.63', date: 'Ιούλιος 2026', items: [
+        "🧾 Η πίστωση από επιστροφή τυπώνεται πλέον ως «Πίστωση» — όχι «Κάρτα Αλλαγής». Κάρτα αλλαγής είναι το χαρτί που συνοδεύει ένα δώρο και δεν έχει αξία· μόλις το κόσμημα επιστραφεί, αυτό που κρατά ο πελάτης είναι χρήματα.",
+        "🛍️ Κάθε επανεκτύπωση δείχνει το υπόλοιπο μεγάλο, το αρχικό ποσό από κάτω, και ΤΙ αγόρασε ο πελάτης (κωδικός, είδος, καράτια) — ίδια εικόνα στο χαρτί και στην καρτέλα του Πάγκου.",
+        "🛒 Σοβαρή διόρθωση σε πολλαπλή πώληση πληρωμένη με δωροεπιταγή/πίστωση: διαγράφοντας μία μόνο γραμμή, είτε δεν επέστρεφε τίποτα, είτε επέστρεφε ΟΛΟ το ποσό ενώ οι υπόλοιπες γραμμές έμεναν — δηλαδή χάριζε χρήματα. Τώρα επιστρέφεται ακριβώς το μερίδιο της γραμμής.",
       ]},
       ]
   },
@@ -23059,11 +23098,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.62', date: 'Jul 2026', items: [
-        "📦 Serious fix: when a sale was deleted, the piece reported \"restored to stock\" even if that save never reached the cloud — so it came back sold. The app now checks the write actually landed.",
-        "⚠️ If it doesn't save, you're told plainly instead of getting a false \"success\".",
-        "🔧 Pressing \"View Sale\" on a piece that's marked sold but whose sale no longer exists now offers to put it straight back in stock.",
-        "🎯 \"View Sale\" now finds that exact piece's sale, not an identical twin's.",
+      { version: 'v11.63', date: 'Jul 2026', items: [
+        "🧾 A return credit now prints as \"Credit\", not \"Exchange Card\". An exchange card is the paper that goes with a gift and carries no value; once the piece actually comes back, what the customer holds is money.",
+        "🛍️ Every reprint shows the balance large, the original amount beneath it, and WHAT was bought (ref code, type, karat) — the same on paper and on the Desk card.",
+        "🛒 Serious fix on a multi-item sale paid by a certificate or credit: deleting a single line either released nothing, or released the WHOLE amount while the other lines stayed — giving money away. It now returns exactly that line's share.",
       ]},
           ]
   }
@@ -26305,7 +26343,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.62';
+const APP_VERSION = '11.63';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
