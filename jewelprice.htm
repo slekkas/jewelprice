@@ -9011,11 +9011,34 @@ async function _restoreStockForSale(target) {
         invItem.status = 'in_stock';
         delete invItem.dateSold;
         _inventoryCache[invId] = invItem;
-        await saveInventoryItem(invId, invItem);
-        restored = { invId, invItem };
-        showToast('📦 ' + (lang === 'el' ? 'Απόθεμα επαναφέρθηκε: Σε Απόθεμα' : 'Inventory restored: Back In Stock'));
+        // Check that the write actually LANDED. This used to be fire-and-forget:
+        // on a weak connection the local copy flipped, the toast said "restored",
+        // and the piece stayed sold in Firebase — so it came back sold on the
+        // next app open, with its sale record already deleted (v11.62).
+        const _ok = await saveInventoryItem(invId, invItem);
+        if (_ok) {
+          restored = { invId, invItem };
+          showToast('📦 ' + (lang === 'el' ? 'Απόθεμα επαναφέρθηκε: Σε Απόθεμα' : 'Inventory restored: Back In Stock'));
+        } else {
+          invItem.status = 'sold';   // don't leave a lie in the local cache
+          _inventoryCache[invId] = invItem;
+          showToast('⚠️ ' + (lang === 'el'
+            ? 'Το κομμάτι ΔΕΝ επανήλθε σε απόθεμα — χωρίς σύνδεση. Επαναφέρετέ το χειροκίνητα (Απόθεμα → Επαναπαραγγελία → Επαναφορά).'
+            : 'The piece was NOT put back in stock — no connection. Restore it by hand (Stock → Restock → Restore).'));
+        }
+      } else if (!invItem) {
+        // Nothing matched: either the inventory could not be loaded, or the
+        // record is gone. Say so — silence is how a piece stays sold forever.
+        showToast('⚠️ ' + (lang === 'el'
+          ? 'Δεν βρέθηκε το κομμάτι — ελέγξτε αν επανήλθε σε απόθεμα'
+          : 'Could not find the piece — check whether it went back in stock'));
       }
-    } catch(e) { console.warn('Could not restore inventory:', e); }
+    } catch(e) {
+      console.warn('Could not restore inventory:', e);
+      showToast('⚠️ ' + (lang === 'el'
+        ? 'Το κομμάτι ίσως ΔΕΝ επανήλθε σε απόθεμα — ελέγξτε το'
+        : 'The piece may NOT have gone back in stock — please check'));
+    }
   }
   // Bulk chain: the grams go back on the batch rather than a record flipping status.
   if (target.bulkInvId && target.bulkSoldWeight > 0) {
@@ -18445,7 +18468,7 @@ function renderInvList() {
     const actionsHtml = item.isCoin ? `
       <div class="inv-card-actions">
         ${isSold
-          ? `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
+          ? `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}','${id}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
           : `<button class="inv-action-btn inv-action-sell" onclick="invMarkSold('${id}')">${t('invMarkSold')}</button>
              ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:0.9;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light)" onclick="openAddCoinModal('${item.coinKey||''}')">${lang==='el'?'🪙 Προσθήκη':'🪙 Add more'}</button>`}
              ${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
@@ -18460,7 +18483,7 @@ function renderInvList() {
       </div>` : isSold ? `
       <div class="inv-card-actions">
         ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light)" onclick="invRestock('${id}')">${t('invRestock')}</button>`}
-        <button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>
+        <button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}','${id}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>
       </div>` : `
       <div class="inv-card-actions">
         <button class="inv-action-btn inv-action-sell" onclick="invMarkSold('${id}')">${t('invMarkSold')}</button>
@@ -22216,11 +22239,21 @@ async function invRestoreToStock(id) {
       ? 'Επαναφορά σε Απόθεμα; Η συνδεδεμένη εγγραφή πώλησης θα διαγραφεί επίσης.'
       : 'Restore to Stock? The linked sale record will also be deleted.',
     async () => {
-      // 1. Flip inventory item back to in_stock
+      // 1. Flip inventory item back to in_stock — and confirm the write LANDED,
+      //    so a failed save can't be reported as a successful restore (v11.62).
       item.status = 'in_stock';
       delete item.dateSold;
       _inventoryCache[id] = item;
-      await saveInventoryItem(id, item);
+      const _saved = await saveInventoryItem(id, item);
+      if (!_saved) {
+        item.status = 'sold';
+        _inventoryCache[id] = item;
+        showToast('⚠️ ' + (lang === 'el'
+          ? 'Δεν αποθηκεύτηκε — χρειάζεται σύνδεση στο ίντερνετ. Δοκιμάστε ξανά.'
+          : 'Not saved — needs an internet connection. Please try again.'));
+        renderInvList();
+        return;
+      }
 
       // 2. Find and delete the linked sale record (matched by invQr)
       if (qr) {
@@ -22252,13 +22285,42 @@ async function invRestoreToStock(id) {
 
 // ── Inventory: Print Tag from card ──────────────────────────────────────────
 // ── Inventory: Go to linked sale record ─────────────────────────────────────
-async function invGoToSale(qrCode) {
-  if (!qrCode) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν υπάρχει κωδικός QR' : 'No QR code')); return; }
+async function invGoToSale(qrCode, invId) {
+  if (!qrCode && !invId) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν υπάρχει κωδικός QR' : 'No QR code')); return; }
   const sales = await getSales();
-  const qrNorm = qrCode.trim().toUpperCase();
-  // Find the most recent sale with matching invQr
-  const match = [...sales].reverse().find(s => s.invQr && s.invQr.trim().toUpperCase() === qrNorm);
+  const qrNorm = (qrCode || '').trim().toUpperCase();
+  // Prefer the EXACT record id: pieces in a similar-items group (or a coin batch)
+  // share a QR, so a QR match can land on a twin's sale — or on none at all.
+  const match = (invId && [...sales].reverse().find(s => s.invId === invId))
+    || (qrNorm ? [...sales].reverse().find(s => s.invQr && s.invQr.trim().toUpperCase() === qrNorm) : null);
   if (!match) {
+    // A piece marked sold whose sale record no longer exists — the shape left
+    // behind when a sale was deleted while the app couldn't reach the data
+    // (v11.62). Don't dead-end on a toast: offer the one thing that fixes it.
+    const item = invId ? (_inventoryCache || {})[invId] : null;
+    if (item && item.status === 'sold' && !item.isBulk) {
+      const isEl = lang === 'el';
+      showConfirm(
+        isEl ? 'Αυτό το κομμάτι είναι σημειωμένο ως πουλημένο, αλλά δεν υπάρχει εγγραφή πώλησης. Επαναφορά σε απόθεμα;'
+             : 'This piece is marked sold, but no sale record exists. Put it back in stock?',
+        async () => {
+          item.status = 'in_stock';
+          delete item.dateSold;
+          _inventoryCache[invId] = item;
+          const ok = await saveInventoryItem(invId, item);
+          if (ok) {
+            showToast('📦 ' + (isEl ? 'Επανήλθε σε απόθεμα' : 'Back in stock'));
+          } else {
+            item.status = 'sold'; _inventoryCache[invId] = item;
+            showToast('⚠️ ' + (isEl ? 'Δεν αποθηκεύτηκε — χρειάζεται σύνδεση' : 'Not saved — needs a connection'));
+          }
+          renderInvList();
+        },
+        null,
+        { okLabel: isEl ? '📦 Επαναφορά' : '📦 Restore' }
+      );
+      return;
+    }
     showToast(lang === 'el' ? '⚠️ Δεν βρέθηκε εγγραφή πώλησης' : '⚠️ No sale record found');
     return;
   }
@@ -22962,13 +23024,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.61', date: 'Ιούλιος 2026', items: [
-        "🛠️ Σοβαρή διόρθωση: αν διαγραφόταν μια πώληση που πληρώθηκε με δωροεπιταγή ή πίστωση ενώ η εφαρμογή δεν είχε προλάβει να φορτώσει τις κάρτες, τα χρήματα ΔΕΝ επέστρεφαν στην κάρτα — και καμία προειδοποίηση δεν εμφανιζόταν.",
-        "🔒 Η αναίρεση επιστροφής της οποίας η πίστωση έχει ήδη ξοδευτεί μπλοκάρεται τώρα σωστά. Πριν, αν οι κάρτες δεν είχαν φορτώσει, περνούσε κανονικά.",
-        "📡 Οι έλεγχοι αυτοί φορτώνουν πλέον τις κάρτες πρώτα. Χωρίς σύνδεση, η ενέργεια σταματά με σαφές μήνυμα αντί να προχωρήσει στα τυφλά.",
-        "↩️ Νέο κουμπί στην καρτέλα: αν χρήματα εμφανίζονται ξοδεμένα σε πώληση που δεν υπάρχει πλέον, με ένα πάτημα επιστρέφουν στην κάρτα.",
+      { version: 'v11.62', date: 'Ιούλιος 2026', items: [
+        "📦 Σοβαρή διόρθωση: όταν διαγραφόταν μια πώληση, το κομμάτι εμφανιζόταν ως «επαναφέρθηκε σε απόθεμα» ακόμη κι αν η αποθήκευση δεν είχε φτάσει ποτέ στο cloud — και έτσι ξαναγύριζε πουλημένο. Τώρα ελέγχεται αν η εγγραφή όντως αποθηκεύτηκε.",
+        "⚠️ Αν δεν αποθηκευτεί, το βλέπετε αμέσως με σαφές μήνυμα αντί για ψεύτικο «επιτυχία».",
+        "🔧 Αν πατήσετε «Δες Πώληση» σε κομμάτι που είναι πουλημένο αλλά η πώληση δεν υπάρχει πλέον, σας προτείνεται πλέον απευθείας η επαναφορά του σε απόθεμα.",
+        "🎯 Το «Δες Πώληση» βρίσκει τώρα την ακριβή πώληση του συγκεκριμένου κομματιού, κι όχι του πανομοιότυπου διπλανού του.",
       ]},
-          ]
+      ]
   },
   en: {
     features: [
@@ -22997,11 +23059,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.61', date: 'Jul 2026', items: [
-        "🛠️ Serious fix: deleting a sale paid with a gift certificate or credit did NOT hand the money back to the card if the app hadn't finished loading the cards — and said nothing about it.",
-        "🔒 Undoing a return whose credit has already been spent is now properly blocked. Before, if the cards hadn't loaded, it went straight through.",
-        "📡 These checks now load the cards first. With no connection the action stops with a clear message instead of proceeding blind.",
-        "↩️ New button on the card: if money shows as spent on a sale that no longer exists, one tap gives it back.",
+      { version: 'v11.62', date: 'Jul 2026', items: [
+        "📦 Serious fix: when a sale was deleted, the piece reported \"restored to stock\" even if that save never reached the cloud — so it came back sold. The app now checks the write actually landed.",
+        "⚠️ If it doesn't save, you're told plainly instead of getting a false \"success\".",
+        "🔧 Pressing \"View Sale\" on a piece that's marked sold but whose sale no longer exists now offers to put it straight back in stock.",
+        "🎯 \"View Sale\" now finds that exact piece's sale, not an identical twin's.",
       ]},
           ]
   }
@@ -26243,7 +26305,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.61';
+const APP_VERSION = '11.62';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
