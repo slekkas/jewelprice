@@ -1975,7 +1975,7 @@
           style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 12px">
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;align-items:stretch">
-        <select id="clientSort" onchange="renderClients()" style="flex:1;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:9px 10px;cursor:pointer">
+        <select id="clientSort" onchange="_clientSortChanged(this.value)" style="flex:1;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:9px 10px;cursor:pointer">
           <option value="name_asc" data-i18n="clientSortNameAsc">Όνομα Α→Ω</option>
           <option value="name_desc" data-i18n="clientSortNameDesc">Όνομα Ω→Α</option>
           <option value="newest" data-i18n="clientSortNewest">Πιο πρόσφατοι</option>
@@ -3190,6 +3190,15 @@ const T = {
     myCoinsHint:'Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.',
     weightTiersNote:'Το τελευταίο συμπληρωμένο επίπεδο καλύπτει όλα τα μεγαλύτερα βάρη.',
     tierFrom:'Από (γρ.)', tierMargin:'Περιθώριο %',
+    heavyWeightThreshold:'Όριο βάρους (γρ.)',
+    heavyWeightMargin:'Περιθώριο πάνω από το όριο (%)',
+    heavyWeightHint:'Αφήστε το κενό για να ισχύει πάντα το βασικό περιθώριο.',
+    spotWarningText:'Δεν λαμβάνεται ζωντανή τιμή. Εισάγετε χειροκίνητα την τιμή χρυσού/ασημιού.',
+    spotWarningBtn:'→ Ρυθμίσεις',
+    secMetalLabel:'+ Δεύτερο μέταλλο',
+    secMetalRemove:'− Αφαίρεση',
+    secMetalTitle:'Δεύτερο μέταλλο',
+    secMetalKaratLabel:'Καράτι / Καθαρότητα',
     appearance:'Εμφάνιση', themeDark:'Σκούρο', themeLight:'Ανοιχτό',
     taxMargin:'Φόρος & Περιθώριο', vat:'ΦΠΑ (%)',
     margin:'Περιθώριο Κέρδους (%)', currency:'Σύμβολο Νομίσματος', dateLocaleLabel:'Μορφή Ημερομηνίας',
@@ -5876,21 +5885,20 @@ function buildGiftCertHTML(g) {
   .to-label { font-size:7.5pt; letter-spacing:0.24em; text-transform:uppercase; color:#aaa; margin-bottom:1.5mm; }
   .message { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13pt; color:#666; margin-top:3mm; max-width:150mm; }
   .spacer { flex:1; }
-  .foot { width:100%; display:flex; justify-content:space-between; align-items:flex-end; gap:6mm; }
-  .sign-line { width:50mm; }
+  .foot { width:100%; display:flex; justify-content:space-between; align-items:flex-end; gap:8mm; }
+  .sign-line { width:55mm; }
   .sign-line .ln { border-bottom:1px solid #ccc; height:13mm; }
   .sign-line .lbl { font-size:7.5pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:2mm; }
-  .meta { text-align:center; font-size:8pt; color:#888; line-height:2; }
-  .meta .no { font-family:'DM Mono',monospace; color:#C9A84C; letter-spacing:0.14em; font-size:10pt; }
-  .stamp-and-qr { display:flex; align-items:flex-end; gap:6mm; }
-  /* The shop stamp is OBLONG, 2:1 — same proportion as the original box on the
-     quote/certificate (10x5cm), which was built to the real stamp. It was
-     44x26mm here, too small. This is the largest 2:1 box the landscape foot row
-     can take: that row was already packed edge to edge, so the width comes out
-     of the signature line (50mm is still ample) and the tightened gaps, and the
-     extra height out of the flexible spacer above. */
-  .stamp-box { width:70mm; height:35mm; border:2px dashed #C9A84C; border-radius:3px;
-               display:flex; align-items:center; justify-content:center; }
+  /* Number + dates used to sit INSIDE the footer row, between the signature and
+     the stamp. At the real stamp size there is no room for all four abreast, so
+     they moved to their own centred line just above it. */
+  .meta-line { width:100%; text-align:center; font-size:8pt; color:#888; margin-bottom:5mm; }
+  .meta-line .no { font-family:'DM Mono',monospace; color:#C9A84C; letter-spacing:0.14em; font-size:10pt; margin-right:3mm; }
+  /* THE REAL SHOP STAMP: 10 x 5 cm, oblong. Same box as the quote/certificate —
+     the owner supplied these dimensions, so all three documents use them. Do not
+     shrink this to make a layout fit; rearrange the layout instead. */
+  .stamp-box { width:100mm; height:50mm; border:2px dashed #C9A84C; border-radius:3px;
+               display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
   .stamp-box span { font-size:7pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
   .qr-wrap { text-align:center; }
   .qr-wrap img { width:22mm; height:22mm; display:block; }
@@ -5918,21 +5926,18 @@ function buildGiftCertHTML(g) {
 
   <div class="spacer"></div>
 
+  <div class="meta-line">
+    <span class="no">${gcNoFmt(g)}</span>${isEl ? 'Εκδόθηκε' : 'Issued'}: ${issued}${g.expiresAt ? ` &nbsp;·&nbsp; ${isEl ? 'Ισχύει έως' : 'Valid until'}: ${fmtDate(g.expiresAt)}` : ''}
+  </div>
   <div class="foot">
     <div class="sign-line">
       <div class="ln"></div>
       <div class="lbl">${isEl ? 'Υπογραφή' : 'Authorised signature'}</div>
     </div>
-    <div class="meta">
-      <div class="no">${gcNoFmt(g)}</div>
-      <div>${isEl ? 'Εκδόθηκε' : 'Issued'}: ${issued}${g.expiresAt ? ` &nbsp;·&nbsp; ${isEl ? 'Ισχύει έως' : 'Valid until'}: ${fmtDate(g.expiresAt)}` : ''}</div>
-    </div>
-    <div class="stamp-and-qr">
-      <div class="stamp-box"><span>${isEl ? 'Σφραγίδα' : 'Stamp'}</span></div>
-      <div class="qr-wrap">
-        <img src="${qrUrl}" alt="${gcNoFmt(g)}">
-        <div class="qlbl">${gcNoFmt(g)}</div>
-      </div>
+    <div class="stamp-box"><span>${isEl ? 'Σφραγίδα' : 'Stamp'}</span></div>
+    <div class="qr-wrap">
+      <img src="${qrUrl}" alt="${gcNoFmt(g)}">
+      <div class="qlbl">${gcNoFmt(g)}</div>
     </div>
   </div>
 
@@ -6514,10 +6519,13 @@ function buildReservationHTML(r) {
   .hold-line { text-align:center; font-size:9pt; color:#8a7040; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.25); border-radius:4px; padding:7px 12px; margin:10px 0 4px; }
   .terms { font-size:7.5pt; color:#aaa; margin-top:10px; font-style:italic; line-height:1.6; text-align:center; }
   .sign-section { margin-top:22px; display:flex; justify-content:space-between; align-items:flex-end; page-break-inside:avoid; break-inside:avoid; }
-  .sign-line { width:62%; }
+  .sign-line { width:60mm; flex:0 0 auto; }
   .sign-line .ln { border-bottom:1px solid #ccc; height:34px; }
   .sign-line .lbl { font-size:8pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
-  .stamp-box { width:5cm; height:3cm; border:2px dashed #C9A84C; border-radius:4px; display:flex; align-items:center; justify-content:center; }
+  /* THE REAL SHOP STAMP: 10 x 5 cm, oblong — same box on every document (owner's
+     own dimensions). The signature line was 62% of the row, which left nowhere
+     near enough beside it, so it is now a fixed 60mm. Do not shrink the stamp. */
+  .stamp-box { width:100mm; height:50mm; border:2px dashed #C9A84C; border-radius:4px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
   .stamp-box span { font-size:7.5pt; color:#c9a84c; letter-spacing:0.12em; text-transform:uppercase; }
   .footer { margin-top:14px; padding-top:8px; border-top:1px solid #eee; display:flex; justify-content:space-between; font-size:7pt; color:#bbb; }
 </style>
@@ -22562,10 +22570,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.54', date: 'Ιούλιος 2026', items: [
-        "⬆️ Και τα υπόλοιπα παράθυρα με πληκτρολόγηση ανοίγουν πλέον από ΠΑΝΩ, όχι από κάτω: ανεφοδιασμός αλυσίδας, καρτέλα ομάδας (πώληση πολλών) και αποστολή σε συνεργάτη.",
-        "📜 Το παράθυρο ανεφοδιασμού δεν είχε καθόλου όριο ύψους — σε μικρή οθόνη μπορούσε να κοπεί χωρίς να φτάνετε στα κουμπιά. Τώρα κυλάει κανονικά.",
-        "📐 Όλα κρατούν το ύψος τους μέσα στην οθόνη ακόμη κι όταν είναι ανοιχτό το πληκτρολόγιο.",
+      { version: 'v11.55', date: 'Ιούλιος 2026', items: [
+        "🔖 Το πλαίσιο σφραγίδας είναι πλέον 10×5 εκ. — το πραγματικό μέγεθος της σφραγίδας — και ΙΔΙΟ και στα τρία έντυπα: προσφορά/πιστοποιητικό, κράτηση και δωροεπιταγή/κάρτα αλλαγής.",
+        "📄 Στην κάρτα αλλαγής ο αριθμός και οι ημερομηνίες μετακινήθηκαν σε δική τους γραμμή, ώστε να χωρέσει η σφραγίδα σε πλήρες μέγεθος. Χωράει ακόμη σε ΕΝΑ φύλλο A4.",
+        "🔤 Μεταφράστηκαν 9 κείμενα που έβγαιναν στα Αγγλικά ενώ η εφαρμογή ήταν στα Ελληνικά — μεταξύ τους η προειδοποίηση «δεν λαμβάνεται ζωντανή τιμή» και όλο το δεύτερο μέταλλο.",
+        "🗂️ Η ταξινόμηση στους Πελάτες θυμάται πλέον την επιλογή σας, όπως και στο Απόθεμα. Διαλέγετε «Πιο πρόσφατοι» και έτσι μένει μετά την ανανέωση.",
       ]},
           ]
   },
@@ -22596,10 +22605,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.54', date: 'Jul 2026', items: [
-        "⬆️ The remaining windows you type into now open from the TOP instead of the bottom: bulk chain restock, the group card (sell several) and share-to-team.",
-        "📜 The restock window had no height limit at all — on a small screen it could be cut off with no way to reach the buttons. It scrolls properly now.",
-        "📐 They all keep their height inside the screen even while the keyboard is up.",
+      { version: 'v11.55', date: 'Jul 2026', items: [
+        "🔖 The stamp box is now 10×5 cm — the real size of the shop stamp — and IDENTICAL on all three documents: quote/certificate, reservation, and gift certificate / exchange card.",
+        "📄 On the exchange card the number and dates moved to their own line to make room for the full-size stamp. It still fits on ONE A4 sheet.",
+        "🔤 Translated 9 labels that appeared in English while the app was set to Greek — including the “cannot fetch live price” warning and the whole secondary-metal section.",
+        "🗂️ The Clients sort now remembers your choice, like Stock does. Pick “Newest first” and it stays that way after a refresh.",
       ]},
           ]
   }
@@ -24767,7 +24777,26 @@ function renderClientSeasonChips() {
   }).join('');
 }
 
+// Remember the chosen client sort across reloads, like the Stock tab does —
+// picking "newest first" and getting name order back after every refresh is a
+// small thing you pay for every single day.
+function _clientSortChanged(v) {
+  try { localStorage.setItem('jpro_clientSort', v); } catch (e) {}
+  renderClients();
+}
+// Restores it once per page load. The <select> is static markup, so it keeps its
+// value between renders; only a reload resets it.
+function _restoreClientSort() {
+  const sel = document.getElementById('clientSort');
+  if (!sel || sel.dataset.restored) return;
+  sel.dataset.restored = '1';
+  let saved = null;
+  try { saved = localStorage.getItem('jpro_clientSort'); } catch (e) {}
+  if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+}
+
 function renderClients(filter) {
+  _restoreClientSort();
   const q = (filter || document.getElementById('clientSearch')?.value || '').toLowerCase();
   const sort = document.getElementById('clientSort')?.value || 'name_asc';
   const fromV = document.getElementById('clientDateFrom')?.value || '';
@@ -25816,7 +25845,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.54';
+const APP_VERSION = '11.55';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
