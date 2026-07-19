@@ -22275,13 +22275,42 @@ function handleScannedCode(raw) {
     }
     return;
   }
-  // An exchange card ('X-0001') identifies a SALE, not a piece. Scanning it
-  // opens that sale — which shows the piece and offers ↩️ Return, from where the
-  // owner either swaps it on the spot or turns it into credit. Same hyphen rule
-  // keeps it clear of reference codes.
+  // An exchange card ('X-0001') identifies a SALE, not a piece, and carries no
+  // value of its own. Same hyphen rule keeps it clear of reference codes.
   const _ex = exFindByCode(code);
   if (_ex) {
     try { closeQrScanner(); } catch (e) {}
+    const isEl = lang === 'el';
+    // Scanned WHILE WRITING A SALE (or collecting a custom order) the owner means
+    // "put this customer's money towards what they're buying now". The card holds
+    // no money itself — the credit its RETURN produced does — so follow the chain
+    // through and apply that. Opening the sale detail here instead (as this did
+    // originally) interrupts the sale being written and looks like nothing
+    // happened, which is exactly how it was reported.
+    const _pickOpen = document.getElementById('saleModal')?.style.display === 'flex'
+      || window._gcPickTarget === 'repair';
+    if (_pickOpen) {
+      const _ret = _saleReturnRecord(_ex.id);
+      const _card = (_ret && _ret.creditCardId) ? gcFindById(_ret.creditCardId) : null;
+      if (_card && gcIsSpendable(_card)) {
+        _pickGiftForSale(_card.id);
+        showToast('🎟️ ' + gcNoFmt(_card));
+        return;
+      }
+      if (_card) {
+        // The credit exists but has nothing left on it (or was cancelled).
+        showToast('⚠️ ' + gcNoFmt(_card) + ' — ' + (isEl ? 'δεν έχει υπόλοιπο' : 'nothing left on it'));
+        return;
+      }
+      // Not returned yet: there is no money anywhere to apply. Say so plainly
+      // rather than silently doing nothing or hijacking the sale in progress.
+      showToast('⚠️ ' + exNoFmt(_ex.exchangeCardNo) + ' — ' + (isEl
+        ? 'δεν έχει γίνει επιστροφή ακόμη. Κλείστε την πώληση, σαρώστε ξανά και πατήστε Επιστροφή.'
+        : 'not returned yet. Close the sale, scan again and press Return.'));
+      return;
+    }
+    // Not mid-sale → open the sale it belongs to: the piece is shown and
+    // ↩️ Return is right there.
     showToast('🎁 ' + exNoFmt(_ex.exchangeCardNo));
     showSaleDetail(_ex.id, true);
     return;
@@ -22405,11 +22434,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.47', date: 'Ιούλιος 2026', items: [
-        "🎟️ Η πίστωση από επιστροφή ΓΡΑΦΕΙ πλέον ότι είναι πίστωση. Πριν εμφανιζόταν παντού σαν απλή δωροεπιταγή — στη λίστα επιλογής, στο κουτί της πώλησης και στην καρτέλα της.",
-        "🎁/🎟️ Ξεχωριστό εικονίδιο και ετικέτα σε κάθε σημείο: 🎁 Δωροεπιταγή (κάποιος την αγόρασε) ή 🎟️ Πίστωση επιστροφής (λεφτά του πελάτη που γυρίζουν).",
-        "✏️ Νέα επιλογή «Είδος» στην Επεξεργασία κάρτας: μαρκάρετε μόνοι σας μια παλιά κάρτα ως πίστωση επιστροφής. Χρήσιμο για όσες φτιάχτηκαν πριν υπάρξουν οι επιστροφές.",
-        "🐞 Διόρθωση: το κουμπί «Δώρο — κάρτα αλλαγής» στην πώληση έδειχνε τον κωδικό του κειμένου αντί για την ετικέτα.",
+      { version: 'v11.48', date: 'Ιούλιος 2026', items: [
+        "🎟️ Διόρθωση: σαρώνοντας την κάρτα αλλαγής ΜΕΣΑ σε μια πώληση, τώρα μπαίνει κατευθείαν η πίστωση στο ποσό. Πριν σας πήγαινε στην καρτέλα της παλιάς πώλησης και δεν έμπαινε τίποτα.",
+        "💡 Η κάρτα αλλαγής (X-0001) δεν κρατά η ίδια χρήματα — δείχνει ποια πώληση ήταν. Η εφαρμογή ακολουθεί πλέον μόνη της την αλυσίδα και βρίσκει την πίστωση (G-0003) που έβγαλε η επιστροφή.",
+        "⚠️ Αν το κομμάτι δεν έχει επιστραφεί ακόμη, σας το λέει καθαρά αντί να σας πετάξει σε άλλη οθόνη.",
+        "⚠️ Το ίδιο αν η πίστωση έχει ήδη ξοδευτεί.",
       ]},
           ]
   },
@@ -22440,11 +22469,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.47', date: 'Jul 2026', items: [
-        "🎟️ A credit from a return now SAYS it's a credit. It previously looked like an ordinary gift certificate everywhere — in the picker, in the sale box and on its own card.",
-        "🎁/🎟️ A distinct icon and label at every point: 🎁 Gift certificate (someone bought it) or 🎟️ Return credit (the customer's own money coming back).",
-        "✏️ New “Type” option in Edit card: mark an older card as a return credit yourself. Useful for any created before returns existed.",
-        "🐞 Fixed: the “Gift — exchange card” button in the sale box showed its internal text code instead of its label.",
+      { version: 'v11.48', date: 'Jul 2026', items: [
+        "🎟️ Fixed: scanning the exchange card WHILE writing a sale now puts the credit straight onto the amount. It used to take you to the old sale's card and apply nothing.",
+        "💡 An exchange card (X-0001) holds no money itself — it identifies which sale it was. The app now follows that chain by itself and finds the credit (G-0003) the return produced.",
+        "⚠️ If the piece hasn't been returned yet, it tells you plainly instead of throwing you onto another screen.",
+        "⚠️ Same if the credit has already been spent.",
       ]},
           ]
   }
@@ -25530,7 +25559,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.47';
+const APP_VERSION = '11.48';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
