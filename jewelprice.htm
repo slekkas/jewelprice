@@ -2298,6 +2298,16 @@
         </div>
       </div>
     </div>
+    <!-- "It's a gift" — issues an EXCHANGE CARD (κάρτα αλλαγής) with the sale.
+         The card names the piece but NEVER its price: the person unwrapping it
+         must not learn what was paid. It is not money — it just identifies this
+         sale, so scanning it later opens it and the normal Return flow takes
+         over (swap on the spot, or turn it into credit). Can also be issued
+         afterwards from the sale itself, for a customer who asks on the way out. -->
+    <div style="margin-bottom:14px">
+      <button type="button" id="saleExCardToggle" onclick="_toggleSaleExCard()"
+        style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🎁 <span data-i18n="exCardOffer">Δώρο — κάρτα αλλαγής</span></button>
+    </div>
     <!-- Bonus preview — only shown if current user has a bonus set -->
     <div id="saleBonusPreview" style="display:none;margin-bottom:14px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.25);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
       <span style="font-family:var(--font-body);font-size:11px;color:var(--text-muted)">🎁 <span data-i18n="bonusLabel">Bonus</span> <span id="saleBonusPct"></span></span>
@@ -4860,6 +4870,15 @@ function gcFindByCode(raw) {
 }
 const GC_EXPIRY_WARN_DAYS = 30;   // how far ahead the bell warns
 const GC_DEFAULT_TERM_DAYS = 365; // default validity offered on the issue form
+// A RETURN credit runs longer than a bought certificate, for two reasons: the
+// shop is seasonal (Apr–Nov), so a customer who gets credit in August is
+// realistically back the FOLLOWING season — a 1-year card could expire days
+// before they walk in — and there is no hurry to be paid, since the money is
+// already in hand while the credit stays a fixed number of euros against stock
+// that reprices with gold.
+const RETURN_CREDIT_TERM_DAYS = 730;
+// The term that belongs to a given card, so extending one offers its own kind.
+function gcTermDays(g) { return gcIsCredit(g) ? RETURN_CREDIT_TERM_DAYS : GC_DEFAULT_TERM_DAYS; }
 const _gcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
 // ── Expiry sweep ─────────────────────────────────────────────────────────────
@@ -4949,12 +4968,21 @@ function renderGiftCards() {
 
   // Outstanding total — the liability, shown here rather than in Sales (money
   // taken but not yet earned never belongs in a revenue figure).
-  const outstanding = list.filter(gcIsSpendable).reduce((s, g) => s + gcBalance(g), 0);
+  const _spendable = list.filter(gcIsSpendable);
+  const outstanding = _spendable.reduce((s, g) => s + gcBalance(g), 0);
+  // Bought certificates and return credits are the same liability (see
+  // RETURNS_DESIGN.md §3.1) so they share one total — but the split is worth
+  // seeing, since one is money taken in advance and the other money given back.
+  const outCredit = _spendable.filter(gcIsCredit).reduce((s, g) => s + gcBalance(g), 0);
+  const outGift = outstanding - outCredit;
   const outBox = document.getElementById('gcOutstanding');
   if (outBox) {
     if (outstanding > 0) {
       outBox.style.display = '';
-      outBox.innerHTML = `🎁 ${isEl ? 'Σε κυκλοφορία' : 'Outstanding'}: <strong style="color:var(--gold-light)">${cur}${outstanding.toFixed(2)}</strong> — ${isEl ? 'αξία που χρωστάτε σε κοσμήματα' : 'value you owe in jewelry'}`;
+      const split = (outGift > 0 && outCredit > 0)
+        ? `<div style="margin-top:4px;font-size:11px;color:var(--text-muted)">🎁 ${isEl ? 'Δωροεπιταγές' : 'Gift'} ${cur}${outGift.toFixed(2)} · 🎟️ ${isEl ? 'Πιστώσεις' : 'Credit'} ${cur}${outCredit.toFixed(2)}</div>`
+        : '';
+      outBox.innerHTML = `🎁 ${isEl ? 'Σε κυκλοφορία' : 'Outstanding'}: <strong style="color:var(--gold-light)">${cur}${outstanding.toFixed(2)}</strong> — ${isEl ? 'αξία που χρωστάτε σε κοσμήματα' : 'value you owe in jewelry'}${split}`;
     } else outBox.style.display = 'none';
   }
 
@@ -4993,12 +5021,13 @@ function renderGiftCards() {
       : `${cur}${(parseFloat(g.amount) || 0).toFixed(2)}`;
     const soonDot = soon ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2E9E63;margin-right:5px;vertical-align:middle"></span>` : '';
     return `<div onclick="openGiftCardDetail('${g.id}')" style="display:flex;gap:11px;align-items:center;background:var(--dark-2);border:1px solid ${soon ? 'rgba(46,158,99,0.45)' : 'var(--card-border)'};border-radius:12px;padding:11px 13px;margin-bottom:9px;cursor:pointer">
-      <div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎁</div>
+      <div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${gcIsCredit(g) ? '🎟️' : '🎁'}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
           <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.buyerName || '—')}</span>
           <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0">${gcNoFmt(g)}</span>
         </div>
+        ${gcIsCredit(g) ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;letter-spacing:0.06em;text-transform:uppercase">↩️ ${isEl ? 'Πίστωση επιστροφής' : 'Return credit'}</div>` : ''}
         ${g.toName ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">${isEl ? 'Προς' : 'To'}: ${_gcEsc(g.toName)}</div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
           <span style="color:var(--text);font-weight:600">${amtLine}</span>
@@ -5435,6 +5464,12 @@ async function _gcEditSave(id) {
     g.expiresAt = document.getElementById('gceExpires').value || '';
     // A raised amount can revive a fully-spent card; a lowered one can settle it.
     if (g.status === 'redeemed' && gcBalance(g) > 0) g.status = 'active';
+    // Pushing the date out on an EXPIRED card must bring it back to life — that
+    // is the whole point of editing it ("he's abroad, give him longer"). The
+    // expiry sweep only ever looks at active cards, so nothing else would.
+    if (g.status === 'expired' && gcBalance(g) > 0 && g.expiresAt && g.expiresAt >= todayStr()) {
+      g.status = 'active';
+    }
     if (g.status === 'active' && gcBalance(g) <= 0) g.status = 'redeemed';
     g.expiryNotifSent = false; // let it warn again against the new date
     saveGiftCardsLocal(list);
@@ -5472,7 +5507,7 @@ async function _gcEditSave(id) {
 function _gcExtend(id) {
   const g = gcFindById(id); if (!g) return;
   const isEl = lang === 'el';
-  const next = dateStrInDays(GC_DEFAULT_TERM_DAYS);
+  const next = dateStrInDays(gcTermDays(g));
   showConfirm(
     isEl ? `Παράταση της ${gcNoFmt(g)} έως ${fmtDate(next)};` : `Extend ${gcNoFmt(g)} until ${fmtDate(next)}?`,
     () => {
@@ -5757,6 +5792,10 @@ function buildGiftCertHTML(g) {
   const cur = state.currency || '€';
   const esc = _gcEsc;
   const amount = parseFloat(g.amount) || 0;
+  // A return credit prints as an EXCHANGE CARD: same document, same numbering and
+  // QR, but it is not a gift and must not read like one — it is the customer's
+  // own money back, waiting for them to choose again.
+  const _isCred = gcIsCredit(g);
   // Local date — a certificate issued at 22:00 must not print yesterday.
   const issued = fmtDate(localDateStr(new Date(g.dateCreated || Date.now())));
   const address = isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00';
@@ -5771,7 +5810,7 @@ function buildGiftCertHTML(g) {
 <html lang="${isEl ? 'el' : 'en'}">
 <head>
 <meta charset="UTF-8">
-<title>${isEl ? 'Δωροεπιταγή' : 'Gift Certificate'} — ${gcNoFmt(g)}</title>
+<title>${_isCred ? (isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card') : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')} — ${gcNoFmt(g)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap');
   @page { size: A4 landscape; margin: 0; }
@@ -5815,9 +5854,11 @@ function buildGiftCertHTML(g) {
   <div class="store-sub">${isEl ? 'Κάρπαθος' : 'Karpathos'}</div>
   <div class="rule"></div>
 
-  <div class="doc-title">${isEl ? 'Δωροεπιταγή' : 'Gift Certificate'}</div>
+  <div class="doc-title">${_isCred ? (isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card') : (isEl ? 'Δωροεπιταγή' : 'Gift Certificate')}</div>
   <div class="amount">${cur}${amount.toFixed(2)}</div>
-  <div class="amount-words">${isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice'}</div>
+  <div class="amount-words">${_isCred
+    ? (isEl ? 'για αλλαγή με κόσμημα της επιλογής σας' : 'towards an exchange for jewelry of your choice')
+    : (isEl ? 'για κοσμήματα της επιλογής σας' : 'towards jewelry of your choice')}</div>
 
   ${g.toName ? `<div style="margin-top:8mm">
     <div class="to-label">${isEl ? 'Προς' : 'To'}</div>
@@ -5845,9 +5886,13 @@ function buildGiftCertHTML(g) {
     </div>
   </div>
 
-  <div class="terms">${isEl
-    ? `Η παρούσα δωροεπιταγή εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
-    : `Redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this certificate when redeeming.`}</div>
+  <div class="terms">${_isCred
+    ? (isEl
+      ? `Η παρούσα κάρτα αλλαγής εκδόθηκε για επιστροφή κοσμήματος και εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
+      : `Issued for a returned item and redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this card when redeeming.`)
+    : (isEl
+      ? `Η παρούσα δωροεπιταγή εξαργυρώνεται στο κατάστημα Lekkas Jewelry, ${address}. Μπορεί να χρησιμοποιηθεί τμηματικά· το υπόλοιπο παραμένει διαθέσιμο. Δεν ανταλλάσσεται με μετρητά. Παρακαλούμε προσκομίστε το παρόν έντυπο κατά την εξαργύρωση.`
+      : `Redeemable at Lekkas Jewelry, ${address}. May be used in part; any remaining balance stays available. Not exchangeable for cash. Please present this certificate when redeeming.`)}</div>
 </div></div>
 </body>
 </html>`;
@@ -5859,10 +5904,13 @@ function printGiftCert(id) {
 }
 function shareGiftCert(id) {
   const g = gcFindById(id); if (!g) return;
-  const title = (lang === 'el' ? 'Δωροεπιταγή' : 'Gift Certificate') + ' — ' + gcNoFmt(g);
+  const _cred = gcIsCredit(g);
+  const title = (_cred
+    ? (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card')
+    : (lang === 'el' ? 'Δωροεπιταγή' : 'Gift Certificate')) + ' — ' + gcNoFmt(g);
   // The certificate is A4 LANDSCAPE — without this the shared PDF is clipped at
   // 210mm and loses the stamp box and QR.
-  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, 'gift-' + gcNoFmt(g) + '.pdf', { landscape: true });
+  shareQuoteAsPDF(buildGiftCertHTML(g), title, false, (_cred ? 'exchange-' : 'gift-') + gcNoFmt(g) + '.pdf', { landscape: true });
 }
 
 function _gcUpdateBadges() {
@@ -8489,10 +8537,30 @@ async function getSales() {
 // profit that addSaleRecord actually stored.
 function _saleExVat(s, vat) {
   const amt = parseFloat(s.amount) || 0;
-  const g = Math.min(Math.max(parseFloat(s.giftCardAmt) || 0, 0), amt);
+  const raw = parseFloat(s.giftCardAmt) || 0;
+  // Clamp the certificate portion by MAGNITUDE and force it to share the sale's
+  // sign. A return record carries a negative amount (and a negative certificate
+  // portion, if the sale it reverses used one); the old positive-only clamp
+  // — min(max(raw,0), amt) — collapsed to the amount itself on a negative sale,
+  // dumping the whole value into the gift portion and dividing it by VAT under
+  // the wrong regime. For any positive record this is identical to the old form.
+  const g = (raw === 0 || (raw > 0) !== (amt > 0))
+    ? 0
+    : Math.sign(amt) * Math.min(Math.abs(raw), Math.abs(amt));
   const c = amt - g;
   const pex = (v, isCash) => isCash ? v : v / (1 + (vat || 0) / 100);
   return parseFloat((pex(g, !!s.giftCardWasCash) + pex(c, s.cashSale)).toFixed(2));
+}
+
+// Sale ids are Date.now(), which collides when several records are written in
+// the same millisecond — and an id is what every lookup, delete and return keys
+// on, so a collision silently corrupts all of them. Returns the timestamp unless
+// it is already taken, in which case it steps to the next free number.
+function _nextSaleId(sales) {
+  const used = new Set((sales || []).map(s => s.id));
+  let id = Date.now();
+  while (used.has(id)) id++;
+  return id;
 }
 
 async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, invQr, customer, email, cost, cashSale, salePhotoUrl, salePhotoName, seqRef, opts) {
@@ -8516,7 +8584,7 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
   const _amtExVat = _portionExVat(_giftPart, !!_o.giftWasCash) + _portionExVat(_cashPart, cashSale);
   const _profit = _cost !== null ? parseFloat((_amtExVat - _cost).toFixed(2)) : null;
   const rec = {
-    id: Date.now(),
+    id: _nextSaleId(sales),
     amount: parseFloat(amount),
     note: note || '',
     date: date || todayStr(),
@@ -8554,6 +8622,23 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
 async function deleteSaleRecord(id) {
   const sales = await getSales();
   const target = sales.find(s => s.id === id);
+  if (!target) return;
+  // Guards live HERE rather than on the buttons, so every entry point — the
+  // detail sheet, the list row, deleteSaleGroup, invRestoreToStock — is covered.
+  //
+  // A return is never deleted, it is UNDONE: the piece has to go back out of
+  // stock and the credit note it created has to be cancelled with it. A plain
+  // delete would leave both dangling.
+  if (target.isReturn) { await _undoReturn(id); return; }
+  // And the sale UNDERNEATH a return cannot be deleted either — that would
+  // strand the negative record, and the credit, against a sale that no longer
+  // exists.
+  if (_saleReturnRecord(id)) {
+    showToast('⚠️ ' + (lang === 'el'
+      ? 'Η πώληση έχει επιστραφεί — αναιρέστε πρώτα την επιστροφή'
+      : 'This sale has been returned — undo the return first'));
+    return;
+  }
   const filtered = sales.filter(s => s.id !== id);
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
@@ -8561,12 +8646,22 @@ async function deleteSaleRecord(id) {
   // Hand the balance back if this sale drew on a gift certificate — same
   // principle as restoring the sold inventory piece below.
   if (target && target.giftCardId) { try { await _gcUnapplyForSale(id); } catch (e) {} }
-  // Restore inventory item to In Stock if this sale was linked to one. Prefer the EXACT
-  // record id (invId, stored on newer sales) so a group of identical same-QR pieces — or a
-  // coin batch — restores the piece that was actually sold, not a still-in-stock twin. Older
-  // sales carry only the QR: fall back to it, but restrict to a currently-SOLD match so the
-  // in-stock count still rises by one (matching any in-stock twin would be a silent no-op).
-  if (target && (target.invId || target.invQr)) {
+  await _restoreStockForSale(target);
+}
+
+// Put the piece (or the grams) a sale took out back into stock. Shared by the
+// sale DELETE above and the RETURN flow, so the two can never drift apart —
+// they are the same physical act and were the same 40 lines twice.
+//
+// Prefer the EXACT record id (invId, stored on newer sales) so a group of
+// identical same-QR pieces — or a coin batch — restores the piece that was
+// actually sold, not a still-in-stock twin (v10.59). Older sales carry only the
+// QR: fall back to it, but restrict to a currently-SOLD match so the in-stock
+// count still rises by one (matching any in-stock twin would be a silent no-op).
+async function _restoreStockForSale(target) {
+  if (!target) return null;
+  let restored = null;
+  if (target.invId || target.invQr) {
     try {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
@@ -8588,12 +8683,13 @@ async function deleteSaleRecord(id) {
         delete invItem.dateSold;
         _inventoryCache[invId] = invItem;
         await saveInventoryItem(invId, invItem);
+        restored = { invId, invItem };
         showToast('📦 ' + (lang === 'el' ? 'Απόθεμα επαναφέρθηκε: Σε Απόθεμα' : 'Inventory restored: Back In Stock'));
       }
-    } catch(e) { console.warn('Could not restore inventory on sale delete:', e); }
+    } catch(e) { console.warn('Could not restore inventory:', e); }
   }
-  // Restore bulk chain weight if this was a bulk sale
-  if (target && target.bulkInvId && target.bulkSoldWeight > 0) {
+  // Bulk chain: the grams go back on the batch rather than a record flipping status.
+  if (target.bulkInvId && target.bulkSoldWeight > 0) {
     try {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
@@ -8603,12 +8699,772 @@ async function deleteSaleRecord(id) {
         bulkItem.weight = parseFloat((parseFloat(bulkItem.weight) + target.bulkSoldWeight).toFixed(2));
         _inventoryCache[target.bulkInvId] = bulkItem;
         await saveInventoryItem(target.bulkInvId, bulkItem);
+        restored = { invId: target.bulkInvId, invItem: bulkItem, isBulk: true };
         showToast('⛓️ ' + (lang === 'el'
           ? target.bulkSoldWeight.toFixed(1) + 'g επαναφέρθηκαν στην παρτίδα'
           : target.bulkSoldWeight.toFixed(1) + 'g returned to batch'));
       }
-    } catch(e) { console.warn('Could not restore bulk weight on sale delete:', e); }
+    } catch(e) { console.warn('Could not restore bulk weight:', e); }
   }
+  return restored;
+}
+
+// ═══ RETURNS, REFUNDS & STORE CREDIT ═════════════════════════════════════════
+// Full design + worked examples: RETURNS_DESIGN.md.
+//
+// A return NEVER edits or deletes the sale it reverses. It writes a NEGATIVE
+// record dated the day the piece actually came back, exactly as a real till
+// writes a credit note. June keeps its €1500, July carries −€1500, the year
+// nets to zero — and the history stays readable, which deleting would destroy.
+//
+// The money is mirrored from what the original RECORDED, never recomputed:
+// VAT has already changed once (24% → 17%, v11.40) and gold moves daily, so
+// recomputing would leave a residue that quietly corrupts profit.
+
+// A sale is returned iff a return record points at it. DERIVED, never a stored
+// flag on the original — a flag and a record are two truths that can disagree.
+function _saleReturnRecord(saleId) {
+  return (_salesCache || []).find(s => s.isReturn && s.returnOfSaleId === saleId) || null;
+}
+function _saleIsReturned(saleId) { return !!_saleReturnRecord(saleId); }
+
+// Same rule the Edit button already uses: sales staff can take back what they
+// sold; a manager/owner can take back anything. (To make returns owner-only,
+// this one condition is the place.)
+function _saleCanReturn(s) {
+  if (!s || s.isReturn) return false;
+  if (_saleIsReturned(s.id)) return false;
+  return can('sales_admin') || s.employee === creds.userName;
+}
+
+// The sale's ex-VAT value AS IT WAS RECORDED. Since profit = exVat − cost, the
+// ex-VAT figure is recoverable as profit + cost — from the record's OWN numbers,
+// without knowing the VAT rate in force at the time (which is not stored, and
+// may since have changed). Falls back to today's rate only for a sale that
+// carries no cost at all, where nothing better exists.
+function _saleOrigExVat(s, vat) {
+  if (s.profit != null && s.cost != null) {
+    return parseFloat((parseFloat(s.profit) + parseFloat(s.cost)).toFixed(2));
+  }
+  return _saleExVat(s, vat);
+}
+
+// Reverse one sale record. opts: { refundAmt, method:'credit'|'cash'|'card',
+// date, reason, restock, groupId }. Returns { rec, card } or null.
+async function processReturn(origId, opts) {
+  const o = opts || {};
+  const sales = await getSales();
+  const orig = sales.find(s => s.id === origId);
+  if (!orig || orig.isReturn) return null;
+  if (_saleReturnRecord(origId)) return null;          // already returned
+
+  const origAmt = parseFloat(orig.amount) || 0;
+  if (origAmt <= 0) return null;
+  // Refund defaults to the whole sale and can never exceed it.
+  const refund = Math.min(Math.max(parseFloat(o.refundAmt) || 0, 0) || origAmt, origAmt);
+  const r = refund / origAmt;
+  const restock = o.restock !== false;
+  const vat = parseFloat(state.vat) || 0;
+
+  // ── The money (RETURNS_DESIGN.md §2.3) ──
+  // A scrapped piece is NOT credited back as cost — we handed the money over and
+  // got nothing, so the whole ex-VAT amount is the loss.
+  const origExVat = _saleOrigExVat(orig, vat);
+  const retExVat  = -parseFloat((origExVat * r).toFixed(2));
+  const retCost   = (restock && orig.cost != null) ? -parseFloat(orig.cost) : null;
+  const retProfit = (orig.profit == null) ? null
+    : parseFloat((retExVat - (retCost || 0)).toFixed(2));
+
+  // Spread the original so EVERY field carries across — customer, vendor,
+  // employee, invId, seqRef, bulkInvId, salePhotoUrl — and can never fall out of
+  // step with a field added to sales later.
+  const rec = { ...orig };
+  // Unique even when a whole cart is returned inside one millisecond — three
+  // records sharing an id would make every later lookup resolve to the first.
+  rec.id = _nextSaleId(sales);
+  rec.ts = Date.now();
+  rec.date = o.date || todayStr();
+  rec.amount = -parseFloat(refund.toFixed(2));
+  rec.cost = retCost;
+  rec.profit = retProfit;
+  // The salesperson's bonus reverses with the sale that earned it.
+  rec.bonusAmt = (parseFloat(orig.bonusAmt) || 0) > 0
+    ? -parseFloat((parseFloat(orig.bonusAmt) * r).toFixed(2)) : 0;
+  rec.isReturn = true;
+  rec.returnOfSaleId = orig.id;
+  rec.refundMethod = o.method || 'credit';
+  rec.restocked = !!restock;
+  rec.returnReason = (o.reason || '').trim();
+  rec.returnOfDate = orig.date || '';
+  const _rw = lang === 'el' ? 'Επιστροφή' : 'Return';
+  rec.note = '↩️ ' + _rw
+    + (orig.note ? ' · ' + orig.note : '')
+    + (rec.returnReason ? ' · ' + rec.returnReason : '');
+  // A return is its own transaction row — inheriting the original's saleGroup
+  // would fold it into that sale and show the pair as a €0 line, hiding both.
+  delete rec.saleGroup;
+  if (o.groupId) rec.saleGroup = o.groupId;
+  // The certificate portion reverses along with everything else.
+  const _origGift = parseFloat(orig.giftCardAmt) || 0;
+  if (_origGift > 0) rec.giftCardAmt = -Math.min(parseFloat((_origGift * r).toFixed(2)), refund);
+  else { delete rec.giftCardId; delete rec.giftCardNo; delete rec.giftCardAmt; delete rec.giftCardWasCash; }
+
+  // ── Store credit ──
+  // A sale part-paid by a certificate can only refund THAT portion as credit —
+  // handing back cash the customer never paid would invent money.
+  const giftPart = _origGift > 0
+    ? Math.min(parseFloat((_origGift * r).toFixed(2)), refund) : 0;
+  const creditAmt = (rec.refundMethod === 'credit') ? refund : giftPart;
+  let card = null;
+  // deferCredit: a multi-item return issues ONE card for the whole transaction
+  // (processReturnGroup), not one per line — three cards for one return would be
+  // a nuisance at the counter.
+  if (creditAmt > 0 && !o.deferCredit) {
+    // Issued BEFORE the return is written: a stray credit note is visible and
+    // cancellable, whereas a return promising a credit that never got created
+    // would be invisible.
+    card = await _gcIssueReturnCredit(orig, rec, creditAmt);
+    if (card) { rec.creditCardId = card.id; rec.creditCardNo = card.cardNo; }
+  }
+
+  sales.push(rec);
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  await pushSalesToCloud(sales);
+
+  if (restock) { try { await _restoreStockForSale(orig); } catch (e) { console.warn('return restore:', e); } }
+  return { rec, card, creditAmt, giftForced: (rec.refundMethod !== 'credit' && giftPart > 0) };
+}
+
+// Return every line of a multi-item transaction at once. Each line still gets
+// its own negative record (so per-item cost and profit stay exact), they share a
+// new saleGroup so the sales list shows ONE return row, and the whole thing
+// produces a SINGLE exchange card.
+async function processReturnGroup(groupId, opts) {
+  const o = opts || {};
+  const sales = await getSales();
+  const members = sales.filter(s =>
+    s.saleGroup === groupId && !s.isReturn && !_saleReturnRecord(s.id) && (parseFloat(s.amount) || 0) > 0);
+  if (!members.length) return null;
+
+  const total = members.reduce((a, m) => a + (parseFloat(m.amount) || 0), 0);
+  const refundTotal = Math.min(Math.max(parseFloat(o.refundAmt) || 0, 0) || total, total);
+  const ratio = total > 0 ? refundTotal / total : 1;
+  // Split proportionally, letting the last line absorb the rounding remainder so
+  // the parts always sum to exactly what was refunded (same trick confirmSale
+  // uses to spread a cart total).
+  const shares = members.map(m => parseFloat(((parseFloat(m.amount) || 0) * ratio).toFixed(2)));
+  const _sumExceptLast = shares.slice(0, -1).reduce((a, v) => a + v, 0);
+  shares[shares.length - 1] = parseFloat((refundTotal - _sumExceptLast).toFixed(2));
+
+  const newGroup = 'g' + Date.now();
+  const recs = [];
+  let creditNeeded = 0;
+  for (let i = 0; i < members.length; i++) {
+    const r = await processReturn(members[i].id, {
+      ...o, refundAmt: shares[i], groupId: newGroup, deferCredit: true
+    });
+    if (r) { recs.push(r.rec); creditNeeded += r.creditAmt || 0; }
+  }
+  if (!recs.length) return null;
+
+  let card = null;
+  if (creditNeeded > 0) {
+    card = await _gcIssueReturnCredit(members[0], recs[0], parseFloat(creditNeeded.toFixed(2)));
+    if (card) {
+      const list = await getSales();
+      recs.forEach(rc => {
+        const f = list.find(x => x.id === rc.id);
+        if (f) { f.creditCardId = card.id; f.creditCardNo = card.cardNo; }
+      });
+      _salesCache = list;
+      localStorage.setItem('jpro_sales', JSON.stringify(list));
+      await pushSalesToCloud(list);
+    }
+  }
+  return { recs, card, creditAmt: parseFloat(creditNeeded.toFixed(2)), count: recs.length };
+}
+
+// The credit note. It IS a gift certificate (RETURNS_DESIGN.md §3) — same
+// numbering, picker, scanning, expiry, breakage and printed document — so the
+// only new thing here is where it came from.
+async function _gcIssueReturnCredit(orig, retRec, amount) {
+  const cardNo = await getNextGiftCardNo();
+  // Best-effort phone, so the expiry reminder can actually reach them.
+  let phone = '';
+  try {
+    const _c = getClients().find(c => c && c.name && orig.customer &&
+      c.name.trim().toLowerCase() === orig.customer.trim().toLowerCase());
+    if (_c) phone = _c.phone || '';
+  } catch (e) {}
+  const g = {
+    id: 'gc_' + Date.now(),
+    cardNo,
+    amount: parseFloat(amount.toFixed(2)),
+    buyerName: orig.customer || '',
+    buyerPhone: phone,
+    buyerEmail: orig.email || '',
+    toName: '', message: '',
+    redeemerName: '', redeemerPhone: '', redeemerEmail: '',
+    payMethod: 'credit',
+    // THE reason store credit is a certificate: the regime the money arrived
+    // under travels with it and is consumed as giftCardWasCash when the credit
+    // is spent months later, so a cash sale stays cash all the way through.
+    cashSale: !!orig.cashSale,
+    expiresAt: dateStrInDays(RETURN_CREDIT_TERM_DAYS),
+    status: 'active',
+    redemptions: [],
+    breakageSaleId: null,
+    notifiedAt: null,
+    expiryNotifSent: false,
+    dateCreated: Date.now(),
+    createdBy: creds.userName || '',
+    origin: 'return',
+    returnOfSaleId: orig.id,
+    returnSaleId: retRec.id
+  };
+  const list = getGiftCards();
+  list.push(g);
+  saveGiftCardsLocal(list);
+  await pushGiftCardsToCloud(list);
+  _gcUpdateBadges();
+  return g;
+}
+function gcIsCredit(g) { return !!g && g.origin === 'return'; }
+
+function _refundMethodLabel(m) {
+  const isEl = lang === 'el';
+  if (m === 'cash') return isEl ? '💵 Μετρητά' : '💵 Cash';
+  if (m === 'card') return isEl ? '🏦 Κάρτα' : '🏦 Card';
+  return isEl ? '💳 Πίστωση' : '💳 Store credit';
+}
+function _gcNoStr(n) { return 'G-' + String(n || 0).padStart(4, '0'); }
+
+// Take the piece back OUT of stock — the exact inverse of _restoreStockForSale,
+// used only when a return is undone.
+async function _resellStockForSale(rec) {
+  if (!rec) return;
+  try {
+    if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+      _inventoryCache = await loadInventory();
+    }
+    if (rec.bulkInvId && rec.bulkSoldWeight > 0) {
+      const b = _inventoryCache[rec.bulkInvId];
+      if (b && b.isBulk) {
+        b.weight = parseFloat(Math.max(0, parseFloat(b.weight) - rec.bulkSoldWeight).toFixed(2));
+        _inventoryCache[rec.bulkInvId] = b;
+        await saveInventoryItem(rec.bulkInvId, b);
+      }
+      return;
+    }
+    let invId = null, invItem = null;
+    if (rec.invId && _inventoryCache[rec.invId]) { invId = rec.invId; invItem = _inventoryCache[rec.invId]; }
+    else if (rec.invQr) {
+      const qrNorm = rec.invQr.trim().toUpperCase();
+      const e = Object.entries(_inventoryCache).find(([,it]) =>
+        it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm && it.status === 'in_stock' && !it.isBulk);
+      if (e) { invId = e[0]; invItem = e[1]; }
+    }
+    if (invItem && !invItem.isBulk) {
+      invItem.status = 'sold';
+      invItem.dateSold = new Date(rec.returnOfDate || rec.date || todayStr()).getTime();
+      _inventoryCache[invId] = invItem;
+      await saveInventoryItem(invId, invItem);
+    }
+  } catch (e) { console.warn('Could not re-mark item sold:', e); }
+}
+
+// Undo a return: the piece goes back out of stock, the return record is removed
+// and its credit note is cancelled. Refused once any of that credit has been
+// spent — that money is inside another sale now, and clawing it back would
+// silently unbalance a transaction that already happened.
+async function _undoReturn(retId) {
+  const sales = await getSales();
+  const rec = sales.find(s => s.id === retId);
+  if (!rec || !rec.isReturn) return false;
+  const isEl = lang === 'el';
+  if (rec.creditCardId) {
+    const g = gcFindById(rec.creditCardId);
+    if (g && gcRedeemed(g) > 0) {
+      showToast('⚠️ ' + (isEl
+        ? 'Η πίστωση έχει ήδη χρησιμοποιηθεί — δεν γίνεται αναίρεση'
+        : 'That credit has already been spent — cannot undo'));
+      return false;
+    }
+  }
+  const filtered = sales.filter(s => s.id !== retId);
+  _salesCache = filtered;
+  localStorage.setItem('jpro_sales', JSON.stringify(filtered));
+  await pushSalesToCloud(filtered);
+  if (rec.creditCardId) {
+    const list = getGiftCards();
+    const g = list.find(x => x.id === rec.creditCardId);
+    if (g) {
+      g.status = 'cancelled';
+      g.cancelledAt = Date.now();
+      saveGiftCardsLocal(list);
+      await pushGiftCardsToCloud(list);
+      _gcUpdateBadges();
+    }
+  }
+  if (rec.restocked) await _resellStockForSale(rec);
+  showToast('↩️ ' + (isEl ? 'Η επιστροφή αναιρέθηκε' : 'Return undone'));
+  return true;
+}
+
+// ═══ EXCHANGE CARD ON A GIFT (κάρτα αλλαγής) ═════════════════════════════════
+// Someone buys a piece as a present. The person who unwraps it may not like it,
+// so they get a card that lets them bring it back — WITHOUT ever learning what
+// was paid for it.
+//
+// It is NOT money and NOT a gift certificate: it carries no value, it just
+// identifies THIS SALE. Scanning it opens that sale (with the piece on screen),
+// and from there the return machinery already built takes over — swap on the
+// spot (🔄 Αλλαγή τώρα) or turn it into credit (a card that DOES carry value).
+// Value only ever comes into existence when the piece actually comes back.
+//
+// The number lives on the sale record as `exchangeCardNo`. 'X-0001' can't be
+// confused with a reference code (2 letters + 4 digits) or a gift certificate
+// ('G-0004') — the letter and the hyphen keep all three apart.
+function exNoFmt(n) { return 'X-' + String(n || 0).padStart(4, '0'); }
+async function getNextExchangeCardNo() {
+  try {
+    const url = fbUrl('/jewelprice_exchangecard_counter.json');
+    const res = await fetch(url, { cache: 'no-store' });
+    const cur = res.ok ? (await res.json() || 0) : 0;
+    const next = cur + 1;
+    await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+    return next;
+  } catch (e) { return Date.now() % 100000; }
+}
+// Resolve a scanned/typed 'X-0001' to the sale it was issued for.
+function exFindByCode(raw) {
+  const m = String(raw || '').trim().toUpperCase().match(/^X-(\d{1,6})$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return (_salesCache || []).find(s => (s.exchangeCardNo || 0) === n) || null;
+}
+
+// Issue (once) and print. Safe to call again — a sale keeps the same number, so
+// reprinting a lost card gives back the identical card rather than a second one.
+async function issueExchangeCard(saleId, opts) {
+  const o = opts || {};
+  const sales = await getSales();
+  const s = sales.find(x => x.id === saleId);
+  if (!s || s.isReturn) return null;
+  if (!s.exchangeCardNo) {
+    s.exchangeCardNo = await getNextExchangeCardNo();
+    s.exchangeCardAt = Date.now();
+    _salesCache = sales;
+    localStorage.setItem('jpro_sales', JSON.stringify(sales));
+    await pushSalesToCloud(sales);
+  }
+  if (o.print !== false) printExchangeCard(s.id);
+  return s;
+}
+
+// Everything the card should say about the piece — and nothing about money.
+async function _exCardItem(s) {
+  const out = { desc: s.note || '', ref: s.seqRef || '', photo: s.salePhotoUrl || '' };
+  try {
+    if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) _inventoryCache = await loadInventory();
+    let it = (s.invId && _inventoryCache[s.invId]) || null;
+    if (!it && s.invQr) {
+      const q = s.invQr.trim().toUpperCase();
+      it = Object.values(_inventoryCache).find(x => x.qrCode && x.qrCode.trim().toUpperCase() === q) || null;
+    }
+    if (it) {
+      out.desc = _itemDesc(it) || out.desc;
+      out.ref = it.seqId ? itemRefCode(it) : out.ref;
+      out.photo = out.photo || it.photoUrl || '';
+      const bits = [];
+      if (it.metal === 'gold' || it.metal === 'silver') bits.push(t(it.metal));
+      if (it.karat) bits.push(it.karat);
+      if (it.jewelryType) bits.push(invTypeLabel(it.jewelryType));
+      out.meta = bits.join(' · ');
+    }
+  } catch (e) {}
+  return out;
+}
+
+function buildExchangeCardHTML(s, item) {
+  const isEl = lang === 'el';
+  const esc = _gcEsc;
+  const issued = fmtDate(s.date || todayStr());
+  const until = fmtDate(dateStrInDays(RETURN_CREDIT_TERM_DAYS));
+  const address = isEl ? 'Αποδήμων Καρπαθίων, Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion, Pigadia, Karpathos 857 00';
+  const code = exNoFmt(s.exchangeCardNo);
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=' + encodeURIComponent(code);
+  // lang MUST be set — the title is uppercased by CSS and Greek drops the tonos
+  // in all-caps (ΚΑΡΤΑ ΑΛΛΑΓΗΣ, not ΑΛΛΑΓΉΣ).
+  return `<!DOCTYPE html>
+<html lang="${isEl ? 'el' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<title>${isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card'} — ${code}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+  @page { size: A4 landscape; margin: 0; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:297mm;height:210mm;background:#fff;color:#1a1a1a;font-family:'DM Sans',sans-serif;font-weight:300}
+  .frame{width:100%;height:100%;padding:12mm}
+  .inner{width:100%;height:100%;border:1.5pt solid #C9A84C;padding:10mm 14mm;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative}
+  .inner::after{content:'';position:absolute;inset:2.5mm;border:0.5pt solid rgba(201,168,76,0.45);pointer-events:none}
+  .store-name{font-family:Georgia,serif;font-size:26pt;letter-spacing:5pt;color:#8C7E60}
+  .store-name span{color:#C9A84C}
+  .store-sub{font-family:'DM Mono',monospace;font-size:8pt;letter-spacing:4pt;color:#A99B78;margin-top:1.5mm;text-transform:uppercase}
+  .rule{width:52mm;height:1pt;background:#C9A84C;margin:6mm 0 5mm}
+  .doc-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:27pt;font-weight:600;color:#8C7E60;text-transform:uppercase;letter-spacing:3pt}
+  .lede{font-family:'DM Sans',sans-serif;font-size:10.5pt;color:#5A5240;margin-top:4mm;max-width:170mm;line-height:1.6}
+  .piece{margin-top:7mm;display:flex;align-items:center;gap:8mm;justify-content:center}
+  .piece img{width:34mm;height:34mm;object-fit:contain;background:#fff;border:0.5pt solid rgba(201,168,76,0.4)}
+  .piece-txt{text-align:left;max-width:120mm}
+  .piece-desc{font-family:'Cormorant Garamond',Georgia,serif;font-size:17pt;color:#1a1a1a;line-height:1.3}
+  .piece-meta{font-family:'DM Sans',sans-serif;font-size:9.5pt;color:#7A7058;margin-top:2mm}
+  .piece-ref{font-family:'DM Mono',monospace;font-size:10pt;color:#8C7E60;margin-top:2mm;letter-spacing:1pt}
+  .spacer{flex:1}
+  .foot{width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:10mm}
+  .meta{font-family:'DM Mono',monospace;font-size:8.5pt;color:#7A7058;text-align:left;line-height:1.7}
+  .no{font-size:12pt;color:#8C7E60;letter-spacing:2pt}
+  .qr-wrap{text-align:center}
+  .qr-wrap img{width:24mm;height:24mm;display:block}
+  .qlbl{font-family:'DM Mono',monospace;font-size:8pt;color:#8C7E60;margin-top:1.5mm;letter-spacing:1.5pt}
+  .terms{font-family:'DM Sans',sans-serif;font-size:7.5pt;color:#9A9078;margin-top:6mm;line-height:1.55;max-width:210mm}
+</style>
+</head>
+<body>
+<div class="frame"><div class="inner">
+  <div class="store-name">LEKKAS <span>JEWELRY</span></div>
+  <div class="store-sub">${isEl ? 'Κάρπαθος' : 'Karpathos'}</div>
+  <div class="rule"></div>
+
+  <div class="doc-title">${isEl ? 'Κάρτα Αλλαγής' : 'Exchange Card'}</div>
+  <div class="lede">${isEl
+    ? 'Αν το κόσμημα δεν είναι ακριβώς αυτό που θέλατε, φέρτε το πίσω μαζί με αυτή την κάρτα και διαλέξτε κάτι άλλο — ή κρατήστε την αξία του για μια επόμενη επίσκεψη.'
+    : 'If this piece isn’t quite right, bring it back with this card and choose something else — or keep its value for another visit.'}</div>
+
+  <div class="piece">
+    ${item.photo ? `<img src="${item.photo}" alt="">` : ''}
+    <div class="piece-txt">
+      <div class="piece-desc">${esc(item.desc || (isEl ? 'Κόσμημα' : 'Jewelry'))}</div>
+      ${item.meta ? `<div class="piece-meta">${esc(item.meta)}</div>` : ''}
+      ${item.ref ? `<div class="piece-ref">${esc(item.ref)}</div>` : ''}
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="foot">
+    <div class="meta">
+      <div class="no">${code}</div>
+      <div>${isEl ? 'Ημερομηνία αγοράς' : 'Purchased'}: ${issued}</div>
+      <div>${isEl ? 'Ισχύει έως' : 'Valid until'}: ${until}</div>
+    </div>
+    <div class="qr-wrap">
+      <img src="${qrUrl}" alt="${code}">
+      <div class="qlbl">${code}</div>
+    </div>
+  </div>
+
+  <div class="terms">${isEl
+    ? `Παρακαλούμε προσκομίστε την κάρτα μαζί με το κόσμημα, στην αρχική του κατάσταση, στο κατάστημα Lekkas Jewelry, ${address}. Μπορείτε να το αλλάξετε με άλλο κόσμημα ίσης αξίας, να πληρώσετε τη διαφορά για κάτι ακριβότερο, ή να λάβετε πίστωση για μελλοντική αγορά. Δεν ανταλλάσσεται με μετρητά.`
+    : `Please present this card together with the piece, in its original condition, at Lekkas Jewelry, ${address}. You may exchange it for another piece of equal value, pay the difference for something dearer, or receive credit towards a future purchase. Not exchangeable for cash.`}</div>
+</div></div>
+</body>
+</html>`;
+}
+
+async function printExchangeCard(saleId) {
+  const sales = await getSales();
+  const s = sales.find(x => x.id === saleId);
+  if (!s || !s.exchangeCardNo) return;
+  const item = await _exCardItem(s);
+  openQuoteWindow(buildExchangeCardHTML(s, item), false, null);
+}
+async function shareExchangeCard(saleId) {
+  const sales = await getSales();
+  const s = sales.find(x => x.id === saleId);
+  if (!s || !s.exchangeCardNo) return;
+  const item = await _exCardItem(s);
+  const code = exNoFmt(s.exchangeCardNo);
+  const title = (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card') + ' — ' + code;
+  // A4 LANDSCAPE — without this the shared PDF is clipped at 210mm.
+  shareQuoteAsPDF(buildExchangeCardHTML(s, item), title, false, 'exchange-' + code + '.pdf', { landscape: true });
+}
+
+// The toggle in the sale box: arms the card so it prints as soon as the sale is
+// recorded (confirmSale can't issue one before the record exists).
+let _saleWantsExCard = false;
+function _toggleSaleExCard() {
+  _saleWantsExCard = !_saleWantsExCard;
+  _syncSaleExCardBtn();
+}
+function _syncSaleExCardBtn() {
+  const b = document.getElementById('saleExCardToggle');
+  if (!b) return;
+  const isEl = lang === 'el';
+  const label = isEl ? 'Δώρο — κάρτα αλλαγής' : 'Gift — exchange card';
+  if (_saleWantsExCard) {
+    b.style.background = 'rgba(201,168,76,0.25)';
+    b.style.border = '1px solid var(--gold)';
+    b.style.color = 'var(--gold-light)';
+    b.style.fontWeight = '600';
+    b.innerHTML = '🎁 ' + label + ' ✓';
+  } else {
+    b.style.background = 'rgba(201,168,76,0.06)';
+    b.style.border = '1px dashed rgba(201,168,76,0.4)';
+    b.style.color = 'var(--text-muted)';
+    b.style.fontWeight = '400';
+    b.innerHTML = '🎁 <span data-i18n="exCardOffer">' + label + '</span>';
+  }
+}
+
+// ── The return dialog ────────────────────────────────────────────────────────
+let _retDlg = null;
+
+function _retPill(id, label, active) {
+  return `<button type="button" id="${id}" onclick="_retSetMethod('${id.replace('retM_', '')}')" style="flex:1;padding:10px 6px;border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;white-space:nowrap;${active
+    ? 'background:rgba(201,168,76,0.25);border:1px solid var(--gold);color:var(--gold-light);font-weight:600'
+    : 'background:rgba(201,168,76,0.06);border:1px solid var(--card-border);color:var(--text-muted)'}">${label}</button>`;
+}
+
+// saleId returns one line; groupId returns a whole multi-item transaction.
+async function openReturnDialog(saleId, groupId) {
+  const sales = await getSales();
+  let s, amt, gift, count = 1;
+  if (groupId) {
+    const members = sales.filter(x => x.saleGroup === groupId && !x.isReturn
+      && !_saleReturnRecord(x.id) && (parseFloat(x.amount) || 0) > 0);
+    if (!members.length) {
+      showToast('⚠️ ' + (lang === 'el' ? 'Τίποτα προς επιστροφή' : 'Nothing left to return'));
+      return;
+    }
+    s = members[0];
+    count = members.length;
+    amt = members.reduce((a, m) => a + (parseFloat(m.amount) || 0), 0);
+    gift = members.reduce((a, m) => a + (parseFloat(m.giftCardAmt) || 0), 0);
+  } else {
+    s = sales.find(x => x.id === saleId);
+    if (!s) return;
+    amt = parseFloat(s.amount) || 0;
+    gift = parseFloat(s.giftCardAmt) || 0;
+  }
+  if (!_saleCanReturn(s)) {
+    showToast('⚠️ ' + (lang === 'el' ? 'Δεν επιτρέπεται' : 'Not permitted'));
+    return;
+  }
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  _retDlg = { saleId, groupId: groupId || null, method: 'credit', restock: true };
+
+  document.getElementById('returnDlgOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'returnDlgOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">↩️ ${isEl ? 'Επιστροφή' : 'Return'}</div>
+      <button onclick="document.getElementById('returnDlgOverlay').remove()" class="modal-x">✕</button>
+    </div>
+
+    <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:11px 13px;margin-bottom:14px">
+      <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light)">${fmtAmt(amt)}${count > 1 ? ` <span style="font-size:11px;color:var(--text-muted)">· ${count} ${isEl ? 'τεμ.' : 'items'}</span>` : ''}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${fmtDate(s.date)}${s.note ? ' · ' + _gcEsc(s.note) : ''}</div>
+      ${s.customer ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">👤 ${_gcEsc(s.customer)}</div>` : ''}
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Ποσό επιστροφής' : 'Refund amount'}</div>
+    <input id="retAmount" type="number" step="0.01" inputmode="decimal" value="${amt.toFixed(2)}"
+      oninput="_retSyncNotice()" style="${_resInp};font-size:19px;font-weight:700;color:var(--gold-light)">
+    <div style="font-size:10px;color:var(--text-muted);margin:-6px 0 12px">${isEl
+      ? `Έως ${cur}${amt.toFixed(2)}. Μικρότερο ποσό = κρατάτε τη διαφορά.`
+      : `Up to ${cur}${amt.toFixed(2)}. Less means you keep the difference.`}</div>
+
+    <div style="${_resLbl}">${isEl ? 'Τρόπος επιστροφής' : 'Refund as'}</div>
+    <div style="display:flex;gap:7px;margin-bottom:12px">
+      ${_retPill('retM_credit', '💳 ' + (isEl ? 'Πίστωση' : 'Store credit'), true)}
+      ${_retPill('retM_cash', '💵 ' + (isEl ? 'Μετρητά' : 'Cash'), false)}
+      ${_retPill('retM_card', '🏦 ' + (isEl ? 'Κάρτα' : 'Card'), false)}
+    </div>
+
+    <div id="retNotice" style="display:none;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:11px;color:var(--gold-light);line-height:1.45"></div>
+
+    <div style="${_resLbl}">${isEl ? 'Ημερομηνία' : 'Date'}</div>
+    <div style="position:relative;margin-bottom:12px">
+      <div onclick="document.getElementById('retDate').showPicker?document.getElementById('retDate').showPicker():document.getElementById('retDate').focus()"
+        style="${_resInp};margin-bottom:0;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+        <span id="retDateText">${fmtDate(todayStr())}</span><span style="color:var(--text-muted);font-size:11px">▼</span>
+      </div>
+      <input type="date" id="retDate" value="${todayStr()}"
+        oninput="document.getElementById('retDateText').textContent=fmtDate(this.value)"
+        style="position:absolute;opacity:0;top:0;left:0;width:100%;height:100%;cursor:pointer">
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Αιτία (προαιρετικά)' : 'Reason (optional)'}</div>
+    <input id="retReason" style="${_resInp}" placeholder="${isEl ? 'π.χ. δεν της άρεσε' : 'e.g. changed her mind'}">
+
+    <button type="button" id="retRestockBtn" onclick="_retToggleRestock()" style="width:100%;padding:11px;border-radius:8px;font-family:var(--font-body);font-size:12.5px;cursor:pointer;margin-bottom:14px;background:rgba(201,168,76,0.25);border:1px solid var(--gold);color:var(--gold-light);font-weight:600">📦 ${isEl ? 'Επιστροφή στο απόθεμα ✓' : 'Put back in stock ✓'}</button>
+
+    <div id="retDlgStatus" style="font-size:11px;color:#e0a85a;text-align:center;min-height:15px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('returnDlgOverlay').remove()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl ? 'Ακύρωση' : 'Cancel'}</button>
+      <button id="retConfirmBtn" onclick="_returnDlgConfirm()" style="flex:2;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">↩️ ${isEl ? 'Καταχώριση επιστροφής' : 'Record return'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.dataset.gift = String(gift);
+  _retSyncNotice();
+}
+
+function _retSetMethod(m) {
+  if (!_retDlg) return;
+  _retDlg.method = m;
+  ['credit', 'cash', 'card'].forEach(k => {
+    const b = document.getElementById('retM_' + k);
+    if (!b) return;
+    const on = k === m;
+    b.style.background = on ? 'rgba(201,168,76,0.25)' : 'rgba(201,168,76,0.06)';
+    b.style.border = on ? '1px solid var(--gold)' : '1px solid var(--card-border)';
+    b.style.color = on ? 'var(--gold-light)' : 'var(--text-muted)';
+    b.style.fontWeight = on ? '600' : '400';
+  });
+  _retSyncNotice();
+}
+
+function _retToggleRestock() {
+  if (!_retDlg) return;
+  _retDlg.restock = !_retDlg.restock;
+  const b = document.getElementById('retRestockBtn');
+  const isEl = lang === 'el';
+  if (!b) return;
+  if (_retDlg.restock) {
+    b.style.background = 'rgba(201,168,76,0.25)';
+    b.style.border = '1px solid var(--gold)';
+    b.style.color = 'var(--gold-light)';
+    b.style.fontWeight = '600';
+    b.textContent = '📦 ' + (isEl ? 'Επιστροφή στο απόθεμα ✓' : 'Put back in stock ✓');
+  } else {
+    b.style.background = 'transparent';
+    b.style.border = '1px solid var(--wa15)';
+    b.style.color = 'var(--text-muted)';
+    b.style.fontWeight = '400';
+    b.textContent = '🚫 ' + (isEl ? 'ΔΕΝ επιστρέφει στο απόθεμα' : 'NOT going back in stock');
+  }
+  _retSyncNotice();
+}
+
+// Spells out anything the owner would otherwise have to work out in their head:
+// the forced gift-certificate split, and what "not back in stock" costs.
+function _retSyncNotice() {
+  const ov = document.getElementById('returnDlgOverlay');
+  const box = document.getElementById('retNotice');
+  if (!ov || !box || !_retDlg) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const gift = parseFloat(ov.dataset.gift) || 0;
+  const refund = parseFloat(document.getElementById('retAmount')?.value) || 0;
+  const msgs = [];
+  if (gift > 0 && _retDlg.method !== 'credit') {
+    const part = Math.min(gift, refund);
+    msgs.push(isEl
+      ? `🎁 ${cur}${part.toFixed(2)} πληρώθηκε με δωροεπιταγή, οπότε επιστρέφεται ως <strong>πίστωση</strong> — δεν δόθηκαν ποτέ μετρητά γι' αυτά.`
+      : `🎁 ${cur}${part.toFixed(2)} of this was paid with a gift certificate, so it goes back as <strong>store credit</strong> — no cash was ever paid for it.`);
+  }
+  if (!_retDlg.restock) {
+    msgs.push(isEl
+      ? '🚫 Το κομμάτι δεν επιστρέφει στο απόθεμα, άρα το κόστος του καταγράφεται ως ζημιά.'
+      : '🚫 The piece is not going back in stock, so its cost is recorded as a loss.');
+  }
+  box.innerHTML = msgs.join('<br><br>');
+  box.style.display = msgs.length ? '' : 'none';
+}
+
+async function _returnDlgConfirm() {
+  if (!_retDlg) return;
+  const isEl = lang === 'el';
+  const btn = document.getElementById('retConfirmBtn');
+  const st = document.getElementById('retDlgStatus');
+  const refundAmt = parseFloat(document.getElementById('retAmount')?.value) || 0;
+  if (refundAmt <= 0) { if (st) st.textContent = isEl ? 'Εισάγετε ποσό' : 'Enter an amount'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const _opts = {
+    refundAmt,
+    method: _retDlg.method,
+    date: document.getElementById('retDate')?.value || todayStr(),
+    reason: document.getElementById('retReason')?.value || '',
+    restock: _retDlg.restock
+  };
+  let res = null;
+  try {
+    res = _retDlg.groupId
+      ? await processReturnGroup(_retDlg.groupId, _opts)
+      : await processReturn(_retDlg.saleId, _opts);
+  } catch (e) { console.warn('return failed:', e); }
+  if (!res) {
+    if (btn) { btn.disabled = false; btn.textContent = '↩️ ' + (isEl ? 'Καταχώριση επιστροφής' : 'Record return'); }
+    if (st) st.textContent = isEl ? 'Απέτυχε — δοκιμάστε ξανά' : 'Failed — please try again';
+    return;
+  }
+  document.getElementById('returnDlgOverlay')?.remove();
+  _retDlg = null;
+  showToast('↩️ ' + (isEl ? 'Επιστροφή καταχωρήθηκε' : 'Return recorded'));
+  try { await renderSalesPanel(); } catch (e) {}
+  try { renderInvList(); } catch (e) {}
+  try { renderGiftCards(); } catch (e) {}
+  if (res.card) _returnCreditSheet(res.card);
+}
+
+// What happens right after a return that produced credit: print the exchange
+// card, or go straight into the exchange.
+function _returnCreditSheet(card) {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  document.getElementById('retCreditOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'retCreditOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.85);display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `<div style="background:var(--dark-2);border-top:1px solid var(--card-border);border-radius:16px 16px 0 0;padding:20px 18px 22px;width:100%;max-width:480px">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:30px">🎟️</div>
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-top:5px">${isEl ? 'Κάρτα αλλαγής' : 'Exchange card'} ${gcNoFmt(card)}</div>
+      <div style="font-family:var(--font-mono);font-size:26px;color:var(--text);font-weight:700;margin-top:6px">${cur}${(parseFloat(card.amount) || 0).toFixed(2)}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:5px">${isEl ? 'Ισχύει έως' : 'Valid until'} ${fmtDate(card.expiresAt)}</div>
+    </div>
+    <button onclick="document.getElementById('retCreditOverlay').remove();_armCreditForNextSale('${card.id}')" style="width:100%;padding:13px;margin-bottom:9px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:9px;font-family:var(--font-body);font-size:13.5px;font-weight:700;cursor:pointer">🔄 ${isEl ? 'Αλλαγή τώρα' : 'Exchange now'}</button>
+    <div style="display:flex;gap:8px;margin-bottom:9px">
+      <button onclick="printGiftCert('${card.id}')" style="flex:1;padding:12px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:9px;font-family:var(--font-body);font-size:12.5px;cursor:pointer">🖨 ${isEl ? 'Εκτύπωση' : 'Print'}</button>
+      <button onclick="shareGiftCert('${card.id}')" style="flex:1;padding:12px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:9px;font-family:var(--font-body);font-size:12.5px;cursor:pointer">📤 ${isEl ? 'Αποστολή' : 'Share'}</button>
+    </div>
+    <button onclick="document.getElementById('retCreditOverlay').remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:9px;font-family:var(--font-body);font-size:12.5px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Done'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+// ── Exchange hand-off ────────────────────────────────────────────────────────
+// Arms the fresh credit for the NEXT sale dialog opened, so a return that turns
+// straight into an exchange doesn't make the owner hunt for the card they just
+// created. Deliberately narrow: single-use and ignored after 30 minutes, so it
+// can never attach itself silently to an unrelated sale tomorrow. It is also
+// shown, with a ✕, in the sale dialog.
+let _pendingReturnCredit = null;
+
+function _armCreditForNextSale(cardId) {
+  _pendingReturnCredit = { cardId, ts: Date.now() };
+  const isEl = lang === 'el';
+  showToast('🔄 ' + (isEl
+    ? 'Επιλέξτε το νέο κόσμημα — η πίστωση θα εφαρμοστεί'
+    : 'Now pick the new piece — the credit will be applied'));
+}
+
+function _consumePendingCredit() {
+  if (!_pendingReturnCredit) return;
+  const { cardId, ts } = _pendingReturnCredit;
+  _pendingReturnCredit = null;                       // single use, always
+  if (Date.now() - ts > 30 * 60 * 1000) return;      // and never a stale one
+  const g = gcFindById(cardId);
+  if (!g || !gcIsSpendable(g)) return;
+  window._saleGiftCard = { id: g.id, cardNo: g.cardNo, use: 0, wasCash: !!g.cashSale };
+  try { _updateSaleGiftDisplay(); } catch (e) {}
 }
 
 function getSaleSummary(sales) {
@@ -8627,7 +9483,11 @@ function getSaleSummary(sales) {
 
 function fmtAmt(n) {
   const sym = state.currencySymbol || '€';
-  return sym + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  // Returns make negative figures real, so the sign goes BEFORE the currency
+  // symbol (−€1,500.00) instead of inside it (€-1500.00). Identical output for
+  // every positive amount.
+  const v = parseFloat(n) || 0;
+  return (v < 0 ? '−' : '') + sym + Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 async function renderSalesDashboard() {
@@ -8650,7 +9510,7 @@ async function renderSalesDashboard() {
   list.innerHTML = sorted.map(s => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(212,175,55,0.08);gap:8px">
       <div style="flex:1;min-width:0">
-        <div style="font-family:var(--font-heading);font-size:14px;font-weight:600;color:var(--gold-light)">${fmtAmt(s.amount)}${s.cashSale ? ' <span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:3px;padding:1px 5px;color:var(--gold-light);font-family:var(--font-body);letter-spacing:0.05em">💵</span>' : ''}</div>
+        <div style="font-family:var(--font-heading);font-size:14px;font-weight:600;color:${s.isReturn ? '#ff8a80' : 'var(--gold-light)'}">${fmtAmt(s.amount)}${s.isReturn ? ' <span style="font-size:10px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);border-radius:3px;padding:1px 5px;color:#ff8a80;font-family:var(--font-body);letter-spacing:0.05em">↩️</span>' : ''}${s.cashSale ? ' <span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:3px;padding:1px 5px;color:var(--gold-light);font-family:var(--font-body);letter-spacing:0.05em">💵</span>' : ''}</div>
         <div style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);margin-top:2px">${fmtDate(s.date)}${s.note ? ' · ' + s.note : ''}</div>
       </div>
       <button onclick="showConfirm('${lang==='el'?'Διαγραφή πώλησης;':'Delete sale?'}',async()=>{await deleteSaleRecord(${s.id});await renderSalesDashboard();})" class="btn-icon btn-icon-danger" style="flex-shrink:0">🗑</button>
@@ -8823,6 +9683,9 @@ function closeSaleModal() {
   // A cancelled sale must not leave a certificate armed for the next one.
   window._saleGiftCard = null;
   _updateSaleGiftDisplay();
+  // Nor a "this one's a gift" flag, which would print a card for the next sale.
+  _saleWantsExCard = false;
+  _syncSaleExCardBtn();
 }
 
 // Open the sale modal pre-filled from a quote history entry
@@ -8927,7 +9790,9 @@ async function openSaleEditModal(s) {
 // Combined detail for a multi-item transaction: shows the summed amount/cost/profit, lists
 // each line item (tap to open that item on its own), and lets an owner delete the whole sale.
 async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
-  document.getElementById('sdmTitle').textContent = (lang === 'el' ? '🛍 Πώληση ' : '🛍 Sale · ') + members.length + (lang === 'el' ? ' Αντικειμένων' : ' Items');
+  document.getElementById('sdmTitle').textContent = s.isReturn
+    ? ('↩️ ' + (lang === 'el' ? 'Επιστροφή ' + members.length + ' Αντικειμένων' : 'Return · ' + members.length + ' Items'))
+    : ((lang === 'el' ? '🛍 Πώληση ' : '🛍 Sale · ') + members.length + (lang === 'el' ? ' Αντικειμένων' : ' Items'));
   const total = members.reduce((a, x) => a + (x.amount || 0), 0);
   document.getElementById('sdmAmt').textContent = fmtAmt(total);
   const cashBadge = document.getElementById('sdmCashBadge');
@@ -8996,8 +9861,14 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     (lang === 'el' ? 'Αντικείμενα' : 'Items') + ' (' + members.length + ')</div>' +
     members.map(m => {
       const sub = m.seqRef || m.invQr || '';
-      return '<div onclick="showSaleDetail(' + m.id + ',true)" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--wa05);cursor:pointer">' +
-        '<div style="min-width:0"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + memberDesc(m) + '</div>' +
+      // A line already sent back is marked, so "Return all" never looks like it
+      // silently skipped something.
+      const _wasRet = !!_saleReturnRecord(m.id);
+      const _retMark = _wasRet
+        ? ' <span style="font-size:10px;color:#ff8a80">↩️ ' + (lang === 'el' ? 'επιστράφηκε' : 'returned') + '</span>'
+        : '';
+      return '<div onclick="showSaleDetail(' + m.id + ',true)" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--wa05);cursor:pointer' + (_wasRet ? ';opacity:0.6' : '') + '">' +
+        '<div style="min-width:0"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + memberDesc(m) + _retMark + '</div>' +
         (sub ? '<div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-top:1px">' + sub + '</div>' : '') + '</div>' +
         '<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);white-space:nowrap">' + cur + parseFloat(m.amount).toFixed(2) + ' ›</div>' +
       '</div>';
@@ -9026,16 +9897,39 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   const acts = document.getElementById('sdmActions');
   acts.innerHTML = '';
   const canDel = isOwnerMgr || s.employee === creds.userName;
+  const _isRetGroup = !!s.isReturn;
+
+  // ↩️ Return the whole transaction: one negative record per line (so each
+  // item's cost and profit stay exact) collapsed into one row, and ONE exchange
+  // card for the lot.
+  if (!_isRetGroup && members.some(m => _saleCanReturn(m))) {
+    const retBtn = document.createElement('button');
+    retBtn.style.cssText = 'flex:1;padding:11px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    retBtn.textContent = '↩️ ' + (lang === 'el' ? 'Επιστροφή Όλων' : 'Return All');
+    retBtn.onclick = () => { closeSaleDetailModal(); openReturnDialog(null, s.saleGroup); };
+    acts.appendChild(retBtn);
+  }
+
   if (canDel) {
     const delBtn = document.createElement('button');
     delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:#ff6b6b;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
-    delBtn.textContent = '🗑 ' + (lang === 'el' ? 'Διαγραφή Πώλησης' : 'Delete Sale');
+    // A group of return records is undone, not deleted (deleteSaleRecord routes
+    // each one to _undoReturn) — so the button says what actually happens.
+    delBtn.textContent = _isRetGroup
+      ? '↩️ ' + (lang === 'el' ? 'Αναίρεση' : 'Undo')
+      : '🗑 ' + (lang === 'el' ? 'Διαγραφή Πώλησης' : 'Delete Sale');
     delBtn.onclick = () => {
       closeSaleDetailModal();
-      showConfirm(lang === 'el' ? 'Διαγραφή όλης της πώλησης;' : 'Delete the entire sale?', async () => {
+      showConfirm(_isRetGroup
+        ? (lang === 'el'
+          ? 'Αναίρεση όλης της επιστροφής; Τα κομμάτια θα ξαναγίνουν πουλημένα και η πίστωση θα ακυρωθεί.'
+          : 'Undo this entire return? The pieces go back to sold and the credit is cancelled.')
+        : (lang === 'el' ? 'Διαγραφή όλης της πώλησης;' : 'Delete the entire sale?'), async () => {
         await deleteSaleGroup(s.saleGroup);
         await renderSalesPanel();
-      });
+        try { renderInvList(); } catch (e) {}
+        try { renderGiftCards(); } catch (e) {}
+      }, null, { danger: true });
     };
     acts.appendChild(delBtn);
   }
@@ -9110,6 +10004,25 @@ async function showSaleDetail(id, forceSingle) {
       '<div style="font-size:13px;color:var(--text);margin-top:1px">' + val + '</div></div>';
     mt.appendChild(row);
   };
+  // A return, or a sale that has been returned, says so before anything else —
+  // it is the first thing you need to know when you open either one.
+  const _retRec = _saleReturnRecord(s.id);
+  if (s.isReturn) {
+    const _of = sales.find(x => x.id === s.returnOfSaleId);
+    mkMeta('↩️', lang === 'el' ? 'Επιστροφή' : 'Return',
+      (lang === 'el' ? 'Ακυρώνει την πώληση της ' : 'Reverses the sale of ')
+      + fmtDate(s.returnOfDate || (_of && _of.date) || '')
+      + ' · ' + _refundMethodLabel(s.refundMethod)
+      + (s.creditCardNo ? ' · ' + _gcNoStr(s.creditCardNo) : ''));
+    if (s.returnReason) mkMeta('💬', lang === 'el' ? 'Αιτία' : 'Reason', s.returnReason);
+    if (s.restocked === false) mkMeta('🚫', lang === 'el' ? 'Απόθεμα' : 'Stock',
+      lang === 'el' ? 'Δεν επέστρεψε στο απόθεμα' : 'Not put back in stock');
+  } else if (_retRec) {
+    mkMeta('↩️', lang === 'el' ? 'Επιστράφηκε' : 'Returned',
+      fmtDate(_retRec.date) + ' · ' + fmtAmt(Math.abs(parseFloat(_retRec.amount) || 0))
+      + ' · ' + _refundMethodLabel(_retRec.refundMethod)
+      + (_retRec.creditCardNo ? ' · ' + _gcNoStr(_retRec.creditCardNo) : ''));
+  }
   if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
   if (s.email) mkMeta('✉️', 'Email', s.email);
   // Spell out a split payment rather than showing one misleading cash badge.
@@ -9199,23 +10112,68 @@ async function showSaleDetail(id, forceSingle) {
     acts.appendChild(invBtn);
   }
 
+  // 🎁 Exchange card — for the customer who asks for one after the fact, or a
+  // reprint of a lost card (issueExchangeCard keeps the same number).
+  if (!s.isReturn) {
+    const exBtn = document.createElement('button');
+    exBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    exBtn.textContent = '🎁 ' + (s.exchangeCardNo
+      ? (lang === 'el' ? 'Κάρτα ' + exNoFmt(s.exchangeCardNo) : 'Card ' + exNoFmt(s.exchangeCardNo))
+      : (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card'));
+    exBtn.onclick = async () => {
+      closeSaleDetailModal();
+      await issueExchangeCard(s.id);
+    };
+    acts.appendChild(exBtn);
+  }
+
+  // ↩️ Return — the piece came back. Writes a negative record; never touches
+  // this sale, so the month it belongs to keeps its total.
+  if (_saleCanReturn(s)) {
+    const retBtn = document.createElement('button');
+    retBtn.style.cssText = 'flex:1;padding:11px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    retBtn.textContent = '↩️ ' + (lang === 'el' ? 'Επιστροφή' : 'Return');
+    retBtn.onclick = () => { closeSaleDetailModal(); openReturnDialog(s.id); };
+    acts.appendChild(retBtn);
+  }
+
   if (canEdit) {
-    const editBtn = document.createElement('button');
-    editBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
-    editBtn.textContent = '✏️ ' + (lang === 'el' ? 'Επεξεργασία' : 'Edit');
-    editBtn.onclick = () => { closeSaleDetailModal(); openSaleEditModal(s); };
-    acts.appendChild(editBtn);
+    // A return record's money is derived from the sale it reverses — editing it
+    // by hand would break that link, so it only offers Undo.
+    if (!s.isReturn) {
+      const editBtn = document.createElement('button');
+      editBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+      editBtn.textContent = '✏️ ' + (lang === 'el' ? 'Επεξεργασία' : 'Edit');
+      editBtn.onclick = () => { closeSaleDetailModal(); openSaleEditModal(s); };
+      acts.appendChild(editBtn);
+    }
     if (isOwnerMgr) {
       const delBtn = document.createElement('button');
       delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:#ff6b6b;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
-      delBtn.textContent = '🗑 ' + (lang === 'el' ? 'Διαγραφή' : 'Delete');
-      delBtn.onclick = () => {
-        closeSaleDetailModal();
-        showConfirm(lang === 'el' ? 'Διαγραφή πώλησης;' : 'Delete sale?', async () => {
-          await deleteSaleRecord(s.id);
-          await renderSalesPanel();
-        });
-      };
+      if (s.isReturn) {
+        delBtn.textContent = '↩️ ' + (lang === 'el' ? 'Αναίρεση' : 'Undo');
+        delBtn.onclick = () => {
+          closeSaleDetailModal();
+          showConfirm(lang === 'el'
+            ? 'Αναίρεση επιστροφής; Το κομμάτι θα ξαναγίνει πουλημένο και η πίστωση θα ακυρωθεί.'
+            : 'Undo this return? The piece goes back to sold and the credit is cancelled.',
+            async () => {
+              await _undoReturn(s.id);
+              await renderSalesPanel();
+              try { renderInvList(); } catch (e) {}
+              try { renderGiftCards(); } catch (e) {}
+            }, null, { danger: true, okLabel: lang === 'el' ? '↩️ Αναίρεση' : '↩️ Undo' });
+        };
+      } else {
+        delBtn.textContent = '🗑 ' + (lang === 'el' ? 'Διαγραφή' : 'Delete');
+        delBtn.onclick = () => {
+          closeSaleDetailModal();
+          showConfirm(lang === 'el' ? 'Διαγραφή πώλησης;' : 'Delete sale?', async () => {
+            await deleteSaleRecord(s.id);
+            await renderSalesPanel();
+          });
+        };
+      }
       acts.appendChild(delBtn);
     }
   }
@@ -9312,6 +10270,8 @@ async function confirmSale() {
   } else if (lastCalcResult && lastCalcResult.isBulkChain && lastCalcResult.bulkInvId) {
     _firstBulkInfo = { invId: lastCalcResult.bulkInvId, soldWeight: parseFloat(lastCalcResult.bulkSoldWeight) || 0, cost: (lastCalcResult.baseCost != null ? parseFloat(lastCalcResult.baseCost) : null) };
   }
+  // Captured up front: closeSaleModal() runs mid-function and resets the toggle.
+  const _wantExCard = _saleWantsExCard;
   const _firstFromInv = !!window._saleFromInvId; // captured before the mark-sold block clears it
   const _firstInvId = window._saleFromInvId || null; // exact record id of the (first) sold piece
   const note = document.getElementById('saleNoteInput').value.trim();
@@ -9577,6 +10537,13 @@ async function confirmSale() {
     btn.style.background = 'rgba(39,174,96,0.4)';
     btn.style.borderColor = '#27AE60';
     setTimeout(() => { btn.style.background = 'rgba(39,174,96,0.15)'; btn.style.borderColor = 'rgba(39,174,96,0.5)'; }, 2000);
+  }
+
+  // Gift → print the exchange card. Has to happen HERE, at the very end: the
+  // card identifies the sale record, so it can't be issued before that record
+  // exists (and before invId/seqRef are on it, which is what names the piece).
+  if (_wantExCard && _firstSaleRec) {
+    try { await issueExchangeCard(_firstSaleRec.id); } catch (e) { console.warn('exchange card:', e); }
   }
 
   // If this sale completed a reservation, close the reservation out.
@@ -10251,13 +11218,15 @@ function _groupSalesForDisplay(salesArr) {
         bonusAmt: items.reduce((a, x) => a + (x.bonusAmt || 0), 0),
         vendor: items[0].vendor, note: items[0].note, customer: items[0].customer,
         employee: items[0].employee, employeeName: items[0].employeeName,
-        cashSale: items[0].cashSale
+        cashSale: items[0].cashSale,
+        isReturn: !!items[0].isReturn   // a return group is returns all the way down
       });
     } else {
       out.push({
         isGroup: false, sale: s, id: s.id, date: s.date, ts: s.ts, amount: s.amount,
         bonusAmt: s.bonusAmt, vendor: s.vendor, note: s.note, customer: s.customer,
-        employee: s.employee, employeeName: s.employeeName
+        employee: s.employee, employeeName: s.employeeName,
+        isReturn: !!s.isReturn
       });
     }
   });
@@ -10300,11 +11269,16 @@ function _spRenderSalesList(elId, salesArr) {
     const groupTag = e.isGroup
       ? `<span style="margin-left:6px;background:rgba(120,170,255,0.12);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${lang==='el'?'τεμ.':'items'}</span>`
       : '';
+    // A return reads as money leaving: red, negative, and labelled.
+    const retTag = e.isReturn
+      ? `<span style="margin-left:6px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#ff8a80">↩️ ${lang==='el'?'ΕΠΙΣΤΡΟΦΗ':'RETURN'}</span>`
+      : '';
+    const amtStyle = e.isReturn ? ' style="color:#ff8a80"' : '';
     // A group opens the combined detail; inline edit is hidden (edit items from inside it).
     // Delete on a group removes the whole transaction.
     const delAttrs = e.isGroup ? ('data-group-id="' + e.groupId + '"') : ('data-sale-id="' + safeId + '"');
     return '<div class="sp-sale-row" style="cursor:pointer" onclick="showSaleDetail(' + safeId + ')">' +
-      '<div class="sp-sale-info"><div class="sp-sale-amt">' + fmtAmt(e.amount) + groupTag + bonusTag + '</div>' +
+      '<div class="sp-sale-info"><div class="sp-sale-amt"' + amtStyle + '>' + fmtAmt(e.amount) + retTag + groupTag + bonusTag + '</div>' +
       '<div class="sp-sale-meta">' + meta + '</div></div>' +
       '<div style="display:flex;gap:6px;flex-shrink:0">' +
       (canEdit && !e.isGroup ? '<button class="sp-sale-edit btn-icon" data-sale-id="' + safeId + '" title="' + (lang==='el'?'Επεξεργασία':'Edit') + '" style="width:30px;height:30px;font-size:14px" onclick="event.stopPropagation()">✏️</button>' : '') +
@@ -19671,7 +20645,10 @@ function invRestock(id) {
         <button onclick="document.getElementById('invRestockOverlay').remove()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
       </div>
       <div style="border-top:1px solid var(--wa07);margin:4px 0 12px 0"></div>
-      <button id="invRestoreBtn" style="width:100%;padding:11px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.35);color:#e57373;border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:0.08em">↩️ ${lang==='el'?'Επαναφορά σε Απόθεμα (λάθος / επιστροφή)':'Restore to Stock (mistake / return)'}</button>
+      <button id="invRestoreBtn" style="width:100%;padding:11px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.35);color:#e57373;border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:0.08em">↩️ ${lang==='el'?'Επαναφορά σε Απόθεμα (λάθος καταχώριση)':'Restore to Stock (recorded by mistake)'}</button>
+      <div style="font-size:10px;color:var(--text-muted);text-align:center;margin-top:6px;line-height:1.45">${lang==='el'
+        ? 'Διαγράφει την πώληση σαν να μην έγινε ποτέ. Για πραγματική επιστροφή πελάτη, ανοίξτε την πώληση στις Πωλήσεις και πατήστε «Επιστροφή».'
+        : 'Erases the sale as if it never happened. For a real customer return, open the sale under Sales and press “Return”.'}</div>
     </div>`;
 
   document.body.appendChild(overlay);
@@ -21251,6 +22228,17 @@ function handleScannedCode(raw) {
     }
     return;
   }
+  // An exchange card ('X-0001') identifies a SALE, not a piece. Scanning it
+  // opens that sale — which shows the piece and offers ↩️ Return, from where the
+  // owner either swaps it on the spot or turns it into credit. Same hyphen rule
+  // keeps it clear of reference codes.
+  const _ex = exFindByCode(code);
+  if (_ex) {
+    try { closeQrScanner(); } catch (e) {}
+    showToast('🎁 ' + exNoFmt(_ex.exchangeCardNo));
+    showSaleDetail(_ex.id, true);
+    return;
+  }
   const input = document.getElementById('codeInput');
   input.value = code;
   setTimeout(() => { lookupCode(code); }, 300);
@@ -21370,12 +22358,18 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.45', date: 'Ιούλιος 2026', items: [
-        '👁 Ο Πάγκος δείχνει πλέον μόνο τις ΑΝΟΙΧΤΕΣ εργασίες. Ολοκληρωμένες κρατήσεις, παραληφθέντα δελτία και εξαργυρωμένες δωροεπιταγές κρύβονται — με ένα πάτημα «Εμφάνιση ολοκληρωμένων (Ν)» τα βλέπετε όλα. Ισχύει και στις τρεις λίστες.',
-        '🔎 Η αναζήτηση βρίσκει πάντα και τα κρυμμένα — έτσι ψάχνετε κάτι από περασμένη σεζόν.',
-        '⚠️ Μια ληγμένη δωροεπιταγή που έχει ακόμη υπόλοιπο ΔΕΝ κρύβεται — περιμένει απόφαση (καταχώρηση ή παράταση).',
-        '🗑 Διαγραφή δωροεπιταγής: εμφανίζεται μόνο αφού την ακυρώσετε, και μόνο αν δεν έχει χρησιμοποιηθεί ποτέ σε πώληση.',
-        '📅 Οι τελευταίες ημερομηνίες που έδειχναν τη μορφή του κινητού διορθώθηκαν σε ΗΗ/ΜΜ/ΕΕΕΕ: φίλτρο Πελατών, εξαγωγή αποθέματος και πώληση αλυσίδας με το γραμμάριο.'
+      { version: 'v11.46', date: 'Ιούλιος 2026', items: [
+        '↩️ ΕΠΙΣΤΡΟΦΕΣ: κάθε πώληση έχει πλέον κουμπί «Επιστροφή». Το κομμάτι γυρίζει στο απόθεμα και τα λεφτά αντιλογίζονται σωστά.',
+        '🎟️ ΚΑΡΤΑ ΑΛΛΑΓΗΣ: επιστρέφετε ως πίστωση και ο πελάτης παίρνει εκτυπωμένη κάρτα με κωδικό — τη σαρώνετε στην επόμενη πώληση όπως δωροεπιταγή. Ισχύει 2 χρόνια — για να προλαβαίνει και η επόμενη σεζόν.',
+        '🎁 ΚΑΡΤΑ ΑΛΛΑΓΗΣ ΓΙΑ ΔΩΡΑ: στο κουτί της πώλησης υπάρχει διακόπτης «Δώρο». Τυπώνεται κάρτα που δείχνει το κόσμημα ΧΩΡΙΣ ΤΙΜΗ — αυτός που το παίρνει δεν μαθαίνει ποτέ τι πληρώθηκε.',
+        '📷 Όταν έρθει πίσω, σαρώνετε τον κωδικό της κάρτας και βρίσκετε αμέσως το κόσμημα και την πώληση. Από εκεί: άμεση αλλαγή με κάτι άλλο ή έκδοση πίστωσης.',
+        '🎁 Αν ο πελάτης το ζητήσει μετά την πώληση, ανοίγετε την πώληση και πατάτε «Κάρτα Αλλαγής» — ίδιος αριθμός αν χαθεί και θέλει επανεκτύπωση.',
+        '🔄 «Αλλαγή τώρα»: μετά την επιστροφή, διαλέγετε το νέο κόσμημα και η πίστωση μπαίνει μόνη της.',
+        '📅 Η επιστροφή καταχωρείται στη ΣΗΜΕΡΙΝΗ ημέρα — ο περασμένος μήνας κρατά το τζίρο του και το ιστορικό δεν χάνεται ποτέ.',
+        '💵 Επιστροφή σε μετρητά ή κάρτα επίσης. Ό,τι είχε πληρωθεί με δωροεπιταγή γυρίζει πάντα ως πίστωση.',
+        '📦 Αν το κομμάτι δεν ξαναμπαίνει στο απόθεμα (σπασμένο), το κόστος του καταγράφεται σωστά ως ζημιά.',
+        '🛍 Πολλαπλή πώληση: επιστρέφετε ένα είδος ή όλα μαζί — με ΜΙΑ κάρτα αλλαγής.',
+        '↩️ Αναίρεση επιστροφής αν έγινε λάθος — εκτός αν η πίστωση έχει ήδη ξοδευτεί.'
       ]},
           ]
   },
@@ -21406,12 +22400,18 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.45', date: 'Jul 2026', items: [
-        '👁 The Desk now shows only OPEN work. Completed reservations, collected tickets and redeemed gift certificates are tucked away — one tap on "Show finished (N)" brings them back. Same in all three lists.',
-        '🔎 A search always reaches the hidden ones, so you can still find something from last season.',
-        '⚠️ An expired gift certificate that still has a balance is NOT hidden — it\'s waiting on a decision (book it or extend it).',
-        '🗑 Delete a gift certificate: appears only after you cancel it, and only if it was never used in a sale.',
-        '📅 The last date fields still showing your phone\'s format now read DD/MM/YYYY: the Clients filter, the inventory export range, and the by-the-gram chain sale.'
+      { version: 'v11.46', date: 'Jul 2026', items: [
+        '↩️ RETURNS: every sale now has a "Return" button. The piece goes back into stock and the money reverses correctly.',
+        '🎟️ EXCHANGE CARD: refund as store credit and the customer gets a printed card with a code — scan it on their next visit just like a gift certificate. Valid for 2 years, so it survives to the following season.',
+        '🎁 EXCHANGE CARD FOR GIFTS: a "Gift" toggle in the sale box prints a card showing the piece with NO PRICE on it — whoever unwraps it never learns what was paid.',
+        '📷 When they bring it back, scan the card\'s code and it pulls up the piece and the sale instantly. From there: swap it on the spot, or issue credit.',
+        '🎁 If they ask after the sale, open the sale and press "Exchange Card" — same number again if they lose it and need a reprint.',
+        '🔄 "Exchange now": after a return, pick the new piece and the credit applies itself.',
+        '📅 A return is booked on TODAY — last month keeps its takings and the history is never erased.',
+        '💵 Cash or card refunds too. Anything that was paid with a gift certificate always comes back as store credit.',
+        '📦 If the piece is not going back in stock (broken), its cost is correctly recorded as a loss.',
+        '🛍 Multi-item sales: return one line or all of them — with ONE exchange card.',
+        '↩️ Undo a return if it was a mistake — unless the credit has already been spent.'
       ]},
           ]
   }
@@ -24374,6 +25374,9 @@ async function openSaleModalWithBonus() {
     const pctEl = document.getElementById('saleBonusPct');
     if (pctEl) pctEl.textContent = `(${_currentUserBonus}%)`;
   }
+  // Every sale-modal opener funnels through here, so this is the one place an
+  // "Exchange now" credit needs to be picked up (see _consumePendingCredit).
+  _consumePendingCredit();
   updateSaleBonusPreview();
 }
 
@@ -24494,7 +25497,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.45';
+const APP_VERSION = '11.46';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
