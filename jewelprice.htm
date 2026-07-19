@@ -4245,6 +4245,97 @@ function _listFromNode(d) {
   return Object.values(d).filter(x => x != null);
 }
 
+// ── OUTBOX: work that hasn't reached the cloud yet ───────────────────────────
+// A sale recorded with no signal used to live ONLY in that phone's localStorage,
+// and the next successful pull overwrote the cache with the cloud's copy — so it
+// vanished, silently, having looked recorded all along. In a stone building with
+// bad reception that is a real lost sale (v11.65).
+//
+// Anything that fails to reach the cloud is queued here (persisted, so it also
+// survives the app being closed), retried whenever the connection comes back,
+// and — the load-bearing part — re-applied on top of every pull, so a sync can
+// never drop work that hasn't been saved yet.
+const OUTBOX_KEY = 'jpro_outbox';
+function _outboxAll() {
+  try { const v = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+  catch (e) { return []; }
+}
+function _outboxSave(l) { try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(l)); } catch (e) {} }
+function _outboxAdd(path, id, op, json) {
+  const l = _outboxAll().filter(e => !(e.path === path && String(e.id) === String(id)));
+  l.push({ path, id: String(id), op, json: op === 'put' ? json : null, at: Date.now() });
+  _outboxSave(l);
+  _outboxUpdateBadge();
+}
+function _outboxClear(path, id) {
+  _outboxSave(_outboxAll().filter(e => !(e.path === path && String(e.id) === String(id))));
+  _outboxUpdateBadge();
+}
+function _outboxFor(path) { return _outboxAll().filter(e => e.path === path); }
+function outboxCount() { return _outboxAll().length; }
+
+// Lay pending work over a freshly pulled list, so the local view keeps records
+// the cloud hasn't been told about yet (and drops ones we deleted offline).
+function _applyOutbox(path, list, idOf) {
+  const pend = _outboxFor(path);
+  if (!pend.length) return list;
+  const byId = new Map((list || []).map(r => [String(idOf(r)), r]));
+  for (const e of pend) {
+    if (e.op === 'del') byId.delete(e.id);
+    else { try { byId.set(e.id, JSON.parse(e.json)); } catch (err) {} }
+  }
+  return Array.from(byId.values());
+}
+
+// Say so, quietly but visibly — unsynced work must never be invisible.
+function _outboxUpdateBadge() {
+  const n = outboxCount();
+  const el = document.getElementById('syncIndicatorText');
+  const ind = document.getElementById('syncIndicator');
+  if (!el || !ind) return;
+  if (n > 0) {
+    ind.className = 'sync-indicator error';
+    el.textContent = (lang === 'el' ? '⏳ ' + n + ' σε αναμονή' : '⏳ ' + n + ' pending');
+  } else if (/⏳/.test(el.textContent || '')) {
+    // Only clear OUR pending message — never paper over a real sync error.
+    setSyncStatus('synced', t(isOwnerOrManager() ? 'syncedOwner' : 'syncedEmp'));
+  }
+}
+
+// Retry everything queued, by REPLAYING THE STORED INTENT — put this record,
+// delete that id — not by re-diffing the device's current list. Re-diffing was
+// wrong and dangerous: after a restart the in-memory list can be empty, and the
+// diff would then read "everything was deleted" and wipe the node. The queue
+// already knows exactly what was meant; do that and nothing else.
+let _outboxFlushing = false;
+async function outboxFlush(quiet) {
+  if (_outboxFlushing || !creds.binId || !outboxCount()) return;
+  _outboxFlushing = true;
+  const before = outboxCount();
+  try {
+    for (const e of _outboxAll()) {
+      try {
+        const url = fbUrl(e.path + '/' + encodeURIComponent(e.id) + '.json');
+        const res = await fetch(url, e.op === 'put'
+          ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: e.json }
+          : { method: 'DELETE' });
+        if (!res.ok) continue;                       // leave it queued, try again later
+        _outboxClear(e.path, e.id);
+        // Keep the snapshot in step, or the next ordinary save would send it again.
+        const snap = _cloudSnap[e.path];
+        if (snap) { if (e.op === 'put') snap.set(String(e.id), e.json); else snap.delete(String(e.id)); }
+      } catch (err) { break; }                       // still offline — stop, keep the rest
+    }
+  } finally { _outboxFlushing = false; }
+  const after = outboxCount();
+  if (after === 0 && before > 0) {
+    setSyncStatus('synced', t(isOwnerOrManager() ? 'syncedOwner' : 'syncedEmp'));
+    if (!quiet) showToast('✓ ' + (lang === 'el'
+      ? before + (before === 1 ? ' εγγραφή συγχρονίστηκε' : ' εγγραφές συγχρονίστηκαν')
+      : before + (before === 1 ? ' record synced' : ' records synced')));
+  } else if (after > 0) _outboxUpdateBadge();
+}
+
 // Save a list by writing only the records that changed. Returns true when every
 // write landed — callers that care (money) can then report honestly instead of
 // assuming, the lesson of v11.62.
@@ -4263,6 +4354,14 @@ async function _syncListToCloud(path, list, idOf) {
   }
   const snap = _cloudSnap[path];
   const next = _snapOf(list, idOf);
+  // Refuse to empty a populated list. "Delete every record" is never something
+  // the shop actually does — it is what a stale or not-yet-loaded cache looks
+  // like (e.g. _salesCache still null after a restart). Deleting one or two
+  // records is normal and unaffected; wiping the lot is always a bug.
+  if (next.size === 0 && snap.size > 0) {
+    console.warn('[sync] refused to empty ' + path + ' (' + snap.size + ' records) from an empty list');
+    return false;
+  }
   const jobs = [];
   for (const [id, json] of next) if (snap.get(id) !== json) jobs.push(['PUT', id, json]);
   // Only ever delete something this device actually knew about. A record we've
@@ -4276,9 +4375,15 @@ async function _syncListToCloud(path, list, idOf) {
       const res = await fetch(url, method === 'PUT'
         ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: json }
         : { method: 'DELETE' });
-      if (res.ok) { if (method === 'PUT') snap.set(id, json); else snap.delete(id); }
-      else allOk = false;
-    } catch (e) { allOk = false; }
+      if (res.ok) {
+        if (method === 'PUT') snap.set(id, json); else snap.delete(id);
+        _outboxClear(path, id);                     // it landed
+      } else { allOk = false; _outboxAdd(path, id, method === 'PUT' ? 'put' : 'del', json); }
+    } catch (e) {
+      // Offline or the request died — keep the work and retry it later.
+      allOk = false;
+      _outboxAdd(path, id, method === 'PUT' ? 'put' : 'del', json);
+    }
   }
   _cloudSnap[path] = snap;
   return allOk;
@@ -4312,12 +4417,14 @@ async function _migrateNodeToKeyed(path, idOf) {
 }
 
 // The five shared lists and how a record identifies itself.
+// `get` returns this device's current list, so the outbox can retry a failed save
+// through the ordinary diff-save rather than a second, divergent code path.
 const SHARED_LISTS = [
-  { path: '/jewelprice_sales',        idOf: r => r.id },
-  { path: '/jewelprice_giftcards',    idOf: r => r.id },
-  { path: '/jewelprice_reservations', idOf: r => r.id },
-  { path: '/jewelprice_repairs',      idOf: r => r.id },
-  { path: '/jewelprice_clients',      idOf: r => r.id }
+  { path: '/jewelprice_sales',        idOf: r => r.id, get: () => _salesCache || [] },
+  { path: '/jewelprice_giftcards',    idOf: r => r.id, get: () => getGiftCards() },
+  { path: '/jewelprice_reservations', idOf: r => r.id, get: () => getReservations() },
+  { path: '/jewelprice_repairs',      idOf: r => r.id, get: () => getRepairs() },
+  { path: '/jewelprice_clients',      idOf: r => r.id, get: () => getClients() }
 ];
 
 async function migrateSharedLists() {
@@ -4338,6 +4445,9 @@ async function _refreshSharedLists(force) {
   if (busy) return;
   _refreshingLists = true;
   try {
+    // Send anything still waiting BEFORE pulling, so our own work is in the
+    // cloud copy we're about to read rather than arriving as a surprise later.
+    await outboxFlush(true);
     await pullSalesFromCloud();
     await pullGiftCardsFromCloud();
     await pullReservationsFromCloud();
@@ -4438,6 +4548,8 @@ async function autoSync() {
   // them (v11.64). Owner/manager device only, no-ops once converted, and must
   // run BEFORE anything pulls those nodes.
   try { await migrateSharedLists(); } catch (e) { /* silent */ }
+  // Anything recorded while offline goes up first, before we read anything back.
+  try { await outboxFlush(true); } catch (e) { /* silent */ }
   // Pull quote history on app open — Firebase is sole source of truth
   try {
     const cloudQuotes = await pullQuotesFromCloud();
@@ -5040,9 +5152,10 @@ async function pullGiftCardsFromCloud() {
     const r = await fetch(fbUrl('/jewelprice_giftcards.json'), { cache: 'no-store' });
     if (!r.ok) return;
     const d = await r.json();
-    _giftCards = _listFromNode(d);
+    const _gcCloud = _listFromNode(d);
+    _snapRecord('/jewelprice_giftcards', _gcCloud, r => r.id);
+    _giftCards = _applyOutbox('/jewelprice_giftcards', _gcCloud, r => r.id);
     saveGiftCardsLocal(_giftCards);
-    _snapRecord('/jewelprice_giftcards', _giftCards, r => r.id);
     _gcLoaded = true;
   } catch (e) {}
 }
@@ -6491,9 +6604,10 @@ async function pullReservationsFromCloud() {
     const r = await fetch(fbUrl('/jewelprice_reservations.json'), { cache: 'no-store' });
     if (!r.ok) return;
     const d = await r.json();
-    _reservations = _listFromNode(d);
+    const _resCloud = _listFromNode(d);
+    _snapRecord('/jewelprice_reservations', _resCloud, r => r.id);
+    _reservations = _applyOutbox('/jewelprice_reservations', _resCloud, r => r.id);
     saveReservationsLocal(_reservations);
-    _snapRecord('/jewelprice_reservations', _reservations, r => r.id);
     _resLoaded = true;
   } catch (e) {}
 }
@@ -7109,9 +7223,10 @@ async function pullRepairsFromCloud() {
     const r = await fetch(fbUrl('/jewelprice_repairs.json'), { cache: 'no-store' });
     if (!r.ok) return;
     const d = await r.json();
-    _repairs = _listFromNode(d);
+    const _repCloud = _listFromNode(d);
+    _snapRecord('/jewelprice_repairs', _repCloud, r => r.id);
+    _repairs = _applyOutbox('/jewelprice_repairs', _repCloud, r => r.id);
     saveRepairsLocal(_repairs);
-    _snapRecord('/jewelprice_repairs', _repairs, r => r.id);
   } catch (e) {}
 }
 async function getNextRepairNo() {
@@ -7911,6 +8026,8 @@ function _jpInitBackGuard() {
   });
   window.addEventListener('pageshow', _jpResumeRearm);
   window.addEventListener('focus', _jpResumeRearm);
+  // The signal came back — push whatever was recorded while it was gone.
+  window.addEventListener('online', () => { outboxFlush(); });
 }
 
 // ─── METAL TOGGLE ─────────────────────────────────────────────────────────────
@@ -9066,12 +9183,15 @@ async function pullSalesFromCloud() {
     if (!raw) return [];
     // Keyed node (object) or legacy whole-list node (array) — both read the same.
     const data = _listFromNode(raw);
-    if (!data.length) return [];
-    _salesCache = data;
-    localStorage.setItem('jpro_sales', JSON.stringify(data));
+    if (!data.length && !_outboxFor('/jewelprice_sales').length) return [];
     // Remember what the cloud holds, so the next save knows what WE changed.
     _snapRecord('/jewelprice_sales', data, r => r.id);
-    return data;
+    // Then lay our own not-yet-synced work back on top — without this, a sale
+    // recorded offline is wiped by the first successful pull (v11.65).
+    const merged = _applyOutbox('/jewelprice_sales', data, r => r.id);
+    _salesCache = merged;
+    localStorage.setItem('jpro_sales', JSON.stringify(merged));
+    return merged;
   } catch(e) { return _salesCache || JSON.parse(localStorage.getItem('jpro_sales') || '[]'); }
 }
 
@@ -9172,7 +9292,18 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
-  await pushSalesToCloud(sales);
+  // Queue it BEFORE trying to send. On a phone that booted with no signal the
+  // save below can't even work out what changed (it has no cloud baseline to
+  // compare against), so without this the sale would exist nowhere but here and
+  // the next successful sync would erase it (v11.65). Cleared the moment the
+  // write lands, which is the normal case.
+  _outboxAdd('/jewelprice_sales', rec.id, 'put', JSON.stringify(rec));
+  const _sent = await pushSalesToCloud(sales);
+  if (!_sent) {
+    showToast('⏳ ' + (lang === 'el'
+      ? 'Η πώληση καταχωρήθηκε — θα συγχρονιστεί μόλις υπάρξει σύνδεση'
+      : 'Sale recorded — it will sync as soon as there is a connection'));
+  }
   return rec;
 }
 
@@ -23262,11 +23393,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.64', date: 'Ιούλιος 2026', items: [
-        "🛡️ ΜΕΓΑΛΗ ΑΛΛΑΓΗ — ασφαλής χρήση από πολλά κινητά ταυτόχρονα. Μέχρι τώρα κάθε αποθήκευση έστελνε ΟΛΟΚΛΗΡΗ τη λίστα: ένα κινητό ανοιχτό από το πρωί έσβηνε ό,τι είχαν καταχωρήσει τα άλλα στο μεταξύ, χωρίς κανένα μήνυμα.",
-        "✅ Πλέον κάθε πώληση, δωροεπιταγή, κράτηση, επισκευή και πελάτης αποθηκεύεται ΞΕΧΩΡΙΣΤΑ — όπως πάντα έκανε το απόθεμα, που γι' αυτό δεν είχε ποτέ τέτοιο πρόβλημα. Δύο κινητά δεν μπορούν να σβήσουν το ένα τη δουλειά του άλλου.",
-        "🔑 Κάθε συσκευή δίνει πλέον δικούς της μοναδικούς κωδικούς εγγραφών, ώστε δύο πωλήσεις την ίδια στιγμή να μην μπερδεύονται ποτέ.",
-        "🔄 Η εφαρμογή ανανεώνει τα δεδομένα μόλις ξαναπιάνετε το κινητό — όχι μόνο σε πλήρη επανεκκίνηση. Βλέπετε τι έκαναν οι υπόλοιποι.",
+      { version: 'v11.65', date: 'Ιούλιος 2026', items: [
+        "📶 Οι πωλήσεις χωρίς σήμα δεν χάνονται πλέον. Μέχρι τώρα μια πώληση που καταχωρούσατε χωρίς ίντερνετ έμενε μόνο στο κινητό — και ο επόμενος συγχρονισμός τη διέγραφε αθόρυβα.",
+        "⏳ Ό,τι δεν προλάβει να σταλεί μπαίνει σε ουρά (αντέχει και κλείσιμο της εφαρμογής) και στέλνεται μόνο του μόλις επανέλθει η σύνδεση. Βλέπετε «X σε αναμονή» πάνω δεξιά και «συγχρονίστηκαν» όταν φύγουν.",
+        "🛡️ Καμία λίστα δεν μπορεί πλέον να αδειάσει ολόκληρη από λάθος — η εφαρμογή αρνείται να σβήσει τα πάντα.",
       ]},
       ]
   },
@@ -23297,11 +23427,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.64', date: 'Jul 2026', items: [
-        "🛡️ BIG ONE — safe to use from several phones at once. Until now every save sent the WHOLE list: a phone left open since morning would erase whatever the others had recorded in the meantime, silently.",
-        "✅ Now each sale, gift card, reservation, repair and client is saved ON ITS OWN — the way stock always has been, which is why stock never had this problem. Two phones can no longer wipe each other's work.",
-        "🔑 Each device now mints its own unique record numbers, so two sales rung up at the same moment can never collide.",
-        "🔄 The app refreshes the moment you pick the phone back up, not only on a full restart — so you see what the others have done.",
+      { version: 'v11.65', date: 'Jul 2026', items: [
+        "📶 Sales recorded with no signal are no longer lost. Until now a sale rung up without internet lived only on that phone — and the next sync quietly erased it.",
+        "⏳ Anything that can't be sent is queued (it survives closing the app) and goes up by itself the moment the connection returns. You'll see \"X pending\" at the top and a confirmation when it clears.",
+        "🛡️ No list can ever be emptied wholesale by mistake now — the app refuses to delete everything.",
       ]},
           ]
   }
@@ -25178,9 +25307,9 @@ async function pullClientsFromCloud() {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return;
     const data = _listFromNode(await res.json());
-    if (data.length) {
-      saveClientsLocal(data);
+    if (data.length || _outboxFor('/jewelprice_clients').length) {
       _snapRecord('/jewelprice_clients', data, c => c.id);
+      saveClientsLocal(_applyOutbox('/jewelprice_clients', data, c => c.id));
     }
   } catch(e) { console.warn('Could not pull clients:', e); }
 }
@@ -26542,7 +26671,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.64';
+const APP_VERSION = '11.65';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
