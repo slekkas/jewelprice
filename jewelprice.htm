@@ -4173,6 +4173,195 @@ function fbUrl(path) {
   return secret ? base + path + sep + 'auth=' + encodeURIComponent(secret) : base + path;
 }
 
+// ─── SHARED LISTS: PER-RECORD CLOUD WRITES ───────────────────────────────────
+// Sales, gift cards, reservations, repairs and clients used to be saved by
+// PUTting the WHOLE list: "my copy of everything wins". A phone only refreshes
+// its copy when the app restarts, so a device open since morning would erase
+// every record the other phones had written since — silently, with no error.
+// With three people serving customers at once that is not a rare race, it is
+// the normal case. (The inventory never had this problem: it has always written
+// one item at a time to its own path, which is exactly the model adopted here.)
+//
+// Rather than rewrite ~50 save sites, the fix goes underneath them. Each list
+// keeps a SNAPSHOT of what this device last saw in the cloud; a save diffs the
+// list against that snapshot and writes only what genuinely changed — one
+// record per request, to its own path.
+//
+// The load-bearing property: a record this device has never seen is not in its
+// snapshot, so it is never written and never deleted. Another phone's work is
+// invisible to us and therefore untouchable. A record we did not modify hashes
+// identically and is skipped, so we can't clobber someone's edit either. Only
+// deliberate local changes are sent (v11.64).
+const _cloudSnap = {};   // node path -> Map(recordId -> JSON of the record as last seen in cloud)
+
+// A small permanent number unique to THIS phone. Record ids are minted from
+// Date.now() and checked only against the device's OWN list, so two phones
+// ringing up in the same millisecond mint the SAME id — and now that the id is
+// the storage key, the second sale would silently overwrite the first. Found by
+// the three-phone test, which produced three identical ids on the first run
+// (v11.64). Mixing the salt into the id makes that collision impossible.
+function _deviceSalt() {
+  let s = localStorage.getItem('jpro_device_salt');
+  if (!s) {
+    s = String(Math.floor(Math.random() * 900) + 100);   // 100..999
+    localStorage.setItem('jpro_device_salt', s);
+  }
+  return parseInt(s, 10) || 100;
+}
+// Timestamp-with-salt: still ordered by time (so sorting by id is unchanged) and
+// still a safe integer. Existing ids are smaller and therefore sort as older,
+// which they are.
+//
+// Also strictly increasing WITHIN this device: two records created in the same
+// millisecond would otherwise get the same id, and the id is now the storage key.
+// Stepping by a full 1000 keeps the salt in the low three digits, so ids from two
+// different phones can still never meet.
+let _lastStamp = 0;
+function _stampId() {
+  let v = Date.now() * 1000 + _deviceSalt();
+  if (v <= _lastStamp) v = _lastStamp + 1000;
+  _lastStamp = v;
+  return v;
+}
+
+function _snapOf(list, idOf) {
+  const m = new Map();
+  (list || []).forEach(r => {
+    if (!r) return;
+    const id = idOf(r);
+    if (id !== undefined && id !== null && id !== '') m.set(String(id), JSON.stringify(r));
+  });
+  return m;
+}
+
+// Remember the cloud state after a pull, so the next save knows what it changed.
+function _snapRecord(path, list, idOf) { _cloudSnap[path] = _snapOf(list, idOf); }
+
+// Firebase returns a keyed node as an object, and a legacy whole-list node as an
+// array. Both must read the same, so nothing is stranded mid-migration.
+function _listFromNode(d) {
+  if (!d) return [];
+  if (Array.isArray(d)) return d.filter(x => x != null);
+  return Object.values(d).filter(x => x != null);
+}
+
+// Save a list by writing only the records that changed. Returns true when every
+// write landed — callers that care (money) can then report honestly instead of
+// assuming, the lesson of v11.62.
+async function _syncListToCloud(path, list, idOf) {
+  if (!creds.binId) return false;
+  // No snapshot yet (the app booted offline, or nothing has pulled this node):
+  // read the node ONCE and diff against that, instead of blindly re-writing
+  // every record one by one — which on a 700-sale shop would be 700 requests,
+  // and would also overwrite anything another phone changed in the meantime.
+  if (_cloudSnap[path] === undefined) {
+    try {
+      const res = await fetch(fbUrl(path + '.json'), { cache: 'no-store' });
+      if (!res.ok) return false;                       // can't establish a baseline — don't guess
+      _cloudSnap[path] = _snapOf(_listFromNode(await res.json()), idOf);
+    } catch (e) { return false; }
+  }
+  const snap = _cloudSnap[path];
+  const next = _snapOf(list, idOf);
+  const jobs = [];
+  for (const [id, json] of next) if (snap.get(id) !== json) jobs.push(['PUT', id, json]);
+  // Only ever delete something this device actually knew about. A record we've
+  // never seen belongs to another phone and is none of our business.
+  for (const [id] of snap) if (!next.has(id)) jobs.push(['DELETE', id, null]);
+  if (!jobs.length) return true;
+  let allOk = true;
+  for (const [method, id, json] of jobs) {
+    try {
+      const url = fbUrl(path + '/' + encodeURIComponent(id) + '.json');
+      const res = await fetch(url, method === 'PUT'
+        ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: json }
+        : { method: 'DELETE' });
+      if (res.ok) { if (method === 'PUT') snap.set(id, json); else snap.delete(id); }
+      else allOk = false;
+    } catch (e) { allOk = false; }
+  }
+  _cloudSnap[path] = snap;
+  return allOk;
+}
+
+// One-time conversion of a legacy whole-list node (a JSON array) into records
+// keyed by id. Runs on the owner/manager device only, and only when the node is
+// still an array. A single PUT, so it is atomic: the node is never half-converted.
+async function _migrateNodeToKeyed(path, idOf) {
+  if (!creds.binId || !creds.dbSecret) return false;
+  try {
+    const res = await fetch(fbUrl(path + '.json'), { cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!Array.isArray(data)) return false;          // already keyed, or empty
+    const keyed = {};
+    let n = 0;
+    data.forEach(r => {
+      if (!r) return;
+      const id = idOf(r);
+      if (id === undefined || id === null || id === '') return;
+      keyed[String(id)] = r; n++;
+    });
+    if (!n) return false;
+    const put = await fetch(fbUrl(path + '.json'), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(keyed)
+    });
+    if (put.ok) { console.log('[migrate] ' + path + ' -> ' + n + ' keyed records'); return true; }
+  } catch (e) { console.warn('[migrate] ' + path + ' failed:', e); }
+  return false;
+}
+
+// The five shared lists and how a record identifies itself.
+const SHARED_LISTS = [
+  { path: '/jewelprice_sales',        idOf: r => r.id },
+  { path: '/jewelprice_giftcards',    idOf: r => r.id },
+  { path: '/jewelprice_reservations', idOf: r => r.id },
+  { path: '/jewelprice_repairs',      idOf: r => r.id },
+  { path: '/jewelprice_clients',      idOf: r => r.id }
+];
+
+async function migrateSharedLists() {
+  for (const l of SHARED_LISTS) { try { await _migrateNodeToKeyed(l.path, l.idOf); } catch (e) {} }
+}
+
+// Pick the phone back up and see what the others have done. The app used to pull
+// the shared lists ONLY at a full restart, so a device left open all morning was
+// showing — and reasoning from — a morning-old picture. Throttled, and skipped
+// while a sale/return dialog is open so nothing shifts under someone's hands.
+let _refreshingLists = false;
+let _lastListRefresh = 0;
+async function _refreshSharedLists(force) {
+  if (!creds.binId || _refreshingLists) return;
+  if (!force && Date.now() - _lastListRefresh < 20000) return;
+  const busy = ['saleModal', 'returnDlgOverlay', 'giftModalOverlay', 'repairModalOverlay']
+    .some(id => { const el = document.getElementById(id); return el && el.style.display !== 'none' && el.offsetParent !== null; });
+  if (busy) return;
+  _refreshingLists = true;
+  try {
+    await pullSalesFromCloud();
+    await pullGiftCardsFromCloud();
+    await pullReservationsFromCloud();
+    await pullRepairsFromCloud();
+    await pullClientsFromCloud();
+    _lastListRefresh = Date.now();
+    // Repaint whichever of those the user is actually looking at.
+    const active = document.querySelector('.panel.active');
+    const id = active ? active.id : '';
+    try {
+      if (id === 'panel-sales') renderSalesPanel();
+      else if (id === 'panel-desk') {
+        // deskShow keeps no state variable — the open segment is whichever view is visible.
+        const seg = document.getElementById('deskRepairsView')?.style.display !== 'none' ? 'repairs'
+                  : document.getElementById('deskGiftView')?.style.display !== 'none' ? 'gift'
+                  : 'reservations';
+        deskShow(seg);
+      }
+      else if (id === 'panel-clients') renderClients();
+    } catch (e) {}
+  } catch (e) { /* offline — keep what we have */ }
+  _refreshingLists = false;
+}
+
 // ─── FIREBASE REALTIME DATABASE CLOUD ────────────────────────────────────────
 // Uses Firebase REST API. No SDK needed.
 // binId stores the full Firebase database URL e.g. https://your-app.firebaseio.com
@@ -4244,6 +4433,11 @@ async function autoSync() {
   if (creds.userName) {
     try { await syncIdentityFromCloud(); } catch(e) { /* silent */ }
   }
+  // One-time conversion of the shared lists from a single whole-list node to
+  // records keyed by id, so each save can touch one record instead of all of
+  // them (v11.64). Owner/manager device only, no-ops once converted, and must
+  // run BEFORE anything pulls those nodes.
+  try { await migrateSharedLists(); } catch (e) { /* silent */ }
   // Pull quote history on app open — Firebase is sole source of truth
   try {
     const cloudQuotes = await pullQuotesFromCloud();
@@ -4838,8 +5032,7 @@ function getGiftCards() {
 }
 function saveGiftCardsLocal(list) { _giftCards = list; localStorage.setItem('jpro_giftcards', JSON.stringify(list)); }
 async function pushGiftCardsToCloud(list) {
-  if (!creds.binId) return;
-  try { await fetch(fbUrl('/jewelprice_giftcards.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(list || getGiftCards()) }); } catch (e) {}
+  return await _syncListToCloud('/jewelprice_giftcards', list || getGiftCards(), r => r.id);
 }
 async function pullGiftCardsFromCloud() {
   if (!creds.binId) return;
@@ -4847,8 +5040,9 @@ async function pullGiftCardsFromCloud() {
     const r = await fetch(fbUrl('/jewelprice_giftcards.json'), { cache: 'no-store' });
     if (!r.ok) return;
     const d = await r.json();
-    _giftCards = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+    _giftCards = _listFromNode(d);
     saveGiftCardsLocal(_giftCards);
+    _snapRecord('/jewelprice_giftcards', _giftCards, r => r.id);
     _gcLoaded = true;
   } catch (e) {}
 }
@@ -5240,7 +5434,7 @@ async function _gcSave() {
   const email = (document.getElementById('gcBuyerEmail').value || '').trim();
   const cardNo = await getNextGiftCardNo();
   const g = {
-    id: 'gc_' + Date.now(),
+    id: 'gc_' + _stampId(),
     cardNo,
     amount: parseFloat(amount.toFixed(2)),
     buyerName, buyerPhone: phone, buyerEmail: email,
@@ -6289,8 +6483,7 @@ function getReservations() {
 }
 function saveReservationsLocal(list) { _reservations = list; localStorage.setItem('jpro_reservations', JSON.stringify(list)); }
 async function pushReservationsToCloud(list) {
-  if (!creds.binId) return;
-  try { await fetch(fbUrl('/jewelprice_reservations.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(list || getReservations()) }); } catch (e) {}
+  return await _syncListToCloud('/jewelprice_reservations', list || getReservations(), r => r.id);
 }
 async function pullReservationsFromCloud() {
   if (!creds.binId) return;
@@ -6298,8 +6491,9 @@ async function pullReservationsFromCloud() {
     const r = await fetch(fbUrl('/jewelprice_reservations.json'), { cache: 'no-store' });
     if (!r.ok) return;
     const d = await r.json();
-    _reservations = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+    _reservations = _listFromNode(d);
     saveReservationsLocal(_reservations);
+    _snapRecord('/jewelprice_reservations', _reservations, r => r.id);
     _resLoaded = true;
   } catch (e) {}
 }
@@ -6498,7 +6692,7 @@ async function _resDialogSave() {
   const no = await getNextReservationNo();
   const now = Date.now();
   const res = {
-    id: 'res_' + now, reservationNo: no, clientName: name, clientPhone: phone, clientEmail: email,
+    id: 'res_' + _stampId(), reservationNo: no, clientName: name, clientPhone: phone, clientEmail: email,
     items: _resDlgItems.slice(), itemIds: _resDlgItems.filter(i => i.invId).map(i => i.invId),
     agreedTotal: parseFloat(agreed.toFixed(2)), cashSale,
     payments: dep > 0 ? [{ amount: parseFloat(dep.toFixed(2)), date: todayStr(), method: depMethod, by: creds.displayName || creds.userName || '', note: (lang === 'el' ? 'Προκαταβολή' : 'Deposit') }] : [],
@@ -6907,8 +7101,7 @@ function getRepairs() {
 }
 function saveRepairsLocal(list) { _repairs = list; localStorage.setItem('jpro_repairs', JSON.stringify(list)); }
 async function pushRepairsToCloud(list) {
-  if (!creds.binId) return;
-  try { await fetch(fbUrl('/jewelprice_repairs.json'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(list || getRepairs()) }); } catch (e) {}
+  return await _syncListToCloud('/jewelprice_repairs', list || getRepairs(), r => r.id);
 }
 async function pullRepairsFromCloud() {
   if (!creds.binId) return;
@@ -6916,8 +7109,9 @@ async function pullRepairsFromCloud() {
     const r = await fetch(fbUrl('/jewelprice_repairs.json'), { cache: 'no-store' });
     if (!r.ok) return;
     const d = await r.json();
-    _repairs = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+    _repairs = _listFromNode(d);
     saveRepairsLocal(_repairs);
+    _snapRecord('/jewelprice_repairs', _repairs, r => r.id);
   } catch (e) {}
 }
 async function getNextRepairNo() {
@@ -7098,7 +7292,7 @@ async function _repairSave() {
   const no = await getNextRepairNo();
   const now = Date.now();
   const rec = {
-    id: 'rep_' + now, ticketNo: no, type,
+    id: 'rep_' + _stampId(), ticketNo: no, type,
     clientName: name, clientPhone: phone, clientEmail: email,
     photoUrl, photoUrlHi, description: desc,
     estLow: parseFloat((estLow || estHigh).toFixed(2)), estHigh: estHigh > estLow ? parseFloat(estHigh.toFixed(2)) : 0,
@@ -7709,7 +7903,11 @@ function _jpInitBackGuard() {
   ['pointerdown', 'touchstart', 'keydown', 'click'].forEach(ev =>
     window.addEventListener(ev, _jpEstablishGuard, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { _jpResumeRearm(); if (typeof stkRefreshBanner === 'function' && creds.binId) stkRefreshBanner(); }
+    if (document.visibilityState === 'visible') {
+      _jpResumeRearm();
+      if (typeof stkRefreshBanner === 'function' && creds.binId) stkRefreshBanner();
+      _refreshSharedLists();
+    }
   });
   window.addEventListener('pageshow', _jpResumeRearm);
   window.addEventListener('focus', _jpResumeRearm);
@@ -8864,23 +9062,23 @@ async function pullSalesFromCloud() {
   try {
     const res = await fetch(fbUrl('/jewelprice_sales.json'), {cache:'no-store'});
     if (!res.ok) return [];
-    const data = await res.json();
-    if (!data || !Array.isArray(data)) return [];
+    const raw = await res.json();
+    if (!raw) return [];
+    // Keyed node (object) or legacy whole-list node (array) — both read the same.
+    const data = _listFromNode(raw);
+    if (!data.length) return [];
     _salesCache = data;
     localStorage.setItem('jpro_sales', JSON.stringify(data));
+    // Remember what the cloud holds, so the next save knows what WE changed.
+    _snapRecord('/jewelprice_sales', data, r => r.id);
     return data;
   } catch(e) { return _salesCache || JSON.parse(localStorage.getItem('jpro_sales') || '[]'); }
 }
 
+// Writes only the sales this device actually changed, one record per request —
+// see the SHARED LISTS block. Every existing caller is unchanged.
 async function pushSalesToCloud(sales) {
-  if (!creds.binId) return false;
-  try {
-    const res = await fetch(fbUrl('/jewelprice_sales.json'), {
-      method:'PUT', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(sales)
-    });
-    return res.ok;
-  } catch(e) { return false; }
+  return await _syncListToCloud('/jewelprice_sales', sales, r => r.id);
 }
 
 async function getSales() {
@@ -8917,7 +9115,7 @@ function _saleExVat(s, vat) {
 // it is already taken, in which case it steps to the next free number.
 function _nextSaleId(sales) {
   const used = new Set((sales || []).map(s => s.id));
-  let id = Date.now();
+  let id = _stampId();          // salted, so another phone cannot mint the same id
   while (used.has(id)) id++;
   return id;
 }
@@ -9304,7 +9502,7 @@ async function _gcIssueReturnCredit(orig, retRec, amount, cust) {
     } catch (e) {}
   }
   const g = {
-    id: 'gc_' + Date.now(),
+    id: 'gc_' + _stampId(),
     cardNo,
     amount: parseFloat(amount.toFixed(2)),
     buyerName: _name,
@@ -23064,10 +23262,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.63', date: 'Ιούλιος 2026', items: [
-        "🧾 Η πίστωση από επιστροφή τυπώνεται πλέον ως «Πίστωση» — όχι «Κάρτα Αλλαγής». Κάρτα αλλαγής είναι το χαρτί που συνοδεύει ένα δώρο και δεν έχει αξία· μόλις το κόσμημα επιστραφεί, αυτό που κρατά ο πελάτης είναι χρήματα.",
-        "🛍️ Κάθε επανεκτύπωση δείχνει το υπόλοιπο μεγάλο, το αρχικό ποσό από κάτω, και ΤΙ αγόρασε ο πελάτης (κωδικός, είδος, καράτια) — ίδια εικόνα στο χαρτί και στην καρτέλα του Πάγκου.",
-        "🛒 Σοβαρή διόρθωση σε πολλαπλή πώληση πληρωμένη με δωροεπιταγή/πίστωση: διαγράφοντας μία μόνο γραμμή, είτε δεν επέστρεφε τίποτα, είτε επέστρεφε ΟΛΟ το ποσό ενώ οι υπόλοιπες γραμμές έμεναν — δηλαδή χάριζε χρήματα. Τώρα επιστρέφεται ακριβώς το μερίδιο της γραμμής.",
+      { version: 'v11.64', date: 'Ιούλιος 2026', items: [
+        "🛡️ ΜΕΓΑΛΗ ΑΛΛΑΓΗ — ασφαλής χρήση από πολλά κινητά ταυτόχρονα. Μέχρι τώρα κάθε αποθήκευση έστελνε ΟΛΟΚΛΗΡΗ τη λίστα: ένα κινητό ανοιχτό από το πρωί έσβηνε ό,τι είχαν καταχωρήσει τα άλλα στο μεταξύ, χωρίς κανένα μήνυμα.",
+        "✅ Πλέον κάθε πώληση, δωροεπιταγή, κράτηση, επισκευή και πελάτης αποθηκεύεται ΞΕΧΩΡΙΣΤΑ — όπως πάντα έκανε το απόθεμα, που γι' αυτό δεν είχε ποτέ τέτοιο πρόβλημα. Δύο κινητά δεν μπορούν να σβήσουν το ένα τη δουλειά του άλλου.",
+        "🔑 Κάθε συσκευή δίνει πλέον δικούς της μοναδικούς κωδικούς εγγραφών, ώστε δύο πωλήσεις την ίδια στιγμή να μην μπερδεύονται ποτέ.",
+        "🔄 Η εφαρμογή ανανεώνει τα δεδομένα μόλις ξαναπιάνετε το κινητό — όχι μόνο σε πλήρη επανεκκίνηση. Βλέπετε τι έκαναν οι υπόλοιποι.",
       ]},
       ]
   },
@@ -23098,10 +23297,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.63', date: 'Jul 2026', items: [
-        "🧾 A return credit now prints as \"Credit\", not \"Exchange Card\". An exchange card is the paper that goes with a gift and carries no value; once the piece actually comes back, what the customer holds is money.",
-        "🛍️ Every reprint shows the balance large, the original amount beneath it, and WHAT was bought (ref code, type, karat) — the same on paper and on the Desk card.",
-        "🛒 Serious fix on a multi-item sale paid by a certificate or credit: deleting a single line either released nothing, or released the WHOLE amount while the other lines stayed — giving money away. It now returns exactly that line's share.",
+      { version: 'v11.64', date: 'Jul 2026', items: [
+        "🛡️ BIG ONE — safe to use from several phones at once. Until now every save sent the WHOLE list: a phone left open since morning would erase whatever the others had recorded in the meantime, silently.",
+        "✅ Now each sale, gift card, reservation, repair and client is saved ON ITS OWN — the way stock always has been, which is why stock never had this problem. Two phones can no longer wipe each other's work.",
+        "🔑 Each device now mints its own unique record numbers, so two sales rung up at the same moment can never collide.",
+        "🔄 The app refreshes the moment you pick the phone back up, not only on a full restart — so you see what the others have done.",
       ]},
           ]
   }
@@ -24206,7 +24406,7 @@ function autoSaveClientFromQuote(name, email) {
     }
   } else {
     // New client — save silently
-    const newClient = { id: String(Date.now()), name, email: email || '', phone: '', notes: '', addedBy: creds.userName || '', addedByName: creds.displayName || '' };
+    const newClient = { id: String(_stampId()), name, email: email || '', phone: '', notes: '', addedBy: creds.userName || '', addedByName: creds.displayName || '' };
     saveClient(newClient); // fire-and-forget
   }
 }
@@ -24968,11 +25168,7 @@ function saveClientsLocal(list) {
 }
 
 async function pushClientsToCloud(list) {
-  if (!creds.binId) return;
-  try {
-    const url = fbUrl('/jewelprice_clients.json');
-    await fetch(url, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(list) });
-  } catch(e) { console.warn('Could not push clients:', e); }
+  return await _syncListToCloud('/jewelprice_clients', list, c => c.id);
 }
 
 async function pullClientsFromCloud() {
@@ -24981,8 +25177,11 @@ async function pullClientsFromCloud() {
     const url = fbUrl('/jewelprice_clients.json');
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return;
-    const data = await res.json();
-    if (Array.isArray(data)) { saveClientsLocal(data); }
+    const data = _listFromNode(await res.json());
+    if (data.length) {
+      saveClientsLocal(data);
+      _snapRecord('/jewelprice_clients', data, c => c.id);
+    }
   } catch(e) { console.warn('Could not pull clients:', e); }
 }
 
@@ -25210,7 +25409,7 @@ async function upsertClientFromSale(name, phone, email) {
     if (!changed) return;
     saveClientsLocal(list); pushClientsToCloud(list);
   } else {
-    list.push({ id: String(Date.now()), name, phone, email, notes: '', dateAdded: Date.now() });
+    list.push({ id: String(_stampId()), name, phone, email, notes: '', dateAdded: Date.now() });
     saveClientsLocal(list); pushClientsToCloud(list);
     if (document.getElementById('panel-clients')?.classList.contains('active')) renderClients();
   }
@@ -26343,7 +26542,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.63';
+const APP_VERSION = '11.64';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
