@@ -3405,7 +3405,8 @@ const T = {
     deskGift:'Δωροεπιταγές',
     gcNew:'Νέα δωροεπιταγή',
     gcSearchPh:'Αναζήτηση — πελάτης, αριθμός…',
-    gcUseOnSale:'Δωροεπιταγή',
+    gcUseOnSale:'Δωροεπιταγή ή πίστωση',
+    exCardOffer:'Δώρο — κάρτα αλλαγής',
     gcCashDue:'Να εισπραχθούν',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
@@ -3841,7 +3842,8 @@ const T = {
     deskGift:'Gift Cards',
     gcNew:'New gift certificate',
     gcSearchPh:'Search — customer, number…',
-    gcUseOnSale:'Gift certificate',
+    gcUseOnSale:'Gift certificate or credit',
+    exCardOffer:'Gift — exchange card',
     gcCashDue:'Cash due',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
@@ -5264,7 +5266,7 @@ function openGiftCardDetail(id) {
   ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${gcNoFmt(g)}</div>
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">${gcKindIcon(g)} ${gcKindLabel(g)} · ${gcNoFmt(g)}</div>
       <button onclick="document.getElementById('giftDetailOverlay').remove()" class="modal-x">✕</button>
     </div>
 
@@ -5366,6 +5368,15 @@ function openGiftEdit(id) {
       <button onclick="document.getElementById('giftEditOverlay').remove()" class="modal-x">✕</button>
     </div>
 
+    <!-- What KIND of card this is. Needed for cards issued before returns
+         existed (or written by hand as a credit), which carry no origin and
+         would otherwise read as a gift certificate forever. -->
+    <div style="${_resLbl}">${isEl ? 'Είδος' : 'Type'}</div>
+    <div style="display:flex;gap:7px;margin-bottom:12px">
+      <button type="button" id="gceKindGift" onclick="_gceSetKind('gift')" style="flex:1;padding:10px 6px;border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">🎁 ${isEl ? 'Δωροεπιταγή' : 'Gift certificate'}</button>
+      <button type="button" id="gceKindCredit" onclick="_gceSetKind('credit')" style="flex:1;padding:10px 6px;border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">🎟️ ${isEl ? 'Πίστωση επιστροφής' : 'Return credit'}</button>
+    </div>
+
     <div style="${_resLbl}">${isEl ? 'Ποσό' : 'Amount'}</div>
     <input id="gceAmount" type="number" step="0.01" inputmode="decimal" value="${(parseFloat(g.amount)||0).toFixed(2)}" style="${_resInp};font-size:18px;font-weight:700;color:var(--gold-light)">
     ${spent > 0 ? `<div style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px">${isEl ? `Έχουν ήδη εξαργυρωθεί ${cur}${spent.toFixed(2)} — το ποσό δεν μπορεί να πέσει κάτω από αυτό.` : `${cur}${spent.toFixed(2)} already redeemed — the amount can't go below that.`}</div>` : ''}
@@ -5397,8 +5408,25 @@ function openGiftEdit(id) {
     <button id="gceSaveBtn" onclick="_gcEditSave('${g.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
   </div>`;
   document.body.appendChild(ov);
+  ov.dataset.kind = gcIsCredit(g) ? 'credit' : 'gift';
+  _gceSetKind(ov.dataset.kind);
   _gceSetPay(g.payMethod || 'cash', true);
   _setCashBtnState(document.getElementById('gceCashToggle'), !!g.cashSale);
+}
+
+// Gift certificate vs return credit. Cards created before returns existed carry
+// no `origin`, so this is how an old one gets labelled correctly everywhere.
+function _gceSetKind(kind) {
+  const ov = document.getElementById('giftEditOverlay'); if (!ov) return;
+  ov.dataset.kind = kind;
+  [['gceKindGift', 'gift'], ['gceKindCredit', 'credit']].forEach(([id, k]) => {
+    const b = document.getElementById(id); if (!b) return;
+    const on = k === kind;
+    b.style.background = on ? 'rgba(201,168,76,0.25)' : 'rgba(201,168,76,0.06)';
+    b.style.border = on ? '1px solid var(--gold)' : '1px solid var(--card-border)';
+    b.style.color = on ? 'var(--gold-light)' : 'var(--text-muted)';
+    b.style.fontWeight = on ? '600' : '400';
+  });
 }
 
 // Same card/bank rule as the issue form. `keep` preserves the stored flag when
@@ -5443,6 +5471,7 @@ async function _gcEditSave(id) {
   if (!buyerName) { showToast(isEl ? '⚠️ Εισάγετε όνομα' : '⚠️ Enter a name'); return; }
 
   const payMethod = ov.dataset.pay || 'cash';
+  const _kind = ov.dataset.kind || (gcIsCredit(g) ? 'credit' : 'gift');
   const newCash = (payMethod === 'cash') ? _isCashBtn('gceCashToggle') : false;
   const cashChanged = !!g.cashSale !== !!newCash;
 
@@ -5461,6 +5490,10 @@ async function _gcEditSave(id) {
     g.message = (document.getElementById('gceMessage').value || '').trim();
     g.payMethod = payMethod;
     g.cashSale = newCash;
+    // Kind. Deleting `origin` rather than storing 'purchase' keeps an ordinary
+    // certificate byte-identical to how it has always been stored.
+    if (_kind === 'credit') g.origin = 'return';
+    else delete g.origin;
     g.expiresAt = document.getElementById('gceExpires').value || '';
     // A raised amount can revive a fully-spent card; a lowered one can settle it.
     if (g.status === 'redeemed' && gcBalance(g) > 0) g.status = 'active';
@@ -5642,7 +5675,8 @@ function openGiftPickerForSale() {
         const d = gcDaysLeft(g);
         return `<div onclick="_pickGiftForSale('${g.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 4px;border-bottom:1px solid var(--wa06);cursor:pointer">
           <div style="min-width:0">
-            <div style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.buyerName || '—')}</div>
+            <div style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${gcKindIcon(g)} ${_gcEsc(g.buyerName || '—')}</div>
+            <div style="font-size:11px;color:${gcIsCredit(g) ? '#7fd6b0' : 'var(--text-muted)'};letter-spacing:0.04em">${gcKindLabel(g)}</div>
             <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${gcNoFmt(g)}${d !== null && d >= 0 ? ` · ${isEl ? 'λήγει σε' : 'expires in'} ${d}${isEl ? (d === 1 ? ' μέρα' : ' μέρες') : (d === 1 ? ' day' : ' days')}` : ''}</div>
           </div>
           <div style="font-family:var(--font-mono);font-size:16px;color:var(--text);font-weight:700;flex-shrink:0">${cur}${bal.toFixed(2)}</div>
@@ -5651,7 +5685,7 @@ function openGiftPickerForSale() {
     : `<div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία ενεργή δωροεπιταγή' : 'No active gift certificates'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border-top:1px solid var(--card-border);border-radius:16px 16px 0 0;padding:18px;width:100%;max-width:480px;max-height:76vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${isEl ? 'Επιλογή δωροεπιταγής' : 'Choose a gift certificate'}</div>
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🎁 ${isEl ? 'Δωροεπιταγή ή πίστωση' : 'Certificate or credit'}</div>
       <button onclick="document.getElementById('giftPickerOverlay').remove()" class="modal-x">✕</button>
     </div>
     <button onclick="_gcScanForSale()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.35);border-radius:8px;color:var(--gold-light);font-size:13px;font-family:var(--font-body);cursor:pointer">📷 ${isEl ? 'Σάρωση κωδικού' : 'Scan certificate code'}</button>
@@ -5712,8 +5746,10 @@ function _updateSaleGiftDisplay() {
   sel.use = parseFloat(use.toFixed(2));
   sel.wasCash = !!g.cashSale;
   const due = parseFloat(Math.max(0, amt - use).toFixed(2));
+  // Name the KIND, not just the number — at the counter it matters whether this
+  // is a present someone bought or a customer's own money coming back.
   document.getElementById('saleGiftLabel').textContent =
-    `${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
+    `${gcKindIcon(g)} ${gcKindLabel(g)} · ${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
   document.getElementById('saleGiftDue').textContent = cur + due.toFixed(2);
   box.style.display = '';
   btn.style.display = 'none';
@@ -5738,7 +5774,7 @@ function _repUpdateGiftDisplay() {
   const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
   const use = Math.min(gcBalance(g), price);
   sel.use = parseFloat(use.toFixed(2));
-  document.getElementById('repGiftLabel').textContent = `${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
+  document.getElementById('repGiftLabel').textContent = `${gcKindIcon(g)} ${gcKindLabel(g)} · ${gcNoFmt(g)} (${g.buyerName || '—'}) −${cur}${use.toFixed(2)}`;
   document.getElementById('repGiftDue').textContent = cur + Math.max(0, price - use).toFixed(2);
   box.style.display = '';
   btn.style.display = 'none';
@@ -8931,6 +8967,17 @@ async function _gcIssueReturnCredit(orig, retRec, amount) {
   return g;
 }
 function gcIsCredit(g) { return !!g && g.origin === 'return'; }
+// A bought gift certificate and a credit from a return behave identically, but
+// they are NOT the same thing to the person at the counter — one is a present
+// someone paid for, the other is a customer's own money waiting to be spent.
+// Every surface that names a card goes through these, so they can never drift.
+function gcKindIcon(g) { return gcIsCredit(g) ? '🎟️' : '🎁'; }
+function gcKindLabel(g) {
+  const isEl = lang === 'el';
+  return gcIsCredit(g)
+    ? (isEl ? 'Πίστωση επιστροφής' : 'Return credit')
+    : (isEl ? 'Δωροεπιταγή' : 'Gift certificate');
+}
 
 function _refundMethodLabel(m) {
   const isEl = lang === 'el';
@@ -22358,18 +22405,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.46', date: 'Ιούλιος 2026', items: [
-        '↩️ ΕΠΙΣΤΡΟΦΕΣ: κάθε πώληση έχει πλέον κουμπί «Επιστροφή». Το κομμάτι γυρίζει στο απόθεμα και τα λεφτά αντιλογίζονται σωστά.',
-        '🎟️ ΚΑΡΤΑ ΑΛΛΑΓΗΣ: επιστρέφετε ως πίστωση και ο πελάτης παίρνει εκτυπωμένη κάρτα με κωδικό — τη σαρώνετε στην επόμενη πώληση όπως δωροεπιταγή. Ισχύει 2 χρόνια — για να προλαβαίνει και η επόμενη σεζόν.',
-        '🎁 ΚΑΡΤΑ ΑΛΛΑΓΗΣ ΓΙΑ ΔΩΡΑ: στο κουτί της πώλησης υπάρχει διακόπτης «Δώρο». Τυπώνεται κάρτα που δείχνει το κόσμημα ΧΩΡΙΣ ΤΙΜΗ — αυτός που το παίρνει δεν μαθαίνει ποτέ τι πληρώθηκε.',
-        '📷 Όταν έρθει πίσω, σαρώνετε τον κωδικό της κάρτας και βρίσκετε αμέσως το κόσμημα και την πώληση. Από εκεί: άμεση αλλαγή με κάτι άλλο ή έκδοση πίστωσης.',
-        '🎁 Αν ο πελάτης το ζητήσει μετά την πώληση, ανοίγετε την πώληση και πατάτε «Κάρτα Αλλαγής» — ίδιος αριθμός αν χαθεί και θέλει επανεκτύπωση.',
-        '🔄 «Αλλαγή τώρα»: μετά την επιστροφή, διαλέγετε το νέο κόσμημα και η πίστωση μπαίνει μόνη της.',
-        '📅 Η επιστροφή καταχωρείται στη ΣΗΜΕΡΙΝΗ ημέρα — ο περασμένος μήνας κρατά το τζίρο του και το ιστορικό δεν χάνεται ποτέ.',
-        '💵 Επιστροφή σε μετρητά ή κάρτα επίσης. Ό,τι είχε πληρωθεί με δωροεπιταγή γυρίζει πάντα ως πίστωση.',
-        '📦 Αν το κομμάτι δεν ξαναμπαίνει στο απόθεμα (σπασμένο), το κόστος του καταγράφεται σωστά ως ζημιά.',
-        '🛍 Πολλαπλή πώληση: επιστρέφετε ένα είδος ή όλα μαζί — με ΜΙΑ κάρτα αλλαγής.',
-        '↩️ Αναίρεση επιστροφής αν έγινε λάθος — εκτός αν η πίστωση έχει ήδη ξοδευτεί.'
+      { version: 'v11.47', date: 'Ιούλιος 2026', items: [
+        "🎟️ Η πίστωση από επιστροφή ΓΡΑΦΕΙ πλέον ότι είναι πίστωση. Πριν εμφανιζόταν παντού σαν απλή δωροεπιταγή — στη λίστα επιλογής, στο κουτί της πώλησης και στην καρτέλα της.",
+        "🎁/🎟️ Ξεχωριστό εικονίδιο και ετικέτα σε κάθε σημείο: 🎁 Δωροεπιταγή (κάποιος την αγόρασε) ή 🎟️ Πίστωση επιστροφής (λεφτά του πελάτη που γυρίζουν).",
+        "✏️ Νέα επιλογή «Είδος» στην Επεξεργασία κάρτας: μαρκάρετε μόνοι σας μια παλιά κάρτα ως πίστωση επιστροφής. Χρήσιμο για όσες φτιάχτηκαν πριν υπάρξουν οι επιστροφές.",
+        "🐞 Διόρθωση: το κουμπί «Δώρο — κάρτα αλλαγής» στην πώληση έδειχνε τον κωδικό του κειμένου αντί για την ετικέτα.",
       ]},
           ]
   },
@@ -22400,18 +22440,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.46', date: 'Jul 2026', items: [
-        '↩️ RETURNS: every sale now has a "Return" button. The piece goes back into stock and the money reverses correctly.',
-        '🎟️ EXCHANGE CARD: refund as store credit and the customer gets a printed card with a code — scan it on their next visit just like a gift certificate. Valid for 2 years, so it survives to the following season.',
-        '🎁 EXCHANGE CARD FOR GIFTS: a "Gift" toggle in the sale box prints a card showing the piece with NO PRICE on it — whoever unwraps it never learns what was paid.',
-        '📷 When they bring it back, scan the card\'s code and it pulls up the piece and the sale instantly. From there: swap it on the spot, or issue credit.',
-        '🎁 If they ask after the sale, open the sale and press "Exchange Card" — same number again if they lose it and need a reprint.',
-        '🔄 "Exchange now": after a return, pick the new piece and the credit applies itself.',
-        '📅 A return is booked on TODAY — last month keeps its takings and the history is never erased.',
-        '💵 Cash or card refunds too. Anything that was paid with a gift certificate always comes back as store credit.',
-        '📦 If the piece is not going back in stock (broken), its cost is correctly recorded as a loss.',
-        '🛍 Multi-item sales: return one line or all of them — with ONE exchange card.',
-        '↩️ Undo a return if it was a mistake — unless the credit has already been spent.'
+      { version: 'v11.47', date: 'Jul 2026', items: [
+        "🎟️ A credit from a return now SAYS it's a credit. It previously looked like an ordinary gift certificate everywhere — in the picker, in the sale box and on its own card.",
+        "🎁/🎟️ A distinct icon and label at every point: 🎁 Gift certificate (someone bought it) or 🎟️ Return credit (the customer's own money coming back).",
+        "✏️ New “Type” option in Edit card: mark an older card as a return credit yourself. Useful for any created before returns existed.",
+        "🐞 Fixed: the “Gift — exchange card” button in the sale box showed its internal text code instead of its label.",
       ]},
           ]
   }
@@ -25497,7 +25530,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.46';
+const APP_VERSION = '11.47';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
