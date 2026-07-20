@@ -1498,7 +1498,7 @@
         <!-- A per-item piece is priced from its own stock record. If that record can't be
              read (no signal, or the tag belongs to a deleted piece) the figure above is only
              the metal — say so, loudly, rather than let it be read out as a real price. -->
-        <div id="perItemWarn" style="display:none;margin-top:4px;padding:6px 9px;border-radius:7px;background:rgba(224,80,80,0.14);border:1px solid rgba(224,80,80,0.45);color:#ff9a9a;font-family:var(--font-body);font-size:11px;line-height:1.35"></div>
+        <div id="calcPriceWarn" style="display:none;margin-top:4px;padding:6px 9px;border-radius:7px;background:rgba(224,80,80,0.14);border:1px solid rgba(224,80,80,0.45);color:#ff9a9a;font-family:var(--font-body);font-size:11px;line-height:1.35"></div>
         <!-- Rounding row — appears below price after calc -->
         <div class="cpb-round-row" id="roundFieldWrap" style="display:none">
           <div class="cpb-round-label" data-i18n="roundLabel">ΣΤΡΟΓΓ. →</div>
@@ -9193,6 +9193,52 @@ let _lastChipRaw = null;            // raw QR string last shown in invStatusChip
 // re-ran afterwards, so the wrong price simply stayed on screen in front of the customer.
 let _invStatusReady = null;
 
+// Did the LAST loadInventory() fail (offline / server error)? loadInventory returns {} both
+// when it fails and when the stock is genuinely empty, so without this the app cannot tell
+// "this piece isn't in stock" from "I couldn't look" — and those need different answers.
+let _invLoadFailed = false;
+// An Other-type scan fell back to the formula price without being able to check the record
+// for a manually-set one. Reset on every fresh lookup; drives the amber note in the calc.
+let _otherPriceUnverified = false;
+let _invLoadedAt = 0;            // when _inventoryCache was last filled from the cloud
+let _invBgRefreshing = false;
+const INV_SCAN_TTL_MS = 60000;   // a scan may trust the copy in memory for a minute
+
+// The scan path's inventory load. Two things it does that a bare `await loadInventory()`
+// did not:
+//  1. It does NOT wipe a good cache when the fetch fails. The old line assigned the result
+//     straight into _inventoryCache, so one scan taken while the signal dropped replaced the
+//     whole in-memory stock with {} — every lookup after it then missed until a good reload.
+//  2. It serves a recent copy from memory instead of re-downloading all 1000+ items on EVERY
+//     scan (the download is what made the v11.73 race so easy to hit). A background refresh
+//     still runs, and _checkInvStatusForCalc re-resolves if anything actually changed, so a
+//     price edited on another device lands within a second or two rather than being missed.
+async function _invEnsureForScan() {
+  const warm = _inventoryCache && Object.keys(_inventoryCache).length &&
+               (Date.now() - _invLoadedAt) < INV_SCAN_TTL_MS;
+  if (warm) { _invBgRefreshScan(); return; }
+  const data = await loadInventory();
+  if (!_invLoadFailed) { _inventoryCache = data; _invLoadedAt = Date.now(); }
+  else if (!_inventoryCache) _inventoryCache = data;   // nothing to keep — start from empty
+}
+
+const INV_BG_MIN_MS = 15000;     // don't re-download on every scan of a rapid-fire session
+function _invBgRefreshScan() {
+  if (_invBgRefreshing) return;
+  if (Date.now() - _invLoadedAt < INV_BG_MIN_MS) return;
+  _invBgRefreshing = true;
+  loadInventory().then(async data => {
+    if (_invLoadFailed) return;
+    const changed = JSON.stringify(data) !== JSON.stringify(_inventoryCache);
+    _inventoryCache = data;
+    _invLoadedAt = Date.now();
+    // Something moved (a price edited on another device, a piece sold) — re-resolve the
+    // scanned code so the chip and the price follow it. _invBgRefreshing is still true here,
+    // so this re-entry cannot start another refresh.
+    if (changed && _lastChipRaw) await _checkInvStatusForCalc(_lastChipRaw);
+  }).catch(() => {}).finally(() => { _invBgRefreshing = false; });
+}
+
 // Is the labour category currently selected in the Calc priced PER ITEM? Those are the
 // only ones whose price depends on the scanned piece's own inventory record.
 function _isPerItemCatSelected() {
@@ -9208,7 +9254,7 @@ function _isPerItemCatSelected() {
 async function _calcAfterInvReady() {
   try { await _invStatusReady; } catch (e) {}
   calculate();
-  _syncPerItemWarn();
+  _syncPriceWarn();
 }
 
 // A per-item piece carries its price in its own stock record. When a CODE was looked up
@@ -9217,18 +9263,29 @@ async function _calcAfterInvReady() {
 // Warn instead of letting it be read out to a customer. Deliberately keyed on the code box
 // being non-empty: creating a NEW per-item piece from scratch has no code and legitimately
 // shows the metal figure until a Target Retail is entered on the label.
-function _syncPerItemWarn() {
-  const box = document.getElementById('perItemWarn');
+function _syncPriceWarn() {
+  const box = document.getElementById('calcPriceWarn');
   if (!box) return;
+  const isEl = lang === 'el';
   const hasCode = !!document.getElementById('codeInput')?.value.trim();
+  // Per-item: the record holds the whole price, so without it the figure is only the metal.
   if (_isPerItemCatSelected() && hasCode && !_lastScannedInvEntry) {
-    box.textContent = lang === 'el'
+    box.textContent = isEl
       ? '⚠️ Δεν βρέθηκε η καρτέλα του κομματιού — αυτή ΔΕΝ είναι η τιμή πώλησης (μόνο η αξία μετάλλου). Ελέγξτε τη σύνδεση και σκανάρετε ξανά.'
       : '⚠️ This piece\'s record could not be read — this is NOT the selling price (metal value only). Check the connection and scan again.';
     box.style.display = 'block';
-  } else {
-    box.style.display = 'none';
+    return;
   }
+  // Other-type: the formula price shown is real, but a manually-set price may exist on the
+  // record and we could not look. Different wording — the number is usable, just unverified.
+  if (_otherPriceUnverified && hasCode) {
+    box.textContent = isEl
+      ? '⚠️ Χωρίς σύνδεση — δεν έγινε έλεγχος για χειροκίνητη τιμή. Αυτή είναι η υπολογισμένη τιμή και μπορεί να διαφέρει.'
+      : '⚠️ Offline — could not check for a manually-set price. This is the calculated price and may differ.';
+    box.style.display = 'block';
+    return;
+  }
+  box.style.display = 'none';
 }
 // Pieces of a similar-items group that share ONE weight share ONE printed tag, so a scan
 // cannot say which is in hand. When they also LOOK different (gold colour / decorative
@@ -15215,8 +15272,9 @@ async function _checkInvStatusForCalc(raw) {
   if (!raw) { _lastChipRaw = null; return; }
   const rawNorm = raw.trim().toUpperCase();
   _lastChipRaw = raw;
-  // Always reload inventory here — this is the QR scan entry point and we need fresh photoUrl
-  _inventoryCache = await loadInventory();
+  // This is the QR scan entry point, so the record must be in hand before anything prices
+  // off it. Served from memory when recent, refreshed in the background either way.
+  await _invEnsureForScan();
   const entries = Object.entries(_inventoryCache || {});
   // One tag can sit on several records — a similar-items batch shares its weight, so it
   // shares its code. Prefer an IN-STOCK one (matching a sold twin first showed a "Sold"
@@ -15323,7 +15381,7 @@ async function _checkInvStatusForCalc(raw) {
     if (_isPerItemCatSelected() && document.getElementById('customerPriceBar')?.style.display !== 'none') {
       calculate();
     }
-    _syncPerItemWarn();
+    _syncPriceWarn();
   } else {
     _lastScannedInvEntry = null;
     _lastScannedRaw = null;
@@ -15332,7 +15390,7 @@ async function _checkInvStatusForCalc(raw) {
     chip.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted)';
     chip.innerHTML = `<span style="flex:1">${isEl ? '➕ Όχι στο απόθεμα' : '➕ Not in inventory'}</span><span style="font-size:11px;opacity:.8;white-space:nowrap">${isEl ? 'Πρόσθεσε →' : 'Add →'}</span>`;
     chip.onclick = () => { prepareInvConfirm(raw); };
-    _syncPerItemWarn();
+    _syncPriceWarn();
   }
 }
 
@@ -15415,7 +15473,7 @@ function _lookupCodeOtherType(raw, match, foundBanner) {
   }
   setTimeout(() => {
     calcOtherRetail();
-    setTimeout(() => calculateOtherPrice(), 200);
+    setTimeout(() => { calculateOtherPrice(); _syncPriceWarn(); }, 200);
   }, 150);
   const cur = state.currency || '€';
   document.getElementById('codeFoundDetail').textContent = match.vendorName + ' · ' + match.catName;
@@ -15439,7 +15497,7 @@ function lookupCode(raw, opts) {
   // recursive re-run (opts.fromRef) is allowed to keep the pin it just set. This is what
   // makes the pin reset on a genuinely new scan while surviving passive re-checks (which
   // call _checkInvStatusForCalc directly, never lookupCode).
-  if (!opts || !opts.fromRef) { _refPinnedInvId = null; _refPinnedForCode = null; }
+  if (!opts || !opts.fromRef) { _refPinnedInvId = null; _refPinnedForCode = null; _otherPriceUnverified = false; }
   // ── Ref code lookup — e.g. PE0142 or pe0142 ──────────────────────────────
   if (raw && /^[A-Za-z]{2}\d{4}$/.test(raw.trim())) {
     const refNorm = raw.trim().toUpperCase();
@@ -15521,12 +15579,16 @@ function lookupCode(raw, opts) {
       // Use async IIFE so we can lazy-load inventory if not yet cached
       const _rawNorm = raw.trim().toUpperCase();
       (async () => {
-        if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
-          _inventoryCache = await loadInventory();
-        }
+        await _invEnsureForScan();
+        // Remember whether we could actually look. An Other piece may carry a manually-set
+        // price (fixedRetail) that overrides the ×multiplier formula; if the stock could not
+        // be read we fall back to the formula, which is a DIFFERENT price (€100 instead of
+        // the owner's €120) and looks perfectly normal. Say so rather than let it pass.
+        const _lookFailed = _invLoadFailed;
         const _invEntry = Object.values(_inventoryCache || {}).find(it =>
           it.qrCode && it.qrCode.trim().toUpperCase() === _rawNorm && it.fixedRetail
         );
+        if (!_invEntry && _lookFailed) _otherPriceUnverified = true;
         if (_invEntry && _invEntry.fixedRetail) {
           // Use the stored fixed retail price directly — skip cost recalculation
           if (metal !== 'other') setMetal('other');
@@ -15596,6 +15658,7 @@ function lookupCode(raw, opts) {
           // Show price bar
           const _bar = document.getElementById('customerPriceBar');
           if (_bar) { _bar.style.display = 'block'; setTimeout(adjustCalcPadding, 50); }
+          _otherPriceUnverified = false;   // the record was read — nothing unverified
           document.getElementById('retailPriceDisplay').textContent = cur + _fixedPrice.toFixed(2);
           const _preVatEl = document.getElementById('preVatDisplay');
           if (_preVatEl) { _preVatEl.style.display='block'; _preVatEl.textContent = (lang==='el'?'χωρίς ΦΠΑ ':'excl. VAT ') + cur + _preVat.toFixed(2); }
@@ -17747,13 +17810,14 @@ async function _saveToInventoryFromLabel(labelData) {
 
 async function loadInventory() {
   const base = invFbBase();
-  if (!base) return {};
+  if (!base) { _invLoadFailed = false; return {}; }   // no cloud configured — local IS the truth
   try {
     const res = await fetch(fbUrl(INV_FB_PATH + '.json'), { cache: 'no-store' });
-    if (!res.ok) return {};
+    if (!res.ok) { _invLoadFailed = true; return {}; }
     const data = await res.json();
+    _invLoadFailed = false;
     return data && typeof data === 'object' ? data : {};
-  } catch(e) { return {}; }
+  } catch(e) { _invLoadFailed = true; return {}; }
 }
 
 async function saveInventoryItem(id, item) {
@@ -24043,9 +24107,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.73', date: 'Ιούλιος 2026', items: [
-        "🛡️ ΣΗΜΑΝΤΙΚΟ — διορθώθηκε λάθος τιμή σε σκανάρισμα. Σε κομμάτια με τιμή «ανά τεμάχιο», αν το σκανάρισμα γινόταν με αργή σύνδεση, η τιμή προλάβαινε να υπολογιστεί ΠΡΙΝ φορτώσει η καρτέλα του κομματιού — και έδειχνε μόνο την αξία του μετάλλου (π.χ. €6.22 αντί για €80.01), χωρίς να διορθώνεται μετά. Πλέον η τιμή περιμένει την καρτέλα, όσο αργή κι αν είναι η σύνδεση.",
-        "⚠️ Και αν η καρτέλα δεν φορτώσει καθόλου (χωρίς ίντερνετ), εμφανίζεται κόκκινη προειδοποίηση ότι ΔΕΝ είναι η τιμή πώλησης — αντί για έναν αριθμό που μοιάζει σωστός.",
+      { version: 'v11.74', date: 'Ιούλιος 2026', items: [
+        "⚡ Το σκανάρισμα έγινε πολύ πιο γρήγορο. Μέχρι τώρα κάθε σκανάρισμα κατέβαζε ΟΛΟ το απόθεμα (1000+ κομμάτια). Πλέον χρησιμοποιεί το αντίγραφο που έχει ήδη — μετρήθηκε: 1ο σκανάρισμα ~1.2 δευτ., τα επόμενα ~0.05 δευτ. Αν κάτι αλλάξει από άλλη συσκευή, η τιμή διορθώνεται μόνη της.",
+        "🛡️ Ένα σκανάρισμα χωρίς σήμα ΔΕΝ σβήνει πια το απόθεμα από τη μνήμη. Πριν, μία στιγμή χωρίς ίντερνετ χαλούσε όλες τις επόμενες αναζητήσεις μέχρι να ξαναφορτώσει.",
+        "⚠️ Στα είδη «Άλλο» με χειροκίνητη τιμή: αν δεν υπάρχει σύνδεση, εμφανίζεται προειδοποίηση ότι δείχνει την υπολογισμένη τιμή και μπορεί να διαφέρει από τη δική σας.",
       ]},
       ]
   },
@@ -24076,9 +24141,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.73', date: 'Jul 2026', items: [
-        "🛡️ IMPORTANT — fixed a wrong price on scan. On per-item priced pieces, a scan over a slow connection calculated the price BEFORE the piece's own record had loaded, showing only the metal value (e.g. €6.22 instead of €80.01) — and it never corrected itself. The price now waits for the record, however slow the connection.",
-        "⚠️ And if the record cannot be loaded at all (no internet), a red warning says this is NOT the selling price — instead of a plausible-looking number.",
+      { version: 'v11.74', date: 'Jul 2026', items: [
+        "⚡ Scanning is much faster. Every scan used to download your ENTIRE stock (1000+ pieces). It now uses the copy it already has — measured: first scan ~1.2s, every scan after ~0.05s. If something changes on another device, the price corrects itself.",
+        "🛡️ A scan taken with no signal no longer wipes the stock from memory. Before, one moment offline broke every lookup after it until a reload.",
+        "⚠️ On \"Other\" items with a manually-set price: if there is no connection, a warning now says the calculated price is showing and may differ from yours.",
       ]},
           ]
   }
@@ -24467,7 +24533,8 @@ function clearCalc() {
   // Clear code input
   const codeEl = document.getElementById('codeInput');
   if (codeEl) codeEl.value = '';
-  const _piWarn = document.getElementById('perItemWarn');
+  _otherPriceUnverified = false;
+  const _piWarn = document.getElementById('calcPriceWarn');
   if (_piWarn) _piWarn.style.display = 'none';
 
   // Clear weight & discount
@@ -27321,7 +27388,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.73';
+const APP_VERSION = '11.74';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
