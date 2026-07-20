@@ -11178,17 +11178,24 @@ async function _saleDocResult(rec) {
     try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
   const inv = _inventoryCache || {};
-  // Same resolution order the return/restore path uses: the exact record first
-  // (twins in a group share a QR), then the QR.
+  // RESOLUTION ORDER MATTERS. `invId` and `invQr` are this record's own identity;
+  // `bulkInvId` is only trustworthy when the record really is a bulk line — and
+  // on existing data it sometimes is not: a cart whose first item was NOT the
+  // bulk chain still got the chain's bulkInvId stamped on it (confirmSale's
+  // lastCalcResult fallback, fixed in v11.69 but already written to old sales).
+  // Checking it first is what made Φανή's cross print as a chain. So the batch
+  // link is the LAST resort, never the first.
   let item = null;
-  if (rec.bulkInvId && inv[rec.bulkInvId]) item = inv[rec.bulkInvId];
-  if (!item && rec.invId && inv[rec.invId]) item = inv[rec.invId];
+  if (rec.invId && inv[rec.invId]) item = inv[rec.invId];
   if (!item && rec.invQr) {
     const qn = rec.invQr.trim().toUpperCase();
     item = Object.values(inv).find(it => it.qrCode && it.qrCode.trim().toUpperCase() === qn) || null;
   }
+  if (!item && rec.bulkInvId && inv[rec.bulkInvId]) item = inv[rec.bulkInvId];
   const isEl = lang === 'el';
-  const isBulk = !!(parseFloat(rec.bulkSoldWeight) > 0 || (item && item.isBulk));
+  // The RESOLVED PIECE decides whether this is a by-the-gram line — not a stray
+  // bulkSoldWeight on the record, for the same reason.
+  const isBulk = !!(item && item.isBulk);
   const vat = parseFloat(state.vat) || 0;
   const amount = Math.abs(parseFloat(rec.amount) || 0);
   // The recorded ex-VAT figure, through the one helper that knows the rule
@@ -11432,7 +11439,14 @@ async function confirmSale() {
   const _csiFirst = (window._cartSaleItems && window._cartSaleItems[0]) || null;
   if (_csiFirst && _csiFirst.isBulk) {
     _firstBulkInfo = { invId: _csiFirst.id, soldWeight: _csiFirst.soldWeight || 0, cost: (_csiFirst.cost != null ? _csiFirst.cost : null) };
-  } else if (lastCalcResult && lastCalcResult.isBulkChain && lastCalcResult.bulkInvId) {
+  } else if (!_csiFirst && lastCalcResult && lastCalcResult.isBulkChain && lastCalcResult.bulkInvId) {
+    // ONLY when there is no cart at all. With a cart, item 1 is _cartSaleItems[0]
+    // and that entry alone decides. Without the !_csiFirst guard, a cart whose
+    // first piece was NOT the chain still picked up the chain's batch link from
+    // whatever was last on the calculator — so the first record carried the
+    // CHAIN's bulkInvId, bulkSoldWeight and cost, its own invId was never
+    // stamped (the else-if below is skipped), and deleting that sale would have
+    // returned grams to the batch instead of putting the piece back in stock.
     _firstBulkInfo = { invId: lastCalcResult.bulkInvId, soldWeight: parseFloat(lastCalcResult.bulkSoldWeight) || 0, cost: (lastCalcResult.baseCost != null ? parseFloat(lastCalcResult.baseCost) : null) };
   }
   // Captured up front: closeSaleModal() runs mid-function and resets the toggle.
@@ -23628,9 +23642,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.68', date: 'Ιούλιος 2026', items: [
-        "🏷️ Διορθώθηκε στο νέο έντυπο πώλησης: όταν ένα κομμάτι δεν έχει δική του περιγραφή, έπαιρνε κατά λάθος το όνομα του διπλανού του — ένας σταυρός τυπωνόταν ως «Bulk chains».",
-        "✅ Τώρα κάθε γραμμή γράφει το είδος της (Σταυρός, Αλυσίδα...) στη γλώσσα της εφαρμογής, και οι αλυσίδες με το γραμμάριο δεν δείχνουν πια την εσωτερική ονομασία της παρτίδας.",
+      { version: 'v11.69', date: 'Ιούλιος 2026', items: [
+        "🏷️ Το έντυπο πώλησης δείχνει επιτέλους σωστά κάθε κομμάτι. Ο σταυρός τυπωνόταν ως αλυσίδα με λάθος βάρος, γιατί η εγγραφή του είχε κολλήσει πάνω της ο σύνδεσμος της αλυσίδας.",
+        "🔗 Βρέθηκε και η αιτία: σε πώληση καλαθιού που ΔΕΝ ξεκινούσε με αλυσίδα-με-το-γραμμάριο, το πρώτο κομμάτι έπαιρνε κατά λάθος τα στοιχεία της αλυσίδας από τον υπολογισμό — και αν σβήνατε αυτή την πώληση, γύριζαν γραμμάρια στην παρτίδα αντί να ξαναμπεί το κομμάτι στο απόθεμα. Διορθώθηκε για τις επόμενες πωλήσεις.",
       ]},
       ]
   },
@@ -23661,9 +23675,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.68', date: 'Jul 2026', items: [
-        "🏷️ Fixed in the new sale document: a piece with no description of its own picked up its neighbour's name — a cross printed as \"Bulk chains\".",
-        "✅ Every line now falls back to its own type (Cross, Chain...) in the app's language, and by-the-gram chains no longer show the internal batch name.",
+      { version: 'v11.69', date: 'Jul 2026', items: [
+        "🏷️ The sale document now shows each piece correctly. The cross printed as a chain with the wrong weight, because its sale record had the chain's batch link stuck to it.",
+        "🔗 Root cause found too: on a cart sale that did NOT start with a by-the-gram chain, the first piece picked up the chain's details from the calculator — and deleting that sale would have returned grams to the batch instead of putting the piece back in stock. Fixed for future sales.",
       ]},
           ]
   }
@@ -26904,7 +26918,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.68';
+const APP_VERSION = '11.69';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
