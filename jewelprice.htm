@@ -210,6 +210,10 @@
   .qr-corners::before { top:0; left:0; border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
   .qr-corners::after { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
   /* Text-scan mode: a guide band marking the read zone (where the code should sit). */
+  /* The sale sheet's action row grew to six buttons (Print was the sixth). Each
+     is created with an inline flex:1 (basis 0), so wrapping alone would never
+     trigger — a min-width is what forces a second row instead of six slivers. */
+  #sdmActions button { min-width: 92px; }
   .qr-textguide { position:absolute; left:8%; right:8%; top:40%; height:20%; border:1.5px dashed rgba(255,255,255,0.55); border-radius:4px; pointer-events:none; display:none; transition:border-color .15s, box-shadow .15s; }
   .qr-video-wrap.textmode .qr-textguide { display:block; }
   /* Aligned = OCR just read a valid code here → go green, "hold still". */
@@ -2468,7 +2472,7 @@
     <div id="sdmGroupItems" style="display:none;margin:10px 18px 0;border-top:1px solid var(--wa08);padding-top:10px"></div>
     <div id="sdmBreakdown" style="margin:10px 18px 0;border-top:1px solid var(--wa08);padding-top:10px"></div>
     <div id="sdmMeta" style="margin:10px 18px 16px;border-top:1px solid var(--wa08);padding-top:10px"></div>
-    <div style="display:flex;gap:10px;padding:0 18px 20px" id="sdmActions"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;padding:0 18px 20px" id="sdmActions"></div>
   </div>
 </div>
 
@@ -10844,6 +10848,16 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   const canDel = isOwnerMgr || s.employee === creds.userName;
   const _isRetGroup = !!s.isReturn;
 
+  // 🖨️ Quote / certificate for the whole transaction — the paper a customer
+  // asks for after the fact (splitting the cost, insurance, a present).
+  if (!_isRetGroup) {
+    const docBtn = document.createElement('button');
+    docBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    docBtn.textContent = '🖨️ ' + (lang === 'el' ? 'Εκτύπωση' : 'Print');
+    docBtn.onclick = () => openSaleDocPicker(members[0].id, s.saleGroup);
+    acts.appendChild(docBtn);
+  }
+
   // ↩️ Return the whole transaction: one negative record per line (so each
   // item's cost and profit stay exact) collapsed into one row, and ONE exchange
   // card for the lot.
@@ -11057,6 +11071,17 @@ async function showSaleDetail(id, forceSingle) {
     acts.appendChild(invBtn);
   }
 
+  // 🖨️ Quote / certificate for this sale. The certificate especially: it is
+  // always wanted AFTER the piece is bought, and Calc could only make one
+  // before.
+  if (!s.isReturn) {
+    const docBtn = document.createElement('button');
+    docBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    docBtn.textContent = '🖨️ ' + (lang === 'el' ? 'Εκτύπωση' : 'Print');
+    docBtn.onclick = () => openSaleDocPicker(s.id, '');
+    acts.appendChild(docBtn);
+  }
+
   // 🎁 Exchange card — for the customer who asks for one after the fact, or a
   // reprint of a lost card (issueExchangeCard keeps the same number).
   if (!s.isReturn) {
@@ -11135,6 +11160,184 @@ function closeSaleDetailModal(navigating) {
   const _back = window._gcDetailReturnTo;
   window._gcDetailReturnTo = null;
   if (_back && !navigating) { try { openGiftCardDetail(_back); } catch (e) {} }
+}
+
+// ─── QUOTE / CERTIFICATE FOR A SALE THAT HAS ALREADY HAPPENED ────────────────
+// A quote is naturally printed BEFORE the sale, so Calc is the right place for
+// it. A certificate is the opposite — it is asked for AFTER, and until now it
+// could only be made from Calc, i.e. before. So a customer who came back an
+// hour later wanting a paper (to split the cost with a second godparent, for
+// insurance, for a present) could not be given one at all.
+//
+// These rebuild the SAME two documents from a recorded sale: the same builders,
+// the same layout, nothing forked. The only difference is where the numbers
+// come from — the price is what was ACTUALLY PAID, not a live recalculation, so
+// the paper matches the till even after gold has moved.
+async function _saleDocResult(rec) {
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  const inv = _inventoryCache || {};
+  // Same resolution order the return/restore path uses: the exact record first
+  // (twins in a group share a QR), then the QR.
+  let item = null;
+  if (rec.bulkInvId && inv[rec.bulkInvId]) item = inv[rec.bulkInvId];
+  if (!item && rec.invId && inv[rec.invId]) item = inv[rec.invId];
+  if (!item && rec.invQr) {
+    const qn = rec.invQr.trim().toUpperCase();
+    item = Object.values(inv).find(it => it.qrCode && it.qrCode.trim().toUpperCase() === qn) || null;
+  }
+  const isEl = lang === 'el';
+  const isBulk = !!(parseFloat(rec.bulkSoldWeight) > 0 || (item && item.isBulk));
+  const vat = parseFloat(state.vat) || 0;
+  const amount = Math.abs(parseFloat(rec.amount) || 0);
+  // The recorded ex-VAT figure, through the one helper that knows the rule
+  // (cash, receipt, or a gift-certificate portion settled under another regime).
+  const exVat = Math.abs(_saleExVat(rec, vat));
+
+  let metalLabel = '—', spot = 0;
+  if (item && item.metal === 'gold') {
+    const k = parseInt(item.karat) || 0;
+    const p = karatPurity[k];
+    metalLabel = t('gold') + ' · ' + k + 'K' + (p ? ' (' + (p * 100).toFixed(1) + '%)' : '');
+    spot = getGoldPrice() || 0;
+  } else if (item && item.metal === 'silver') {
+    const sp = parseInt(item.karat) || 0;
+    const p = silverPurityMap[sp];
+    metalLabel = t('silver') + ' · ' + sp + (p ? ' (' + (p * 100).toFixed(1) + '%)' : '');
+    spot = getSilverPrice() || 0;
+  } else if (item) {
+    metalLabel = isEl ? 'Άλλο' : 'Other';
+  }
+  // A bulk chain is sold by the gram — the grams that left, not the batch's
+  // remaining weight.
+  const weight = isBulk
+    ? (parseFloat(rec.bulkSoldWeight) || 0).toFixed(2)
+    : (item && item.weight ? parseFloat(item.weight).toFixed(2) : '—');
+  const name = (item ? _itemDesc(item) : '') || rec.note
+    || rec.seqRef || (isEl ? 'Κόσμημα' : 'Jewelry Item');
+
+  return {
+    name,
+    // No photo for a bulk chain: the batch picture is not the piece she bought.
+    photo: isBulk ? null : ((item && item.photoUrl) || rec.salePhotoUrl || null),
+    result: {
+      metalLabel,
+      weight,
+      spotPrice: (spot || 0).toFixed(2),
+      handmade: !!(item && item.handmade),
+      stones: (item && item.stonesDesc) ? _invEditParseStoredStones(item.stonesDesc) : [],
+      // No list-price/discount rows: the "list price" would have to be computed
+      // from TODAY's gold, which is not what she was quoted. The price paid is
+      // the whole truth on a document written after the fact.
+      discount: 0,
+      discountAmt: '0.00',
+      retail: amount.toFixed(2),
+      preVat: exVat.toFixed(2),
+      vat: vat,
+      vatAmount: (amount - exVat).toFixed(2),
+      finalPrice: amount.toFixed(2),
+      seqRef: rec.seqRef || (item && item.seqId ? itemRefCode(item) : ''),
+      labelCode: item ? (item.qrCode || '') : '',
+      secondaryMetal: null, secondaryKarat: null, secondaryWeight: null
+    }
+  };
+}
+
+// One sale (or one whole multi-item transaction) → finished document HTML.
+async function _saleDocBuild(saleId, groupId, isCert) {
+  const sales = await getSales();
+  const members = groupId
+    ? sales.filter(x => x.saleGroup === groupId)
+    : sales.filter(x => x.id === saleId);
+  if (!members.length) return null;
+  const s0 = members[0];
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  // The sale's OWN date and time — the document describes that transaction.
+  const date = fmtDate(s0.date);
+  const time = new Date(s0.ts || Date.now())
+    .toLocaleTimeString(state.dateLocale || 'el-GR', { hour: '2-digit', minute: '2-digit' });
+  const mapsUrl = 'https://maps.app.goo.gl/aqePd3XmXfnpG5h87?g_st=ac';
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=' + encodeURIComponent(mapsUrl);
+  const address = isEl
+    ? 'Αποδήμων Καρπαθίων<br>Πηγάδια, Κάρπαθος 857 00'
+    : 'Apodimon Karpathion<br>Pigadia, Karpathos 857 00';
+  const servedBy = s0.employeeName || getDisplayName(isEl ? 'el' : 'en');
+  const customer = s0.customer || '';
+  // Cash was taken without a receipt — the document must not show a VAT split.
+  window._quoteIsCash = !!s0.cashSale;
+
+  const parts = [];
+  for (const m of members) parts.push(await _saleDocResult(m));
+
+  let html;
+  if (parts.length > 1) {
+    // Extra discount and rounding are 0: each line already carries the exact
+    // amount recorded, so the total is the sum and matches the sale to the cent.
+    html = buildMultiQuoteHTML(
+      parts.map(p => ({ name: p.name, result: p.result })), 0, 0, cur, isEl, qrUrl, address,
+      parts.map(p => p.photo), customer, date, time, servedBy, isCert);
+  } else {
+    const p = parts[0];
+    const jewelQrUrl = p.result.labelCode
+      ? 'https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=' + encodeURIComponent(p.result.labelCode)
+      : null;
+    html = (isCert ? buildCertificateHTML : buildQuoteHTML)(
+      p.result, cur, isEl, qrUrl, address, p.photo, p.name, customer, date, time, servedBy, jewelQrUrl);
+  }
+  const label = isCert ? (isEl ? 'Πιστοποιητικό' : 'Certificate') : (isEl ? 'Προσφορά' : 'Quote');
+  return {
+    html,
+    title: label + ' — ' + parts.map(p => p.name).join(' + '),
+    fileName: (isCert ? 'lekkas-certificate' : 'lekkas-quote') + '-' + (groupId || saleId) + '.pdf'
+  };
+}
+
+async function _saleDocPrint(saleId, groupId, isCert) {
+  const d = await _saleDocBuild(saleId, groupId, isCert);
+  if (!d) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν βρέθηκε η πώληση' : 'Sale not found')); return; }
+  openQuoteWindow(d.html, false, null);
+}
+
+async function _saleDocShare(saleId, groupId, isCert) {
+  const d = await _saleDocBuild(saleId, groupId, isCert);
+  if (!d) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν βρέθηκε η πώληση' : 'Sale not found')); return; }
+  await shareQuoteAsPDF(d.html, d.title, isCert, d.fileName);
+}
+
+// Print / share picker for a recorded sale. Sits ABOVE the sale sheet and
+// leaves it open, so the owner lands back where he was afterwards.
+function openSaleDocPicker(saleId, groupId) {
+  document.getElementById('saleDocPickerOverlay')?.remove();
+  const isEl = lang === 'el';
+  const gid = groupId || '';
+  const ov = document.createElement('div');
+  ov.id = 'saleDocPickerOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:999995;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const rowBtn = (icon, label, onclick, primary) => `
+    <button onclick="${onclick}" style="flex:1;padding:13px 8px;${primary
+      ? 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;'
+      : 'background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.45);color:var(--gold-light);'}border-radius:10px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:0.05em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
+      <span style="font-size:16px">${icon}</span><span>${label}</span></button>`;
+  const sect = (title, isCert) => `
+    <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.09em;text-transform:uppercase;margin:14px 0 7px">${title}</div>
+    <div style="display:flex;gap:9px">
+      ${rowBtn('🖨️', isEl ? 'Εκτύπωση' : 'Print', `document.getElementById('saleDocPickerOverlay').remove();_saleDocPrint(${saleId},'${gid}',${isCert})`, true)}
+      ${rowBtn('📤', 'PDF', `document.getElementById('saleDocPickerOverlay').remove();_saleDocShare(${saleId},'${gid}',${isCert})`, false)}
+    </div>`;
+  ov.innerHTML = `
+    <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-radius:16px;padding:22px;width:100%;max-width:380px">
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">🖨️ ${isEl ? 'Έντυπο Πώλησης' : 'Sale Document'}</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">${isEl
+        ? 'Με τα ποσά που πληρώθηκαν πραγματικά.'
+        : 'With the amounts actually paid.'}</div>
+      ${sect(isEl ? 'Προσφορά — αναλυτικές τιμές' : 'Quote — itemised prices', false)}
+      ${sect(isEl ? 'Πιστοποιητικό αυθεντικότητας' : 'Certificate of authenticity', true)}
+      <button onclick="document.getElementById('saleDocPickerOverlay').remove()" style="width:100%;margin-top:16px;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:10px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 function closeSaleEditModal() {
@@ -23414,10 +23617,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.66', date: 'Ιούλιος 2026', items: [
-        "💳 Στην πώληση, η κάρτα δείχνει τώρα το υπόλοιπό της και τι θα μείνει μετά — π.χ. «Υπόλοιπο κάρτας: €520,00 → μετά: €364,77».",
-        "↩️ Αν ανοίξετε μια πώληση από τις κινήσεις της κάρτας, το ✕ σας γυρίζει πίσω στην κάρτα και όχι έξω.",
-        "🗑️ Διορθώθηκε: η διαγραφή της τελευταίας δωροεπιταγής/πίστωσης δεν αποθηκευόταν και η κάρτα ξαναεμφανιζόταν μετά από ανανέωση.",
+      { version: 'v11.67', date: 'Ιούλιος 2026', items: [
+        "🖨️ Νέο κουμπί «Εκτύπωση» μέσα σε κάθε πώληση: τυπώνετε Προσφορά ή Πιστοποιητικό ΜΕΤΑ την πώληση — με τα ποσά που πληρώθηκαν πραγματικά.",
+        "📤 Και τα δύο βγαίνουν και σε PDF για αποστολή, όπως ακριβώς στον υπολογισμό.",
+        "🧾 Σε πώληση με πολλά αντικείμενα τυπώνεται ένα έντυπο με όλα τα κομμάτια και το σύνολο. Στις αλυσίδες με το γραμμάριο μπαίνουν τα γραμμάρια που πουλήθηκαν, χωρίς φωτογραφία.",
       ]},
       ]
   },
@@ -23448,10 +23651,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.66', date: 'Jul 2026', items: [
-        "💳 A card applied to a sale now shows its balance and what will be left — e.g. \"Card balance: €520.00 → after: €364.77\".",
-        "↩️ Opening a sale from a card's history and pressing ✕ now takes you back to the card instead of out of it.",
-        "🗑️ Fixed: deleting the last gift certificate/credit didn't save, so the card came back on the next refresh.",
+      { version: 'v11.67', date: 'Jul 2026', items: [
+        "🖨️ New \"Print\" button inside every sale: print a Quote or a Certificate AFTER the sale — with the amounts actually paid.",
+        "📤 Both are also available as a shareable PDF, exactly like on the calculator.",
+        "🧾 A multi-item sale prints one document listing every piece and the total. A by-the-gram chain shows the grams sold, with no photo.",
       ]},
           ]
   }
@@ -26692,7 +26895,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.66';
+const APP_VERSION = '11.67';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
