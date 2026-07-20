@@ -24107,10 +24107,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.74', date: 'Ιούλιος 2026', items: [
-        "⚡ Το σκανάρισμα έγινε πολύ πιο γρήγορο. Μέχρι τώρα κάθε σκανάρισμα κατέβαζε ΟΛΟ το απόθεμα (1000+ κομμάτια). Πλέον χρησιμοποιεί το αντίγραφο που έχει ήδη — μετρήθηκε: 1ο σκανάρισμα ~1.2 δευτ., τα επόμενα ~0.05 δευτ. Αν κάτι αλλάξει από άλλη συσκευή, η τιμή διορθώνεται μόνη της.",
-        "🛡️ Ένα σκανάρισμα χωρίς σήμα ΔΕΝ σβήνει πια το απόθεμα από τη μνήμη. Πριν, μία στιγμή χωρίς ίντερνετ χαλούσε όλες τις επόμενες αναζητήσεις μέχρι να ξαναφορτώσει.",
-        "⚠️ Στα είδη «Άλλο» με χειροκίνητη τιμή: αν δεν υπάρχει σύνδεση, εμφανίζεται προειδοποίηση ότι δείχνει την υπολογισμένη τιμή και μπορεί να διαφέρει από τη δική σας.",
+      { version: 'v11.75', date: 'Ιούλιος 2026', items: [
+        "✏️ Επεξεργασία όλων σε μια ομάδα με ένα πάτημα. Στην καρτέλα της ομάδας (π.χ. 8 ίδια κομμάτια) υπάρχει πλέον κουμπί «Επεξεργασία όλων» που αλλάζει μαζί την περιγραφή, τον κωδικό προμηθευτή, το χειροποίητο, το κοινό, το χρώμα, το χρώμα χρυσού και την απόκρυψη από τη βιτρίνα — σε όλα τα κομμάτια. Το βάρος, η τιμή και ο κωδικός κάθε κομματιού μένουν ως έχουν. Αν η ομάδα έχει διαφορετικά χρώματα, το χρώμα μένει ανέπαφο εκτός αν το επιλέξετε ρητά (ώστε να μη χαλάσει κατά λάθος μια ομάδα με πολλά χρώματα).",
       ]},
       ]
   },
@@ -24141,10 +24139,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.74', date: 'Jul 2026', items: [
-        "⚡ Scanning is much faster. Every scan used to download your ENTIRE stock (1000+ pieces). It now uses the copy it already has — measured: first scan ~1.2s, every scan after ~0.05s. If something changes on another device, the price corrects itself.",
-        "🛡️ A scan taken with no signal no longer wipes the stock from memory. Before, one moment offline broke every lookup after it until a reload.",
-        "⚠️ On \"Other\" items with a manually-set price: if there is no connection, a warning now says the calculated price is showing and may differ from yours.",
+      { version: 'v11.75', date: 'Jul 2026', items: [
+        "✏️ Edit a whole group in one tap. The group card (e.g. 8 identical pieces) now has an \"Edit all\" button that changes the description, vendor code, handmade, target audience, colour, gold colour and hide-from-showroom for every piece at once. Each piece's weight, price and code stay as they are. If the group has different colours, colour is left untouched unless you explicitly pick one (so a multi-colour set can't be flattened by accident).",
       ]},
           ]
   }
@@ -27388,7 +27384,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.74';
+const APP_VERSION = '11.75';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -28345,6 +28341,7 @@ function openInvGroup(gid) {
         <button onclick="_invGroupQtyStep(1)" style="width:30px;height:30px;border-radius:8px;background:var(--wa07);border:1px solid var(--wa15);color:var(--text);font-size:18px;line-height:1;cursor:pointer">＋</button>
         <button onclick="invSellFromGroup('${gid}')" style="flex:0 0 auto;padding:8px 14px;background:rgba(61,170,106,0.9);border:none;border-radius:8px;color:#fff;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
       </div>` : ''}
+      ${(!isEmp && !rep.isCoin && !rep.isMetal && members.length > 1) ? `<button onclick="invEditGroup('${gid}')" style="margin-top:12px;width:100%;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✏️ ${lang==='el' ? 'Επεξεργασία όλων ('+members.length+')' : 'Edit all ('+members.length+')'}</button>` : ''}
       ${isEmp ? '' : `<button onclick="closeInvGroup();${rep.isCoin ? `openAddCoinModal('${rep.coinKey||''}')` : `invAddSimilar('${members[0][0]}')`}" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:12px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">＋ ${lang==='el' ? 'Προσθήκη κι άλλων' : 'Add more'}</button>`}
       <div style="margin-top:12px">
         <button onclick="_invGroupTogglePieces()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--wa04);border:1px solid var(--wa12);border-radius:10px;padding:11px 13px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">
@@ -28361,6 +28358,151 @@ function openInvGroup(gid) {
 function closeInvGroup() {
   const ov = document.getElementById('invGroupOverlay');
   if (ov) ov.remove();
+}
+
+// ── EDIT ALL IN GROUP ─────────────────────────────────────────────────────────
+// The pieces of a similar-items group are identical by design, so fixing a typo in the
+// description or a forgotten vendor code one piece at a time defeats the point of grouping.
+// This edits ONLY the fields that are genuinely SHARED across the group — description,
+// vendor code, target audience, handmade, hide-from-showroom — and writes them to every
+// in-stock member at once. It deliberately does NOT touch: weight, vendor, category, karat,
+// price, the QR / reference code, baselines, stones, or the photo (identity and pricing stay
+// per piece); and NOT colour or gold colour, because a group is legitimately split by those
+// in the showroom (v10.28 / v11.06) — bulk-setting them would collapse a two-colour set.
+function invEditGroup(gid) {
+  if (!can('see_cost')) return;
+  closeInvGroup();
+  const members = Object.entries(_inventoryCache || {})
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk && !it.isCoin && !it.isMetal);
+  if (members.length < 1) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
+  const isEl = lang === 'el';
+  // Pre-fill from the earliest-added member — the piece shown as the group's face on the card.
+  const rep = members.slice().sort(([,a],[,b]) => (a.dateAdded||0) - (b.dateAdded||0))[0][1];
+  const _hm = !!(rep.handmade || !!(state.vendors[rep.vendorIdx]?.laborCategories?.[rep.catIdx]?.handmade));
+  // Colour is opt-in: a group may be deliberately split into e.g. red + blue pieces (the
+  // showroom shows those as separate cards), so bulk-setting colour must never happen by
+  // accident when the form was opened only to fix a description. Default to "keep each
+  // piece's colour" whenever the members DIFFER; pre-select the shared value when they match.
+  const _norm = v => (v === undefined || v === null) ? '' : v;
+  const _colors = members.map(([,it]) => _norm(it.color));
+  const _colorUniform = _colors.every(c => c === _colors[0]);
+  const _isGoldGroup = members.every(([,it]) => it.metal === 'gold');
+  const _gcs = members.map(([,it]) => it.goldColor || 'gold');
+  const _gcUniform = _gcs.every(c => c === _gcs[0]);
+  const _keepColorLbl = `— ${isEl ? 'Διατήρηση χρώματος κάθε κομματιού' : "Keep each piece's colour"} —`;
+  const _NO_MATCH = ' ';   // a value no real option carries, so nothing else is preselected
+  const _inS = 'width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none';
+  const overlay = document.createElement('div');
+  overlay.id = 'invEditGroupOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.82);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:440px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 18px 26px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:17px;color:var(--gold-light);font-weight:700">✏️ ${isEl?'Επεξεργασία όλων':'Edit all'}</div>
+        <button onclick="document.getElementById('invEditGroupOverlay').remove()" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-bottom:16px">${isEl
+        ? `Οι αλλαγές εφαρμόζονται και στα <strong style="color:var(--gold-light)">${members.length} κομμάτια</strong> της ομάδας. Το βάρος, η τιμή και ο κωδικός κάθε κομματιού μένουν ως έχουν.`
+        : `Changes apply to all <strong style="color:var(--gold-light)">${members.length} pieces</strong> in the group. Each piece's weight, price and code stay as they are.`}</div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">🇬🇷 ${isEl?'Περιγραφή (Ελληνικά)':'Description (Greek)'}</label>
+        <input type="text" id="invEditGroupDescEl" autocomplete="off" spellcheck="false" value="${_itemDescEl(rep).replace(/"/g,'&quot;')}" placeholder="π.χ. Κολιέ γούρι" style="${_inS}">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">🇬🇧 ${isEl?'Περιγραφή (Αγγλικά)':'Description (English)'}</label>
+        <input type="text" id="invEditGroupDescEn" autocomplete="off" spellcheck="false" value="${_itemDescEn(rep).replace(/"/g,'&quot;')}" placeholder="e.g. Lucky charm necklace" style="${_inS}">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl?'Κωδικός Προμηθευτή':'Vendor Code'}</label>
+        <input type="text" id="invEditGroupVendorCode" autocomplete="off" spellcheck="false" value="${(rep.vendorCode||'').replace(/"/g,'&quot;')}" placeholder="${isEl?'π.χ. SK02001':'e.g. SK02001'}" oninput="this.value=this.value.toUpperCase()" style="${_inS};font-family:'DM Mono',monospace;font-size:13px;letter-spacing:0.05em;text-transform:uppercase">
+      </div>
+      <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <button id="invEditGroupHandmade" style="flex:0 0 46px;height:46px;background:${_hm?'rgba(201,168,76,0.15)':'var(--wa04)'};border:1px solid ${_hm?'rgba(201,168,76,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${_hm?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(b){const on=b.style.opacity!=='1';b.style.opacity=on?'1':'0.35';b.style.background=on?'rgba(201,168,76,0.15)':'var(--wa04)';b.style.borderColor=on?'rgba(201,168,76,0.5)':'var(--wa10)'})(this)">✋</button>
+        <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted)">${isEl?'Χειροποίητο':'Handmade'}</span>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl?'Κοινό Αγοραστικό':'Target Audience'}</label>
+        <select id="invEditGroupGender" onchange="_syncGenderAlso(this,'invEditGroup')" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+          <option value="unisex" ${(!rep.gender||rep.gender==='unisex')?'selected':''}>✨ Unisex</option>
+          <option value="women" ${rep.gender==='women'?'selected':''}>♀️ ${isEl?'Γυναικείο':'Women'}</option>
+          <option value="men" ${rep.gender==='men'?'selected':''}>♂️ ${isEl?'Ανδρικό':'Men'}</option>
+          <option value="children" ${rep.gender==='children'?'selected':''}>👶 ${isEl?'Παιδικό':'Children'}</option>
+        </select>
+        ${genderAlsoGroupHtml('invEditGroup', rep.gender || 'unisex', rep.alsoGenders)}
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl?'Χρώμα (σμάλτο/πέτρα/κορδόνι)':'Colour (enamel/stone/cord)'}</label>
+        <select id="invEditGroupColor" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+          <option value="__keep__"${_colorUniform?'':' selected'}>${_keepColorLbl}</option>
+          ${itemColorOptionsHtml(_colorUniform ? _colors[0] : _NO_MATCH)}
+        </select>
+      </div>
+      ${_isGoldGroup ? `
+      <div style="margin-bottom:16px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl?'Χρώμα Χρυσού':'Gold Colour'}</label>
+        <select id="invEditGroupGoldColor" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+          <option value="__keep__"${_gcUniform?'':' selected'}>${_keepColorLbl}</option>
+          ${GOLD_COLORS.map(c => `<option value="${c.value}"${(_gcUniform && (_gcs[0]===c.value))?' selected':''}>${isEl?c.el:c.en}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
+        <button id="invEditGroupHide" style="flex:0 0 46px;height:46px;background:${rep.hideFromShowroom?'rgba(229,115,115,0.15)':'var(--wa04)'};border:1px solid ${rep.hideFromShowroom?'rgba(229,115,115,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${rep.hideFromShowroom?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(b){const on=b.style.opacity!=='1';b.style.opacity=on?'1':'0.35';b.style.background=on?'rgba(229,115,115,0.15)':'var(--wa04)';b.style.borderColor=on?'rgba(229,115,115,0.5)':'var(--wa10)'})(this)">🙈</button>
+        <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);line-height:1.35">${isEl?'Απόκρυψη από βιτρίνα':'Hide from showroom'}</span>
+      </div>
+      <div id="invEditGroupStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:15px;margin-bottom:8px;font-family:var(--font-mono)"></div>
+      <button id="invEditGroupSaveBtn" onclick="_invEditGroupSave('${gid}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase">💾 ${isEl?'Αποθήκευση σε όλα ('+members.length+')':'Save to all ('+members.length+')'}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function _invEditGroupSave(gid) {
+  if (!can('see_cost')) return;
+  const isEl = lang === 'el';
+  const members = Object.entries(_inventoryCache || {})
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk && !it.isCoin && !it.isMetal);
+  if (!members.length) { document.getElementById('invEditGroupOverlay')?.remove(); return; }
+  const descEl = (document.getElementById('invEditGroupDescEl')?.value || '').trim();
+  const descEn = (document.getElementById('invEditGroupDescEn')?.value || '').trim();
+  const vendorCode = (document.getElementById('invEditGroupVendorCode')?.value || '').trim().toUpperCase();
+  const handmade = document.getElementById('invEditGroupHandmade')?.style.opacity === '1';
+  const hide = document.getElementById('invEditGroupHide')?.style.opacity === '1';
+  const gender = document.getElementById('invEditGroupGender')?.value || 'unisex';
+  const alsoGenders = readGenderAlso('invEditGroup');
+  // Colour / gold colour are opt-in: '__keep__' (the default for a mixed group) means leave
+  // every piece's own value alone, so a description-only edit never flattens a split group.
+  const colorSel = document.getElementById('invEditGroupColor')?.value;
+  const applyColor = colorSel !== undefined && colorSel !== '__keep__';
+  const gcSel = document.getElementById('invEditGroupGoldColor')?.value;   // absent for non-gold groups
+  const applyGoldColor = gcSel !== undefined && gcSel !== '__keep__';
+  const btn = document.getElementById('invEditGroupSaveBtn');
+  const status = document.getElementById('invEditGroupStatus');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ …'; }
+
+  // Snapshot every field we touch, per piece, so a failed write can be rolled back rather
+  // than leaving the cache disagreeing with the cloud (the v11.62 lesson).
+  const fields = ['descEl','descEn','description','vendorCode','handmade','hideFromShowroom','gender','alsoGenders','color','goldColor'];
+  let saved = 0, failed = 0;
+  for (const [id, item] of members) {
+    const snap = {}; fields.forEach(f => snap[f] = item[f]);
+    item.descEl = descEl;
+    item.descEn = descEn;
+    item.description = isEl ? (descEl || descEn) : (descEn || descEl);
+    item.vendorCode = vendorCode;
+    item.handmade = handmade;
+    item.hideFromShowroom = hide;
+    item.gender = gender;
+    item.alsoGenders = alsoGenders;
+    if (applyColor) item.color = colorSel || null;   // blank option → plain (null)
+    if (applyGoldColor) item.goldColor = gcSel;
+    const ok = await saveInventoryItem(id, item);   // public feed syncs inside on success
+    if (ok) { saved++; if (status) status.textContent = (isEl?'Αποθηκεύτηκαν ':'Saved ') + saved + '/' + members.length; }
+    else { fields.forEach(f => item[f] = snap[f]); failed++; }   // roll this one back
+  }
+  document.getElementById('invEditGroupOverlay')?.remove();
+  renderInvList();
+  if (failed === 0) showToast('✓ ' + (isEl ? 'Ενημερώθηκαν '+saved+' κομμάτια' : saved+' pieces updated'));
+  else showToast('⚠️ ' + (isEl ? saved+' αποθηκεύτηκαν, '+failed+' απέτυχαν — δοκιμάστε ξανά' : saved+' saved, '+failed+' failed — try again'));
 }
 
 // Expand/collapse the per-piece list in the group detail sheet.
