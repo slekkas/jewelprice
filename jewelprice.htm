@@ -3199,6 +3199,19 @@ const T = {
     metalGainToSales:'→ προστίθεται στις σημερινές πωλήσεις',
     metalNewTotal:'Νέο σύνολο',
     metalAddMore:'＋ Προσθήκη',
+    metalTakeBtn:'− Αφαίρεση',
+    metalModalTakeTitle:'− Αφαίρεση μετάλλου',
+    metalTakeSubtitle:'Μέταλλο που φεύγει από το απόθεμα — π.χ. για να φτιάξετε ένα κόσμημα',
+    metalTakeFrom:'Από',
+    metalTakeWeightLbl:'Βάρος προς αφαίρεση (g)',
+    metalTakeConfirm:'Αφαίρεση από το απόθεμα',
+    metalTakeRemaining:'Απομένουν',
+    metalTakeTooMuch:'⚠️ Υπάρχουν μόνο {have}g στο απόθεμα',
+    metalTakeEmptyNote:'Θα αδειάσει τελείως αυτό το απόθεμα.',
+    metalTakeEmptyMsg:'Αυτό αφαιρεί όλο το μέταλλο. Να διαγραφεί η εγγραφή;',
+    metalTakeEmptyYes:'Αφαίρεση όλων',
+    metalTakeDone:'✅ Αφαιρέθηκαν {g}g — απομένουν {left}g',
+    metalTakeDoneAll:'✅ Αφαιρέθηκαν {g}g — το απόθεμα άδειασε',
     metalScrapGainNote:'♻️ Κέρδος scrap',
     metalAddedToast:'✅ Προστέθηκε μέταλλο',
     metalGainToast:'♻️ Κέρδος {amt} στις σημερινές πωλήσεις',
@@ -3610,6 +3623,19 @@ const T = {
     metalGainToSales:'→ added to today\'s sales',
     metalNewTotal:'New total',
     metalAddMore:'＋ Add',
+    metalTakeBtn:'− Remove',
+    metalModalTakeTitle:'− Remove metal',
+    metalTakeSubtitle:'Metal leaving the pile — e.g. to make a piece',
+    metalTakeFrom:'From',
+    metalTakeWeightLbl:'Weight to remove (g)',
+    metalTakeConfirm:'Remove from stock',
+    metalTakeRemaining:'Remaining',
+    metalTakeTooMuch:'⚠️ Only {have}g in stock',
+    metalTakeEmptyNote:'This empties the pile completely.',
+    metalTakeEmptyMsg:'This removes all the metal. Delete the record?',
+    metalTakeEmptyYes:'Remove all',
+    metalTakeDone:'✅ Removed {g}g — {left}g left',
+    metalTakeDoneAll:'✅ Removed {g}g — pile emptied',
     metalScrapGainNote:'♻️ Scrap gain',
     metalAddedToast:'✅ Metal added',
     metalGainToast:'♻️ {amt} gain added to today\'s sales',
@@ -19103,11 +19129,17 @@ function renderInvList() {
       const _initLine = _isEmpInv ? '' : metalStockInitialLineHtml(item);
       const _dateLine = item.dateAdded ? fmtDate(new Date(item.dateAdded)) : '';
       const _badge = `<span class="inv-card-badge inv-badge-stock">${t('invStatusStock')}</span>`;
+      // Four actions no longer fit one row at phone width (the Greek labels can't shrink
+      // past their own words, so the last button was clipped off the card). Wrapping with
+      // a min-width lays them out 2 + 2 instead. Scoped to the metal card — every other
+      // card still has three actions on one row.
+      const _mAct = 'flex:1;min-width:120px;';
       const _actions = _isEmpInv ? '' : `
-        <div class="inv-card-actions">
-          <button class="inv-action-btn inv-action-sell" style="flex:1;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="openMetalModal('add',{metal:'${item.metal}',karat:'${item.karat}'})">${t('metalAddMore')}</button>
-          <button class="inv-action-btn" style="flex:0.7;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="openMetalModal('edit',{editId:'${id}'})">${t('invEdit')}</button>
-          <button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>
+        <div class="inv-card-actions" style="flex-wrap:wrap">
+          <button class="inv-action-btn inv-action-sell" style="${_mAct}background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="openMetalModal('add',{metal:'${item.metal}',karat:'${item.karat}'})">${t('metalAddMore')}</button>
+          <button class="inv-action-btn" style="${_mAct}background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light)" onclick="openMetalModal('take',{editId:'${id}'})">${t('metalTakeBtn')}</button>
+          <button class="inv-action-btn" style="${_mAct}background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="openMetalModal('edit',{editId:'${id}'})">${t('invEdit')}</button>
+          <button class="inv-action-btn inv-action-del" style="${_mAct}" onclick="invDelete('${id}')">${t('invDelete')}</button>
         </div>`;
       return `
         <div class="inv-card" data-inv-id="${id}">
@@ -22602,6 +22634,15 @@ function _findMetalLot(metal, karat) {
 }
 
 // Resolve the current form inputs into { metal, karat, fineness, weight, pure } or null.
+// Grams, rounded to 3 decimals (finer than any jeweller's scale reads). Adding lots of
+// raw metal together in binary floating point drifts — 21.5 + 31.8 lands on
+// 53.300000000000004 — and that noise was showing in the weight box. Every gram figure
+// that gets STORED or PREFILLED goes through here so a pile stays a clean number.
+function _gRound(n) {
+  const v = parseFloat(n);
+  return isNaN(v) ? 0 : Math.round(v * 1000) / 1000;
+}
+
 function _metalCurrentSpec() {
   const metal = window._metalMetal || 'gold';
   const karatSel = document.getElementById('metalKaratSelect')?.value || '';
@@ -22618,7 +22659,18 @@ function _metalCurrentSpec() {
   }
   const weight = parseFloat(document.getElementById('metalWeightInput')?.value);
   if (isNaN(weight) || weight <= 0) return null;
-  return { metal, karat, fineness, weight, pure: weight * fineness };
+  // Taking metal OUT removes it at the pile's own average fineness, not at the preset
+  // for that karat — a pile built from several buys can sit slightly off the preset,
+  // and removing at the preset would leave the remainder's purity quietly wrong.
+  if (window._metalMode === 'take') {
+    const lot = window._metalEditId ? _inventoryCache[window._metalEditId] : null;
+    if (lot) {
+      const g = parseFloat(lot.metalGross) || parseFloat(lot.weight) || 0;
+      const lf = g > 0 ? (parseFloat(lot.metalPure) || 0) / g : parseFloat(lot.metalFineness);
+      if (lf > 0) fineness = lf;
+    }
+  }
+  return { metal, karat, fineness, weight: _gRound(weight), pure: _gRound(weight * fineness) };
 }
 
 function openMetalModal(mode, prefill) {
@@ -22626,23 +22678,37 @@ function openMetalModal(mode, prefill) {
   prefill = prefill || {};
   document.getElementById('metalOverlay')?.remove();
   const isEl = lang === 'el';
-  window._metalMode = mode === 'edit' ? 'edit' : 'add';
+  window._metalMode = (mode === 'edit' || mode === 'take') ? mode : 'add';
   window._metalEditId = null;
+  const _isTake = window._metalMode === 'take';
 
   let initMetal = prefill.metal || 'gold';
   let initKarat = prefill.karat ? String(prefill.karat) : '';
   let initWeight = '';
-  if (window._metalMode === 'edit' && prefill.editId) {
+  let takeLot = null;
+  if ((window._metalMode === 'edit' || _isTake) && prefill.editId) {
     const it = _inventoryCache[prefill.editId];
     if (!it) return;
     window._metalEditId = prefill.editId;
     initMetal = it.metal; initKarat = String(it.karat);
-    initWeight = (parseFloat(it.metalGross) || parseFloat(it.weight) || 0) || '';
+    // Edit SETS the pile's weight, so it prefills with it. Take asks how much to
+    // remove, which is a different number — left blank.
+    if (_isTake) takeLot = it;
+    else initWeight = _gRound(parseFloat(it.metalGross) || parseFloat(it.weight) || 0) || '';
   }
   window._metalMetal = initMetal;
 
-  const title = window._metalMode === 'edit' ? t('metalModalEditTitle') : t('metalModalAddTitle');
-  const btnLbl = window._metalMode === 'edit' ? t('metalSaveBtn') : t('metalAddBtn');
+  const title  = _isTake ? t('metalModalTakeTitle') : window._metalMode === 'edit' ? t('metalModalEditTitle') : t('metalModalAddTitle');
+  const btnLbl = _isTake ? t('metalTakeConfirm')    : window._metalMode === 'edit' ? t('metalSaveBtn')        : t('metalAddBtn');
+  const subtitle = _isTake ? t('metalTakeSubtitle') : t('metalModalSubtitle');
+  // Taking metal out is always FROM one pile: its metal and purity are fixed by the
+  // lot, so those controls are hidden (they stay in the DOM — _metalCurrentSpec reads
+  // them — and are prefilled with the lot's own values).
+  const _hideIfTake = _isTake ? 'display:none;' : '';
+  const _lotLine = takeLot ? `<div style="background:var(--wa03);border:1px solid var(--wa08);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">
+      ${t('metalTakeFrom')}: <strong style="color:var(--text)">${metalStockLabel(takeLot)}</strong><br>
+      ${_gRound(parseFloat(takeLot.metalGross) || parseFloat(takeLot.weight) || 0).toFixed(2)}g ${isEl?'στο απόθεμα':'in stock'}
+    </div>` : '';
   const _inS = 'width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:15px';
   const mBtn = (m, label) => `<button id="metalMetal_${m}" onclick="_metalSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--wa15);background:transparent;color:var(--text-muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer">${label}</button>`;
   const overlay = document.createElement('div');
@@ -22651,17 +22717,18 @@ function openMetalModal(mode, prefill) {
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:22px;width:100%;max-width:410px;max-height:92vh;overflow-y:auto">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:4px">${title}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${t('metalModalSubtitle')}</div>
-      <div style="display:flex;gap:8px;margin-bottom:14px">${mBtn('gold', isEl?'🥇 Χρυσός':'🥇 Gold')}${mBtn('silver', isEl?'🥈 Ασήμι':'🥈 Silver')}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('metalKaratLbl')}</div>
-      <select id="metalKaratSelect" onchange="_metalOnKaratChange()" style="width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px;appearance:none"></select>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${subtitle}</div>
+      ${_lotLine}
+      <div style="display:flex;gap:8px;margin-bottom:14px;${_hideIfTake}">${mBtn('gold', isEl?'🥇 Χρυσός':'🥇 Gold')}${mBtn('silver', isEl?'🥈 Ασήμι':'🥈 Silver')}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;${_hideIfTake}">${t('metalKaratLbl')}</div>
+      <select id="metalKaratSelect" onchange="_metalOnKaratChange()" style="width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px;appearance:none;${_hideIfTake}"></select>
       <div id="metalCustWrap" style="display:none;margin-bottom:12px">
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${t('metalCustomFineLbl')}</div>
         <input id="metalCustFine" type="number" step="1" min="0" max="1000" inputmode="decimal" oninput="_metalUpdatePreview()" style="${_inS}">
       </div>
       <div style="display:flex;gap:8px;margin-bottom:${window._metalMode === 'add' ? '4px' : '14px'}">
         <div style="flex:1">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('metalWeightLbl')}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${_isTake ? t('metalTakeWeightLbl') : t('metalWeightLbl')}</div>
           <input id="metalWeightInput" type="number" step="0.01" min="0" inputmode="decimal" value="${initWeight}" oninput="_metalUpdatePreview()" style="${_inS}">
         </div>
         ${window._metalMode === 'add' ? `<div style="flex:1">
@@ -22721,7 +22788,8 @@ function _metalSetMetal(metal) {
 function _metalOnKaratChange() {
   const sel = document.getElementById('metalKaratSelect');
   const wrap = document.getElementById('metalCustWrap');
-  if (wrap) wrap.style.display = (sel && sel.value === 'custom') ? 'block' : 'none';
+  // In take mode the purity is fixed by the pile — never reveal the custom ‰ box.
+  if (wrap) wrap.style.display = (sel && sel.value === 'custom' && window._metalMode !== 'take') ? 'block' : 'none';
   _metalUpdatePreview();
 }
 
@@ -22736,11 +22804,26 @@ function _metalUpdatePreview() {
   const pureWord = spec.metal === 'silver' ? (isEl ? 'Καθαρός άργυρος' : 'Pure silver') : (isEl ? 'Καθαρός χρυσός' : 'Pure gold');
   let html = `<div style="font-size:12px;color:var(--text-muted);font-family:'DM Mono',monospace">${pureWord}: <strong style="color:var(--text)">${spec.pure.toFixed(2)}g</strong> · ${Math.round(spec.fineness * 1000)}‰</div>`;
   html += `<div style="font-size:16px;color:var(--gold-light);font-weight:700;margin-top:3px">${melt != null ? cur + melt.toFixed(2) : '—'} <span style="font-size:11px;color:var(--text-dim);font-weight:400">${isEl ? 'ζωντανή αξία' : 'live value'}</span></div>`;
+  // Take mode: what is left in the pile afterwards, and a clear stop if it is too much.
+  if (window._metalMode === 'take') {
+    const lot = window._metalEditId ? _inventoryCache[window._metalEditId] : null;
+    if (lot) {
+      const have = _gRound(parseFloat(lot.metalGross) || parseFloat(lot.weight) || 0);
+      const left = _gRound(have - spec.weight);
+      if (left < 0) {
+        html += `<div style="font-size:12px;color:#e07a7a;font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid var(--wa08);font-weight:700">${t('metalTakeTooMuch').replace('{have}', have.toFixed(2))}</div>`;
+      } else {
+        const leftPure = _gRound((parseFloat(lot.metalPure) || 0) - spec.pure);
+        html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid var(--wa08)">${t('metalTakeRemaining')}: <strong style="color:var(--text)">${left.toFixed(2)}g</strong> (${leftPure.toFixed(2)}g ${isEl?'καθαρό':'pure'})</div>`;
+        if (left === 0) html += `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px">${t('metalTakeEmptyNote')}</div>`;
+      }
+    }
+  }
   // New pile total (add mode, when a lot already exists)
   if (window._metalMode === 'add') {
     const ex = _findMetalLot(spec.metal, spec.karat);
     if (ex) {
-      const newW = (parseFloat(ex.item.metalGross) || parseFloat(ex.item.weight) || 0) + spec.weight;
+      const newW = _gRound((parseFloat(ex.item.metalGross) || parseFloat(ex.item.weight) || 0) + spec.weight);
       html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:3px">${t('metalNewTotal')}: ${newW.toFixed(2)}g</div>`;
     }
   }
@@ -22790,6 +22873,61 @@ async function _metalConfirm() {
   const spot = spec.metal === 'silver' ? getSilverPrice() : getGoldPrice();
   const meltNow = spot ? (spot / TROY_OZ_TO_GRAM) * spec.pure : 0;
 
+  // ── TAKE mode: grams leave the pile (melted into a piece). Not a sale and not
+  // income — the piece made from it gets priced on its own — so nothing is written to
+  // Sales; this only reduces the stock. The accumulated baselines (value when added,
+  // and what was paid) are scaled down by the same ratio as the metal, so the pile's
+  // remaining cost and gain % stay true to what is actually left.
+  if (window._metalMode === 'take') {
+    const id = window._metalEditId; const item = id ? _inventoryCache[id] : null;
+    if (!item) { document.getElementById('metalOverlay')?.remove(); return; }
+    const haveG = _gRound(parseFloat(item.metalGross) || parseFloat(item.weight) || 0);
+    const havePure = _gRound(parseFloat(item.metalPure) || 0);
+    if (spec.weight > haveG) {
+      showToast(t('metalTakeTooMuch').replace('{have}', haveG.toFixed(2)));
+      if (btn) { btn.disabled = false; btn.textContent = t('metalTakeConfirm'); }
+      return;
+    }
+    const leftG = _gRound(haveG - spec.weight);
+    const leftPure = _gRound(havePure - spec.pure);
+    // Nothing left — the pile is gone, so remove the record rather than leaving a 0g lot.
+    if (leftG <= 0 || leftPure <= 0) {
+      const ok = await new Promise(resolve => showConfirm(t('metalTakeEmptyMsg'),
+        () => resolve(true), () => resolve(false), { okLabel: t('metalTakeEmptyYes') }));
+      if (!ok) { if (btn) { btn.disabled = false; btn.textContent = t('metalTakeConfirm'); } return; }
+      const okDel = await deleteInventoryItem(id);
+      if (!okDel) { showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again'); if (btn) { btn.disabled = false; btn.textContent = t('metalTakeConfirm'); } return; }
+      delete _inventoryCache[id];
+      document.getElementById('metalOverlay')?.remove();
+      showToast(t('metalTakeDoneAll').replace('{g}', spec.weight.toFixed(2)));
+      renderInvList();
+      return;
+    }
+    // Snapshot for rollback — an unchecked failed write is how a pile silently lies (v11.62).
+    const _snap = { metalGross: item.metalGross, weight: item.weight, metalPure: item.metalPure,
+                    metalFineness: item.metalFineness, initialMelt: item.initialMelt,
+                    initialRetail: item.initialRetail, purchaseCost: item.purchaseCost };
+    const r = havePure > 0 ? leftPure / havePure : 1;
+    item.metalGross = leftG; item.weight = leftG; item.metalPure = leftPure;
+    item.metalFineness = leftG > 0 ? leftPure / leftG : item.metalFineness;
+    if (parseFloat(item.initialMelt) > 0)   item.initialMelt   = parseFloat((parseFloat(item.initialMelt) * r).toFixed(2));
+    if (parseFloat(item.initialRetail) > 0) item.initialRetail = parseFloat((parseFloat(item.initialRetail) * r).toFixed(2));
+    if (parseFloat(item.purchaseCost) > 0)  item.purchaseCost  = parseFloat((parseFloat(item.purchaseCost) * r).toFixed(2));
+    _inventoryCache[id] = item;
+    const okSave = await saveInventoryItem(id, item);
+    if (!okSave) {
+      Object.assign(item, _snap); _inventoryCache[id] = item;
+      showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again');
+      if (btn) { btn.disabled = false; btn.textContent = t('metalTakeConfirm'); }
+      renderInvList();
+      return;
+    }
+    document.getElementById('metalOverlay')?.remove();
+    showToast(t('metalTakeDone').replace('{g}', spec.weight.toFixed(2)).replace('{left}', leftG.toFixed(2)));
+    renderInvList();
+    return;
+  }
+
   if (window._metalMode === 'edit') {
     const id = window._metalEditId; const item = id ? _inventoryCache[id] : null;
     if (item) {
@@ -22821,9 +22959,9 @@ async function _metalConfirm() {
   const ex = _findMetalLot(spec.metal, spec.karat);
   if (ex) {
     const item = ex.item, id = ex.id;
-    item.metalGross = (parseFloat(item.metalGross) || parseFloat(item.weight) || 0) + spec.weight;
+    item.metalGross = _gRound((parseFloat(item.metalGross) || parseFloat(item.weight) || 0) + spec.weight);
     item.weight = item.metalGross;
-    item.metalPure = (parseFloat(item.metalPure) || 0) + spec.pure;
+    item.metalPure = _gRound((parseFloat(item.metalPure) || 0) + spec.pure);
     item.metalFineness = item.metalGross > 0 ? item.metalPure / item.metalGross : spec.fineness;
     item.initialMelt = parseFloat(((parseFloat(item.initialMelt) || 0) + meltNow).toFixed(2));
     item.initialRetail = item.initialMelt;
@@ -23843,9 +23981,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.71', date: 'Ιούλιος 2026', items: [
-        "📷 Νέο φίλτρο «Χωρίς φωτό» στο Απόθεμα (στην ομάδα Κατάσταση). Δείχνει μόνο τα κομμάτια που δεν έχουν φωτογραφία, για να τα βρείτε χωρίς να ψάχνετε 700 προϊόντα ένα-ένα. (Νομίσματα και μέταλλο δεν μετρούν — δεν έχουν φωτογραφία έτσι κι αλλιώς.)",
-        "💰 Νέα ταξινόμηση κατά ημερομηνία πώλησης (νεότερη ή παλαιότερη πρώτα). Εμφανίζεται στη λίστα ταξινόμησης μόνο όταν είναι πατημένο το φίλτρο «Πουλήθηκε».",
+      { version: 'v11.72', date: 'Ιούλιος 2026', items: [
+        "➖ Νέο κουμπί «Αφαίρεση» στο ακατέργαστο μέταλλο. Όταν παίρνετε γραμμάρια από το σωρό για να φτιάξετε ένα κόσμημα, τα αφαιρείτε πλέον κανονικά — δείχνει τι απομένει πριν το επιβεβαιώσετε. Το κόστος αγοράς και η «αξία κατά την προσθήκη» μειώνονται αναλογικά, ώστε να μένουν σωστά για το μέταλλο που έμεινε.",
+        "🔢 Διορθώθηκαν τα δεκαδικά στο βάρος του μετάλλου. Προσθέτοντας σωρούς έβγαινε 53.300000000000004 αντί για 53.30.",
       ]},
       ]
   },
@@ -23876,9 +24014,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.71', date: 'Jul 2026', items: [
-        "📷 New \"No photo\" filter in Stock (in the Status group). Shows only the pieces with no photo uploaded, so you can find them without scrolling through 700 items. (Coins and raw metal don't count — they never have a photo.)",
-        "💰 New sort by sale date (newest or oldest first). It appears in the sort list only while the \"Sold\" filter is pressed.",
+      { version: 'v11.72', date: 'Jul 2026', items: [
+        "➖ New \"Remove\" button on raw metal. When you take grams off the pile to make a piece, you can now record it properly — it shows what will be left before you confirm. The purchase cost and \"value when added\" scale down with it, so they stay right for the metal that remains.",
+        "🔢 Fixed the decimals on metal weight. Adding piles together produced 53.300000000000004 instead of 53.30.",
       ]},
           ]
   }
@@ -27119,7 +27257,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.71';
+const APP_VERSION = '11.72';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
