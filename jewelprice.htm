@@ -11214,7 +11214,18 @@ async function _saleDocResult(rec) {
   const weight = isBulk
     ? (parseFloat(rec.bulkSoldWeight) || 0).toFixed(2)
     : (item && item.weight ? parseFloat(item.weight).toFixed(2) : '—');
-  const name = (item ? _itemDesc(item) : '') || rec.note
+  // NAMING THE LINE. `rec.note` is a trap here: every member of a multi-item
+  // sale stores the SAME joined note, so a piece with no description of its own
+  // silently inherited its neighbour's name — a baptism cross printed as "Bulk
+  // chains". Same trap the certificate statement hit in v11.58. So the note is
+  // only ever used for a sale that is genuinely one record, and the fallback is
+  // the piece's TYPE, which is always right and reads properly to a customer.
+  // A bulk chain prefers the type outright: its stored description is the
+  // owner's internal batch wording ("Bulk chains"), not the piece she bought.
+  const typeLabel = item ? invTypeLabel(item.jewelryType) : '';
+  const ownDesc = item ? _itemDesc(item) : '';
+  const name = (isBulk ? (typeLabel || ownDesc) : (ownDesc || typeLabel))
+    || (rec.saleGroup ? '' : rec.note)
     || rec.seqRef || (isEl ? 'Κόσμημα' : 'Jewelry Item');
 
   return {
@@ -23617,10 +23628,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.67', date: 'Ιούλιος 2026', items: [
-        "🖨️ Νέο κουμπί «Εκτύπωση» μέσα σε κάθε πώληση: τυπώνετε Προσφορά ή Πιστοποιητικό ΜΕΤΑ την πώληση — με τα ποσά που πληρώθηκαν πραγματικά.",
-        "📤 Και τα δύο βγαίνουν και σε PDF για αποστολή, όπως ακριβώς στον υπολογισμό.",
-        "🧾 Σε πώληση με πολλά αντικείμενα τυπώνεται ένα έντυπο με όλα τα κομμάτια και το σύνολο. Στις αλυσίδες με το γραμμάριο μπαίνουν τα γραμμάρια που πουλήθηκαν, χωρίς φωτογραφία.",
+      { version: 'v11.68', date: 'Ιούλιος 2026', items: [
+        "🏷️ Διορθώθηκε στο νέο έντυπο πώλησης: όταν ένα κομμάτι δεν έχει δική του περιγραφή, έπαιρνε κατά λάθος το όνομα του διπλανού του — ένας σταυρός τυπωνόταν ως «Bulk chains».",
+        "✅ Τώρα κάθε γραμμή γράφει το είδος της (Σταυρός, Αλυσίδα...) στη γλώσσα της εφαρμογής, και οι αλυσίδες με το γραμμάριο δεν δείχνουν πια την εσωτερική ονομασία της παρτίδας.",
       ]},
       ]
   },
@@ -23651,10 +23661,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.67', date: 'Jul 2026', items: [
-        "🖨️ New \"Print\" button inside every sale: print a Quote or a Certificate AFTER the sale — with the amounts actually paid.",
-        "📤 Both are also available as a shareable PDF, exactly like on the calculator.",
-        "🧾 A multi-item sale prints one document listing every piece and the total. A by-the-gram chain shows the grams sold, with no photo.",
+      { version: 'v11.68', date: 'Jul 2026', items: [
+        "🏷️ Fixed in the new sale document: a piece with no description of its own picked up its neighbour's name — a cross printed as \"Bulk chains\".",
+        "✅ Every line now falls back to its own type (Cross, Chain...) in the app's language, and by-the-gram chains no longer show the internal batch name.",
       ]},
           ]
   }
@@ -26895,7 +26904,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.67';
+const APP_VERSION = '11.68';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
