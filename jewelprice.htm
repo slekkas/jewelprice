@@ -1760,6 +1760,14 @@
         <button onclick="openInvExportSheet()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="exportBtn">📊 Εξαγωγή σε CSV</button>
       </div>
 
+      <!-- SALE LINK REPAIR (one-off cleanup for records written before v11.69) -->
+      <div class="settings-section" id="saleLinkFixSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="slfTitle">🔗 Έλεγχος Συνδέσεων Πωλήσεων</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="slfDesc">Παλιές πωλήσεις καλαθιού μπορεί να έχουν κολλήσει πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο αντί για το ίδιο τους το κομμάτι. Η σάρωση τις βρίσκει και τις διορθώνει (σύνδεση, κόστος, κέρδος). Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».</p>
+        <button onclick="scanSaleLinks()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="slfScanBtn">🔍 Σάρωση Πωλήσεων</button>
+        <div id="slfResults" style="margin-top:12px"></div>
+      </div>
+
       <!-- INVENTORY CHECK (stocktake) -->
       <div class="settings-section" id="stocktakeSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="stkTitle">🔍 Έλεγχος Απογραφής</h4>
@@ -3387,6 +3395,9 @@ const T = {
     autoBackupDesc:'Η εφαρμογή κρατά αυτόματα ένα αντίγραφο όλων των δεδομένων μία φορά την ημέρα (τελευταία 30). Ιδιωτικά — δεν εμφανίζονται πουθενά δημόσια.',
     backupNowBtn:'☁️ Αντίγραφο Τώρα',
     restoreBackupBtn:'↩️ Επαναφορά',
+    slfTitle:'🔗 Έλεγχος Συνδέσεων Πωλήσεων',
+    slfDesc:'Παλιές πωλήσεις καλαθιού μπορεί να έχουν κολλήσει πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο αντί για το ίδιο τους το κομμάτι. Η σάρωση τις βρίσκει και τις διορθώνει (σύνδεση, κόστος, κέρδος). Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».',
+    slfScanBtn:'🔍 Σάρωση Πωλήσεων',
     exportTitle:'📊 Εξαγωγή Απογραφής (CSV)',
     exportDesc:'Εξαγωγή του αποθέματος σε αρχείο CSV για τον λογιστή — με σύνολα ανά τύπο, εύρος ημερομηνιών και επιλογή τι περιλαμβάνεται. Ανοίγει καθαρά στο Excel.',
     exportBtn:'📊 Εξαγωγή σε CSV',
@@ -3824,6 +3835,9 @@ const T = {
     autoBackupDesc:'The app automatically keeps a snapshot of all your data once a day (last 30 kept). Private — never shown anywhere public.',
     backupNowBtn:'☁️ Back Up Now',
     restoreBackupBtn:'↩️ Restore',
+    slfTitle:'🔗 Sale Link Check',
+    slfDesc:'Older cart sales may have a by-the-gram chain link stuck to them instead of their own piece. The scan finds them and repairs the link, cost and profit. Nothing changes until you press Repair.',
+    slfScanBtn:'🔍 Scan Sales',
     exportTitle:'📊 Export Inventory (CSV)',
     exportDesc:'Export your stock to a CSV file for your accountant — with totals per type, a date range and control over what\'s included. Opens cleanly in Excel.',
     exportBtn:'📊 Export to CSV',
@@ -4859,6 +4873,7 @@ function applyRoleUI() {
   show('backupSection',     can('backup'));    // create AND restore — owner only
   show('exportSection',     can('export'));
   show('stocktakeSection',  can('stocktake'));
+  show('saleLinkFixSection', can('sales_admin'));
   show('stkOwnerFooter',    can('stocktake') && _stkActive, 'block');
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
 
@@ -11324,6 +11339,149 @@ async function _saleDocShare(saleId, groupId, isCert) {
   await shareQuoteAsPDF(d.html, d.title, isCert, d.fileName);
 }
 
+// ─── SALE-LINK REPAIR (records written before v11.69) ───────────────────────
+// A sale record can carry a by-the-gram batch link (`bulkInvId`/`bulkSoldWeight`)
+// that belongs to a DIFFERENT piece — the cart bug fixed in v11.69. Such a record
+// lies about three things at once: which piece it sold, what that piece cost, and
+// therefore the profit. It is also dangerous: because the bulk branch wins, the
+// record's own `invId` was never stamped, so deleting or returning that sale
+// hands grams back to a batch and leaves the real piece marked sold forever.
+//
+// The fingerprint is exact and cannot false-positive on a genuine bulk line: the
+// record points at a batch, while its OWN identity (invId, else invQr) resolves
+// to a real piece that is not that batch and is not bulk itself.
+async function _saleLinkBadRecords() {
+  const sales = await getSales();
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  const inv = _inventoryCache || {};
+  const byQr = {};
+  Object.entries(inv).forEach(([id, it]) => {
+    if (!it || !it.qrCode) return;
+    const k = it.qrCode.trim().toUpperCase();
+    if (!byQr[k]) byQr[k] = [id, it];           // first match, same rule the app uses
+  });
+  const bad = [];
+  (sales || []).forEach(s => {
+    if (!s || !s.bulkInvId) return;
+    const batch = inv[s.bulkInvId];
+    if (!batch || !batch.isBulk) return;         // not a batch link we understand — leave it
+    if (s.invId === s.bulkInvId) return;         // genuinely the batch
+    let ownId = (s.invId && inv[s.invId]) ? s.invId : null;
+    let own = ownId ? inv[ownId] : null;
+    if (!own && s.invQr) {
+      const hit = byQr[s.invQr.trim().toUpperCase()];
+      if (hit) { ownId = hit[0]; own = hit[1]; }
+    }
+    if (!own || own.isBulk) return;              // nothing better to point at, or a real bulk line
+    bad.push({ sale: s, ownId, own, batch });
+  });
+  return bad;
+}
+
+// What the record SHOULD say. Cost is re-derived from the piece itself
+// (purchaseCost if the shop paid a known price, else its production cost), and
+// the profit follows from the recorded ex-VAT amount — so the arithmetic stays
+// the app's own, not a second opinion.
+function _saleLinkFixedValues(entry) {
+  const { sale, ownId, own } = entry;
+  const vat = parseFloat(state.vat) || 0;
+  const calc = calcInvItemPrice(own);
+  const cost = (own.purchaseCost != null && own.purchaseCost !== '')
+    ? parseFloat(own.purchaseCost)
+    : (calc && calc.baseCost != null ? parseFloat(calc.baseCost) : null);
+  const exVat = _saleExVat(sale, vat);
+  return {
+    invId: ownId,
+    seqRef: sale.seqRef || (own.seqId ? itemRefCode(own) : ''),
+    cost: (cost != null && isFinite(cost)) ? parseFloat(cost.toFixed(2)) : null,
+    profit: (cost != null && isFinite(cost)) ? parseFloat((exVat - cost).toFixed(2)) : null
+  };
+}
+
+async function scanSaleLinks() {
+  const box = document.getElementById('slfResults');
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  if (!box) return;
+  box.innerHTML = '<div style="font-size:11px;color:var(--text-muted)">' + (isEl ? 'Σάρωση…' : 'Scanning…') + '</div>';
+  let bad;
+  try { bad = await _saleLinkBadRecords(); }
+  catch (e) { box.innerHTML = '<div style="font-size:11px;color:#ff8a80">' + (isEl ? 'Η σάρωση απέτυχε.' : 'Scan failed.') + '</div>'; return; }
+  if (!bad.length) {
+    box.innerHTML = '<div style="font-size:11.5px;color:var(--success);padding:8px 0">✅ ' +
+      (isEl ? 'Όλες οι πωλήσεις είναι σωστά συνδεδεμένες.' : 'Every sale is linked correctly.') + '</div>';
+    return;
+  }
+  box.innerHTML = '<div style="font-size:11.5px;color:#e0a85a;margin-bottom:8px">⚠️ ' +
+    (isEl ? bad.length + (bad.length === 1 ? ' πώληση χρειάζεται διόρθωση' : ' πωλήσεις χρειάζονται διόρθωση')
+          : bad.length + (bad.length === 1 ? ' sale needs repair' : ' sales need repair')) + '</div>' +
+    bad.map(e => {
+      const s = e.sale;
+      const f = _saleLinkFixedValues(e);
+      const nowName = _itemDesc(e.batch) || invTypeLabel(e.batch.jewelryType) || '—';
+      const newName = _itemDesc(e.own) || invTypeLabel(e.own.jewelryType) || '—';
+      const money = v => (v == null ? '—' : cur + parseFloat(v).toFixed(2));
+      return '<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
+        '<div style="font-size:12px;color:var(--text)">' + fmtDate(s.date) + ' · ' + cur + parseFloat(s.amount).toFixed(2) +
+          (s.customer ? ' · ' + s.customer : '') + '</div>' +
+        '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' + (isEl ? 'Τώρα δείχνει' : 'Now points at') + ': ' +
+          nowName + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(s.cost) + '</div>' +
+        '<div style="font-size:11px;color:var(--success);margin-top:2px">' + (isEl ? 'Σωστό' : 'Should be') + ': ' +
+          newName + (f.seqRef ? ' (' + f.seqRef + ')' : '') + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(f.cost) +
+          ' · ' + (isEl ? 'κέρδος' : 'profit') + ' ' + money(f.profit) + '</div>' +
+        '<button onclick="fixSaleLink(' + s.id + ')" style="margin-top:8px;width:100%;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.45);color:var(--gold-light);border-radius:6px;font-family:var(--font-body);font-size:11.5px;cursor:pointer">🔧 ' +
+          (isEl ? 'Διόρθωση' : 'Repair') + '</button>' +
+      '</div>';
+    }).join('') +
+    '<div style="font-size:10.5px;color:var(--text-muted);line-height:1.55;margin-top:4px">' +
+      (isEl ? 'Το κόστος υπολογίζεται ξανά από το ίδιο το κομμάτι, με τη σημερινή τιμή μετάλλου.'
+            : "Cost is re-derived from the piece itself, at today's metal price.") + '</div>';
+}
+
+async function fixSaleLink(saleId) {
+  if (!can('sales_admin')) return;
+  const isEl = lang === 'el';
+  const bad = await _saleLinkBadRecords();
+  const entry = bad.find(e => e.sale.id === saleId);
+  if (!entry) { showToast(isEl ? 'Δεν χρειάζεται διόρθωση' : 'Nothing to repair'); return; }
+  const f = _saleLinkFixedValues(entry);
+  const newName = _itemDesc(entry.own) || invTypeLabel(entry.own.jewelryType) || '—';
+  showConfirm(
+    isEl ? 'Σύνδεση αυτής της πώλησης με «' + newName + '»; Θα διορθωθούν και το κόστος και το κέρδος.'
+         : 'Link this sale to "' + newName + '"? Cost and profit are corrected too.',
+    async () => {
+      const sales = await getSales();
+      const rec = sales.find(x => x.id === saleId);
+      if (!rec) return;
+      // Keep a copy so a failed write can be rolled back — never leave a lie in
+      // the cache (the v11.62 lesson).
+      const before = JSON.parse(JSON.stringify(rec));
+      delete rec.bulkInvId;
+      delete rec.bulkSoldWeight;
+      rec.invId = f.invId;
+      if (f.seqRef) rec.seqRef = f.seqRef;
+      rec.cost = f.cost;
+      rec.profit = f.profit;
+      _salesCache = sales;
+      localStorage.setItem('jpro_sales', JSON.stringify(sales));
+      const ok = await pushSalesToCloud(sales);
+      if (!ok) {
+        const i = sales.findIndex(x => x.id === saleId);
+        if (i !== -1) sales[i] = before;
+        _salesCache = sales;
+        localStorage.setItem('jpro_sales', JSON.stringify(sales));
+        showToast('⚠️ ' + (isEl ? 'Η αποθήκευση απέτυχε — τίποτα δεν άλλαξε' : 'Save failed — nothing was changed'));
+        return;
+      }
+      showToast('✅ ' + (isEl ? 'Διορθώθηκε' : 'Repaired'));
+      await scanSaleLinks();
+      try { await renderSalesPanel(); } catch (e) {}
+    }
+  );
+}
+
 // Print / share picker for a recorded sale. Sits ABOVE the sale sheet and
 // leaves it open, so the owner lands back where he was afterwards.
 function openSaleDocPicker(saleId, groupId) {
@@ -11453,6 +11611,18 @@ async function confirmSale() {
   const _wantExCard = _saleWantsExCard;
   const _firstFromInv = !!window._saleFromInvId; // captured before the mark-sold block clears it
   const _firstInvId = window._saleFromInvId || null; // exact record id of the (first) sold piece
+  // INVARIANT (v11.70): a by-the-gram batch link may only ever be written onto a
+  // record whose own piece IS that batch. This is belt-and-suspenders behind the
+  // v11.69 cart fix — that closed the one path we found, this closes the class.
+  // When the two disagree, the piece wins and the batch link is dropped: getting
+  // a bulk link wrong costs a piece its identity (its `invId` is then never
+  // stamped, so deleting the sale returns grams to a batch instead of putting
+  // the piece back in stock) and gives it the wrong cost and profit.
+  if (_firstBulkInfo && _firstInvId && _firstInvId !== _firstBulkInfo.invId) {
+    console.warn('[sale] dropped a bulk link that did not match the piece being sold',
+                 { piece: _firstInvId, batch: _firstBulkInfo.invId });
+    _firstBulkInfo = null;
+  }
   const note = document.getElementById('saleNoteInput').value.trim();
   const date = document.getElementById('saleDateInput').value || todayStr();
   const saleCustomer = document.getElementById('saleCustomerName').value.trim();
@@ -23642,9 +23812,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.69', date: 'Ιούλιος 2026', items: [
-        "🏷️ Το έντυπο πώλησης δείχνει επιτέλους σωστά κάθε κομμάτι. Ο σταυρός τυπωνόταν ως αλυσίδα με λάθος βάρος, γιατί η εγγραφή του είχε κολλήσει πάνω της ο σύνδεσμος της αλυσίδας.",
-        "🔗 Βρέθηκε και η αιτία: σε πώληση καλαθιού που ΔΕΝ ξεκινούσε με αλυσίδα-με-το-γραμμάριο, το πρώτο κομμάτι έπαιρνε κατά λάθος τα στοιχεία της αλυσίδας από τον υπολογισμό — και αν σβήνατε αυτή την πώληση, γύριζαν γραμμάρια στην παρτίδα αντί να ξαναμπεί το κομμάτι στο απόθεμα. Διορθώθηκε για τις επόμενες πωλήσεις.",
+      { version: 'v11.70', date: 'Ιούλιος 2026', items: [
+        "🔧 Νέο εργαλείο στις Ρυθμίσεις: «Έλεγχος Συνδέσεων Πωλήσεων». Βρίσκει παλιές πωλήσεις που έχουν κολλήσει πάνω τους τη σύνδεση αλυσίδας-με-το-γραμμάριο αντί για το ίδιο τους το κομμάτι, και τις διορθώνει (σύνδεση, κόστος, κέρδος). Δείχνει πρώτα τι θα αλλάξει — δεν πειράζει τίποτα μέχρι να πατήσετε «Διόρθωση».",
+        "🛡️ Και δεν μπορεί να ξανασυμβεί: μια πώληση δεν δέχεται πλέον σύνδεση με παρτίδα αλυσίδας αν το κομμάτι που πουλήθηκε δεν είναι αυτή η παρτίδα.",
       ]},
       ]
   },
@@ -23675,9 +23845,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.69', date: 'Jul 2026', items: [
-        "🏷️ The sale document now shows each piece correctly. The cross printed as a chain with the wrong weight, because its sale record had the chain's batch link stuck to it.",
-        "🔗 Root cause found too: on a cart sale that did NOT start with a by-the-gram chain, the first piece picked up the chain's details from the calculator — and deleting that sale would have returned grams to the batch instead of putting the piece back in stock. Fixed for future sales.",
+      { version: 'v11.70', date: 'Jul 2026', items: [
+        "🔧 New Settings tool: \"Sale Link Check\". It finds older sales that have a by-the-gram chain link stuck to them instead of their own piece, and repairs the link, cost and profit. It shows you what will change first — nothing is touched until you press Repair.",
+        "🛡️ And it cannot happen again: a sale will no longer accept a chain-batch link when the piece being sold is not that batch.",
       ]},
           ]
   }
@@ -26918,7 +27088,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.69';
+const APP_VERSION = '11.70';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
