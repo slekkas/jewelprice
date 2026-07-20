@@ -3485,6 +3485,7 @@ const T = {
     invSortVendorAZ:'Προμηθευτής: Α → Ω', invSortMetalHigh:'Αξία Μετάλλου: Υψηλή → Χαμηλή',
     invSortGainHigh:'Υπεραξία: Υψηλή → Χαμηλή', invSortGainLow:'Υπεραξία: Χαμηλή → Υψηλή',
     invSortInStockFirst:'Σε απόθεμα πρώτα', invSortSoldFirst:'Πουλήθηκαν πρώτα',
+    invSortSoldNewest:'Ημ. πώλησης: Νεότερη → Παλαιότερη', invSortSoldOldest:'Ημ. πώλησης: Παλαιότερη → Νεότερη',
     invFilterBtn:'Φίλτρο', invFilterTitle:'Φίλτρα', invFilterClear:'Καθαρισμός', invFilterApply:'Εφαρμογή',
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
     selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
@@ -3519,7 +3520,7 @@ const T = {
     invDateModeAdded:'Ημ. Προσθήκης', invDateModeSold:'Ημ. Πώλησης', invDateMode:'Φίλτρο βάσει',
     invFilterMetal:'Μέταλλο', invFilterKarat:'Καράτια', invFilterType:'Τύπος', invFilterVendor:'Προμηθευτής', invFilterStone:'Πέτρα / Λίθος', invFilterStatus:'Κατάσταση',
     invFilterOther:'Άλλο',
-    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterReserved:'🔒 Κρατημένα', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά',
+    invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterReserved:'🔒 Κρατημένα', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά', invFilterNoPhoto:'📷 Χωρίς φωτό',
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
     invFilterAge:'Χρόνος στο απόθεμα', invSeasonWord:'σεζόν',
@@ -3925,6 +3926,7 @@ const T = {
     invSortVendorAZ:'Vendor: A → Z', invSortMetalHigh:'Metal Value: High → Low',
     invSortGainHigh:'Gain: High → Low', invSortGainLow:'Gain: Low → High',
     invSortInStockFirst:'In stock first', invSortSoldFirst:'Sold first',
+    invSortSoldNewest:'Sold date: Newest → Oldest', invSortSoldOldest:'Sold date: Oldest → Newest',
     invFilterBtn:'Filter', invFilterTitle:'Filters', invFilterClear:'Clear', invFilterApply:'Apply',
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
     selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
@@ -3959,7 +3961,7 @@ const T = {
     invDateModeAdded:'Date Added', invDateModeSold:'Date Sold', invDateMode:'Filter by',
     invFilterMetal:'Metal', invFilterKarat:'Karat', invFilterType:'Type', invFilterVendor:'Vendor', invFilterStone:'Stone', invFilterStatus:'Status',
     invFilterOther:'Other',
-    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterReserved:'🔒 Reserved', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden',
+    invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterReserved:'🔒 Reserved', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden', invFilterNoPhoto:'📷 No photo',
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
     invFilterAge:'Time in Stock', invSeasonWord:'seasons',
@@ -17978,6 +17980,17 @@ function calcInvItemPrice(item) {
 
 let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 
+// Label for one Status-group pill. 'in_stock'/'sold' are real statuses; the rest are
+// cross-cutting flags (reserved / grouped / hidden / no-photo) that narrow within them.
+function _statusPillLabel(v) {
+  return v === 'sold'     ? t('invFilterSold2')
+       : v === 'grouped'  ? t('invFilterGrouped')
+       : v === 'hidden'   ? t('invFilterHidden')
+       : v === 'reserved' ? t('invFilterReserved')
+       : v === 'nophoto'  ? t('invFilterNoPhoto')
+       : t('invFilterInStock');
+}
+
 // Gain % of an item versus its recorded initial price (owner metric — same value
 // shown on the inventory card's "Initial price (+x%)" line). Returns null when it
 // can't be computed: no baseline, an Other-type item, or a sold item.
@@ -18031,6 +18044,9 @@ const INV_SORT_OPTIONS = [
   { key: 'gain_low',    icon: '📉', i18n: 'invSortGainLow',  ownerOnly: true },
   { key: 'stock_first', icon: '📦', i18n: 'invSortInStockFirst' },
   { key: 'sold_first',  icon: '✅', i18n: 'invSortSoldFirst' },
+  // Only meaningful while the Sold status filter is on — hidden otherwise (see openInvSortSheet)
+  { key: 'sold_new',    icon: '💰', i18n: 'invSortSoldNewest', soldOnly: true },
+  { key: 'sold_old',    icon: '💰', i18n: 'invSortSoldOldest', soldOnly: true },
 ];
 let _invSort = localStorage.getItem('invSort') || 'newest';
 
@@ -18039,7 +18055,10 @@ function openInvSortSheet() {
   const opts = document.getElementById('invSortOptions');
   if (!sheet || !opts) return;
   const _empInv = !can('see_cost');
-  opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv)).map(o => {
+  // Sold-date sorts appear only when the Sold filter is on (they say nothing about
+  // in-stock pieces) — but stay listed while one is the active sort, so it can be changed.
+  const _soldOn = _invFilters.status.includes('sold') || _invSort === 'sold_new' || _invSort === 'sold_old';
+  opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv) && !(o.soldOnly && !_soldOn)).map(o => {
     const active = _invSort === o.key;
     return `<button onclick="setInvSort('${o.key}')" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:${active ? 'rgba(212,175,55,0.15)' : 'var(--wa03)'};border:1px solid ${active ? 'rgba(212,175,55,0.5)' : 'var(--wa08)'};border-radius:10px;color:${active ? 'var(--gold-light)' : 'var(--text-light)'};font-family:var(--font-body);font-size:13px;cursor:pointer;text-align:left">
       <span style="font-size:15px">${o.icon}</span>
@@ -18165,7 +18184,7 @@ function updateInvFilterBadge() {
     if (_invFilters.types.length) parts.push(_invFilters.types.map(k => k === '__notype__' ? (lang==='el'?'Χωρίς τύπο':'No type') : invTypeLabel(k)).join(', '));
     if (_invFilters.vendors.length) parts.push(_invFilters.vendors.join(', '));
     if (_invFilters.stones.length) parts.push('💎 ' + _invFilters.stones.map(s => stoneLabel(s)).join(', '));
-    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => s === 'sold' ? t('invFilterSold2') : s === 'grouped' ? t('invFilterGrouped') : s === 'hidden' ? t('invFilterHidden') : s === 'reserved' ? t('invFilterReserved') : t('invFilterInStock')).join(', '));
+    if (_invFilters.status.length) parts.push(_invFilters.status.map(s => _statusPillLabel(s)).join(', '));
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
@@ -18217,7 +18236,7 @@ function openInvFilterSheet() {
   });
   const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
   const stoneTypes = [...STONE_PRIORITY.filter(s => stoneTypeSet.has(s)), ...[...stoneTypeSet].filter(s => !STONE_PRIORITY.includes(s)).sort()];
-  const statuses = ['in_stock','sold','reserved','grouped','hidden'];
+  const statuses = ['in_stock','sold','reserved','grouped','hidden','nophoto'];
 
   // Pills for small fixed sets (metal, karat, status)
   function pillGroup(labelKey, vals, selectedArr, groupKey, labelFn) {
@@ -18424,7 +18443,7 @@ function openInvFilterSheet() {
         <div class="inv-fs-picker-list" id="invPickerList_stones">${listHtml}</div>
       </div>`;
     })() +
-    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => v === 'sold' ? t('invFilterSold2') : v === 'grouped' ? t('invFilterGrouped') : v === 'hidden' ? t('invFilterHidden') : v === 'reserved' ? t('invFilterReserved') : t('invFilterInStock')) +
+    pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => _statusPillLabel(v)) +
     goldColorGroup +
     colorGroup +
     genderGroup +
@@ -18923,7 +18942,11 @@ function renderInvList() {
     if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
     if (f.status.includes('grouped') && !(item.groupId && !item.isMetal)) return false;
     if (f.status.includes('reserved') && !item.reservationId) return false;
-    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped' && s !== 'reserved');
+    // 'nophoto' — pieces whose photo was never uploaded, so they can be found and
+    // photographed without scrolling the whole stock. Coins/raw metal never carry a
+    // photo by design, so they are not "missing" one.
+    if (f.status.includes('nophoto') && (item.photoUrl || item.isCoin || item.isMetal)) return false;
+    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped' && s !== 'reserved' && s !== 'nophoto');
     if (_realStatus.length) {
       const st = isSoldItem ? 'sold' : 'in_stock';
       if (!_realStatus.includes(st)) return false;
@@ -19010,6 +19033,8 @@ function renderInvList() {
     } else if (_invSort === 'sold_first') {
       if (!aStock && bStock) return -1;
       if (aStock && !bStock) return 1;
+    } else if (_invSort === 'sold_new' || _invSort === 'sold_old') {
+      // Sorting by sale date — no status grouping; a piece with no sale date sorts last.
     } else {
       // All other sorts: in-stock first by default
       if (aStock && !bStock) return -1;
@@ -19033,6 +19058,12 @@ function renderInvList() {
                           return (bg===null?-Infinity:bg) - (ag===null?-Infinity:ag); }
       case 'gain_low':  { const ag = _gn(a), bg = _gn(b);
                           return (ag===null?Infinity:ag) - (bg===null?Infinity:bg); }
+      case 'sold_new':    return (b.dateSold||0) - (a.dateSold||0);
+      case 'sold_old': {  const as = a.dateSold||0, bs = b.dateSold||0;
+                          if (!as && !bs) return 0;
+                          if (!as) return 1;   // unsold pieces last, never first
+                          if (!bs) return -1;
+                          return as - bs; }
       case 'stock_first': return (b.dateAdded||0) - (a.dateAdded||0);
       case 'sold_first':  return (b.dateAdded||0) - (a.dateAdded||0);
       default:            return (b.dateAdded||0) - (a.dateAdded||0); // newest
@@ -23812,9 +23843,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.70', date: 'Ιούλιος 2026', items: [
-        "🔧 Νέο εργαλείο στις Ρυθμίσεις: «Έλεγχος Συνδέσεων Πωλήσεων». Βρίσκει παλιές πωλήσεις που έχουν κολλήσει πάνω τους τη σύνδεση αλυσίδας-με-το-γραμμάριο αντί για το ίδιο τους το κομμάτι, και τις διορθώνει (σύνδεση, κόστος, κέρδος). Δείχνει πρώτα τι θα αλλάξει — δεν πειράζει τίποτα μέχρι να πατήσετε «Διόρθωση».",
-        "🛡️ Και δεν μπορεί να ξανασυμβεί: μια πώληση δεν δέχεται πλέον σύνδεση με παρτίδα αλυσίδας αν το κομμάτι που πουλήθηκε δεν είναι αυτή η παρτίδα.",
+      { version: 'v11.71', date: 'Ιούλιος 2026', items: [
+        "📷 Νέο φίλτρο «Χωρίς φωτό» στο Απόθεμα (στην ομάδα Κατάσταση). Δείχνει μόνο τα κομμάτια που δεν έχουν φωτογραφία, για να τα βρείτε χωρίς να ψάχνετε 700 προϊόντα ένα-ένα. (Νομίσματα και μέταλλο δεν μετρούν — δεν έχουν φωτογραφία έτσι κι αλλιώς.)",
+        "💰 Νέα ταξινόμηση κατά ημερομηνία πώλησης (νεότερη ή παλαιότερη πρώτα). Εμφανίζεται στη λίστα ταξινόμησης μόνο όταν είναι πατημένο το φίλτρο «Πουλήθηκε».",
       ]},
       ]
   },
@@ -23845,9 +23876,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.70', date: 'Jul 2026', items: [
-        "🔧 New Settings tool: \"Sale Link Check\". It finds older sales that have a by-the-gram chain link stuck to them instead of their own piece, and repairs the link, cost and profit. It shows you what will change first — nothing is touched until you press Repair.",
-        "🛡️ And it cannot happen again: a sale will no longer accept a chain-batch link when the piece being sold is not that batch.",
+      { version: 'v11.71', date: 'Jul 2026', items: [
+        "📷 New \"No photo\" filter in Stock (in the Status group). Shows only the pieces with no photo uploaded, so you can find them without scrolling through 700 items. (Coins and raw metal don't count — they never have a photo.)",
+        "💰 New sort by sale date (newest or oldest first). It appears in the sort list only while the \"Sold\" filter is pressed.",
       ]},
           ]
   }
@@ -27088,7 +27119,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.70';
+const APP_VERSION = '11.71';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
