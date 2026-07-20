@@ -1495,6 +1495,10 @@
           <div class="cpb-amount" id="retailPriceDisplay">—</div>
           <div class="cpb-prevat" id="preVatDisplay" style="display:none"></div>
         </div>
+        <!-- A per-item piece is priced from its own stock record. If that record can't be
+             read (no signal, or the tag belongs to a deleted piece) the figure above is only
+             the metal — say so, loudly, rather than let it be read out as a real price. -->
+        <div id="perItemWarn" style="display:none;margin-top:4px;padding:6px 9px;border-radius:7px;background:rgba(224,80,80,0.14);border:1px solid rgba(224,80,80,0.45);color:#ff9a9a;font-family:var(--font-body);font-size:11px;line-height:1.35"></div>
         <!-- Rounding row — appears below price after calc -->
         <div class="cpb-round-row" id="roundFieldWrap" style="display:none">
           <div class="cpb-round-label" data-i18n="roundLabel">ΣΤΡΟΓΓ. →</div>
@@ -9180,6 +9184,52 @@ let _inventoryCache = null; // in-memory inventory cache
 let _lastScannedInvEntry = null; // inventory entry resolved by most recent QR scan — used by calculate() for photo lookup
 let _lastScannedRaw = null;         // raw QR string that produced _lastScannedInvEntry
 let _lastChipRaw = null;            // raw QR string last shown in invStatusChip (any state)
+// The in-flight _checkInvStatusForCalc(), so the calc can WAIT for the piece's own record.
+// A per-item category takes its labour AND its margin from that record (see calculate()),
+// so pricing before it lands yields the bare metal value — a €80.01 necklace priced at
+// €6.22. lookupCode used to fire the lookup and calculate() on a fixed 900 ms timer, and
+// loadInventory() re-downloads the WHOLE inventory (1000+ items, cache:'no-store') on every
+// scan, which routinely takes longer than that on the shop's connection. Worse, nothing
+// re-ran afterwards, so the wrong price simply stayed on screen in front of the customer.
+let _invStatusReady = null;
+
+// Is the labour category currently selected in the Calc priced PER ITEM? Those are the
+// only ones whose price depends on the scanned piece's own inventory record.
+function _isPerItemCatSelected() {
+  try {
+    const vendor = state.vendors?.[document.getElementById('vendorSelect')?.value];
+    if (!vendor) return false;
+    const ci = parseInt(document.getElementById('workType')?.value) || 0;
+    return getVendorCategories(vendor)[ci]?.rateType === 'peritem';
+  } catch (e) { return false; }
+}
+
+// Run calculate() only once the scanned piece's inventory record is in hand.
+async function _calcAfterInvReady() {
+  try { await _invStatusReady; } catch (e) {}
+  calculate();
+  _syncPerItemWarn();
+}
+
+// A per-item piece carries its price in its own stock record. When a CODE was looked up
+// (so a real piece is in hand) and that record could not be read, calculate() falls back to
+// the bare metal value — a plausible-looking number that is nowhere near the real price.
+// Warn instead of letting it be read out to a customer. Deliberately keyed on the code box
+// being non-empty: creating a NEW per-item piece from scratch has no code and legitimately
+// shows the metal figure until a Target Retail is entered on the label.
+function _syncPerItemWarn() {
+  const box = document.getElementById('perItemWarn');
+  if (!box) return;
+  const hasCode = !!document.getElementById('codeInput')?.value.trim();
+  if (_isPerItemCatSelected() && hasCode && !_lastScannedInvEntry) {
+    box.textContent = lang === 'el'
+      ? '⚠️ Δεν βρέθηκε η καρτέλα του κομματιού — αυτή ΔΕΝ είναι η τιμή πώλησης (μόνο η αξία μετάλλου). Ελέγξτε τη σύνδεση και σκανάρετε ξανά.'
+      : '⚠️ This piece\'s record could not be read — this is NOT the selling price (metal value only). Check the connection and scan again.';
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
 // Pieces of a similar-items group that share ONE weight share ONE printed tag, so a scan
 // cannot say which is in hand. When they also LOOK different (gold colour / decorative
 // colour) that matters: the photo, the sale and the reservation must target the right
@@ -15263,6 +15313,17 @@ async function _checkInvStatusForCalc(raw) {
       : (isEl ? '📦 Στο απόθεμα' : '📦 In stock');
     chip.innerHTML = `<span style="flex:1">${statusLabel}</span><span style="font-size:11px;opacity:.8;white-space:nowrap">${isEl ? 'Δες το →' : 'View →'}</span>`;
     chip.onclick = () => _jumpToInvCard(fbKey);
+
+    // Safety net for the per-item price. A per-item category reads its labour and margin
+    // from THIS record, so any price already on screen was computed without them (bare
+    // metal — €6.22 for an €80.01 piece). Callers now await this function before pricing,
+    // but a passive re-check (language toggle, a re-render) has no such ordering, so repair
+    // the figure the moment the record lands rather than leaving a wrong number in front of
+    // a customer. Narrow on purpose: only when a price is showing and only for per-item.
+    if (_isPerItemCatSelected() && document.getElementById('customerPriceBar')?.style.display !== 'none') {
+      calculate();
+    }
+    _syncPerItemWarn();
   } else {
     _lastScannedInvEntry = null;
     _lastScannedRaw = null;
@@ -15271,6 +15332,7 @@ async function _checkInvStatusForCalc(raw) {
     chip.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer;background:var(--wa04);border:1px solid var(--wa12);color:var(--text-muted)';
     chip.innerHTML = `<span style="flex:1">${isEl ? '➕ Όχι στο απόθεμα' : '➕ Not in inventory'}</span><span style="font-size:11px;opacity:.8;white-space:nowrap">${isEl ? 'Πρόσθεσε →' : 'Add →'}</span>`;
     chip.onclick = () => { prepareInvConfirm(raw); };
+    _syncPerItemWarn();
   }
 }
 
@@ -15359,7 +15421,7 @@ function _lookupCodeOtherType(raw, match, foundBanner) {
   document.getElementById('codeFoundDetail').textContent = match.vendorName + ' · ' + match.catName;
   foundBanner.classList.add('show');
   setTimeout(() => foundBanner.classList.remove('show'), 4000);
-  _checkInvStatusForCalc(raw);
+  _invStatusReady = _checkInvStatusForCalc(raw);
 }
 
 function lookupCode(raw, opts) {
@@ -15592,7 +15654,7 @@ function lookupCode(raw, opts) {
           document.getElementById('codeFoundDetail').textContent = match.vendorName + ' · ' + match.catName;
           foundBanner.classList.add('show');
           setTimeout(() => foundBanner.classList.remove('show'), 4000);
-          _checkInvStatusForCalc(raw);
+          _invStatusReady = _checkInvStatusForCalc(raw);
           return;
         }
         // No fixedRetail override — run normal other-type scan
@@ -15624,7 +15686,7 @@ function lookupCode(raw, opts) {
       match.vendorName + ' · ' + match.catName + ' · ' + (match.karat || '—') + weightStr + ' · ' + cur + parseFloat(match.rate).toFixed(2) + '/g';
     foundBanner.classList.add('show');
     setTimeout(() => foundBanner.classList.remove('show'), 4000);
-    _checkInvStatusForCalc(raw);
+    _invStatusReady = _checkInvStatusForCalc(raw);
 
     // ── STONE AUTO-FILL ──────────────────────────────────────────────────────
     if (stones && stones.length > 0) {
@@ -15698,12 +15760,12 @@ function lookupCode(raw, opts) {
           }
 
           window._qrAutoApplyPending = false;
-          setTimeout(() => calculate(), 300);
+          setTimeout(() => _calcAfterInvReady(), 300);
         }, 500);
       }
     } else if (weight !== null && !isNaN(weight) && weight > 0) {
       // No stone — just calculate as before
-      setTimeout(() => calculate(), 900);
+      setTimeout(() => _calcAfterInvReady(), 900);
     }
   } else if (code.length >= 3) {
     notFound.classList.add('show');
@@ -23981,9 +24043,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.72', date: 'Ιούλιος 2026', items: [
-        "➖ Νέο κουμπί «Αφαίρεση» στο ακατέργαστο μέταλλο. Όταν παίρνετε γραμμάρια από το σωρό για να φτιάξετε ένα κόσμημα, τα αφαιρείτε πλέον κανονικά — δείχνει τι απομένει πριν το επιβεβαιώσετε. Το κόστος αγοράς και η «αξία κατά την προσθήκη» μειώνονται αναλογικά, ώστε να μένουν σωστά για το μέταλλο που έμεινε.",
-        "🔢 Διορθώθηκαν τα δεκαδικά στο βάρος του μετάλλου. Προσθέτοντας σωρούς έβγαινε 53.300000000000004 αντί για 53.30.",
+      { version: 'v11.73', date: 'Ιούλιος 2026', items: [
+        "🛡️ ΣΗΜΑΝΤΙΚΟ — διορθώθηκε λάθος τιμή σε σκανάρισμα. Σε κομμάτια με τιμή «ανά τεμάχιο», αν το σκανάρισμα γινόταν με αργή σύνδεση, η τιμή προλάβαινε να υπολογιστεί ΠΡΙΝ φορτώσει η καρτέλα του κομματιού — και έδειχνε μόνο την αξία του μετάλλου (π.χ. €6.22 αντί για €80.01), χωρίς να διορθώνεται μετά. Πλέον η τιμή περιμένει την καρτέλα, όσο αργή κι αν είναι η σύνδεση.",
+        "⚠️ Και αν η καρτέλα δεν φορτώσει καθόλου (χωρίς ίντερνετ), εμφανίζεται κόκκινη προειδοποίηση ότι ΔΕΝ είναι η τιμή πώλησης — αντί για έναν αριθμό που μοιάζει σωστός.",
       ]},
       ]
   },
@@ -24014,9 +24076,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.72', date: 'Jul 2026', items: [
-        "➖ New \"Remove\" button on raw metal. When you take grams off the pile to make a piece, you can now record it properly — it shows what will be left before you confirm. The purchase cost and \"value when added\" scale down with it, so they stay right for the metal that remains.",
-        "🔢 Fixed the decimals on metal weight. Adding piles together produced 53.300000000000004 instead of 53.30.",
+      { version: 'v11.73', date: 'Jul 2026', items: [
+        "🛡️ IMPORTANT — fixed a wrong price on scan. On per-item priced pieces, a scan over a slow connection calculated the price BEFORE the piece's own record had loaded, showing only the metal value (e.g. €6.22 instead of €80.01) — and it never corrected itself. The price now waits for the record, however slow the connection.",
+        "⚠️ And if the record cannot be loaded at all (no internet), a red warning says this is NOT the selling price — instead of a plausible-looking number.",
       ]},
           ]
   }
@@ -24405,6 +24467,8 @@ function clearCalc() {
   // Clear code input
   const codeEl = document.getElementById('codeInput');
   if (codeEl) codeEl.value = '';
+  const _piWarn = document.getElementById('perItemWarn');
+  if (_piWarn) _piWarn.style.display = 'none';
 
   // Clear weight & discount
   const weightEl = document.getElementById('weight');
@@ -27257,7 +27321,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.72';
+const APP_VERSION = '11.73';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
