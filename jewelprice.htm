@@ -4339,7 +4339,7 @@ async function outboxFlush(quiet) {
 // Save a list by writing only the records that changed. Returns true when every
 // write landed — callers that care (money) can then report honestly instead of
 // assuming, the lesson of v11.62.
-async function _syncListToCloud(path, list, idOf) {
+async function _syncListToCloud(path, list, idOf, opts) {
   if (!creds.binId) return false;
   // No snapshot yet (the app booted offline, or nothing has pulled this node):
   // read the node ONCE and diff against that, instead of blindly re-writing
@@ -4358,7 +4358,13 @@ async function _syncListToCloud(path, list, idOf) {
   // the shop actually does — it is what a stale or not-yet-loaded cache looks
   // like (e.g. _salesCache still null after a restart). Deleting one or two
   // records is normal and unaffected; wiping the lot is always a bug.
-  if (next.size === 0 && snap.size > 0) {
+  //
+  // EXCEPT when the caller just removed a record from a list it is holding and
+  // says so with { allowEmpty: true }. Deleting the LAST gift card (or sale, or
+  // ticket) is a perfectly ordinary act, and without this the guard silently
+  // refused the write — the card stayed in Firebase and walked back in on the
+  // next refresh, looking deleted until the app was reopened (v11.66).
+  if (next.size === 0 && snap.size > 0 && !(opts && opts.allowEmpty)) {
     console.warn('[sync] refused to empty ' + path + ' (' + snap.size + ' records) from an empty list');
     return false;
   }
@@ -5143,8 +5149,8 @@ function getGiftCards() {
   return _giftCards;
 }
 function saveGiftCardsLocal(list) { _giftCards = list; localStorage.setItem('jpro_giftcards', JSON.stringify(list)); }
-async function pushGiftCardsToCloud(list) {
-  return await _syncListToCloud('/jewelprice_giftcards', list || getGiftCards(), r => r.id);
+async function pushGiftCardsToCloud(list, opts) {
+  return await _syncListToCloud('/jewelprice_giftcards', list || getGiftCards(), r => r.id, opts);
 }
 async function pullGiftCardsFromCloud() {
   if (!creds.binId) return;
@@ -5613,7 +5619,7 @@ async function openGiftCardDetail(id) {
   const redemptionLog = _rLines.length
     ? `<div style="${_resLbl};margin-top:14px">${isEl ? 'Κινήσεις' : 'Used for'}</div>
        <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:8px 11px">
-       ${_rLines.map((l, i) => `<div ${l.saleId != null ? `onclick="_gcOpenRedemptionSale(${l.saleId})" style="cursor:pointer;` : 'style="'}padding:6px 0;border-bottom:1px solid var(--wa05)">
+       ${_rLines.map((l, i) => `<div ${l.saleId != null ? `onclick="_gcOpenRedemptionSale(${l.saleId},'${g.id}')" style="cursor:pointer;` : 'style="'}padding:6px 0;border-bottom:1px solid var(--wa05)">
          <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
            <span style="color:var(--text-muted);font-family:'DM Mono',monospace">${l.date ? fmtDate(l.date) : '—'}${(g.redemptions[i] && g.redemptions[i].by) ? ' · ' + _gcEsc(g.redemptions[i].by) : ''}</span>
            <span style="color:var(--text);font-family:var(--font-mono);flex-shrink:0">−${cur}${l.amount.toFixed(2)}</span>
@@ -6034,7 +6040,7 @@ function _gcDelete(id) {
     async () => {
       const list = getGiftCards().filter(x => x.id !== id);
       saveGiftCardsLocal(list);
-      await pushGiftCardsToCloud(list);
+      await pushGiftCardsToCloud(list, { allowEmpty: true });
       document.getElementById('giftDetailOverlay')?.remove();
       renderGiftCards();
       showToast(isEl ? 'Διαγράφηκε' : 'Deleted');
@@ -6214,17 +6220,23 @@ function _updateSaleGiftDisplay() {
   const _pBox = document.getElementById('saleGiftPartial');
   if (_pBox) {
     const _spent = gcRedeemed(g);
+    const _face = parseFloat(g.amount) || 0;
+    const _left = parseFloat(Math.max(0, bal - use).toFixed(2));
+    // ALWAYS say what the card holds and what will be left after this sale —
+    // the customer asks "how much do I have left?" while the sale is being
+    // written, and until now nothing on this screen answered it.
+    let _html = `${isEl ? 'Υπόλοιπο κάρτας' : 'Card balance'}: <strong>${cur}${bal.toFixed(2)}</strong>`
+      + ` → ${isEl ? 'μετά' : 'after'}: <strong>${cur}${_left.toFixed(2)}</strong>`;
     if (_spent > 0) {
-      const _face = parseFloat(g.amount) || 0;
       const _last = (g.redemptions || [])[g.redemptions.length - 1];
       const _when = _last && _last.date ? fmtDate(_last.date) : '';
-      _pBox.innerHTML = `⚠️ ${isEl ? 'Χρησιμοποιημένη' : 'Partly used'} — ${isEl ? 'υπόλοιπο' : 'balance'} <strong>${cur}${bal.toFixed(2)}</strong> ${isEl ? 'από' : 'of'} ${cur}${_face.toFixed(2)}`
-        + `<br>${isEl ? 'Έχουν εξαργυρωθεί' : 'Already redeemed'}: ${cur}${_spent.toFixed(2)}${_when ? ` (${isEl ? 'τελευταία' : 'last'} ${_when})` : ''}`;
-      _pBox.style.display = '';
-    } else {
-      _pBox.style.display = 'none';
-      _pBox.innerHTML = '';
+      _html = `⚠️ ${isEl ? 'Χρησιμοποιημένη' : 'Partly used'} — ${isEl ? 'υπόλοιπο' : 'balance'} <strong>${cur}${bal.toFixed(2)}</strong> ${isEl ? 'από' : 'of'} ${cur}${_face.toFixed(2)}`
+        + `<br>${isEl ? 'Έχουν εξαργυρωθεί' : 'Already redeemed'}: ${cur}${_spent.toFixed(2)}${_when ? ` (${isEl ? 'τελευταία' : 'last'} ${_when})` : ''}`
+        + `<br>${isEl ? 'Μετά από αυτή την πώληση' : 'After this sale'}: <strong>${cur}${_left.toFixed(2)}</strong>`;
     }
+    _pBox.innerHTML = _html;
+    _pBox.style.color = _spent > 0 ? '#e0a85a' : 'var(--text-muted)';  // amber only when it IS a warning
+    _pBox.style.display = '';
   }
   document.getElementById('saleGiftDue').textContent = cur + due.toFixed(2);
   box.style.display = '';
@@ -6595,8 +6607,8 @@ function getReservations() {
   return _reservations;
 }
 function saveReservationsLocal(list) { _reservations = list; localStorage.setItem('jpro_reservations', JSON.stringify(list)); }
-async function pushReservationsToCloud(list) {
-  return await _syncListToCloud('/jewelprice_reservations', list || getReservations(), r => r.id);
+async function pushReservationsToCloud(list, opts) {
+  return await _syncListToCloud('/jewelprice_reservations', list || getReservations(), r => r.id, opts);
 }
 async function pullReservationsFromCloud() {
   if (!creds.binId) return;
@@ -6939,7 +6951,7 @@ function _resDelete(id) {
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτής της κράτησης;' : 'Permanently delete this reservation?', async () => {
     const gone = getReservations().find(x => x.id === id);
     const list = getReservations().filter(x => x.id !== id);
-    saveReservationsLocal(list); pushReservationsToCloud(list);
+    saveReservationsLocal(list); pushReservationsToCloud(list, { allowEmpty: true });
     // Belt-and-suspenders: release any items this reservation still had flagged.
     try { await _resMarkItems((gone && gone.itemIds) || [], null); } catch (e) {}
     document.getElementById('reservationDetailOverlay')?.remove();
@@ -7214,8 +7226,8 @@ function getRepairs() {
   return _repairs;
 }
 function saveRepairsLocal(list) { _repairs = list; localStorage.setItem('jpro_repairs', JSON.stringify(list)); }
-async function pushRepairsToCloud(list) {
-  return await _syncListToCloud('/jewelprice_repairs', list || getRepairs(), r => r.id);
+async function pushRepairsToCloud(list, opts) {
+  return await _syncListToCloud('/jewelprice_repairs', list || getRepairs(), r => r.id, opts);
 }
 async function pullRepairsFromCloud() {
   if (!creds.binId) return;
@@ -7656,7 +7668,7 @@ function _repairDelete(id) {
   if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτού του δελτίου;' : 'Permanently delete this ticket?', () => {
     const list = getRepairs().filter(x => x.id !== id);
-    saveRepairsLocal(list); pushRepairsToCloud(list);
+    saveRepairsLocal(list); pushRepairsToCloud(list, { allowEmpty: true });
     document.getElementById('repairDetailOverlay')?.remove();
     renderRepairs();
     showToast(lang === 'el' ? 'Διαγράφηκε' : 'Deleted');
@@ -9197,8 +9209,8 @@ async function pullSalesFromCloud() {
 
 // Writes only the sales this device actually changed, one record per request —
 // see the SHARED LISTS block. Every existing caller is unchanged.
-async function pushSalesToCloud(sales) {
-  return await _syncListToCloud('/jewelprice_sales', sales, r => r.id);
+async function pushSalesToCloud(sales, opts) {
+  return await _syncListToCloud('/jewelprice_sales', sales, r => r.id, opts);
 }
 
 async function getSales() {
@@ -9340,7 +9352,7 @@ async function deleteSaleRecord(id) {
   const filtered = sales.filter(s => s.id !== id);
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
-  await pushSalesToCloud(filtered);
+  await pushSalesToCloud(filtered, { allowEmpty: true });
   // Hand the balance back if this sale drew on a gift certificate — same
   // principle as restoring the sold inventory piece below.
   if (target && target.giftCardId) { try { await _gcUnapplyForSale(id, target, filtered); } catch (e) {} }
@@ -9729,7 +9741,10 @@ function _gcRedemptionLines(g) {
 // someone paid for, the other is a customer's own money waiting to be spent.
 // Every surface that names a card goes through these, so they can never drift.
 // Tap a line in the card's statement to open the sale it paid for.
-function _gcOpenRedemptionSale(saleId) {
+function _gcOpenRedemptionSale(saleId, gcId) {
+  // Remember where we came from: closing the sale should hand the owner back to
+  // the card he was reading, not dump him on whatever tab is underneath.
+  window._gcDetailReturnTo = gcId || null;
   document.getElementById('giftDetailOverlay')?.remove();
   try { showSaleDetail(saleId); } catch (e) {}
 }
@@ -9817,7 +9832,7 @@ async function _undoReturn(retId) {
   const filtered = sales.filter(s => s.id !== retId);
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
-  await pushSalesToCloud(filtered);
+  await pushSalesToCloud(filtered, { allowEmpty: true });
   if (rec.creditCardId) {
     const list = getGiftCards();
     const g = list.find(x => x.id === rec.creditCardId);
@@ -10836,7 +10851,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     const retBtn = document.createElement('button');
     retBtn.style.cssText = 'flex:1;padding:11px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     retBtn.textContent = '↩️ ' + (lang === 'el' ? 'Επιστροφή Όλων' : 'Return All');
-    retBtn.onclick = () => { closeSaleDetailModal(); openReturnDialog(null, s.saleGroup); };
+    retBtn.onclick = () => { closeSaleDetailModal(true); openReturnDialog(null, s.saleGroup); };
     acts.appendChild(retBtn);
   }
 
@@ -10849,7 +10864,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
       ? '↩️ ' + (lang === 'el' ? 'Αναίρεση' : 'Undo')
       : '🗑 ' + (lang === 'el' ? 'Διαγραφή Πώλησης' : 'Delete Sale');
     delBtn.onclick = () => {
-      closeSaleDetailModal();
+      closeSaleDetailModal(true);
       showConfirm(_isRetGroup
         ? (lang === 'el'
           ? 'Αναίρεση όλης της επιστροφής; Τα κομμάτια θα ξαναγίνουν πουλημένα και η πίστωση θα ακυρωθεί.'
@@ -11026,7 +11041,7 @@ async function showSaleDetail(id, forceSingle) {
     invBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     invBtn.textContent = '📦 ' + (lang === 'el' ? 'Δες Αντικείμενο' : 'View Item');
     invBtn.onclick = async () => {
-      closeSaleDetailModal();
+      closeSaleDetailModal(true);
       // find invId from cache
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         try { _inventoryCache = await loadInventory(); } catch(e) {}
@@ -11051,7 +11066,7 @@ async function showSaleDetail(id, forceSingle) {
       ? (lang === 'el' ? 'Κάρτα ' + exNoFmt(s.exchangeCardNo) : 'Card ' + exNoFmt(s.exchangeCardNo))
       : (lang === 'el' ? 'Κάρτα Αλλαγής' : 'Exchange Card'));
     exBtn.onclick = async () => {
-      closeSaleDetailModal();
+      closeSaleDetailModal(true);
       await issueExchangeCard(s.id);
     };
     acts.appendChild(exBtn);
@@ -11063,7 +11078,7 @@ async function showSaleDetail(id, forceSingle) {
     const retBtn = document.createElement('button');
     retBtn.style.cssText = 'flex:1;padding:11px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     retBtn.textContent = '↩️ ' + (lang === 'el' ? 'Επιστροφή' : 'Return');
-    retBtn.onclick = () => { closeSaleDetailModal(); openReturnDialog(s.id); };
+    retBtn.onclick = () => { closeSaleDetailModal(true); openReturnDialog(s.id); };
     acts.appendChild(retBtn);
   }
 
@@ -11074,7 +11089,7 @@ async function showSaleDetail(id, forceSingle) {
       const editBtn = document.createElement('button');
       editBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
       editBtn.textContent = '✏️ ' + (lang === 'el' ? 'Επεξεργασία' : 'Edit');
-      editBtn.onclick = () => { closeSaleDetailModal(); openSaleEditModal(s); };
+      editBtn.onclick = () => { closeSaleDetailModal(true); openSaleEditModal(s); };
       acts.appendChild(editBtn);
     }
     if (isOwnerMgr) {
@@ -11083,7 +11098,7 @@ async function showSaleDetail(id, forceSingle) {
       if (s.isReturn) {
         delBtn.textContent = '↩️ ' + (lang === 'el' ? 'Αναίρεση' : 'Undo');
         delBtn.onclick = () => {
-          closeSaleDetailModal();
+          closeSaleDetailModal(true);
           showConfirm(lang === 'el'
             ? 'Αναίρεση επιστροφής; Το κομμάτι θα ξαναγίνει πουλημένο και η πίστωση θα ακυρωθεί.'
             : 'Undo this return? The piece goes back to sold and the credit is cancelled.',
@@ -11097,7 +11112,7 @@ async function showSaleDetail(id, forceSingle) {
       } else {
         delBtn.textContent = '🗑 ' + (lang === 'el' ? 'Διαγραφή' : 'Delete');
         delBtn.onclick = () => {
-          closeSaleDetailModal();
+          closeSaleDetailModal(true);
           showConfirm(lang === 'el' ? 'Διαγραφή πώλησης;' : 'Delete sale?', async () => {
             await deleteSaleRecord(s.id);
             await renderSalesPanel();
@@ -11112,8 +11127,14 @@ async function showSaleDetail(id, forceSingle) {
   { const _s=document.getElementById('saleDetailModal'); const _sd=_s&&_s.querySelector('div'); if(_sd)_sd.scrollTop=0; }
 }
 
-function closeSaleDetailModal() {
+// `navigating` = the sheet is closing because we are going SOMEWHERE (view the
+// item, return, edit). Only a plain close — the ✕ or the backdrop — should hand
+// the owner back to the gift card he opened this sale from.
+function closeSaleDetailModal(navigating) {
   document.getElementById('saleDetailModal').style.display = 'none';
+  const _back = window._gcDetailReturnTo;
+  window._gcDetailReturnTo = null;
+  if (_back && !navigating) { try { openGiftCardDetail(_back); } catch (e) {} }
 }
 
 function closeSaleEditModal() {
@@ -23393,10 +23414,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.65', date: 'Ιούλιος 2026', items: [
-        "📶 Οι πωλήσεις χωρίς σήμα δεν χάνονται πλέον. Μέχρι τώρα μια πώληση που καταχωρούσατε χωρίς ίντερνετ έμενε μόνο στο κινητό — και ο επόμενος συγχρονισμός τη διέγραφε αθόρυβα.",
-        "⏳ Ό,τι δεν προλάβει να σταλεί μπαίνει σε ουρά (αντέχει και κλείσιμο της εφαρμογής) και στέλνεται μόνο του μόλις επανέλθει η σύνδεση. Βλέπετε «X σε αναμονή» πάνω δεξιά και «συγχρονίστηκαν» όταν φύγουν.",
-        "🛡️ Καμία λίστα δεν μπορεί πλέον να αδειάσει ολόκληρη από λάθος — η εφαρμογή αρνείται να σβήσει τα πάντα.",
+      { version: 'v11.66', date: 'Ιούλιος 2026', items: [
+        "💳 Στην πώληση, η κάρτα δείχνει τώρα το υπόλοιπό της και τι θα μείνει μετά — π.χ. «Υπόλοιπο κάρτας: €520,00 → μετά: €364,77».",
+        "↩️ Αν ανοίξετε μια πώληση από τις κινήσεις της κάρτας, το ✕ σας γυρίζει πίσω στην κάρτα και όχι έξω.",
+        "🗑️ Διορθώθηκε: η διαγραφή της τελευταίας δωροεπιταγής/πίστωσης δεν αποθηκευόταν και η κάρτα ξαναεμφανιζόταν μετά από ανανέωση.",
       ]},
       ]
   },
@@ -23427,10 +23448,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.65', date: 'Jul 2026', items: [
-        "📶 Sales recorded with no signal are no longer lost. Until now a sale rung up without internet lived only on that phone — and the next sync quietly erased it.",
-        "⏳ Anything that can't be sent is queued (it survives closing the app) and goes up by itself the moment the connection returns. You'll see \"X pending\" at the top and a confirmation when it clears.",
-        "🛡️ No list can ever be emptied wholesale by mistake now — the app refuses to delete everything.",
+      { version: 'v11.66', date: 'Jul 2026', items: [
+        "💳 A card applied to a sale now shows its balance and what will be left — e.g. \"Card balance: €520.00 → after: €364.77\".",
+        "↩️ Opening a sale from a card's history and pressing ✕ now takes you back to the card instead of out of it.",
+        "🗑️ Fixed: deleting the last gift certificate/credit didn't save, so the card came back on the next refresh.",
       ]},
           ]
   }
@@ -25296,8 +25317,8 @@ function saveClientsLocal(list) {
   localStorage.setItem('jpro_clients', JSON.stringify(list));
 }
 
-async function pushClientsToCloud(list) {
-  return await _syncListToCloud('/jewelprice_clients', list, c => c.id);
+async function pushClientsToCloud(list, opts) {
+  return await _syncListToCloud('/jewelprice_clients', list, c => c.id, opts);
 }
 
 async function pullClientsFromCloud() {
@@ -25325,7 +25346,7 @@ async function saveClient(client) {
 async function deleteClient(id) {
   const list = getClients().filter(c => c.id !== id);
   saveClientsLocal(list);
-  await pushClientsToCloud(list);
+  await pushClientsToCloud(list, { allowEmpty: true });
 }
 
 // Open the phone dialer for a number (tel: link). Keeps digits, + and leading spaces.
@@ -26671,7 +26692,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.65';
+const APP_VERSION = '11.66';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
