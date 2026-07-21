@@ -24742,10 +24742,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.99', date: 'Ιούλιος 2026', items: [
-        "💳 Τα 42 δεν ήταν λάθος της εφαρμογής: είχαν τελειώσει τα credits στο OpenRouter. Η σάρωση πρόλαβε τα ~656 και ξέμεινε στα τελευταία 42.",
-        "🗣️ Τα μηνύματα σφάλματος μιλάνε πλέον ελληνικά: «τελείωσαν τα credits στο OpenRouter» αντί για «ai-http-402».",
-        "➡️ Βάλε credits στο openrouter.ai/credits και ξαναπάτησε «Δημιουργία περιγραφών» — μένουν μόνο 42, λίγα λεπτά του ευρώ.",
+      { version: 'v12.00', date: 'Ιούλιος 2026', items: [
+        "🔍 Βρέθηκε επιτέλους. Το κόσμημα είχε σωστή περιγραφή («δύο δελφίνια σε σπείρα»), η φωτογραφία διαβαζόταν σωστά, και όμως το AI απαντούσε «δεν βρήκα τίποτα». Του ζητούσα δύο δουλειές μαζί: να ΚΟΙΤΑΞΕΙ τη φωτογραφία ΚΑΙ να ψάξει 658 γραμμές κειμένου. Είναι καλό στο πρώτο, αναξιόπιστο στο δεύτερο.",
+        "⚙️ Τώρα το AI μόνο κοιτάζει τη φωτογραφία και λέει τι βλέπει — και η ΕΦΑΡΜΟΓΗ ψάχνει τον κατάλογο μόνη της, με τα λόγια του.",
+        "🎯 Η αναζήτηση ζυγίζει τις σπάνιες λέξεις: το «χρυσό» υπάρχει σε εκατοντάδες κομμάτια και δεν μετράει· τα «δελφίνια» υπάρχουν σε έξι και κρίνουν. Έτσι ένα κομμάτι με ταιριαστή περιγραφή δεν μπορεί πια να χαθεί.",
+        "✅ Δοκιμάστηκε στα δικά σου δεδομένα: το μενταγιόν βρίσκεται ΠΡΩΤΟ, και δεύτερο το αδελφάκι του με το άλογο. Ένα δαχτυλίδι φέρνει δαχτυλίδια, και γενικές λέξεις («χρυσό, γυαλιστερό») δεν φέρνουν τίποτα.",
       ]},
       ]
   },
@@ -24776,10 +24777,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.99', date: 'Jul 2026', items: [
-        "💳 The 42 were not an app fault: the OpenRouter credit had run out. The scan got through ~656 and ran dry on the last 42.",
-        "🗣️ Error messages now speak plainly: \"OpenRouter credit used up\" instead of \"ai-http-402\".",
-        "➡️ Add credit at openrouter.ai/credits and press \"Build search descriptions\" again — only 42 remain, a couple of cents.",
+      { version: 'v12.00', date: 'Jul 2026', items: [
+        "🔍 Found at last. The piece had a correct description (\"two dolphins in a spiral\"), the photo was read correctly, and the AI still answered \"nothing matches\". I was asking it to do two jobs at once: LOOK at a photo AND search 658 lines of text. It is good at the first and unreliable at the second.",
+        "⚙️ Now the AI only looks at the photo and says what it sees — and the APP searches the catalogue itself, using those words.",
+        "🎯 The search weighs rare words: \"gold\" appears in hundreds of pieces and counts for nothing, \"dolphins\" appears in six and decides it. A piece whose description matches can no longer be missed.",
+        "✅ Tested on your own data: the pendant comes back FIRST, with its horse counterpart second. A ring query returns rings, and generic words (\"gold, polished\") return nothing.",
       ]},
           ]
   }
@@ -28389,7 +28391,56 @@ At most 5 matches, best first.`;
     const p = byRef.get(String(m.ref || '').trim().toUpperCase());
     if (p && !out.some(o => o.id === p.id)) out.push({ id: p.id, it: p.it, why: m.why || '', conf: m.conf || m.confidence || '' });
   });
-  return { seen: parsed.seen || '', rows: out, dropped: (parsed.matches || []).length - out.length };
+
+  // Then search the catalogue OURSELVES, using the model's own reading of the photo.
+  //
+  // Asking one model to both LOOK at a photograph and scan 658 lines of text for the best
+  // match is two jobs, and it is only good at the first. The dolphin pendant proved it: its
+  // stored line said "two dolphins swimming in a spiral", the photo was read as "two
+  // dolphins swimming in a spiral", and the model still answered "nothing matches".
+  // Finding a line in a list is what code is for.
+  const text = _findTextRank(parsed.seen || '', pieces);
+  text.forEach(t => { if (!out.some(o => o.id === t.id)) out.push(t); });
+
+  return { seen: parsed.seen || '', rows: out.slice(0, 8),
+           dropped: (parsed.matches || []).length - out.length, byText: text.length };
+}
+
+// A small search engine over the catalogue's own words, scored by how RARE each shared word
+// is. "gold" appears in hundreds of pieces and means nothing; "dolphins" appears in six and
+// is decisive. That weighting is what makes one distinctive word outrank a dozen generic
+// ones — and it is deterministic, so a piece whose description matches can never be missed.
+function _findTextRank(seen, pieces) {
+  const STOP = new Set(('a an the and or with of on in at from is are was it its this that ' +
+    'featuring depicting shaped hanging set small large tiny central centre center piece ' +
+    'jewellery jewelry item photo photograph shown visible looks like some two-tone').split(' '));
+  const words = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ')
+    .filter(w => w.length > 2 && !STOP.has(w));
+  const q = [...new Set(words(seen))];
+  if (!q.length) return [];
+
+  const docs = pieces.map(p => ({ p, w: new Set(words(
+    [p.it.aiDesc, _itemDesc(p.it), p.it.stonesDesc, invTypeLabel(p.it.jewelryType)].join(' '))) }));
+  const df = {};
+  q.forEach(w => { df[w] = docs.reduce((n, d) => n + (d.w.has(w) ? 1 : 0), 0); });
+
+  const scored = [];
+  docs.forEach(d => {
+    let s = 0, hits = 0;
+    q.forEach(w => {
+      if (!d.w.has(w) || !df[w]) return;
+      s += Math.log(docs.length / df[w]);      // rare word = high weight
+      hits++;
+    });
+    if (hits >= 2 && s > 0) scored.push({ id: d.p.id, it: d.p.it, score: s, hits });
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0] ? scored[0].score : 0;
+  // Only genuinely strong matches — never pad the answer with weak ones.
+  return scored.filter(x => x.score >= Math.max(2.5, best * 0.55)).slice(0, 5)
+    .map(x => ({ id: x.id, it: x.it, conf: x.score >= best * 0.9 ? 'medium' : 'low',
+                 why: (lang === 'el' ? 'Ταιριάζει η περιγραφή: ' : 'Description matches: ')
+                      + x.hits + (lang === 'el' ? ' κοινά στοιχεία' : ' shared details') }));
 }
 
 // ─── SEARCH DESCRIPTIONS ─────────────────────────────────────────────────────
@@ -28933,7 +28984,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.99';
+const APP_VERSION = '12.00';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
