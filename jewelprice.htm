@@ -1768,6 +1768,13 @@
         <button onclick="openInvExportSheet()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="exportBtn">📊 Εξαγωγή σε CSV</button>
       </div>
 
+      <!-- PHOTO-SEARCH DIAGNOSTIC — off by default; it is an instrument, not everyday furniture -->
+      <div class="settings-section" id="aiDescPeekSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="peekTitle">🔎 Έλεγχος Αναζήτησης με Φωτογραφία</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="peekDesc">Δείχνει μέσα στην Επεξεργασία κάθε κοσμήματος τι ακριβώς «βλέπει» η αναζήτηση με φωτογραφία, με κουμπί για να ξαναγραφεί. Χρήσιμο μόνο όταν ψάχνεις γιατί δεν βρίσκεται κάποιο κομμάτι — αλλιώς άφησέ το κλειστό.</p>
+        <button id="aiDescPeekBtn" onclick="_toggleAiDescPeek()" style="width:100%;padding:12px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase"></button>
+      </div>
+
       <!-- SALE LINK REPAIR (one-off cleanup for records written before v11.69) -->
       <div class="settings-section" id="saleLinkFixSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="slfTitle">🔗 Έλεγχος Συνδέσεων Πωλήσεων</h4>
@@ -3498,6 +3505,8 @@ const T = {
     autoBackupDesc:'Η εφαρμογή κρατά αυτόματα ένα αντίγραφο όλων των δεδομένων μία φορά την ημέρα (τελευταία 30). Ιδιωτικά — δεν εμφανίζονται πουθενά δημόσια.',
     backupNowBtn:'☁️ Αντίγραφο Τώρα',
     restoreBackupBtn:'↩️ Επαναφορά',
+    peekTitle:'🔎 Έλεγχος Αναζήτησης με Φωτογραφία',
+    peekDesc:'Δείχνει μέσα στην Επεξεργασία κάθε κοσμήματος τι ακριβώς «βλέπει» η αναζήτηση με φωτογραφία, με κουμπί για να ξαναγραφεί. Χρήσιμο μόνο όταν ψάχνεις γιατί δεν βρίσκεται κάποιο κομμάτι — αλλιώς άφησέ το κλειστό.',
     slfTitle:'🔗 Έλεγχος Συνδέσεων Πωλήσεων',
     slfDesc:'Βρίσκει πωλήσεις που δεν δείχνουν στο σωστό κόσμημα: είτε πληρώθηκαν αλλά το κόσμημα έμεινε στο απόθεμα, είτε (παλιές πωλήσεις καλαθιού) κόλλησαν πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο. Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».',
     slfScanBtn:'🔍 Σάρωση Πωλήσεων',
@@ -3995,6 +4004,8 @@ const T = {
     autoBackupDesc:'The app automatically keeps a snapshot of all your data once a day (last 30 kept). Private — never shown anywhere public.',
     backupNowBtn:'☁️ Back Up Now',
     restoreBackupBtn:'↩️ Restore',
+    peekTitle:'🔎 Photo Search Check',
+    peekDesc:'Shows, inside the Edit form for a piece, exactly what the photo search sees for it, with a button to rewrite it. Only useful when working out why a piece cannot be found — otherwise leave it off.',
     slfTitle:'🔗 Sale Link Check',
     slfDesc:'Finds sales that do not point at the right jewel: either the sale was paid for while the piece stayed in stock, or (older cart sales) a by-the-gram chain link got stuck to it. Nothing changes until you press Repair.',
     slfScanBtn:'🔍 Scan Sales',
@@ -5055,6 +5066,7 @@ function applyRoleUI() {
   show('exportSection',     can('export'));
   show('stocktakeSection',  can('stocktake'));
   show('saleLinkFixSection', can('sales_admin'));
+  show('aiDescPeekSection', can('manage_stock'));
   show('stkOwnerFooter',    can('stocktake') && _stkActive, 'block');
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
 
@@ -5207,7 +5219,7 @@ function showPanel(name) {
     renderVendors();
     if (document.getElementById('laborList').children.length === 0) addLaborRow();
   }
-  if (name === 'settings') { loadSettingsForm(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); } if (can('sales_admin')) renderSalesDashboard(); }
+  if (name === 'settings') { loadSettingsForm(); _renderAiDescPeekBtn(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); } if (can('sales_admin')) renderSalesDashboard(); }
   if (name === 'sync') {
     const _syncPin = localStorage.getItem('jpro_owner_pin') || '';
     if (_syncPin && creds.role !== 'owner') {
@@ -21200,7 +21212,7 @@ function invEdit(id) {
         placeholder="e.g. Solitaire ring"
         style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none">
     </div>
-    ${can('manage_stock') ? `<div style="margin-bottom:18px">
+    ${(can('manage_stock') && _aiDescPeek()) ? `<div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'🔎 Τι βλέπει η αναζήτηση με φωτογραφία':'🔎 What the photo search sees'}</label>
       <div id="invEditAiDesc" style="padding:10px 12px;background:var(--wa04);border:1px solid var(--wa10);border-radius:8px;font-family:var(--font-body);font-size:12px;color:${item.aiDesc?'#9fd4ff':'var(--text-dim)'};line-height:1.5;font-style:${item.aiDesc?'normal':'italic'}">${item.aiDesc ? _resEsc(item.aiDesc) : (lang==='el'?'— καμία περιγραφή· αυτό το κομμάτι δεν μπορεί να βρεθεί από φωτογραφία':'— none; this piece cannot be found from a photo')}</div>
       <button onclick="_invEditRedescribe('${id}')" id="invEditRedescBtn" style="width:100%;margin-top:6px;padding:8px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">↻ ${lang==='el'?'Ξαναδές τη φωτογραφία':'Look at the photo again'}</button>
@@ -24742,11 +24754,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.00', date: 'Ιούλιος 2026', items: [
-        "🔍 Βρέθηκε επιτέλους. Το κόσμημα είχε σωστή περιγραφή («δύο δελφίνια σε σπείρα»), η φωτογραφία διαβαζόταν σωστά, και όμως το AI απαντούσε «δεν βρήκα τίποτα». Του ζητούσα δύο δουλειές μαζί: να ΚΟΙΤΑΞΕΙ τη φωτογραφία ΚΑΙ να ψάξει 658 γραμμές κειμένου. Είναι καλό στο πρώτο, αναξιόπιστο στο δεύτερο.",
-        "⚙️ Τώρα το AI μόνο κοιτάζει τη φωτογραφία και λέει τι βλέπει — και η ΕΦΑΡΜΟΓΗ ψάχνει τον κατάλογο μόνη της, με τα λόγια του.",
-        "🎯 Η αναζήτηση ζυγίζει τις σπάνιες λέξεις: το «χρυσό» υπάρχει σε εκατοντάδες κομμάτια και δεν μετράει· τα «δελφίνια» υπάρχουν σε έξι και κρίνουν. Έτσι ένα κομμάτι με ταιριαστή περιγραφή δεν μπορεί πια να χαθεί.",
-        "✅ Δοκιμάστηκε στα δικά σου δεδομένα: το μενταγιόν βρίσκεται ΠΡΩΤΟ, και δεύτερο το αδελφάκι του με το άλογο. Ένα δαχτυλίδι φέρνει δαχτυλίδια, και γενικές λέξεις («χρυσό, γυαλιστερό») δεν φέρνουν τίποτα.",
+      { version: 'v12.01', date: 'Ιούλιος 2026', items: [
+        "🔎 Το «Τι βλέπει η αναζήτηση με φωτογραφία» έφυγε από την καθημερινή Επεξεργασία. Είναι εργαλείο ελέγχου, όχι έπιπλο.",
+        "⚙️ Άναψέ το όποτε το χρειάζεσαι: Ρυθμίσεις → «Έλεγχος Αναζήτησης με Φωτογραφία». Κλειστό από προεπιλογή, και η επιλογή μένει σε αυτή τη συσκευή.",
       ]},
       ]
   },
@@ -24777,11 +24787,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.00', date: 'Jul 2026', items: [
-        "🔍 Found at last. The piece had a correct description (\"two dolphins in a spiral\"), the photo was read correctly, and the AI still answered \"nothing matches\". I was asking it to do two jobs at once: LOOK at a photo AND search 658 lines of text. It is good at the first and unreliable at the second.",
-        "⚙️ Now the AI only looks at the photo and says what it sees — and the APP searches the catalogue itself, using those words.",
-        "🎯 The search weighs rare words: \"gold\" appears in hundreds of pieces and counts for nothing, \"dolphins\" appears in six and decides it. A piece whose description matches can no longer be missed.",
-        "✅ Tested on your own data: the pendant comes back FIRST, with its horse counterpart second. A ring query returns rings, and generic words (\"gold, polished\") return nothing.",
+      { version: 'v12.01', date: 'Jul 2026', items: [
+        "🔎 \"What the photo search sees\" is out of the everyday Edit form. It is a troubleshooting instrument, not furniture.",
+        "⚙️ Switch it on when you need it: Settings → \"Photo Search Check\". Off by default, and the choice stays on this device.",
       ]},
           ]
   }
@@ -28909,6 +28917,30 @@ function _descErrorLabel(code) {
   return code;
 }
 
+// The "what the photo search sees" panel is a troubleshooting instrument, so it stays out
+// of the everyday Edit form until it is wanted. Local to the device: it is a preference for
+// whoever is doing the digging, not shop data.
+function _aiDescPeek() { return localStorage.getItem('jpro_aiDescPeek') === '1'; }
+
+function _renderAiDescPeekBtn() {
+  const b = document.getElementById('aiDescPeekBtn');
+  if (!b) return;
+  const on = _aiDescPeek(), isEl = lang === 'el';
+  b.textContent = on ? (isEl ? '✓ Ενεργό — φαίνεται στην Επεξεργασία' : '✓ On — shown in Edit Item')
+                     : (isEl ? 'Ανενεργό' : 'Off');
+  b.style.background = on ? 'rgba(76,175,132,0.12)' : 'var(--wa06)';
+  b.style.border = '1px solid ' + (on ? 'rgba(76,175,132,0.45)' : 'var(--wa15)');
+  b.style.color = on ? '#4caf84' : 'var(--text-muted)';
+}
+
+function _toggleAiDescPeek() {
+  localStorage.setItem('jpro_aiDescPeek', _aiDescPeek() ? '0' : '1');
+  _renderAiDescPeekBtn();
+  showToast(_aiDescPeek()
+    ? (lang === 'el' ? '🔎 Θα φαίνεται στην Επεξεργασία' : '🔎 Will show in Edit Item')
+    : (lang === 'el' ? 'Κρύφτηκε' : 'Hidden'));
+}
+
 // Tells the owner how many pieces the photo search currently cannot see, and lets him
 // fix it himself — the same self-service shape as the other maintenance actions.
 async function _findRefreshDescBox() {
@@ -28984,7 +29016,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.00';
+const APP_VERSION = '12.01';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
