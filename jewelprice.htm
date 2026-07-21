@@ -3356,6 +3356,8 @@ const T = {
     findConfHigh:'ΣΙΓΟΥΡΟ',
     findConfMed:'ΠΙΘΑΝΟ',
     findConfLow:'ΑΒΕΒΑΙΟ',
+    findShowOthers:'Δες και τα υπόλοιπα',
+    findHideOthers:'Κρύψε τα υπόλοιπα',
     featuresTitle:'✨ Λίστα Λειτουργιών', manualTitle:'📖 Οδηγίες Χρήσης', changelogTitle:'📋 Ιστορικό Αλλαγών',
     supportTitle:'🛠️ Υποστήριξη', supportText:'Για αναφορά προβλημάτων ή νέες λειτουργίες επικοινωνήστε με τον developer.',
     scanQr:'Σάρωση QR Κωδικού',
@@ -3812,6 +3814,8 @@ const T = {
     findConfHigh:'CONFIDENT',
     findConfMed:'LIKELY',
     findConfLow:'UNSURE',
+    findShowOthers:'Show the others',
+    findHideOthers:'Hide the others',
     featuresTitle:'✨ Feature List', manualTitle:'📖 User Manual', changelogTitle:'📋 Changelog',
     supportTitle:'🛠️ Support', supportText:'For bug reports or new feature requests please contact the developer.',
     scanQr:'Scan QR Code',
@@ -24730,13 +24734,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.86', date: 'Ιούλιος 2026', items: [
-        "🤖 Το «Ταύτιση με φωτογραφία» χρησιμοποιεί τώρα AI. Φωτογραφίζεις το κόσμημα και το AI ψάχνει ΟΛΟ το απόθεμά σου — δεν χρειάζεται να διαλέξεις φίλτρα πρώτα.",
-        "💎 Δεν συγκρίνει εικόνες με εικόνες. Στέλνει τη φωτογραφία μαζί με τον κατάλογό σου σε κείμενο (είδος, μέταλλο, χρώμα χρυσού, ΠΕΤΡΕΣ, περιγραφή) και το AI βρίσκει ποιο κομμάτι βλέπει — πολύ πιο ακριβές, γιατί οι πέτρες είναι καταγεγραμμένες.",
-        "💬 Σου λέει τι ΝΟΜΙΖΕΙ ότι βλέπει και γιατί διάλεξε το κάθε κομμάτι, με ένδειξη ΣΙΓΟΥΡΟ / ΠΙΘΑΝΟ / ΑΒΕΒΑΙΟ.",
-        "🛡️ Αν το AI αναφέρει κωδικό που δεν υπάρχει, αγνοείται — δεν εμφανίζεται ποτέ φανταστικό κόσμημα.",
-        "📴 Χωρίς ίντερνετ ή χωρίς κλειδί, γυρίζει αυτόματα στην τοπική αναζήτηση φωτογραφίας που δουλεύει στη συσκευή.",
-        "💰 Κοστίζει περίπου μισό λεπτό του ευρώ ανά αναζήτηση.",
+      { version: 'v11.87', date: 'Ιούλιος 2026', items: [
+        "🎯 Η αναζήτηση με φωτογραφία δείχνει τώρα ΜΟΝΟ το κομμάτι που βρήκε. Τα υπόλοιπα κρύβονται πίσω από ένα «Δες και τα υπόλοιπα» — ένα πάτημα αν η πρώτη απάντηση δεν είναι η σωστή.",
+        "🧹 Η γραμμή «φωτογραφίες στο ευρετήριο» δεν εμφανίζεται πια όταν έχεις βάλει κλειδί AI — το τοπικό ευρετήριο μένει μόνο ως εφεδρεία χωρίς ίντερνετ.",
       ]},
       ]
   },
@@ -24767,13 +24767,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.86', date: 'Jul 2026', items: [
-        "🤖 \"Match by photo\" now uses AI. Photograph the piece and it searches your WHOLE stock — no need to pick filters first.",
-        "💎 It does not compare pictures to pictures. It sends your photo together with your catalogue as text (type, metal, gold colour, STONES, description) and the AI works out which piece it is looking at — far more accurate, because your stones are already recorded.",
-        "💬 It tells you what it THINKS it sees and why it chose each piece, marked CONFIDENT / LIKELY / UNSURE.",
-        "🛡️ If the AI names a code that does not exist, it is discarded — an invented piece can never reach the screen.",
-        "📴 With no internet or no key it falls back automatically to the on-device photo search.",
-        "💰 Costs roughly half a euro cent per search.",
+      { version: 'v11.87', date: 'Jul 2026', items: [
+        "🎯 The photo search now shows ONLY the piece it found. The rest fold away behind \"Show the others\" — one tap, for when the first answer is not the right one.",
+        "🧹 The \"photos indexed\" line no longer appears once an AI key is set — the on-device index stays only as the no-internet fallback.",
       ]},
           ]
   }
@@ -28505,7 +28501,17 @@ function _findRenderAi(r, file, checked) {
     box.innerHTML = html;
     return;
   }
-  html += r.rows.map((row, i) => {
+
+  // Show the answer, not a list. The runners-up are the model hedging — useful when it
+  // got it wrong, noise when it got it right — so they fold away behind one tap.
+  // "Confident" ones lead; if the model was never confident, the best guess still shows,
+  // because a collapsed panel with nothing above it would look like no result at all.
+  const _conf = (x) => String(x.conf).toLowerCase() === 'high';
+  let head = r.rows.filter(_conf);
+  if (!head.length) head = r.rows.slice(0, 1);
+  const rest = r.rows.filter(x => !head.includes(x));
+
+  const card = (row, i) => {
     const it = row.it;
     const ref = itemRefCode(it) || it.qrCode || it.code || '';
     const desc = _resEsc(_itemDesc(it) || invTypeLabel(it.jewelryType));
@@ -28531,8 +28537,26 @@ function _findRenderAi(r, file, checked) {
         </div>
       </div>
     </div>`;
-  }).join('');
+  };
+
+  html += head.map((row, i) => card(row, i)).join('');
+  if (rest.length) {
+    html += `<button onclick="_findToggleOthers()" id="findOthersBtn"
+        style="width:100%;padding:11px;background:var(--wa06);border:1px solid var(--wa12);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">
+        ▾ ${t('findShowOthers')} (${rest.length})</button>
+      <div id="findOthers" style="display:none;margin-top:8px">${rest.map(row => card(row, 1)).join('')}</div>`;
+  }
   box.innerHTML = html;
+}
+
+function _findToggleOthers() {
+  const d = document.getElementById('findOthers');
+  const b = document.getElementById('findOthersBtn');
+  if (!d || !b) return;
+  const open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : 'block';
+  const n = d.children.length;
+  b.innerHTML = (open ? '▾ ' + t('findShowOthers') : '▴ ' + t('findHideOthers')) + ' (' + n + ')';
 }
 
 // The index has to be built before any of this works, so the panel says so plainly and
@@ -28541,6 +28565,9 @@ async function _findRefreshIndexBox() {
   const box = document.getElementById('findIndexBox');
   if (!box) return;
   if (!can('manage_stock')) { box.style.display = 'none'; return; }
+  // With an AI key set, the on-device index is only ever the offline fallback — the
+  // owner has no reason to think about it, so it stops advertising itself.
+  if (_aiKey()) { box.style.display = 'none'; return; }
   const vectors = await loadImgVectors();
   const pending = _visPending(vectors).length;
   const total = Object.keys(vectors).length;
@@ -28787,7 +28814,7 @@ async function visMatch(canvas, ids) {
   return rows;
 }
 
-const APP_VERSION = '11.86';
+const APP_VERSION = '11.87';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
