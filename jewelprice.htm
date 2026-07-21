@@ -1850,6 +1850,13 @@
           <button onclick="saveTelegramToken()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ Αποθήκευση Token</button>
           <button onclick="showTelegramSetup()" style="margin-top:6px;margin-left:8px;padding:7px 14px;background:transparent;border:1px solid var(--wa15);border-radius:8px;color:var(--text-muted);font-family:var(--font-body);font-size:12px;cursor:pointer" data-i18n="telegramHowTo">Πώς να το ρυθμίσετε</button>
         </div>
+        <div class="field">
+          <label data-i18n="aiKeyLabel">OpenRouter API Key</label>
+          <input type="password" id="aiKeyInput" placeholder="sk-or-v1-..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" style="font-family:var(--font-mono);font-size:12px">
+          <div class="hint" data-i18n="aiKeyHint">Για την εκτίμηση τιμής πετρών. Αποθηκεύεται ιδιωτικά — ποτέ μέσα στην εφαρμογή.</div>
+          <button onclick="saveAiKey()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ <span data-i18n="aiKeySave">Αποθήκευση κλειδιού</span></button>
+          <div id="aiKeyStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
+        </div>
         <button class="save-btn" onclick="ownerSaveAndPush()" data-i18n="savePush">💾 Αποθήκευση & Ανέβασμα</button>
         <button class="save-btn" onclick="showShareOptions()" style="margin-top:8px;border-color:rgba(176,184,200,0.4);color:var(--silver-light)" id="shareBtnEl">📤 <span id="shareBtnText">Κοινοποίηση Εφαρμογής</span></button>
         <div class="status-bar" id="ownerStatus"></div>
@@ -3601,6 +3608,9 @@ const T = {
     notifNoTeam:'Δεν υπάρχουν μέλη ομάδας',
     telegramTokenLabel:'Telegram Bot Token',
     telegramTokenHint:'Από το @BotFather — για αυτόματες ειδοποιήσεις',
+    aiKeyLabel:'OpenRouter API Key',
+    aiKeyHint:'Για την εκτίμηση τιμής πετρών. Αποθηκεύεται ιδιωτικά — ποτέ μέσα στην εφαρμογή.',
+    aiKeySave:'Αποθήκευση κλειδιού',
     telegramChatIdLabel:'Telegram Chat ID',
     telegramChatIdHint:'Βρείτε το από @userinfobot',
     telegramHowTo:'Πώς να το ρυθμίσετε',
@@ -4088,6 +4098,9 @@ const T = {
     notifNoTeam:'No team members found',
     telegramTokenLabel:'Telegram Bot Token',
     telegramTokenHint:'From @BotFather — for automatic notifications',
+    aiKeyLabel:'OpenRouter API Key',
+    aiKeyHint:'Used for stone price estimates. Stored privately — never inside the app file.',
+    aiKeySave:'Save key',
     telegramChatIdLabel:'Telegram Chat ID',
     telegramChatIdHint:'Find it from @userinfobot',
     telegramHowTo:'How to set up',
@@ -4644,8 +4657,20 @@ function cloudConfig() {
            currency: state.currency, manualGold: state.manualGold, manualSilver: state.manualSilver,
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
-           customCoins: state.customCoins || [], refiningLoss: state.refiningLoss };
+           customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
+           aiKey: localStorage.getItem('jpro_ai_key') || '' };
 }
+
+// ─── AI KEY ──────────────────────────────────────────────────────────────────
+// The OpenRouter key used to live hardcoded in this file as atob('c2stb3It…').
+// jewelprice.htm is served PUBLICLY from GitHub Pages, and base64 is an encoding,
+// not encryption — so the key was readable by anyone who opened the page source,
+// and any of them could spend the owner's credit. It now lives in the private
+// Firebase config like the Telegram bot token: entered once in Settings, readable
+// only by a device that already holds the DB secret.
+//
+// RULE: never put an API key, token or secret in this file. It is a public document.
+function _aiKey() { return (localStorage.getItem('jpro_ai_key') || '').trim(); }
 
 async function pushToCloud() {
   if (!creds.binId) throw new Error('No Firebase URL set');
@@ -4687,6 +4712,11 @@ function applyCloudConfig(cfg) {
     localStorage.setItem('jpro_telegram_token', cfg.telegramToken);
     const tgEl = document.getElementById('telegramTokenInput');
     if (tgEl && !tgEl.value) tgEl.value = cfg.telegramToken;
+  }
+  if (cfg.aiKey) {
+    localStorage.setItem('jpro_ai_key', cfg.aiKey);
+    const akEl = document.getElementById('aiKeyInput');
+    if (akEl && !akEl.value) akEl.value = cfg.aiKey;
   }
   saveState(); populateVendorSelect(); updateSpotDisplay();
 }
@@ -13393,7 +13423,8 @@ RETAIL: €[integer]`;
   let liveSuccess = false;
   let _aiError = '';
   try {
-    const _k = atob('c2stb3ItdjEtZTkyN2Y3MmRiM2JmMGRkZmQ2YWU3MGE3NjY0NWRjNjQ4OGQ1ZDAyMTc4YmVjNmEwZjg1YzE3OTcwYzA3YzE0NA==');
+    const _k = _aiKey();
+    if (!_k) throw new Error('no-ai-key');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -20517,7 +20548,8 @@ RETAIL: €[integer]`;
       let _aiSuccess = false;
       try {
         resDiv.textContent = lang==='el'?'⏳ AI...':'⏳ AI...';
-        const _k2 = atob('c2stb3ItdjEtZTkyN2Y3MmRiM2JmMGRkZmQ2YWU3MGE3NjY0NWRjNjQ4OGQ1ZDAyMTc4YmVjNmEwZjg1YzE3OTcwYzA3YzE0NA==');
+        const _k2 = _aiKey();
+    if (!_k2) throw new Error('no-ai-key');
         const _ctrl2 = new AbortController();
         const _to2 = setTimeout(() => _ctrl2.abort(), 20000);
         const _res2 = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -21504,7 +21536,8 @@ RETAIL: \u20ac[integer]`;
         let _aiOk2 = false;
         try {
           resDiv.textContent = lang==='el'?'\u23f3 AI...':'\u23f3 AI...';
-          const _k3 = atob('c2stb3ItdjEtZTkyN2Y3MmRiM2JmMGRkZmQ2YWU3MGE3NjY0NWRjNjQ4OGQ1ZDAyMTc4YmVjNmEwZjg1YzE3OTcwYzA3YzE0NA==');
+          const _k3 = _aiKey();
+    if (!_k3) throw new Error('no-ai-key');
           const _ctrl3 = new AbortController();
           const _to3 = setTimeout(() => _ctrl3.abort(), 20000);
           const _r3 = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -24687,12 +24720,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.84', date: 'Ιούλιος 2026', items: [
-        "📷 Ταύτιση με φωτογραφία στο «Βρες Κόσμημα». Έχασες την ετικέτα και το βάρος δεν βοηθάει (γιατί έχεις αφαιρέσει το βάρος των πετρών); Φωτογράφισε το κόσμημα και η εφαρμογή σου δείχνει τα πιο όμοια από το απόθεμα, με ποσοστό ταιριάσματος.",
-        "🎯 Δουλεύει μαζί με τα φίλτρα: διάλεξε π.χ. Δαχτυλίδι + 18Κ και μετά φωτογράφισε — η σύγκριση γίνεται μόνο μέσα σε αυτά, που είναι πιο αξιόπιστο.",
-        "🔒 Όλα γίνονται ΣΤΗ ΣΥΣΚΕΥΗ. Καμία φωτογραφία δεν φεύγει από το κινητό.",
-        "⚙️ Την πρώτη φορά χρειάζεται ίντερνετ (κατέβασμα μοντέλου) και ένα «χτίσιμο ευρετηρίου» των φωτογραφιών του αποθέματος — μία φορά, λίγα λεπτά. Τα νέα κομμάτια μπαίνουν μετά αυτόματα.",
-        "⚖️ Το βάρος αγνοείται στην αναζήτηση με φωτογραφία — ακριβώς επειδή στα κομμάτια με πέτρες το αποθηκευμένο βάρος είναι μικρότερο από το πραγματικό.",
+      { version: 'v11.85', date: 'Ιούλιος 2026', items: [
+        "🔐 ΣΗΜΑΝΤΙΚΟ: το κλειδί OpenRouter ήταν γραμμένο ΜΕΣΑ στο αρχείο της εφαρμογής, που είναι δημόσιο στο internet — οποιοσδήποτε μπορούσε να το διαβάσει και να ξοδέψει τα χρήματά σου. Αφαιρέθηκε εντελώς.",
+        "🔑 Νέο πεδίο «OpenRouter API Key» στην καρτέλα Συγχρονισμός (μόνο ιδιοκτήτης). Το κλειδί αποθηκεύεται ιδιωτικά, όπως το token του Telegram — ποτέ ξανά μέσα στο αρχείο.",
+        "✅ Πατώντας «Αποθήκευση κλειδιού» η εφαρμογή ΡΩΤΑΕΙ το OpenRouter αν το κλειδί δουλεύει και σου δείχνει το όριο δαπάνης — δεν αποθηκεύεται λάθος ή ακυρωμένο κλειδί.",
+        "⚠️ Πρέπει να ακυρώσεις το παλιό κλειδί στο openrouter.ai και να βάλεις καινούργιο εδώ. Μέχρι τότε η εκτίμηση τιμής πετρών χρησιμοποιεί τον τοπικό πίνακα.",
       ]},
       ]
   },
@@ -24723,12 +24755,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.84', date: 'Jul 2026', items: [
-        "📷 Match by photo in \"Find Jewelry\". Lost the tag and the weight can't help (because you deducted the stone weight)? Photograph the piece and the app shows the closest matches in your stock, with a match score.",
-        "🎯 Works together with the filters: pick e.g. Ring + 18K first, then photograph — it compares only within those, which is more reliable.",
-        "🔒 Everything runs ON THE DEVICE. No photo ever leaves your phone.",
-        "⚙️ The first time it needs internet (model download) and a one-off \"build photo index\" of your stock photos — a few minutes, once. New pieces are added automatically after that.",
-        "⚖️ Weight is ignored in a photo search — precisely because a stone-set piece is stored lighter than it really is.",
+      { version: 'v11.85', date: 'Jul 2026', items: [
+        "🔐 IMPORTANT: the OpenRouter key was written INSIDE the app file, which is public on the internet — anyone could read it and spend your money. It has been removed completely.",
+        "🔑 New \"OpenRouter API Key\" field in the Sync tab (owner only). The key is stored privately, like the Telegram token — never again inside the file.",
+        "✅ Pressing \"Save key\" ASKS OpenRouter whether the key works and shows your spend limit — a mistyped or revoked key is never silently stored.",
+        "⚠️ You need to revoke the old key at openrouter.ai and put a new one here. Until then, stone price estimates use the local table.",
       ]},
           ]
   }
@@ -28565,7 +28596,7 @@ async function visMatch(canvas, ids) {
   return rows;
 }
 
-const APP_VERSION = '11.84';
+const APP_VERSION = '11.85';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -28889,6 +28920,43 @@ function saveTelegramToken() {
   if (!val) { showToast(lang==='el' ? '⚠️ Εισάγετε token' : '⚠️ Enter token'); return; }
   localStorage.setItem('jpro_telegram_token', val);
   showToast(lang==='el' ? '✓ Telegram token αποθηκεύτηκε' : '✓ Telegram token saved');
+}
+
+// Saves the OpenRouter key, then ASKS OpenRouter whether it actually works — a key
+// that was mistyped or already revoked should say so here, not fail silently weeks
+// later inside the stone estimator. Pushes to the private config so the owner's other
+// device gets it without being typed twice.
+async function saveAiKey() {
+  const el = document.getElementById('aiKeyInput');
+  const st = document.getElementById('aiKeyStatus');
+  const isEl = lang === 'el';
+  const val = (el?.value || '').trim();
+  const say = (m, c) => { if (st) { st.textContent = m; st.style.color = c || 'var(--text-muted)'; } };
+  if (!val) { say(isEl ? '⚠️ Βάλε το κλειδί' : '⚠️ Enter the key', '#e88'); return; }
+  if (!/^sk-or-/.test(val)) {
+    say(isEl ? '⚠️ Δεν μοιάζει με κλειδί OpenRouter (ξεκινά με sk-or-)'
+             : '⚠️ That is not an OpenRouter key (starts with sk-or-)', '#e88');
+    return;
+  }
+  say(isEl ? '⏳ Έλεγχος…' : '⏳ Checking…');
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/key', { headers: { 'Authorization': 'Bearer ' + val } });
+    if (!r.ok) {
+      say(isEl ? '❌ Το OpenRouter απέρριψε το κλειδί (' + r.status + ')'
+               : '❌ OpenRouter rejected this key (' + r.status + ')', '#e88');
+      return;
+    }
+    const d = (await r.json()).data || {};
+    localStorage.setItem('jpro_ai_key', val);
+    try { await pushToCloud(); } catch (e) {}
+    const lim = (d.limit == null)
+      ? (isEl ? 'χωρίς όριο' : 'no limit')
+      : ((isEl ? 'όριο ' : 'limit ') + '$' + d.limit + (d.usage != null ? (isEl ? ', χρησιμοποιήθηκαν $' : ', used $') + Number(d.usage).toFixed(2) : ''));
+    say('✓ ' + (isEl ? 'Αποθηκεύτηκε και δουλεύει' : 'Saved and working') + ' · ' + lim, '#4caf84');
+    showToast(isEl ? '✓ Το κλειδί αποθηκεύτηκε' : '✓ Key saved');
+  } catch (e) {
+    say(isEl ? '❌ Δεν έγινε έλεγχος — δες τη σύνδεση' : '❌ Could not check — check your connection', '#e88');
+  }
 }
 
 function getTelegramToken() {
