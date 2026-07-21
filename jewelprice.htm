@@ -3351,6 +3351,11 @@ const T = {
     findIndexHint:'Μία φορά, ~1–7 λεπτά. Γίνεται στη συσκευή — καμία φωτογραφία δεν φεύγει.',
     findIndexStop:'Διακοπή',
     findIndexed:'φωτογραφίες στο ευρετήριο',
+    findAiResults:'Το AI βρήκε',
+    findAiNone:'Το AI δεν βρήκε κάτι που να ταιριάζει. Δοκίμασε άλλη γωνία ή καθάρισε τα φίλτρα.',
+    findConfHigh:'ΣΙΓΟΥΡΟ',
+    findConfMed:'ΠΙΘΑΝΟ',
+    findConfLow:'ΑΒΕΒΑΙΟ',
     featuresTitle:'✨ Λίστα Λειτουργιών', manualTitle:'📖 Οδηγίες Χρήσης', changelogTitle:'📋 Ιστορικό Αλλαγών',
     supportTitle:'🛠️ Υποστήριξη', supportText:'Για αναφορά προβλημάτων ή νέες λειτουργίες επικοινωνήστε με τον developer.',
     scanQr:'Σάρωση QR Κωδικού',
@@ -3802,6 +3807,11 @@ const T = {
     findIndexHint:'One time, ~1–7 minutes. Runs on this device — no photo leaves it.',
     findIndexStop:'Stop',
     findIndexed:'photos indexed',
+    findAiResults:'AI found',
+    findAiNone:'The AI found nothing matching. Try another angle, or clear the filters.',
+    findConfHigh:'CONFIDENT',
+    findConfMed:'LIKELY',
+    findConfLow:'UNSURE',
     featuresTitle:'✨ Feature List', manualTitle:'📖 User Manual', changelogTitle:'📋 Changelog',
     supportTitle:'🛠️ Support', supportText:'For bug reports or new feature requests please contact the developer.',
     scanQr:'Scan QR Code',
@@ -24720,11 +24730,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.85', date: 'Ιούλιος 2026', items: [
-        "🔐 ΣΗΜΑΝΤΙΚΟ: το κλειδί OpenRouter ήταν γραμμένο ΜΕΣΑ στο αρχείο της εφαρμογής, που είναι δημόσιο στο internet — οποιοσδήποτε μπορούσε να το διαβάσει και να ξοδέψει τα χρήματά σου. Αφαιρέθηκε εντελώς.",
-        "🔑 Νέο πεδίο «OpenRouter API Key» στην καρτέλα Συγχρονισμός (μόνο ιδιοκτήτης). Το κλειδί αποθηκεύεται ιδιωτικά, όπως το token του Telegram — ποτέ ξανά μέσα στο αρχείο.",
-        "✅ Πατώντας «Αποθήκευση κλειδιού» η εφαρμογή ΡΩΤΑΕΙ το OpenRouter αν το κλειδί δουλεύει και σου δείχνει το όριο δαπάνης — δεν αποθηκεύεται λάθος ή ακυρωμένο κλειδί.",
-        "⚠️ Πρέπει να ακυρώσεις το παλιό κλειδί στο openrouter.ai και να βάλεις καινούργιο εδώ. Μέχρι τότε η εκτίμηση τιμής πετρών χρησιμοποιεί τον τοπικό πίνακα.",
+      { version: 'v11.86', date: 'Ιούλιος 2026', items: [
+        "🤖 Το «Ταύτιση με φωτογραφία» χρησιμοποιεί τώρα AI. Φωτογραφίζεις το κόσμημα και το AI ψάχνει ΟΛΟ το απόθεμά σου — δεν χρειάζεται να διαλέξεις φίλτρα πρώτα.",
+        "💎 Δεν συγκρίνει εικόνες με εικόνες. Στέλνει τη φωτογραφία μαζί με τον κατάλογό σου σε κείμενο (είδος, μέταλλο, χρώμα χρυσού, ΠΕΤΡΕΣ, περιγραφή) και το AI βρίσκει ποιο κομμάτι βλέπει — πολύ πιο ακριβές, γιατί οι πέτρες είναι καταγεγραμμένες.",
+        "💬 Σου λέει τι ΝΟΜΙΖΕΙ ότι βλέπει και γιατί διάλεξε το κάθε κομμάτι, με ένδειξη ΣΙΓΟΥΡΟ / ΠΙΘΑΝΟ / ΑΒΕΒΑΙΟ.",
+        "🛡️ Αν το AI αναφέρει κωδικό που δεν υπάρχει, αγνοείται — δεν εμφανίζεται ποτέ φανταστικό κόσμημα.",
+        "📴 Χωρίς ίντερνετ ή χωρίς κλειδί, γυρίζει αυτόματα στην τοπική αναζήτηση φωτογραφίας που δουλεύει στη συσκευή.",
+        "💰 Κοστίζει περίπου μισό λεπτό του ευρώ ανά αναζήτηση.",
       ]},
       ]
   },
@@ -24755,11 +24767,13 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.85', date: 'Jul 2026', items: [
-        "🔐 IMPORTANT: the OpenRouter key was written INSIDE the app file, which is public on the internet — anyone could read it and spend your money. It has been removed completely.",
-        "🔑 New \"OpenRouter API Key\" field in the Sync tab (owner only). The key is stored privately, like the Telegram token — never again inside the file.",
-        "✅ Pressing \"Save key\" ASKS OpenRouter whether the key works and shows your spend limit — a mistyped or revoked key is never silently stored.",
-        "⚠️ You need to revoke the old key at openrouter.ai and put a new one here. Until then, stone price estimates use the local table.",
+      { version: 'v11.86', date: 'Jul 2026', items: [
+        "🤖 \"Match by photo\" now uses AI. Photograph the piece and it searches your WHOLE stock — no need to pick filters first.",
+        "💎 It does not compare pictures to pictures. It sends your photo together with your catalogue as text (type, metal, gold colour, STONES, description) and the AI works out which piece it is looking at — far more accurate, because your stones are already recorded.",
+        "💬 It tells you what it THINKS it sees and why it chose each piece, marked CONFIDENT / LIKELY / UNSURE.",
+        "🛡️ If the AI names a code that does not exist, it is discarded — an invented piece can never reach the screen.",
+        "📴 With no internet or no key it falls back automatically to the on-device photo search.",
+        "💰 Costs roughly half a euro cent per search.",
       ]},
           ]
   }
@@ -28249,6 +28263,114 @@ function _findRun() {
   box.innerHTML = html;
 }
 
+// ── AI photo search ──────────────────────────────────────────────────────────
+// The on-device model compares PIXELS, and on a real counter photo its scores crowd
+// together (the owner's byzantine ring came back 62% against a wrong ring at 63% —
+// the right answer was there, but its position was luck). The catalogue, meanwhile,
+// already records exactly what makes each piece distinctive: its type, its metal, and
+// its stones. So instead of matching pictures against pictures, send the photo and the
+// WHOLE catalogue as text, and let a vision model reason about which entry it is
+// looking at. Measured: 642 in-stock pieces compact to ~16.7k tokens, which fits a
+// 1M-context model many times over and costs well under a cent per search.
+const AI_SEARCH_MODELS = ['google/gemini-2.5-flash', 'google/gemini-3.1-flash-lite', 'openai/gpt-5-mini'];
+
+// The photo is the only thing that costs real tokens, so cap it. 768px is plenty for
+// "which of my rings is this" and keeps a phone photo from becoming a 4000px upload.
+async function _findPhotoDataUrl(file, max) {
+  const bmp = await createImageBitmap(file);
+  const M = max || 768;
+  const s = Math.min(1, M / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+
+// One compact line per piece. Everything the model needs to tell them apart and
+// nothing it doesn't — no cost, no margin, no vendor.
+function _findCatalogueLines(pieces) {
+  return pieces.map(p => {
+    const it = p.it;
+    const bits = [itemRefCode(it) || it.qrCode || ''];
+    bits.push(invTypeLabel(it.jewelryType) || it.jewelryType || '?');
+    bits.push((it.metal === 'gold' ? 'gold' : 'silver') + ' ' + (it.karat || ''));
+    if (it.goldColor && it.goldColor !== 'gold') bits.push(goldColorLabel(it.goldColor));
+    if (it.color) bits.push(itemColorLabel(it.color));
+    const st = (it.stonesDesc || '').trim();
+    bits.push(st ? st.replace(/\s+/g, ' ') : 'no stones');
+    const d = (_itemDesc(it) || '').trim();
+    if (d) bits.push(d);
+    return bits.join(' | ');
+  });
+}
+
+async function _findAiSearch(file, pieces) {
+  const key = _aiKey();
+  if (!key) throw new Error('no-ai-key');
+  const isEl = lang === 'el';
+  const lines = _findCatalogueLines(pieces);
+  const dataUrl = await _findPhotoDataUrl(file);
+
+  const prompt =
+`You identify a piece of jewellery from a shop's own stock list.
+
+The photo shows ONE piece the shop owner is holding. Below is every piece currently in stock, one per line:
+REF | type | metal karat | colour(s) | stones | description
+
+${lines.join('\n')}
+
+Rules:
+- Judge mainly by JEWELLERY TYPE, METAL COLOUR and the STONES (their kind, colour and how many). These are the reliable signals.
+- IGNORE any weight; the list has none, and stored weights exclude stone weight anyway.
+- Descriptions may be in Greek. Stones are in English.
+- Only ever answer with REF codes that appear in the list above. Never invent one.
+- If nothing fits well, return fewer results — an empty list is better than a wrong confident one.
+
+Return ONLY strict JSON, no markdown:
+{"seen":"<one short line describing what you see in the photo>",
+ "matches":[{"ref":"XX0000","confidence":"high|medium|low","why":"<short reason in ${isEl ? 'Greek' : 'English'}>"}]}
+At most 5 matches, best first.`;
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      models: AI_SEARCH_MODELS,           // OpenRouter falls through the list on failure
+      max_tokens: 700,
+      temperature: 0,
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: dataUrl } }
+      ]}]
+    })
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json())?.error?.message || ''; } catch (e) {}
+    throw new Error('ai-http-' + res.status + (detail ? ': ' + detail : ''));
+  }
+  const raw = ((await res.json()).choices?.[0]?.message?.content || '').trim();
+  const json = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  let parsed;
+  try { parsed = JSON.parse(json); }
+  catch (e) {
+    const m = json.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('ai-bad-json');
+    parsed = JSON.parse(m[0]);
+  }
+  // A model can still name a code that does not exist. Resolve every ref against the
+  // real list and silently drop anything that does not, so a hallucination can never
+  // reach the screen as a piece of stock.
+  const byRef = new Map();
+  pieces.forEach(p => byRef.set(String(itemRefCode(p.it) || p.it.qrCode || '').toUpperCase(), p));
+  const out = [];
+  (parsed.matches || []).forEach(m => {
+    const p = byRef.get(String(m.ref || '').trim().toUpperCase());
+    if (p && !out.some(o => o.id === p.id)) out.push({ id: p.id, it: p.it, why: m.why || '', conf: m.conf || m.confidence || '' });
+  });
+  return { seen: parsed.seen || '', rows: out, dropped: (parsed.matches || []).length - out.length };
+}
+
 // ── Photo match, from the Find panel ─────────────────────────────────────────
 let _findPhotoBusy = false;
 let _findIndexRunning = false;
@@ -28276,14 +28398,31 @@ async function _findPhotoRun(file) {
   const box = document.getElementById('findResults');
   try {
     await _invEnsureForScan();
-    _findSay(lang === 'el' ? 'Φόρτωση…' : 'Loading…');
-    await _visLoad(_findSay);
-    _findSay(lang === 'el' ? 'Σύγκριση…' : 'Comparing…');
-
     // Search whatever the filters already narrowed to — the weight box is deliberately
     // IGNORED here, because a stone-set piece is exactly the case where the stored weight
     // is short by the stones and would exclude the right answer.
-    const ids = _findAllPieces().filter(p => _findFilterOk(p.it)).map(p => p.id);
+    const pieces = _findAllPieces().filter(p => _findFilterOk(p.it));
+
+    // AI first when a key is configured: it reasons against the catalogue's own record of
+    // each piece's stones and type, which is far sharper than comparing pixels. The
+    // on-device model stays as the fallback for no key, no internet, or a refusal — it
+    // needs no network and no account.
+    if (_aiKey()) {
+      try {
+        _findSay(lang === 'el' ? '🤖 Ψάχνει…' : '🤖 Searching…');
+        const r = await _findAiSearch(file, pieces);
+        _findRenderAi(r, file, pieces.length);
+        return;
+      } catch (e) {
+        console.warn('AI photo search failed:', e);
+        _findSay(lang === 'el' ? 'Το AI δεν απάντησε — τοπική αναζήτηση…'
+                               : 'AI unavailable — searching on device…');
+      }
+    }
+
+    await _visLoad(_findSay);
+    _findSay(lang === 'el' ? 'Σύγκριση…' : 'Comparing…');
+    const ids = pieces.map(p => p.id);
     const canvas = await _visCanvasFrom(file);
     const rows = await visMatch(canvas, ids);
 
@@ -28342,6 +28481,58 @@ function _findPhotoCard(row, i) {
       </div>
     </div>
   </div>`;
+}
+
+// AI results. It says what it THINKS it saw, so a wrong answer is obvious at a glance
+// ("a silver bracelet") instead of leaving the owner guessing why the list looks odd.
+function _findRenderAi(r, file, checked) {
+  const box = document.getElementById('findResults');
+  const thumb = URL.createObjectURL(file);
+  const conf = { high: ['#4caf84', t('findConfHigh')], medium: ['#e0b25c', t('findConfMed')],
+                 low: ['#c98d8d', t('findConfLow')] };
+  let html =
+    `<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;padding:0 2px">
+       <img src="${thumb}" style="width:40px;height:40px;border-radius:8px;object-fit:contain;background:#fff;flex:0 0 auto">
+       <div style="flex:1;min-width:0">
+         <div style="font-family:var(--font-body);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#9fd4ff">🤖 ${t('findAiResults')}</div>
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted)">${checked} ${t('findSearched')}</div>
+       </div>
+     </div>`;
+  if (r.seen) html += `<div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);font-style:italic;margin:0 2px 10px">“${_resEsc(r.seen)}”</div>`;
+
+  if (!r.rows.length) {
+    html += `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);line-height:1.6;text-align:center;padding:18px 14px">${t('findAiNone')}</div>`;
+    box.innerHTML = html;
+    return;
+  }
+  html += r.rows.map((row, i) => {
+    const it = row.it;
+    const ref = itemRefCode(it) || it.qrCode || it.code || '';
+    const desc = _resEsc(_itemDesc(it) || invTypeLabel(it.jewelryType));
+    const c = conf[String(row.conf).toLowerCase()] || null;
+    const photo = it.photoUrl
+      ? `<img src="${it.photoUrl}" style="width:64px;height:64px;border-radius:8px;object-fit:contain;background:#fff;flex:0 0 auto">`
+      : `<div style="width:64px;height:64px;border-radius:8px;background:var(--dark-3);border:1px solid var(--wa08);flex:0 0 auto"></div>`;
+    return `<div style="display:flex;gap:10px;align-items:flex-start;padding:11px;margin-bottom:8px;background:var(--dark-2);border:1px solid ${i === 0 ? 'rgba(120,200,255,0.45)' : 'var(--card-border)'};border-radius:10px">
+      ${photo}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--gold-light);font-weight:600">${_resEsc(ref)}</span>
+          ${c ? `<span style="font-family:var(--font-body);font-size:9px;letter-spacing:0.08em;padding:2px 7px;border-radius:10px;border:1px solid ${c[0]}55;color:${c[0]}">${c[1]}</span>` : ''}
+        </div>
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text);margin-top:3px;overflow:hidden;text-overflow:ellipsis">${desc}</div>
+        ${row.why ? `<div style="font-family:var(--font-body);font-size:11px;color:#9fd4ff;margin-top:3px;line-height:1.45">${_resEsc(row.why)}</div>` : ''}
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:3px">
+          ${_resEsc(invTypeLabel(it.jewelryType))} · ${t(it.metal)} ${_findKaratLabel(it.karat)} · ${parseFloat(it.weight || 0).toFixed(2)} g
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button onclick="invPrintTagFromCard('${row.id}')" style="flex:1;min-width:92px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);font-family:var(--font-body);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer">${t('findPrintTag')}</button>
+          <button onclick="_jumpToInvCard('${row.id}')" style="flex:1;min-width:92px;background:var(--wa06);border:1px solid var(--wa12);color:var(--text-muted);font-family:var(--font-body);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer">${t('findOpenItem')}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  box.innerHTML = html;
 }
 
 // The index has to be built before any of this works, so the panel says so plainly and
@@ -28596,7 +28787,7 @@ async function visMatch(canvas, ids) {
   return rows;
 }
 
-const APP_VERSION = '11.85';
+const APP_VERSION = '11.86';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
