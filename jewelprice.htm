@@ -1767,7 +1767,7 @@
       <!-- SALE LINK REPAIR (one-off cleanup for records written before v11.69) -->
       <div class="settings-section" id="saleLinkFixSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="slfTitle">🔗 Έλεγχος Συνδέσεων Πωλήσεων</h4>
-        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="slfDesc">Παλιές πωλήσεις καλαθιού μπορεί να έχουν κολλήσει πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο αντί για το ίδιο τους το κομμάτι. Η σάρωση τις βρίσκει και τις διορθώνει (σύνδεση, κόστος, κέρδος). Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».</p>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="slfDesc">Βρίσκει πωλήσεις που δεν δείχνουν στο σωστό κόσμημα: είτε πληρώθηκαν αλλά το κόσμημα έμεινε στο απόθεμα, είτε (παλιές πωλήσεις καλαθιού) κόλλησαν πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο. Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».</p>
         <button onclick="scanSaleLinks()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="slfScanBtn">🔍 Σάρωση Πωλήσεων</button>
         <div id="slfResults" style="margin-top:12px"></div>
       </div>
@@ -3413,7 +3413,7 @@ const T = {
     backupNowBtn:'☁️ Αντίγραφο Τώρα',
     restoreBackupBtn:'↩️ Επαναφορά',
     slfTitle:'🔗 Έλεγχος Συνδέσεων Πωλήσεων',
-    slfDesc:'Παλιές πωλήσεις καλαθιού μπορεί να έχουν κολλήσει πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο αντί για το ίδιο τους το κομμάτι. Η σάρωση τις βρίσκει και τις διορθώνει (σύνδεση, κόστος, κέρδος). Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».',
+    slfDesc:'Βρίσκει πωλήσεις που δεν δείχνουν στο σωστό κόσμημα: είτε πληρώθηκαν αλλά το κόσμημα έμεινε στο απόθεμα, είτε (παλιές πωλήσεις καλαθιού) κόλλησαν πάνω τους τη σύνδεση μιας αλυσίδας-με-το-γραμμάριο. Δεν αλλάζει τίποτα μέχρι να πατήσετε «Διόρθωση».',
     slfScanBtn:'🔍 Σάρωση Πωλήσεων',
     exportTitle:'📊 Εξαγωγή Απογραφής (CSV)',
     exportDesc:'Εξαγωγή του αποθέματος σε αρχείο CSV για τον λογιστή — με σύνολα ανά τύπο, εύρος ημερομηνιών και επιλογή τι περιλαμβάνεται. Ανοίγει καθαρά στο Excel.',
@@ -3867,7 +3867,7 @@ const T = {
     backupNowBtn:'☁️ Back Up Now',
     restoreBackupBtn:'↩️ Restore',
     slfTitle:'🔗 Sale Link Check',
-    slfDesc:'Older cart sales may have a by-the-gram chain link stuck to them instead of their own piece. The scan finds them and repairs the link, cost and profit. Nothing changes until you press Repair.',
+    slfDesc:'Finds sales that do not point at the right jewel: either the sale was paid for while the piece stayed in stock, or (older cart sales) a by-the-gram chain link got stuck to it. Nothing changes until you press Repair.',
     slfScanBtn:'🔍 Scan Sales',
     exportTitle:'📊 Export Inventory (CSV)',
     exportDesc:'Export your stock to a CSV file for your accountant — with totals per type, a date range and control over what\'s included. Opens cleanly in Excel.',
@@ -8483,6 +8483,24 @@ function _buildStoneQRSuffix(stoneRows) {
   return suffix;
 }
 
+// One spelling of a code, whatever it was written with.
+//
+// Codes generated before v10.13 could carry the stone suffix with a leading '+'
+// instead of '-' (a skipped carat-less Diamond consumed the '-'). Four such codes
+// are still stored, and the physical tags on those pieces carry the '+' form —
+// while the calc REGENERATES the corrected '-' form. So one physical piece has two
+// spellings of its code, and a plain string comparison misses: the piece was never
+// marked sold, and both "View Item" and the printed certificate came up empty.
+// Normalise both sides before comparing. A leading '+' with no '-' anywhere IS the
+// malformed separator; any well-formed code already contains a '-' and is returned
+// untouched (verified a no-op for every stored item but those four).
+function _qrKey(code) {
+  const s = String(code || '').trim().toUpperCase();
+  if (!s || s.indexOf('-') !== -1) return s;
+  const p = s.indexOf('+');
+  return p === -1 ? s : (s.slice(0, p) + '-' + s.slice(p + 1));
+}
+
 function buildLabelStrings() {
   const vendorIdx = parseInt(document.getElementById('vendorSelect').value);
   const catIdx = parseInt(document.getElementById('workType').value) || 0;
@@ -9182,7 +9200,29 @@ async function saveQrImageToCloud(qrCode, greekCode, base64DataUrl) {
 let _salesCache = null; // in-memory cache
 let _inventoryCache = null; // in-memory inventory cache
 let _lastScannedInvEntry = null; // inventory entry resolved by most recent QR scan — used by calculate() for photo lookup
+let _lastScannedInvId = null;       // …and its record id — the sale's only reliable link to the piece
 let _lastScannedRaw = null;         // raw QR string that produced _lastScannedInvEntry
+
+// Which inventory record is the Calc currently about?
+//
+// The scan already resolved it — by ref pin, by the variant chooser, or by a plain
+// code match — and that record id is the ONLY reliable identity. The sale used to
+// re-derive a code STRING instead (buildLabelStrings().fullQR) and match on that;
+// but a piece stored with a pre-v10.13 malformed stone separator regenerates in its
+// corrected form, so the string no longer equalled what is stored and the sale
+// linked to nothing at all. A record id cannot be regenerated differently.
+//
+// Guarded so a stale resolution can never be pinned on the wrong piece: the code box
+// must still hold the string that produced it, and the piece must still be on the
+// shelf. Bulk batches are excluded — they sell by weight, never by record.
+function _calcScanInvId() {
+  const raw = (document.getElementById('codeInput')?.value || '').trim();
+  if (!raw || !_lastScannedRaw || _qrKey(_lastScannedRaw) !== _qrKey(raw)) return null;
+  const id = _scanChosenInvId || _lastScannedInvId;
+  const it = (id && _inventoryCache) ? _inventoryCache[id] : null;
+  if (!it || it.isBulk || it.status !== 'in_stock') return null;
+  return id;
+}
 let _lastChipRaw = null;            // raw QR string last shown in invStatusChip (any state)
 // The in-flight _checkInvStatusForCalc(), so the calc can WAIT for the piece's own record.
 // A per-item category takes its labour AND its margin from that record (see calculate()),
@@ -9534,12 +9574,12 @@ async function _restoreStockForSale(target) {
       if (target.invId && _inventoryCache[target.invId]) {
         invId = target.invId; invItem = _inventoryCache[target.invId];
       } else if (target.invQr) {
-        const qrNorm = target.invQr.trim().toUpperCase();
+        const qrNorm = _qrKey(target.invQr);
         const invEntry =
           Object.entries(_inventoryCache).find(([,it]) =>
-            it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm && it.status === 'sold') ||
+            it.qrCode && _qrKey(it.qrCode) === qrNorm && it.status === 'sold') ||
           Object.entries(_inventoryCache).find(([,it]) =>
-            it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm);
+            it.qrCode && _qrKey(it.qrCode) === qrNorm);
         if (invEntry) { invId = invEntry[0]; invItem = invEntry[1]; }
       }
       if (invItem && !invItem.isBulk) {
@@ -11162,15 +11202,15 @@ async function showSaleDetail(id, forceSingle) {
   }
 
   // Inventory item lookup for description/meta (and photo fallback)
-  if (s.invQr) {
+  if (s.invId || s.invQr) {
     try {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
       }
-      const qrNorm = s.invQr.trim().toUpperCase();
-      const match = Object.values(_inventoryCache).find(it =>
-        it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm
-      );
+      const qrNorm = _qrKey(s.invQr);
+      const match = (s.invId && _inventoryCache[s.invId]) || (qrNorm ? Object.values(_inventoryCache).find(it =>
+        it.qrCode && _qrKey(it.qrCode) === qrNorm
+      ) : null);
       if (match) {
         // Photo fallback if no salePhotoUrl
         if (!s.salePhotoUrl && match.photoUrl) {
@@ -11199,8 +11239,8 @@ async function showSaleDetail(id, forceSingle) {
   acts.innerHTML = '';
   const canEdit = creds.role !== 'employee' || s.employee === creds.userName;
 
-  // View linked inventory item (if sale has a QR)
-  if (s.invQr) {
+  // View linked inventory item (if the sale names a piece at all)
+  if (s.invId || s.invQr) {
     const invBtn = document.createElement('button');
     invBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     invBtn.textContent = '📦 ' + (lang === 'el' ? 'Δες Αντικείμενο' : 'View Item');
@@ -11210,8 +11250,10 @@ async function showSaleDetail(id, forceSingle) {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         try { _inventoryCache = await loadInventory(); } catch(e) {}
       }
-      const qrNorm = s.invQr.trim().toUpperCase();
-      const entry = Object.entries(_inventoryCache).find(([,it]) => it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm);
+      // The exact record id first — a code can be spelled two ways and shared by twins.
+      const qrNorm = _qrKey(s.invQr);
+      const entry = (s.invId && _inventoryCache[s.invId] ? [s.invId, _inventoryCache[s.invId]] : null)
+        || (qrNorm ? Object.entries(_inventoryCache).find(([,it]) => it.qrCode && _qrKey(it.qrCode) === qrNorm) : null);
       if (entry) {
         salesSearchGoToInventory(entry[0], entry[1].status || '');
       } else {
@@ -11338,8 +11380,8 @@ async function _saleDocResult(rec) {
   let item = null;
   if (rec.invId && inv[rec.invId]) item = inv[rec.invId];
   if (!item && rec.invQr) {
-    const qn = rec.invQr.trim().toUpperCase();
-    item = Object.values(inv).find(it => it.qrCode && it.qrCode.trim().toUpperCase() === qn) || null;
+    const qn = _qrKey(rec.invQr);
+    item = Object.values(inv).find(it => it.qrCode && _qrKey(it.qrCode) === qn) || null;
   }
   if (!item && rec.bulkInvId && inv[rec.bulkInvId]) item = inv[rec.bulkInvId];
   const isEl = lang === 'el';
@@ -11506,13 +11548,64 @@ async function _saleLinkBadRecords() {
     let ownId = (s.invId && inv[s.invId]) ? s.invId : null;
     let own = ownId ? inv[ownId] : null;
     if (!own && s.invQr) {
-      const hit = byQr[s.invQr.trim().toUpperCase()];
+      const hit = byQr[_qrKey(s.invQr)];
       if (hit) { ownId = hit[0]; own = hit[1]; }
     }
     if (!own || own.isBulk) return;              // nothing better to point at, or a real bulk line
-    bad.push({ sale: s, ownId, own, batch });
+    bad.push({ kind: 'bulk', sale: s, ownId, own, batch });
   });
+  bad.push(...(await _saleUnsoldRecords(sales, inv)));
   return bad;
+}
+
+// ── Paid for, but still on the shelf ────────────────────────────────────────
+// The failure this catches: a sale was recorded and the piece was never marked
+// sold, so the money is in the books and the jewel is still listed in stock —
+// and the sale points at nothing, so "View Item" and the printed certificate
+// both come up empty. It happened because the sale identified the piece by a
+// re-derived code STRING; a piece whose stored code carries the pre-v10.13
+// malformed stone separator regenerates in its corrected form, so the string
+// matched no record at all. Sales now carry the record id (v11.78), but records
+// written before that still need repairing.
+//
+// Counted per code, never per record, because identical pieces in a group — and
+// every coin in a batch — legitimately share one code: five twins with three
+// sales and three sold pieces is correct and must not be flagged. Only a code
+// with MORE sales than sold pieces has a jewel that was paid for and not moved.
+async function _saleUnsoldRecords(sales, inv) {
+  const live = (sales || []).filter(s => s && !s.isReturn && !s.bulkInvId && (s.invId || s.invQr));
+  const returned = new Set((sales || []).filter(s => s && s.returnOfSaleId).map(s => s.returnOfSaleId));
+  // Group the sales by the code they name, resolving through invId when present.
+  const byKey = {};
+  live.forEach(s => {
+    if (returned.has(s.id)) return;              // handed back — its piece is meant to be in stock
+    const own = s.invId ? inv[s.invId] : null;
+    const key = _qrKey((own && own.qrCode) || s.invQr);
+    if (!key) return;
+    (byKey[key] = byKey[key] || []).push(s);
+  });
+  const out = [];
+  Object.entries(byKey).forEach(([key, recs]) => {
+    const pieces = Object.entries(inv).filter(([, it]) =>
+      it && it.qrCode && !it.isBulk && _qrKey(it.qrCode) === key);
+    if (!pieces.length) return;                  // the piece was deleted — nothing to repair here
+    const soldCount = pieces.filter(([, it]) => it.status === 'sold').length;
+    let gap = recs.length - soldCount;
+    if (gap <= 0) return;
+    const spare = pieces.filter(([, it]) => it.status === 'in_stock');
+    // Report the newest sales first — those are the ones the owner just made.
+    const unlinked = recs.slice().sort((a, b) => (b.id || 0) - (a.id || 0));
+    for (const s of unlinked) {
+      if (gap <= 0 || !spare.length) break;
+      // Prefer the piece the record already names, if that one is the one still in stock.
+      let i = s.invId ? spare.findIndex(([id]) => id === s.invId) : -1;
+      if (i === -1) i = 0;
+      const [ownId, own] = spare.splice(i, 1)[0];
+      out.push({ kind: 'unsold', sale: s, ownId, own });
+      gap--;
+    }
+  });
+  return out;
 }
 
 // What the record SHOULD say. Cost is re-derived from the piece itself
@@ -11554,25 +11647,92 @@ async function scanSaleLinks() {
           : bad.length + (bad.length === 1 ? ' sale needs repair' : ' sales need repair')) + '</div>' +
     bad.map(e => {
       const s = e.sale;
+      const money = v => (v == null ? '—' : cur + parseFloat(v).toFixed(2));
+      const head = '<div style="font-size:12px;color:var(--text)">' + fmtDate(s.date) + ' · ' + cur + parseFloat(s.amount).toFixed(2) +
+        (s.customer ? ' · ' + s.customer : '') + '</div>';
+      const btn = '<button onclick="fixSaleLink(' + s.id + ')" style="margin-top:8px;width:100%;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.45);color:var(--gold-light);border-radius:6px;font-family:var(--font-body);font-size:11.5px;cursor:pointer">🔧 ' +
+        (isEl ? 'Διόρθωση' : 'Repair') + '</button>';
+      const wrap = inner => '<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;margin-bottom:8px">' + head + inner + btn + '</div>';
+      const ownName = _itemDesc(e.own) || invTypeLabel(e.own.jewelryType) || '—';
+      const ownRef = e.own.seqId ? itemRefCode(e.own) : '';
+      if (e.kind === 'unsold') {
+        return wrap(
+          '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' +
+            (isEl ? 'Πληρώθηκε αλλά είναι ακόμη στο απόθεμα' : 'Paid for, but still listed in stock') + '</div>' +
+          '<div style="font-size:11px;color:var(--success);margin-top:2px">' +
+            (isEl ? 'Κομμάτι' : 'Piece') + ': ' + ownName + (ownRef ? ' (' + ownRef + ')' : '') + ' · ' +
+            (isEl ? 'θα σημειωθεί πουλημένο και θα συνδεθεί' : 'will be marked sold and linked') + '</div>'
+        );
+      }
       const f = _saleLinkFixedValues(e);
       const nowName = _itemDesc(e.batch) || invTypeLabel(e.batch.jewelryType) || '—';
-      const newName = _itemDesc(e.own) || invTypeLabel(e.own.jewelryType) || '—';
-      const money = v => (v == null ? '—' : cur + parseFloat(v).toFixed(2));
-      return '<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
-        '<div style="font-size:12px;color:var(--text)">' + fmtDate(s.date) + ' · ' + cur + parseFloat(s.amount).toFixed(2) +
-          (s.customer ? ' · ' + s.customer : '') + '</div>' +
+      return wrap(
         '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' + (isEl ? 'Τώρα δείχνει' : 'Now points at') + ': ' +
           nowName + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(s.cost) + '</div>' +
         '<div style="font-size:11px;color:var(--success);margin-top:2px">' + (isEl ? 'Σωστό' : 'Should be') + ': ' +
-          newName + (f.seqRef ? ' (' + f.seqRef + ')' : '') + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(f.cost) +
-          ' · ' + (isEl ? 'κέρδος' : 'profit') + ' ' + money(f.profit) + '</div>' +
-        '<button onclick="fixSaleLink(' + s.id + ')" style="margin-top:8px;width:100%;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.45);color:var(--gold-light);border-radius:6px;font-family:var(--font-body);font-size:11.5px;cursor:pointer">🔧 ' +
-          (isEl ? 'Διόρθωση' : 'Repair') + '</button>' +
-      '</div>';
+          ownName + (f.seqRef ? ' (' + f.seqRef + ')' : '') + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(f.cost) +
+          ' · ' + (isEl ? 'κέρδος' : 'profit') + ' ' + money(f.profit) + '</div>'
+      );
     }).join('') +
-    '<div style="font-size:10.5px;color:var(--text-muted);line-height:1.55;margin-top:4px">' +
-      (isEl ? 'Το κόστος υπολογίζεται ξανά από το ίδιο το κομμάτι, με τη σημερινή τιμή μετάλλου.'
-            : "Cost is re-derived from the piece itself, at today's metal price.") + '</div>';
+    // Only the batch-link repair touches money; the "still in stock" one moves the
+    // jewel and nothing else. Saying otherwise would be a lie about the books.
+    (bad.some(e => e.kind !== 'unsold')
+      ? '<div style="font-size:10.5px;color:var(--text-muted);line-height:1.55;margin-top:4px">' +
+        (isEl ? 'Το κόστος υπολογίζεται ξανά από το ίδιο το κομμάτι, με τη σημερινή τιμή μετάλλου.'
+              : "Cost is re-derived from the piece itself, at today's metal price.") + '</div>'
+      : '');
+}
+
+// Repair for a "paid for, still in stock" record: move the jewel and link the sale
+// to it. The money is NOT touched — the amount, cost and profit were computed
+// correctly at sale time; only the piece never followed.
+function _fixSaleUnsold(entry) {
+  const isEl = lang === 'el';
+  const { sale, ownId, own } = entry;
+  const name = _itemDesc(own) || invTypeLabel(own.jewelryType) || '—';
+  const ref = own.seqId ? itemRefCode(own) : '';
+  showConfirm(
+    isEl ? 'Να σημειωθεί το «' + name + (ref ? ' (' + ref + ')' : '') + '» ως πουλημένο και να συνδεθεί με αυτή την πώληση; Τα ποσά δεν αλλάζουν.'
+         : 'Mark "' + name + (ref ? ' (' + ref + ')' : '') + '" as sold and link it to this sale? No amounts change.',
+    async () => {
+      const beforeStatus = own.status, beforeSold = own.dateSold;
+      own.status = 'sold';
+      own.dateSold = (sale.date === todayStr()) ? Date.now() : new Date(sale.date).getTime();
+      _inventoryCache[ownId] = own;
+      // Check the write LANDED before touching the sale — an unchecked failure here
+      // does not look like an error, it looks like success (the v11.62 lesson).
+      const ok = await saveInventoryItem(ownId, own);
+      if (!ok) {
+        own.status = beforeStatus;
+        if (beforeSold === undefined) delete own.dateSold; else own.dateSold = beforeSold;
+        _inventoryCache[ownId] = own;
+        showToast('⚠️ ' + (isEl ? 'Δεν αποθηκεύτηκε — χρειάζεται σύνδεση' : 'Not saved — needs a connection'));
+        return;
+      }
+      const sales = await getSales();
+      const rec = sales.find(x => x.id === sale.id);
+      if (rec) {
+        const before = JSON.parse(JSON.stringify(rec));
+        rec.invId = ownId;
+        rec.invQr = own.qrCode || rec.invQr || '';
+        if (!rec.seqRef && own.seqId) rec.seqRef = itemRefCode(own);
+        _salesCache = sales;
+        localStorage.setItem('jpro_sales', JSON.stringify(sales));
+        if (!(await pushSalesToCloud(sales))) {
+          const i = sales.findIndex(x => x.id === sale.id);
+          if (i !== -1) sales[i] = before;
+          _salesCache = sales;
+          localStorage.setItem('jpro_sales', JSON.stringify(sales));
+          showToast('⚠️ ' + (isEl ? 'Το κομμάτι σημειώθηκε πουλημένο, αλλά η σύνδεση δεν αποθηκεύτηκε' : 'Piece marked sold, but the link was not saved'));
+          return;
+        }
+      }
+      showToast('✅ ' + (isEl ? 'Διορθώθηκε' : 'Repaired'));
+      await scanSaleLinks();
+      try { renderInvList(); } catch (e) {}
+      try { await renderSalesPanel(); } catch (e) {}
+    }
+  );
 }
 
 async function fixSaleLink(saleId) {
@@ -11581,6 +11741,7 @@ async function fixSaleLink(saleId) {
   const bad = await _saleLinkBadRecords();
   const entry = bad.find(e => e.sale.id === saleId);
   if (!entry) { showToast(isEl ? 'Δεν χρειάζεται διόρθωση' : 'Nothing to repair'); return; }
+  if (entry.kind === 'unsold') { _fixSaleUnsold(entry); return; }
   const f = _saleLinkFixedValues(entry);
   const newName = _itemDesc(entry.own) || invTypeLabel(entry.own.jewelryType) || '—';
   showConfirm(
@@ -11746,6 +11907,13 @@ async function confirmSale() {
   const _wantExCard = _saleWantsExCard;
   const _firstFromInv = !!window._saleFromInvId; // captured before the mark-sold block clears it
   const _firstInvId = window._saleFromInvId || null; // exact record id of the (first) sold piece
+  // A Calc sale used to carry NO record id at all — it re-derived a code string and
+  // hoped that matched. Resolve the piece the scan already identified, ONCE and up
+  // front (before anything below flips a status), and use it for both the link and
+  // the mark-sold. Null for a cart, a sale opened from a stock card, or when the
+  // scan resolved nothing — so every one of those paths behaves exactly as before.
+  const _scanInvId = (!_cartItems && !_firstInvId) ? _calcScanInvId() : null;
+  const _scanInvItem = _scanInvId ? _inventoryCache[_scanInvId] : null;
   // INVARIANT (v11.70): a by-the-gram batch link may only ever be written onto a
   // record whose own piece IS that batch. This is belt-and-suspenders behind the
   // v11.69 cart fix — that closed the one path we found, this closes the class.
@@ -11771,7 +11939,12 @@ async function confirmSale() {
   if (saleCustomer) upsertClientFromSale(saleCustomer, salePhone, saleEmail);
   const saleVendor = document.getElementById('saleVendorName').value.trim();
   const bonusAmt = _currentUserBonus > 0 ? parseFloat((_effectiveAmt * _currentUserBonus / 100).toFixed(2)) : 0;
-  const invQr = window._saleFromInvQr || (lastCalcResult ? (lastCalcResult.labelCode || '') : '');
+  // Store the piece's OWN code when we know the piece. The regenerated label code
+  // can differ from what is stored (a legacy malformed stone separator comes back
+  // corrected), and that difference is what left this record pointing at nothing.
+  const invQr = window._saleFromInvQr
+    || (_scanInvItem ? (_scanInvItem.qrCode || _scanInvItem.code || '') : '')
+    || (lastCalcResult ? (lastCalcResult.labelCode || '') : '');
   // Pass cost so profit can be stored on the sale record
   // For per-item labor items, use stored purchaseCost (what was actually paid to supplier)
   let _saleCost = lastCalcResult ? (parseFloat(lastCalcResult.baseCost) || null) : null;
@@ -11833,10 +12006,12 @@ async function confirmSale() {
       _firstSaleRec.bulkInvId = _firstBulkInfo.invId;
       _firstSaleRec.bulkSoldWeight = _firstBulkInfo.soldWeight;
       _linkChanged = true;
-    } else if (_firstInvId) {
+    } else if (_firstInvId || _scanInvId) {
       // Link the sale to the EXACT inventory record sold, so deleting the sale restores THAT
       // specific piece — not a still-in-stock same-QR twin in a similar-items group / coin batch.
-      _firstSaleRec.invId = _firstInvId;
+      // _scanInvId extends this to Calc sales, which carried no id at all: the piece was
+      // identified only by a code string that the calc could spell differently from the record.
+      _firstSaleRec.invId = _firstInvId || _scanInvId;
       _linkChanged = true;
     }
     if (_linkChanged) {
@@ -11928,18 +12103,22 @@ async function confirmSale() {
           }
         }
       } else {
-        const qrNorm = lastCalcResult.labelCode.trim().toUpperCase();
+        const qrNorm = _qrKey(lastCalcResult.labelCode);
         // Identical pieces (a similar-items batch, or one piece in two gold colours) SHARE
         // one QR, so this can match several records. Take an IN-STOCK one: matching the
         // first record regardless of status meant that after selling one, selling its twin
         // found the already-sold record, did nothing, and left the twin in stock forever.
         // Never mark a bulk batch sold via QR match — bulk sells by weight deduction.
         const _qrMatches = Object.entries(_inventoryCache).filter(([,it]) =>
-          it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm && !it.isBulk
+          it.qrCode && _qrKey(it.qrCode) === qrNorm && !it.isBulk
         );
+        // The record the SCAN resolved outranks any string match — it is the piece the
+        // owner actually had in hand, and it does not depend on the calc spelling the
+        // code the same way the record does.
         // If the twins looked different and the owner told us which one is in hand, sell
         // exactly that record — never a guess.
-        const invEntry = (_scanChosenInvId && _qrMatches.find(([id]) => id === _scanChosenInvId))
+        const invEntry = (_scanInvId && _inventoryCache[_scanInvId] ? [_scanInvId, _inventoryCache[_scanInvId]] : null)
+          || (_scanChosenInvId && _qrMatches.find(([id]) => id === _scanChosenInvId))
           || _qrMatches.find(([,it]) => it.status === 'in_stock') || _qrMatches[0];
         if (invEntry) {
           const [invId, invItem] = invEntry;
@@ -13624,7 +13803,7 @@ function calculate() {
         _inventoryCache = await loadInventory();
       }
       match = Object.values(_inventoryCache).find(it =>
-        (it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm)
+        (it.qrCode && _qrKey(it.qrCode) === _qrKey(qrNorm))
       );
     }
     const url = (match && match.photoUrl) ? match.photoUrl : null;
@@ -15314,6 +15493,7 @@ async function _checkInvStatusForCalc(raw) {
     const [fbKey, item] = found;
     // Cache this entry so calculate()'s photo IIFE can use it directly (avoids stale-cache miss)
     _lastScannedInvEntry = item;
+    _lastScannedInvId = fbKey;   // the sale links by THIS, not by a regenerated code string
     _lastScannedRaw = rawNorm; // rawNorm = raw.trim().toUpperCase()
 
     const _wasPinned = !!_pinnedEntry;
@@ -15388,6 +15568,7 @@ async function _checkInvStatusForCalc(raw) {
     _syncPriceWarn();
   } else {
     _lastScannedInvEntry = null;
+    _lastScannedInvId = null;
     _lastScannedRaw = null;
     // Clear secondary metal panel — new unrecognised QR, start fresh
     if (_secMetal) removeSecMetal();
@@ -23383,11 +23564,11 @@ async function invRestoreToStock(id) {
 async function invGoToSale(qrCode, invId) {
   if (!qrCode && !invId) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν υπάρχει κωδικός QR' : 'No QR code')); return; }
   const sales = await getSales();
-  const qrNorm = (qrCode || '').trim().toUpperCase();
+  const qrNorm = _qrKey(qrCode);
   // Prefer the EXACT record id: pieces in a similar-items group (or a coin batch)
   // share a QR, so a QR match can land on a twin's sale — or on none at all.
   const match = (invId && [...sales].reverse().find(s => s.invId === invId))
-    || (qrNorm ? [...sales].reverse().find(s => s.invQr && s.invQr.trim().toUpperCase() === qrNorm) : null);
+    || (qrNorm ? [...sales].reverse().find(s => s.invQr && _qrKey(s.invQr) === qrNorm) : null);
   if (!match) {
     // A piece marked sold whose sale record no longer exists — the shape left
     // behind when a sale was deleted while the app couldn't reach the data
@@ -24119,8 +24300,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.77', date: 'Ιούλιος 2026', items: [
-        "🔧 Διόρθωση: η ταξινόμηση «Ημ. πώλησης» έμενε ενεργή μετά από ανανέωση της εφαρμογής ακόμη κι όταν το φίλτρο «Πουλημένα» είχε επανέλθει στο κανονικό. Πλέον, αν κατά την εκκίνηση δεν είναι επιλεγμένο το φίλτρο «Πουλημένα», η ταξινόμηση επιστρέφει αυτόματα στο «Νεότερο πρώτα» — έτσι η ταξινόμηση κατά ημ. πώλησης εμφανίζεται μόνο όταν βλέπετε πουλημένα κομμάτια.",
+      { version: 'v11.78', date: 'Ιούλιος 2026', items: [
+        "🔧 Σημαντική διόρθωση: μια πώληση από την αριθμομηχανή συνέδεε το κόσμημα με βάση τον κωδικό ως κείμενο. Σε 4 παλιά κομμάτια (Ιούνιος 2026, σταυροί/σκουλαρίκια με πέτρες) ο αποθηκευμένος κωδικός γράφτηκε με «+» αντί για «−», οπότε η πώληση δεν ταίριαζε με κανένα κομμάτι: το κόσμημα έμενε στο απόθεμα, το «Δες Αντικείμενο» έβγαζε σφάλμα και το πιστοποιητικό τυπωνόταν χωρίς φωτογραφία και στοιχεία.",
+        "🔗 Πλέον κάθε πώληση κρατάει την ΑΚΡΙΒΗ εγγραφή του κομματιού (όχι τον κωδικό ως κείμενο) — όπως ήδη έκαναν οι πωλήσεις από την καρτέλα Απόθεμα. Επίσης οι δύο γραφές του ίδιου κωδικού («+» και «−») θεωρούνται πια ίδιες παντού, ώστε και οι παλιές εγγραφές να βρίσκουν το κόσμημά τους.",
+        "🔍 Ρυθμίσεις → «Έλεγχος Συνδέσεων Πωλήσεων»: βρίσκει τώρα και τις πωλήσεις που πληρώθηκαν αλλά το κόσμημα έμεινε στο απόθεμα, και με ένα πάτημα το σημειώνει πουλημένο και το συνδέει. Τα ποσά δεν αλλάζουν.",
       ]},
       ]
   },
@@ -24151,8 +24334,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.77', date: 'Jul 2026', items: [
-        "🔧 Fix: the \"Sold date\" sort stayed active after refreshing the app even when the \"Sold\" filter had reset to normal. Now, if the \"Sold\" filter isn't on at startup, the sort falls back to \"Newest first\" automatically — so sorting by sold date only appears when you're viewing sold pieces.",
+      { version: 'v11.78', date: 'Jul 2026', items: [
+        "🔧 Important fix: a sale made from the calculator linked to the jewel by its code as TEXT. On 4 older pieces (June 2026, stone-set crosses/earrings) the stored code was written with a \"+\" where a \"−\" belongs, so the sale matched no piece at all: the jewel stayed listed in stock, \"View Item\" errored, and the certificate printed with no photo and no details.",
+        "🔗 Every sale now remembers the EXACT piece record instead of a code string — the way sales made from the Stock card already did. The two spellings of a code (\"+\" and \"−\") are also treated as the same code everywhere, so older sale records find their jewel too.",
+        "🔍 Settings → \"Sale Link Check\" now also finds sales that were paid for while the jewel stayed in stock, and marks it sold and links it in one tap. No amounts are changed.",
       ]},
           ]
   }
@@ -24622,6 +24807,7 @@ function clearCalc() {
   const addBtn = document.getElementById('addToCartBtn');
   if (addBtn) addBtn.style.display = 'none';
   _lastScannedInvEntry = null;
+  _lastScannedInvId = null;
   _lastScannedRaw = null;
   _lastChipRaw = null;
   _refPinnedInvId = null;
@@ -27396,7 +27582,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.77';
+const APP_VERSION = '11.78';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
