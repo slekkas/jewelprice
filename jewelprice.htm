@@ -18300,7 +18300,10 @@ async function saveInventoryItem(id, item) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
-    if (res.ok) syncPublicItem(id, item); // keep the public showroom feed in step (best-effort)
+    if (res.ok) {
+      syncPublicItem(id, item);   // keep the public showroom feed in step (best-effort)
+      _autoDescribe(id, item);    // and give the photo search something to match on
+    }
     return res.ok;
   } catch(e) { return false; }
 }
@@ -24732,12 +24735,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.89', date: 'Ιούλιος 2026', items: [
-        "🔍 Γιατί απέτυχαν τα ασημένια: το AI είδε τέλεια το μενταγιόν με τη χελώνα, αλλά στον κατάλογό σου η γραμμή του έγραφε μόνο «Μενταγιόν | ασήμι 925 | χωρίς πέτρες» — πουθενά η λέξη χελώνα. Το 30% των ασημένιων (και 14% των χρυσών) δεν έχουν ΟΥΤΕ περιγραφή ΟΥΤΕ πέτρες, οπότε δεν υπήρχε τίποτα να ταιριάξει.",
-        "✍️ Νέο κουμπί «Δημιουργία περιγραφών για αναζήτηση» στο Βρες Κόσμημα. Το AI περιγράφει μία φορά κάθε φωτογραφία («στρογγυλό ασημένιο μενταγιόν, χρυσή χελώνα, πλεκτό κορδόνι») και από κει και πέρα βρίσκονται όλα.",
-        "🔒 Γράφει σε ΝΕΟ πεδίο. Οι δικές σου περιγραφές δεν αλλάζουν ποτέ.",
-        "⏱️ Τρέχει μία φορά, με μπάρα προόδου και κουμπί διακοπής, και συνεχίζει από εκεί που σταμάτησε. Τα κομμάτια χωρίς τίποτα να ταιριάξει μπαίνουν πρώτα.",
-        "🎯 Τα φίλτρα (μέταλλο, είδος, καθαρότητα) περιορίζουν ήδη την αναζήτηση με φωτογραφία — αν διαλέξεις Ασήμι + Κολιέ, ψάχνει μόνο εκεί.",
+      { version: 'v11.90', date: 'Ιούλιος 2026', items: [
+        "🪄 Αυτόματο: κάθε νέο κόσμημα που αποθηκεύεις περιγράφεται μόνο του για την αναζήτηση. Δεν χρειάζεται να θυμάσαι τίποτα.",
+        "⚡ Δεν καθυστερεί τίποτα — η αποθήκευση τελειώνει αμέσως και η περιγραφή γράφεται από πίσω.",
+        "💰 Αν αλλάξεις μόνο τιμή ή βάρος, δεν ξαναχρεώνεσαι. Ξαναγράφεται μόνο αν αλλάξεις τη ΦΩΤΟΓΡΑΦΙΑ.",
+        "🔗 Όταν προσθέτεις πολλά όμοια κομμάτια με την ίδια φωτογραφία, περιγράφεται ΜΙΑ φορά και αντιγράφεται στα υπόλοιπα.",
+        "🤫 Αν κάτι πάει στραβά, δεν σε ενοχλεί — το κομμάτι απλώς εμφανίζεται στο κουμπί «Δημιουργία περιγραφών» για να το πιάσεις μετά.",
       ]},
       ]
   },
@@ -24768,12 +24771,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.89', date: 'Jul 2026', items: [
-        "🔍 Why silver pieces failed: the AI saw the turtle pendant perfectly, but its line in your catalogue read only \"Pendant | silver 925 | no stones\" — the word turtle appears nowhere. 30% of silver pieces (and 14% of gold) have NEITHER a description NOR stones, so there was nothing to match against.",
-        "✍️ New \"Build search descriptions\" button in Find Jewelry. The AI describes each photo once (\"round silver pendant, gold turtle centre, braided cord\") and from then on everything is findable.",
-        "🔒 It writes to a NEW field. Your own descriptions are never changed.",
-        "⏱️ Runs once, with a progress bar and a stop button, and resumes where it left off. Pieces with nothing to match on go first.",
-        "🎯 The filters (metal, type, purity) already narrow the photo search — pick Silver + Necklace and it only looks there.",
+      { version: 'v11.90', date: 'Jul 2026', items: [
+        "🪄 Automatic: every new piece you save now describes itself for the photo search. Nothing to remember.",
+        "⚡ It delays nothing — the save finishes instantly and the description is written behind it.",
+        "💰 Changing only a price or a weight costs nothing extra. It is only rewritten if you change the PHOTO.",
+        "🔗 When you add several similar pieces sharing one photo, it is described ONCE and copied to the rest.",
+        "🤫 If it ever fails it stays quiet — the piece simply reappears in the \"Build search descriptions\" count to be picked up later.",
       ]},
           ]
   }
@@ -28469,6 +28472,47 @@ async function _findSaveDesc(id, text) {
   } catch (e) { return false; }
 }
 
+// ── Describe a piece the moment it is saved ──────────────────────────────────
+// Hooked into saveInventoryItem, the ONE place every create/edit path already goes
+// through, so no individual save flow had to be touched.
+//
+// Deliberately fire-and-forget: the record is already written and the owner has moved
+// on, so this must never delay a save, and a failure must never surface as an error on
+// work he has finished. Anything missed simply reappears in the manual button's count.
+const _autoDescQ = [];
+let _autoDescBusy = false;
+
+function _autoDescribe(id, item) {
+  if (!_aiKey() || !item || !item.photoUrl) return;
+  if (item.isCoin || item.isMetal || item.isBulk) return;
+  if (item.status !== 'in_stock') return;                       // a sold piece is not searched for
+  if (item.aiDesc && item.aiDescPhoto === item.photoUrl) return; // done, and for THIS photo
+  if (_autoDescQ.includes(id)) return;
+  _autoDescQ.push(id);
+  if (!_autoDescBusy) _autoDescDrain();
+}
+
+async function _autoDescDrain() {
+  _autoDescBusy = true;
+  try {
+    while (_autoDescQ.length) {
+      const id = _autoDescQ.shift();
+      const it = (_inventoryCache || {})[id];
+      if (!it || !it.photoUrl || it.status !== 'in_stock') continue;
+      if (it.aiDesc && it.aiDescPhoto === it.photoUrl) continue;   // described while queued
+      // "Add similar items" creates N pieces sharing ONE photo. Describe that picture
+      // once and copy the line to its twins instead of paying for it N times.
+      const twin = Object.values(_inventoryCache).find(o =>
+        o && o !== it && o.photoUrl === it.photoUrl && o.aiDesc && o.aiDescPhoto === o.photoUrl);
+      if (twin) { await _findSaveDesc(id, twin.aiDesc); continue; }
+      try {
+        const lines = await _findDescribeBatch([id]);
+        if (lines && lines[0]) await _findSaveDesc(id, lines[0]);
+      } catch (e) { /* silent by design — the manual button is the catch-up */ }
+    }
+  } finally { _autoDescBusy = false; }
+}
+
 async function buildSearchDescriptions(onProgress, shouldStop) {
   const pending = await _findDescPending();
   let done = 0, failed = 0;
@@ -28675,7 +28719,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.89';
+const APP_VERSION = '11.90';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
