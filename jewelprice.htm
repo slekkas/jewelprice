@@ -3356,6 +3356,7 @@ const T = {
     findDescBtn:'Δημιουργία περιγραφών για αναζήτηση',
     findDescHint:'Μία φορά. Το AI περιγράφει κάθε φωτογραφία ώστε να βρίσκονται και τα κομμάτια χωρίς περιγραφή. Δεν αλλάζει τις δικές σου περιγραφές.',
     findDescStop:'Διακοπή',
+    findDescKeepOpen:'Άσε την οθόνη ανοιχτή — κρατιέται ξύπνια μόνη της',
     findDescDone:'περιγραφές έτοιμες',
     featuresTitle:'✨ Λίστα Λειτουργιών', manualTitle:'📖 Οδηγίες Χρήσης', changelogTitle:'📋 Ιστορικό Αλλαγών',
     supportTitle:'🛠️ Υποστήριξη', supportText:'Για αναφορά προβλημάτων ή νέες λειτουργίες επικοινωνήστε με τον developer.',
@@ -3813,6 +3814,7 @@ const T = {
     findDescBtn:'Build search descriptions',
     findDescHint:'One time. The AI describes each photo so pieces with no description can still be found. Your own descriptions are not changed.',
     findDescStop:'Stop',
+    findDescKeepOpen:'Leave this screen open — it holds itself awake',
     findDescDone:'descriptions ready',
     featuresTitle:'✨ Feature List', manualTitle:'📖 User Manual', changelogTitle:'📋 Changelog',
     supportTitle:'🛠️ Support', supportText:'For bug reports or new feature requests please contact the developer.',
@@ -24735,12 +24737,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.92', date: 'Ιούλιος 2026', items: [
-        "🔬 Το μενταγιόν με τα δελφίνια εξηγήθηκε: οι περιγραφές γράφονταν από τη ΜΙΚΡΗ φωτογραφία (270×480, 8KB), όπου το χρυσό δισκάκι πιάνει ~89 pixel — αρκετά για να δει «χρυσός δίσκος», όχι για να δει δύο δελφίνια. Η φωτογραφία που τραβάς εσύ τα δείχνει πέντε φορές μεγαλύτερα, γι' αυτό τα διάβασε.",
-        "🖼️ Τώρα οι περιγραφές γράφονται από τη ΦΩΤΟΓΡΑΦΙΑ ΥΨΗΛΗΣ ΑΝΑΛΥΣΗΣ (675×1200) — το 99% των κομματιών έχει τέτοια.",
-        "🐬 Το AI υποχρεώνεται πλέον να ονομάζει ΠΡΩΤΑ το θέμα (δελφίνι, χελώνα, ψάρι, σταυρός, ματάκι, κλειδί…) και να κοιτάζει ΜΕΣΑ στο κεντρικό δισκάκι, εκεί που συνήθως βρίσκεται. Το όριο ανέβηκε από 14 σε 30 λέξεις.",
-        "🎯 Δύο φωτογραφίες ανά κλήση αντί για τέσσερις, για περισσότερη προσοχή στην καθεμία.",
-        "🔄 Πάτησε ξανά «Δημιουργία περιγραφών» — θα ξαναγραφούν ΟΛΕΣ με τη νέα μέθοδο. Υπολόγισε γύρω στα €0.60–1 (η προηγούμενη σάρωση κόστισε €0.20).",
+      { version: 'v11.93', date: 'Ιούλιος 2026', items: [
+        "🔆 Δεν σταματάει πια όταν σβήνει η οθόνη. Όσο τρέχει, η εφαρμογή κρατάει την οθόνη ξύπνια μόνη της.",
+        "🚀 Τέσσερις φωτογραφίες ταυτόχρονα αντί για μία-μία — από ώρες, σε λίγα λεπτά. Η ποιότητα δεν αλλάζει καθόλου.",
+        "⏹️ Η «Διακοπή» δουλεύει κανονικά και με τα τέσσερα παράλληλα· ό,τι έχει ήδη γραφτεί μένει γραμμένο και συνεχίζει από εκεί.",
+        "💡 Αν προτιμάς, τρέξ' το από τον υπολογιστή — ίδιο κουμπί, ίδιο αποτέλεσμα.",
       ]},
       ]
   },
@@ -24771,12 +24772,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.92', date: 'Jul 2026', items: [
-        "🔬 The dolphin pendant explained: descriptions were written from the SMALL photo (270×480, 8KB), where the gold disc lands on about 89 pixels — enough to see \"a gold disc\", not enough to see two dolphins. Your own photo shows them five times larger, which is why it read them.",
-        "🖼️ Descriptions are now written from the HIGH-RESOLUTION photo (675×1200) — 99% of pieces have one.",
-        "🐬 The AI must now name the SUBJECT first (dolphin, turtle, fish, cross, evil eye, key…) and look INSIDE the central disc, which is where it usually is. The limit went from 14 words to 30.",
-        "🎯 Two photos per request instead of four, for more attention on each.",
-        "🔄 Press \"Build search descriptions\" again — ALL of them will be rewritten with the new method. Expect roughly €0.60–1 (the last scan cost €0.20).",
+      { version: 'v11.93', date: 'Jul 2026', items: [
+        "🔆 It no longer stops when the screen goes off. While it runs, the app holds the screen awake itself.",
+        "🚀 Four photos at a time instead of one after another — hours become a few minutes. Quality is unchanged.",
+        "⏹️ Stop still works with all four running; whatever is already written stays written and it resumes from there.",
+        "💡 If you prefer, run it from the computer — same button, same result.",
       ]},
           ]
   }
@@ -28545,29 +28545,65 @@ async function _autoDescDrain() {
   } finally { _autoDescBusy = false; }
 }
 
+// Hold the screen awake for the duration. A phone browser suspends the page when the
+// screen sleeps, which stopped the run dead — and the whole point of this job is that the
+// owner starts it and walks away. The lock is dropped automatically by the browser
+// whenever the page is hidden, so it is re-taken on the way back.
+let _wakeLock = null;
+async function _keepAwake(on) {
+  try {
+    if (!on) { if (_wakeLock) { await _wakeLock.release(); } _wakeLock = null; return false; }
+    if (!('wakeLock' in navigator)) return false;
+    _wakeLock = await navigator.wakeLock.request('screen');
+    return true;
+  } catch (e) { _wakeLock = null; return false; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _findDescRunning && !_wakeLock) _keepAwake(true);
+});
+
+// Several requests in flight at once. Each is an independent pair of photos and an
+// independent per-item PATCH, so there is nothing to coordinate — and it is the
+// difference between minutes and a whole evening. Quality is untouched: the batch stays
+// at 2 photos, there are simply more batches running side by side.
+const AI_DESC_WORKERS = 4;
+
 async function buildSearchDescriptions(onProgress, shouldStop) {
   const pending = await _findDescPending();
-  let done = 0, failed = 0;
-  for (let i = 0; i < pending.length; i += AI_DESC_BATCH) {
-    if (shouldStop && shouldStop()) break;
-    const batch = pending.slice(i, i + AI_DESC_BATCH);
-    let lines = null;
-    try { lines = await _findDescribeBatch(batch); }
-    catch (e) {
-      // Fall back to one photo per request — slower, but alignment is guaranteed.
-      lines = [];
-      for (const id of batch) {
-        try { lines.push((await _findDescribeBatch([id]))[0]); }
-        catch (e2) { lines.push(''); }
+  const total = pending.length;
+  let done = 0, failed = 0, next = 0;
+  await _keepAwake(true);
+
+  const worker = async () => {
+    while (true) {
+      if (shouldStop && shouldStop()) return;
+      const i = next; next += AI_DESC_BATCH;
+      if (i >= pending.length) return;
+      const batch = pending.slice(i, i + AI_DESC_BATCH);
+      let lines = null;
+      try { lines = await _findDescribeBatch(batch); }
+      catch (e) {
+        // Fall back to one photo per request — slower, but alignment is guaranteed.
+        lines = [];
+        for (const id of batch) {
+          try { lines.push((await _findDescribeBatch([id]))[0]); }
+          catch (e2) { lines.push(''); }
+        }
       }
+      for (let k = 0; k < batch.length; k++) {
+        const ok = lines[k] ? await _findSaveDesc(batch[k], lines[k]) : false;
+        if (ok) done++; else failed++;
+      }
+      if (onProgress) onProgress(done + failed, total, failed);
     }
-    for (let k = 0; k < batch.length; k++) {
-      const ok = lines[k] ? await _findSaveDesc(batch[k], lines[k]) : false;
-      if (ok) done++; else failed++;
-    }
-    if (onProgress) onProgress(done + failed, pending.length, failed);
+  };
+
+  try {
+    await Promise.all(Array.from({ length: AI_DESC_WORKERS }, worker));
+  } finally {
+    await _keepAwake(false);
   }
-  return { done, failed, total: pending.length };
+  return { done, failed, total };
 }
 
 // ── Photo match, from the Find panel ─────────────────────────────────────────
@@ -28719,6 +28755,7 @@ async function _findRunDescs() {
     const pct = n ? Math.round(d / n * 100) : 100;
     box.innerHTML = `<div style="height:5px;background:var(--wa08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#6fb6e8"></div></div>
       <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-align:center;margin-top:5px">${d}/${n}${f ? ' · ' + f + ' ✕' : ''}</div>
+      <div style="font-family:var(--font-body);font-size:10px;color:var(--text-dim);text-align:center;margin-top:3px">${t('findDescKeepOpen')}</div>
       <button onclick="_findRunDescs()" style="width:100%;margin-top:6px;padding:8px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">${t('findDescStop')}</button>`;
   };
   try {
@@ -28749,7 +28786,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.92';
+const APP_VERSION = '11.93';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
