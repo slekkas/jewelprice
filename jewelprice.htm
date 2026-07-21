@@ -21200,6 +21200,11 @@ function invEdit(id) {
         placeholder="e.g. Solitaire ring"
         style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none">
     </div>
+    ${can('manage_stock') ? `<div style="margin-bottom:18px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'🔎 Τι βλέπει η αναζήτηση με φωτογραφία':'🔎 What the photo search sees'}</label>
+      <div id="invEditAiDesc" style="padding:10px 12px;background:var(--wa04);border:1px solid var(--wa10);border-radius:8px;font-family:var(--font-body);font-size:12px;color:${item.aiDesc?'#9fd4ff':'var(--text-dim)'};line-height:1.5;font-style:${item.aiDesc?'normal':'italic'}">${item.aiDesc ? _resEsc(item.aiDesc) : (lang==='el'?'— καμία περιγραφή· αυτό το κομμάτι δεν μπορεί να βρεθεί από φωτογραφία':'— none; this piece cannot be found from a photo')}</div>
+      <button onclick="_invEditRedescribe('${id}')" id="invEditRedescBtn" style="width:100%;margin-top:6px;padding:8px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">↻ ${lang==='el'?'Ξαναδές τη φωτογραφία':'Look at the photo again'}</button>
+    </div>` : ''}
     <div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Κωδικός Προμηθευτή':'Vendor Code'}</label>
       <input type="text" id="invEditVendorCodeInput" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -24737,11 +24742,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.93', date: 'Ιούλιος 2026', items: [
-        "🔆 Δεν σταματάει πια όταν σβήνει η οθόνη. Όσο τρέχει, η εφαρμογή κρατάει την οθόνη ξύπνια μόνη της.",
-        "🚀 Τέσσερις φωτογραφίες ταυτόχρονα αντί για μία-μία — από ώρες, σε λίγα λεπτά. Η ποιότητα δεν αλλάζει καθόλου.",
-        "⏹️ Η «Διακοπή» δουλεύει κανονικά και με τα τέσσερα παράλληλα· ό,τι έχει ήδη γραφτεί μένει γραμμένο και συνεχίζει από εκεί.",
-        "💡 Αν προτιμάς, τρέξ' το από τον υπολογιστή — ίδιο κουμπί, ίδιο αποτέλεσμα.",
+      { version: 'v11.94', date: 'Ιούλιος 2026', items: [
+        "🔎 Στην Επεξεργασία κάθε κομματιού βλέπεις τώρα «Τι βλέπει η αναζήτηση με φωτογραφία» — την ακριβή περιγραφή που έχει το AI για αυτό το κόσμημα.",
+        "❓ Αν ένα κομμάτι δεν βρίσκεται από φωτογραφία, άνοιξέ το και δες: αν η γραμμή δεν αναφέρει αυτό που δείχνει η φωτογραφία, το πρόβλημα είναι η περιγραφή. Αν το αναφέρει, το πρόβλημα είναι αλλού.",
+        "↻ Κουμπί «Ξαναδές τη φωτογραφία» για να ξαναγραφεί η περιγραφή μόνο αυτού του κομματιού.",
       ]},
       ]
   },
@@ -24772,11 +24776,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.93', date: 'Jul 2026', items: [
-        "🔆 It no longer stops when the screen goes off. While it runs, the app holds the screen awake itself.",
-        "🚀 Four photos at a time instead of one after another — hours become a few minutes. Quality is unchanged.",
-        "⏹️ Stop still works with all four running; whatever is already written stays written and it resumes from there.",
-        "💡 If you prefer, run it from the computer — same button, same result.",
+      { version: 'v11.94', date: 'Jul 2026', items: [
+        "🔎 Editing any piece now shows \"What the photo search sees\" — the exact description the AI holds for it.",
+        "❓ If a piece cannot be found by photo, open it and look: if the line does not mention what the photo shows, the description is the problem. If it does, the problem is elsewhere.",
+        "↻ A \"Look at the photo again\" button rewrites the description for just that one piece.",
       ]},
           ]
   }
@@ -28504,6 +28507,35 @@ async function _findSaveDesc(id, text) {
   } catch (e) { return false; }
 }
 
+// Re-describe ONE piece, from the Edit form, and show the result immediately. This is the
+// instrument for "why did the photo search miss this?": look at the piece, read the line
+// the search actually has for it, and if it is wrong or thin, redo just that one.
+async function _invEditRedescribe(id) {
+  const btn = document.getElementById('invEditRedescBtn');
+  const box = document.getElementById('invEditAiDesc');
+  const it = (_inventoryCache || {})[id];
+  const isEl = lang === 'el';
+  if (!btn || !box || !it) return;
+  if (!_aiKey()) { box.textContent = t('findNeedKey'); return; }
+  if (!it.photoUrl) { box.textContent = isEl ? '— δεν υπάρχει φωτογραφία' : '— no photo on this piece'; return; }
+  btn.disabled = true;
+  const label = btn.innerHTML;
+  btn.innerHTML = isEl ? '⏳ Κοιτάζει…' : '⏳ Looking…';
+  try {
+    const lines = await _findDescribeBatch([id]);
+    if (lines && lines[0] && await _findSaveDesc(id, lines[0])) {
+      box.textContent = lines[0];
+      box.style.color = '#9fd4ff'; box.style.fontStyle = 'normal';
+    } else {
+      box.textContent = isEl ? '— δεν αποθηκεύτηκε, δοκίμασε ξανά' : '— not saved, try again';
+    }
+  } catch (e) {
+    box.textContent = (isEl ? '— σφάλμα: ' : '— error: ') + String(e.message || e).slice(0, 60);
+  } finally {
+    btn.disabled = false; btn.innerHTML = label;
+  }
+}
+
 // ── Describe a piece the moment it is saved ──────────────────────────────────
 // Hooked into saveInventoryItem, the ONE place every create/edit path already goes
 // through, so no individual save flow had to be touched.
@@ -28786,7 +28818,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.93';
+const APP_VERSION = '11.94';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
