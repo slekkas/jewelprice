@@ -1932,6 +1932,7 @@
           📷 <span data-i18n="findPhotoBtn">Ταύτιση με φωτογραφία</span></button>
         <input type="file" id="findPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="_findPhotoChanged(this)">
         <div id="findPhotoStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-align:center;margin-top:7px;min-height:14px"></div>
+        <div id="findDescBox" style="display:none;margin-top:8px"></div>
       </div>
     </div>
 
@@ -3352,6 +3353,10 @@ const T = {
     findConfLow:'ΑΒΕΒΑΙΟ',
     findShowOthers:'Δες και τα υπόλοιπα',
     findHideOthers:'Κρύψε τα υπόλοιπα',
+    findDescBtn:'Δημιουργία περιγραφών για αναζήτηση',
+    findDescHint:'Μία φορά. Το AI περιγράφει κάθε φωτογραφία ώστε να βρίσκονται και τα κομμάτια χωρίς περιγραφή. Δεν αλλάζει τις δικές σου περιγραφές.',
+    findDescStop:'Διακοπή',
+    findDescDone:'περιγραφές έτοιμες',
     featuresTitle:'✨ Λίστα Λειτουργιών', manualTitle:'📖 Οδηγίες Χρήσης', changelogTitle:'📋 Ιστορικό Αλλαγών',
     supportTitle:'🛠️ Υποστήριξη', supportText:'Για αναφορά προβλημάτων ή νέες λειτουργίες επικοινωνήστε με τον developer.',
     scanQr:'Σάρωση QR Κωδικού',
@@ -3805,6 +3810,10 @@ const T = {
     findConfLow:'UNSURE',
     findShowOthers:'Show the others',
     findHideOthers:'Hide the others',
+    findDescBtn:'Build search descriptions',
+    findDescHint:'One time. The AI describes each photo so pieces with no description can still be found. Your own descriptions are not changed.',
+    findDescStop:'Stop',
+    findDescDone:'descriptions ready',
     featuresTitle:'✨ Feature List', manualTitle:'📖 User Manual', changelogTitle:'📋 Changelog',
     supportTitle:'🛠️ Support', supportText:'For bug reports or new feature requests please contact the developer.',
     scanQr:'Scan QR Code',
@@ -24723,10 +24732,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.88', date: 'Ιούλιος 2026', items: [
-        "🎯 Η αναζήτηση με φωτογραφία δείχνει ΜΟΝΟ το κομμάτι που βρήκε. Τα υπόλοιπα πίσω από ένα «Δες και τα υπόλοιπα» — ένα πάτημα αν η πρώτη απάντηση δεν είναι η σωστή.",
-        "🧹 Αφαιρέθηκε η τοπική αναζήτηση φωτογραφίας που έτρεχε στη συσκευή. Ήταν εφεδρεία για όταν δεν υπάρχει ίντερνετ, αλλά έδινε φτωχά αποτελέσματα (62% στο σωστό δαχτυλίδι, 63% σε λάθος) και κόστιζε 42MB κατέβασμα και ένα ευρετήριο που έπρεπε να ξαναχτίζεται.",
-        "📉 Η εφαρμογή μίκρυνε κατά ~14KB και δεν χρειάζεται πια «χτίσιμο ευρετηρίου φωτογραφιών».",
+      { version: 'v11.89', date: 'Ιούλιος 2026', items: [
+        "🔍 Γιατί απέτυχαν τα ασημένια: το AI είδε τέλεια το μενταγιόν με τη χελώνα, αλλά στον κατάλογό σου η γραμμή του έγραφε μόνο «Μενταγιόν | ασήμι 925 | χωρίς πέτρες» — πουθενά η λέξη χελώνα. Το 30% των ασημένιων (και 14% των χρυσών) δεν έχουν ΟΥΤΕ περιγραφή ΟΥΤΕ πέτρες, οπότε δεν υπήρχε τίποτα να ταιριάξει.",
+        "✍️ Νέο κουμπί «Δημιουργία περιγραφών για αναζήτηση» στο Βρες Κόσμημα. Το AI περιγράφει μία φορά κάθε φωτογραφία («στρογγυλό ασημένιο μενταγιόν, χρυσή χελώνα, πλεκτό κορδόνι») και από κει και πέρα βρίσκονται όλα.",
+        "🔒 Γράφει σε ΝΕΟ πεδίο. Οι δικές σου περιγραφές δεν αλλάζουν ποτέ.",
+        "⏱️ Τρέχει μία φορά, με μπάρα προόδου και κουμπί διακοπής, και συνεχίζει από εκεί που σταμάτησε. Τα κομμάτια χωρίς τίποτα να ταιριάξει μπαίνουν πρώτα.",
+        "🎯 Τα φίλτρα (μέταλλο, είδος, καθαρότητα) περιορίζουν ήδη την αναζήτηση με φωτογραφία — αν διαλέξεις Ασήμι + Κολιέ, ψάχνει μόνο εκεί.",
       ]},
       ]
   },
@@ -24757,10 +24768,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.88', date: 'Jul 2026', items: [
-        "🎯 The photo search shows ONLY the piece it found. The rest fold away behind \"Show the others\" — one tap, for when the first answer is not the right one.",
-        "🧹 Removed the on-device photo search. It was the no-internet fallback, but it gave poor results (62% on the correct ring against 63% on a wrong one) and cost a 42MB download plus an index that had to be rebuilt.",
-        "📉 The app is ~14KB smaller and there is no longer any \"build photo index\" step.",
+      { version: 'v11.89', date: 'Jul 2026', items: [
+        "🔍 Why silver pieces failed: the AI saw the turtle pendant perfectly, but its line in your catalogue read only \"Pendant | silver 925 | no stones\" — the word turtle appears nowhere. 30% of silver pieces (and 14% of gold) have NEITHER a description NOR stones, so there was nothing to match against.",
+        "✍️ New \"Build search descriptions\" button in Find Jewelry. The AI describes each photo once (\"round silver pendant, gold turtle centre, braided cord\") and from then on everything is findable.",
+        "🔒 It writes to a NEW field. Your own descriptions are never changed.",
+        "⏱️ Runs once, with a progress bar and a stop button, and resumes where it left off. Pieces with nothing to match on go first.",
+        "🎯 The filters (metal, type, purity) already narrow the photo search — pick Silver + Necklace and it only looks there.",
       ]},
           ]
   }
@@ -28040,6 +28053,7 @@ async function openFindPanel() {
   await _invEnsureForScan();
   _findRenderFilters();
   _findRun();
+  _findRefreshDescBox();      // fire-and-forget: the weight search never waits on it
 }
 
 // Every piece the finder will ever consider: real jewelry with a usable weight.
@@ -28286,6 +28300,10 @@ function _findCatalogueLines(pieces) {
     bits.push(st ? st.replace(/\s+/g, ' ') : 'no stones');
     const d = (_itemDesc(it) || '').trim();
     if (d) bits.push(d);
+    // The AI-written visual line (see buildSearchDescriptions). For a plain silver
+    // pendant this is the ONLY thing in the line that could ever match a photo of it.
+    const ai = (it.aiDesc || '').trim();
+    if (ai) bits.push(ai);
     return bits.join(' | ');
   });
 }
@@ -28355,6 +28373,125 @@ At most 5 matches, best first.`;
     if (p && !out.some(o => o.id === p.id)) out.push({ id: p.id, it: p.it, why: m.why || '', conf: m.conf || m.confidence || '' });
   });
   return { seen: parsed.seen || '', rows: out, dropped: (parsed.matches || []).length - out.length };
+}
+
+// ─── SEARCH DESCRIPTIONS ─────────────────────────────────────────────────────
+// Measured on the real stock: 30% of silver pieces and 14% of gold carry NEITHER a
+// description NOR stones, so their catalogue line reads `Μενταγιόν | silver 925 | no
+// stones` and nothing more. The AI read a turtle pendant perfectly — "silver rim, gold
+// turtle centre, braided cord" — and could not match it, because the word "turtle"
+// appears nowhere in the catalogue. Vision was never the weak part; the TEXT was empty,
+// and silver failed as a group simply because that is where descriptions are thinnest.
+//
+// So this fills the gap once: every photo is described by the AI into `aiDesc`, a NEW
+// field used only for searching. The owner's own descriptions are never touched, and the
+// write is a PATCH of two keys — not a whole-record PUT — so nothing else can be
+// disturbed and the public showroom feed is not re-synced 650 times.
+const AI_DESC_BATCH = 4;
+let _findDescRunning = false, _findDescStop = false;
+
+async function _findDescPending() {
+  await _invEnsureForScan();
+  const out = [];
+  for (const id in (_inventoryCache || {})) {
+    const it = _inventoryCache[id];
+    if (!it || it.status !== 'in_stock' || it.isCoin || it.isMetal || it.isBulk) continue;
+    if (!it.photoUrl) continue;
+    if (it.aiDesc && it.aiDescPhoto === it.photoUrl) continue;   // done, and for THIS photo
+    out.push(id);
+  }
+  // Pieces with nothing to match on are the ones failing today, so they go first: the
+  // value lands early even if the run is stopped half way through.
+  const blind = id => {
+    const it = _inventoryCache[id];
+    return (!(_itemDesc(it) || '').trim() && !((it.stonesDesc || '').trim())) ? 0 : 1;
+  };
+  out.sort((a, b) => blind(a) - blind(b));
+  return out;
+}
+
+// Photos go by URL, not base64: they are already public on ImgBB and the showroom, and a
+// URL costs a handful of tokens where an inlined image costs thousands.
+async function _findDescribeBatch(ids) {
+  const key = _aiKey();
+  if (!key) throw new Error('no-ai-key');
+  const content = [{ type: 'text', text:
+`You are writing short search labels for a jeweller's own stock photos.
+
+For EACH numbered photo write ONE line, at most 14 words, in English, naming what makes the
+piece recognisable: its shape, any motif or subject (turtle, cross, evil eye, key, flower…),
+the metal colours you can actually see, the texture or style, and the cord or chain if shown.
+
+Do not guess prices, karat or stones you cannot see. No commentary, no adjectives of quality.
+
+Return ONLY strict JSON, no markdown:
+{"d":["line for photo 1","line for photo 2", …]}
+with exactly ${ids.length} lines, in the same order as the photos.` }];
+  ids.forEach((id, i) => {
+    content.push({ type: 'text', text: 'Photo ' + (i + 1) + ':' });
+    content.push({ type: 'image_url', image_url: { url: _inventoryCache[id].photoUrl } });
+  });
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ models: AI_SEARCH_MODELS, max_tokens: 600, temperature: 0,
+                           messages: [{ role: 'user', content }] })
+  });
+  if (!res.ok) throw new Error('ai-http-' + res.status);
+  const raw = ((await res.json()).choices?.[0]?.message?.content || '').trim();
+  const j = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  let parsed;
+  try { parsed = JSON.parse(j); } catch (e) {
+    const m = j.match(/\{[\s\S]*\}/); if (!m) throw new Error('bad-json'); parsed = JSON.parse(m[0]);
+  }
+  const d = parsed.d || [];
+  // A batch whose lines don't line up with its photos would attach the wrong description
+  // to the wrong piece — silently poisoning the very index this builds. Refuse it; the
+  // caller then redoes those photos one at a time, where alignment cannot be wrong.
+  if (!Array.isArray(d) || d.length !== ids.length) throw new Error('count-mismatch');
+  return d.map(x => String(x || '').trim().slice(0, 120));
+}
+
+// PATCH exactly two keys. Never a whole-record PUT: this runs across ~650 pieces and a
+// stale cached copy written back wholesale could undo someone else's edit.
+async function _findSaveDesc(id, text) {
+  const it = _inventoryCache[id];
+  if (!it || !text) return false;
+  try {
+    const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aiDesc: text, aiDescPhoto: it.photoUrl })
+    });
+    if (!res.ok) return false;
+    it.aiDesc = text; it.aiDescPhoto = it.photoUrl;
+    return true;
+  } catch (e) { return false; }
+}
+
+async function buildSearchDescriptions(onProgress, shouldStop) {
+  const pending = await _findDescPending();
+  let done = 0, failed = 0;
+  for (let i = 0; i < pending.length; i += AI_DESC_BATCH) {
+    if (shouldStop && shouldStop()) break;
+    const batch = pending.slice(i, i + AI_DESC_BATCH);
+    let lines = null;
+    try { lines = await _findDescribeBatch(batch); }
+    catch (e) {
+      // Fall back to one photo per request — slower, but alignment is guaranteed.
+      lines = [];
+      for (const id of batch) {
+        try { lines.push((await _findDescribeBatch([id]))[0]); }
+        catch (e2) { lines.push(''); }
+      }
+    }
+    for (let k = 0; k < batch.length; k++) {
+      const ok = lines[k] ? await _findSaveDesc(batch[k], lines[k]) : false;
+      if (ok) done++; else failed++;
+    }
+    if (onProgress) onProgress(done + failed, pending.length, failed);
+  }
+  return { done, failed, total: pending.length };
 }
 
 // ── Photo match, from the Find panel ─────────────────────────────────────────
@@ -28483,6 +28620,45 @@ function _findToggleOthers() {
   b.innerHTML = (open ? '▾ ' + t('findShowOthers') : '▴ ' + t('findHideOthers')) + ' (' + n + ')';
 }
 
+// Tells the owner how many pieces the photo search currently cannot see, and lets him
+// fix it himself — the same self-service shape as the other maintenance actions.
+async function _findRefreshDescBox() {
+  const box = document.getElementById('findDescBox');
+  if (!box) return;
+  if (!can('manage_stock') || !_aiKey()) { box.style.display = 'none'; return; }
+  if (_findDescRunning) return;
+  const pending = (await _findDescPending()).length;
+  box.style.display = 'block';
+  box.innerHTML = pending
+    ? `<button onclick="_findRunDescs()" style="width:100%;padding:11px;background:var(--wa06);border:1px solid var(--wa12);color:var(--text);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">
+         ✍️ ${t('findDescBtn')} <span style="opacity:.7">(${pending})</span></button>
+       <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center;margin-top:5px">${t('findDescHint')}</div>`
+    : `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center">✓ ${t('findDescDone')}</div>`;
+}
+
+async function _findRunDescs() {
+  if (_findDescRunning) { _findDescStop = true; return; }
+  _findDescRunning = true; _findDescStop = false;
+  const box = document.getElementById('findDescBox');
+  const draw = (d, n, f) => {
+    if (!box) return;
+    const pct = n ? Math.round(d / n * 100) : 100;
+    box.innerHTML = `<div style="height:5px;background:var(--wa08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#6fb6e8"></div></div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-align:center;margin-top:5px">${d}/${n}${f ? ' · ' + f + ' ✕' : ''}</div>
+      <button onclick="_findRunDescs()" style="width:100%;margin-top:6px;padding:8px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">${t('findDescStop')}</button>`;
+  };
+  try {
+    draw(0, 1, 0);
+    const r = await buildSearchDescriptions(draw, () => _findDescStop);
+    showToast((r.failed ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' + t('findDescDone'));
+  } catch (e) {
+    showToast('⚠️ ' + t('findPhotoFail'));
+  } finally {
+    _findDescRunning = false;
+    await _findRefreshDescBox();
+  }
+}
+
 // Hand the current narrowing over to the Stock tab's own filters.
 function _findOpenStock() {
   if (typeof _invFilters !== 'undefined') {
@@ -28499,7 +28675,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.88';
+const APP_VERSION = '11.89';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
