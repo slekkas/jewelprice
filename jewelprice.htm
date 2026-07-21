@@ -24742,13 +24742,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.95', date: 'Ιούλιος 2026', items: [
-        "🎯 Βρέθηκε το πραγματικό πρόβλημα με το μενταγιόν των δελφινιών — και ήταν δικό μου λάθος στις οδηγίες προς το AI.",
-        "📋 Οι οδηγίες ήταν γραμμένες σαν λίστα («πες το σχήμα: τετράγωνο, στρογγυλό, οβάλ… πες το φινίρισμα: γυαλιστερό, ματ…») και το AI επέστρεφε ΤΙΣ ΛΕΞΕΙΣ ΜΟΥ αντί να περιγράψει το κόσμημα. Το μενταγιόν σου πήρε «dolphins, round, square, two-tone, textured, polished» — λέει και στρογγυλό και τετράγωνο.",
-        "📊 Στα 698 κομμάτια: το 87% ήταν λίστες λέξεων και το 33% ΟΛΟΪΔΙΕΣ μεταξύ τους. Πέντε χρυσά δελφίνια είχαν ακριβώς την ίδια γραμμή — γι' αυτό η αναζήτηση τα παρατούσε.",
-        "✍️ Τώρα ζητείται ΠΡΟΤΑΣΗ, με παραδείγματα σωστού και λάθους: «Τετράγωνο οξειδωμένο ασημένιο πλαίσιο γύρω από στρογγυλό ορειχάλκινο νόμισμα με τρία δελφίνια, σε καφέ πλεκτό κορδόνι».",
-        "⚠️ Και στο τέλος κάθε σάρωσης η εφαρμογή ελέγχει μόνη της την ποιότητα: αν βγουν πολλές ίδιες ή γενικές, σου το λέει αντί για ένα χαρούμενο ✓.",
-        "🔄 Χρειάζεται νέα «Δημιουργία περιγραφών». ΔΟΚΙΜΑΣΕ ΠΡΩΤΑ ΕΝΑ: άνοιξε το μενταγιόν → Επεξεργασία → «Ξαναδές τη φωτογραφία» και δες αν βγαίνει σωστή πρόταση, πριν τρέξεις όλα τα 698.",
+      { version: 'v11.96', date: 'Ιούλιος 2026', items: [
+        "⚠️ Παραλίγο σοβαρό λάθος: το «καλό παράδειγμα» που έδωσα στο AI το είχα γράψει από ΤΟ ΔΙΚΟ ΣΟΥ μενταγιόν με τα δελφίνια. Η πρώτη δοκιμή γύρισε το παράδειγμα αυτούσιο, λέξη προς λέξη — που σημαίνει ότι δεν ξεχωρίζει αν κοίταξε τη φωτογραφία ή απλώς το αντέγραψε.",
+        "🛑 Αν έτρεχε έτσι σε όλα, 698 κοσμήματα θα έπαιρναν «τρία δελφίνια σε τετράγωνο ασημένιο πλαίσιο» — πολύ χειρότερο από τις λίστες λέξεων.",
+        "🧪 Τα παραδείγματα περιγράφουν πλέον κοσμήματα που ΔΕΝ υπάρχουν στο μαγαζί σου, και η εφαρμογή ΑΠΟΡΡΙΠΤΕΙ αυτόματα κάθε απάντηση που αντιγράφει παράδειγμα.",
+        "🐬 Έφυγε και η λέξη «δελφίνια» από τις οδηγίες — δεν πρέπει να μπαίνει στο μυαλό του AI σε κάθε φωτογραφία.",
+        "🔄 Ξαναδοκίμασε ΕΝΑ κομμάτι («Ξαναδές τη φωτογραφία») πριν τρέξεις όλα τα 698.",
       ]},
       ]
   },
@@ -24779,13 +24778,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.95', date: 'Jul 2026', items: [
-        "🎯 Found the real problem with the dolphin pendant — and it was my mistake in the instructions given to the AI.",
-        "📋 They were written as a checklist (\"give the shape: square, round, oval… the finish: polished, matte…\") and the AI returned MY OWN WORDS instead of describing the piece. Your pendant got \"dolphins, round, square, two-tone, textured, polished\" — both round and square.",
-        "📊 Across 698 pieces: 87% were word lists and 33% were IDENTICAL to another piece. Five gold dolphins shared exactly the same line — which is why the search gave up.",
-        "✍️ It now asks for a SENTENCE, with worked right and wrong examples: \"Square oxidised silver frame around a round brass coin engraved with three dolphins, on a brown braided cord.\"",
-        "⚠️ And every scan now checks its own quality: if too many come out identical or generic it tells you, instead of a cheerful tick.",
-        "🔄 A fresh \"Build search descriptions\" is needed. TEST ONE FIRST: open the pendant → Edit → \"Look at the photo again\" and see whether you get a proper sentence, before running all 698.",
+      { version: 'v11.96', date: 'Jul 2026', items: [
+        "⚠️ A near-miss: the \"good example\" I gave the AI had been written from YOUR OWN dolphin pendant. The first test returned that example back word for word — meaning it is impossible to tell whether it looked at the photo or simply copied.",
+        "🛑 Run across the whole stock, 698 pieces could have been labelled \"three dolphins in a square silver frame\" — far worse than the word lists.",
+        "🧪 The examples now describe pieces that are NOT in your shop, and the app automatically REJECTS any answer that copies an example.",
+        "🐬 The word \"dolphins\" is gone from the instructions too — it should not be in the AI's mind for every photo.",
+        "🔄 Test ONE piece again (\"Look at the photo again\") before running all 698.",
       ]},
           ]
   }
@@ -28414,9 +28412,37 @@ At most 5 matches, best first.`;
 // and at 20 cents for the whole stock the extra requests are irrelevant.
 const AI_DESC_BATCH = 2;
 // Bump this whenever the recipe below changes in a way that should regenerate existing
-// lines. v2 = describe from the HI-RES photo, longer limit, motif named explicitly.
-const AI_DESC_VERSION = 3;
+// lines.
+//   v2 = describe from the HI-RES photo, longer limit, motif named explicitly.
+//   v3 = demand a SENTENCE. v2's prompt was a checklist ("give the shape: square, round,
+//        oval… the finish: polished, matte…") and the model handed those menu words back
+//        as a comma list: 87% keyword lists, 33% byte-identical to another piece.
+//   v4 = examples must not describe real stock. The v3 "good example" was written from the
+//        owner's own dolphin pendant, and the first test returned it back WORD FOR WORD —
+//        indistinguishable from the model actually looking at the photo. Left alone, a
+//        rebuild could have stamped "three dolphins" across 698 unrelated pieces.
+const AI_DESC_VERSION = 4;
 let _findDescRunning = false, _findDescStop = false;
+
+// A line that repeats an example IS the example, not a description. Rejecting it is the
+// difference between one wasted cent and a stock full of dolphins.
+const AI_DESC_EXAMPLES = [
+  "heavy men's signet ring in matte white gold, its flat oval face engraved with a lion's head in profile",
+  "long fine chain of alternating oval and figure-of-eight links, with a small enamelled ladybird hanging near the clasp"
+];
+function _echoesExample(line) {
+  const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const n = norm(line);
+  if (!n) return false;
+  return AI_DESC_EXAMPLES.some(ex => {
+    const e = norm(ex);
+    if (n === e) return true;
+    const w = e.split(' ');                       // or a long verbatim run lifted out of one
+    for (let i = 0; i + 7 <= w.length; i++)
+      if (n.includes(w.slice(i, i + 7).join(' '))) return true;
+    return false;
+  });
+}
 
 async function _findDescPending() {
   await _invEnsureForScan();
@@ -28451,17 +28477,22 @@ say what makes THIS one different from the others.
 For EACH numbered photo write ONE natural sentence of 15-30 words, in English, the way you
 would describe the piece to a colleague on the telephone.
 
-GOOD — a specific sentence:
-  "Square oxidised silver frame around a round brass coin engraved with three dolphins,
-   hanging from a brown braided cord."
-  "Wide 18K band with granulated edges, a central emerald flanked by a ruby and a sapphire,
-   with small diamonds between them."
-  "Plain polished gold hoop earrings, slightly flattened, with no stones or decoration."
+These two examples show the STYLE of answer only. They describe pieces that are NOT in this
+shop. Never reuse their wording, their subjects or their materials — describe the photograph
+actually in front of you, even if it resembles an example.
+
+GOOD — the shape of a useful answer:
+  "Heavy men's signet ring in matte white gold, its flat oval face engraved with a lion's
+   head in profile."
+  "Long fine chain of alternating oval and figure-of-eight links, with a small enamelled
+   ladybird hanging near the clasp."
 
 BAD — never write anything like this:
-  "dolphins, round, square, two-tone, textured, polished, brown braided cord"
+  "bird, round, square, two-tone, textured, polished, leather strap"
   "no motif, round, gold, polished"
 It is a list of labels, it describes nothing, and dozens of pieces end up identical.
+(Note it even claims two shapes at once. That happens when you reach for these words
+instead of looking.)
 
 Rules:
 - Write a SENTENCE. Never a comma-separated list of attributes.
@@ -28505,7 +28536,9 @@ with exactly ${ids.length} sentences, in the same order as the photos.` }];
   // to the wrong piece — silently poisoning the very index this builds. Refuse it; the
   // caller then redoes those photos one at a time, where alignment cannot be wrong.
   if (!Array.isArray(d) || d.length !== ids.length) throw new Error('count-mismatch');
-  return d.map(x => String(x || '').trim().slice(0, 240));   // 30 words needs the room
+  const out = d.map(x => String(x || '').trim().slice(0, 240));   // 30 words needs the room
+  if (out.some(_echoesExample)) throw new Error('echoed-example');
+  return out;
 }
 
 // PATCH exactly two keys. Never a whole-record PUT: this runs across ~650 pieces and a
@@ -28860,7 +28893,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.95';
+const APP_VERSION = '11.96';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
