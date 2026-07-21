@@ -24742,12 +24742,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.97', date: 'Ιούλιος 2026', items: [
-        "🔧 Βρέθηκε γιατί κολλούσαν τα 42: έφταιγε ΤΟ ΔΙΚΟ ΜΟΥ φίλτρο κατά της αντιγραφής. Απέρριπτε κάθε περιγραφή που μοιραζόταν 7 λέξεις με τα παραδείγματα — και μια αληθινή αλυσίδα περιγράφεται αναγκαστικά με λέξεις σαν το παράδειγμα της αλυσίδας. Έτσι αλυσίδες και δαχτυλίδια-σφραγίδες αποτύγχαναν ξανά και ξανά.",
-        "✅ Τώρα το φίλτρο κρίνει ΟΛΗ την πρόταση: αντιγραφή = επαναλαμβάνει σχεδόν τα πάντα. Απλή κοινή ορολογία περνάει κανονικά.",
-        "🎈 Τα παραδείγματα άλλαξαν σε κοσμήματα που δεν θα υπάρξουν ποτέ στο μαγαζί (καρφίτσα αερόστατο, δερμάτινο βραχιόλι με φίδι), ώστε να μη μοιάζουν ποτέ κατά λάθος με αληθινό κομμάτι.",
-        "💬 Και όταν κάτι αποτυγχάνει, σου λέει ΓΙΑΤΙ και ΠΟΙΑ κομμάτια — όχι σκέτο νούμερο.",
-        "🔄 Πάτησε ξανά «Δημιουργία περιγραφών»: θα δουλέψει μόνο τα 42 που λείπουν, όχι τα υπόλοιπα.",
+      { version: 'v11.98', date: 'Ιούλιος 2026', items: [
+        "💬 Τώρα βλέπεις ΓΙΑΤΙ αποτυγχάνουν. Το μήνυμα υπήρχε ήδη αλλά το έσβηνε το ίδιο το πάνελ ένα δευτερόλεπτο μετά — γι' αυτό τα 42 αποτύγχαναν ξανά και ξανά χωρίς καμία εξήγηση.",
+        "🔢 Κάτω από το κουμπί εμφανίζεται πλέον κάτι σαν «⚠️ 42 απέτυχαν — 42× ai-http-429» μαζί με τους κωδικούς των κομματιών, και μένει εκεί.",
+        "🔄 Πάτησε ξανά «Δημιουργία περιγραφών» και στείλε μου αυτή τη γραμμή — λέει ακριβώς τι φταίει.",
       ]},
       ]
   },
@@ -24778,12 +24776,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.97', date: 'Jul 2026', items: [
-        "🔧 Found why the 42 kept failing: MY OWN anti-copying filter. It rejected any description sharing 7 words with an example — and a real chain is inevitably described in words like the chain example. So chains and signet rings failed over and over.",
-        "✅ The filter now judges the WHOLE sentence: copying means repeating nearly everything. Simply sharing ordinary jewellery vocabulary passes.",
-        "🎈 The examples are now pieces that will never exist in your shop (a hot-air-balloon brooch, a leather cuff with a serpent buckle), so they can never accidentally resemble a real one.",
-        "💬 And when something fails it now tells you WHY and WHICH pieces — not just a number.",
-        "🔄 Press \"Build search descriptions\" again: it will only work on the 42 that are missing, not the rest.",
+      { version: 'v11.98', date: 'Jul 2026', items: [
+        "💬 You can now see WHY they fail. The message already existed but the panel itself wiped it a second later — which is why 42 pieces failed over and over with no explanation.",
+        "🔢 Under the button you now get something like \"⚠️ 42 failed — 42× ai-http-429\" together with the reference codes, and it stays there.",
+        "🔄 Press \"Build search descriptions\" again and send me that line — it says exactly what is wrong.",
       ]},
           ]
   }
@@ -28693,6 +28689,7 @@ async function buildSearchDescriptions(onProgress, shouldStop) {
       let lines = null;
       try { lines = await _findDescribeBatch(batch); }
       catch (e) {
+        _lastDescError = String(e.message || e).slice(0, 40);
         // Fall back to one photo per request — slower, but alignment is guaranteed.
         lines = [];
         for (const id of batch) {
@@ -28857,11 +28854,24 @@ async function _findRefreshDescBox() {
   if (_findDescRunning) return;
   const pending = (await _findDescPending()).length;
   box.style.display = 'block';
-  box.innerHTML = pending
+  // Why the last run failed, drawn HERE rather than by the runner: the runner's own
+  // message was wiped by this very refresh a moment later, so 42 pieces failed repeatedly
+  // and the app never once said why.
+  let failHtml = '';
+  if (_descFailures.length) {
+    const why = {};
+    _descFailures.forEach(f => { why[f.why] = (why[f.why] || 0) + 1; });
+    const top = Object.entries(why).sort((a, b) => b[1] - a[1]).map(([w, n]) => n + '× ' + w).join(', ');
+    const refs = _descFailures.slice(0, 8).map(f => f.ref).join(', ');
+    failHtml = `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center;margin-top:7px;line-height:1.6">
+        ⚠️ ${_descFailures.length} ${lang === 'el' ? 'απέτυχαν' : 'failed'} — ${_resEsc(top)}<br>
+        ${_resEsc(refs)}${_descFailures.length > 8 ? '…' : ''}</div>`;
+  }
+  box.innerHTML = (pending
     ? `<button onclick="_findRunDescs()" style="width:100%;padding:11px;background:var(--wa06);border:1px solid var(--wa12);color:var(--text);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">
          ✍️ ${t('findDescBtn')} <span style="opacity:.7">(${pending})</span></button>
        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center;margin-top:5px">${t('findDescHint')}</div>`
-    : `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center">✓ ${t('findDescDone')}</div>`;
+    : `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center">✓ ${t('findDescDone')}</div>`) + failHtml;
 }
 
 async function _findRunDescs() {
@@ -28885,19 +28895,7 @@ async function _findRunDescs() {
     const poor = q && q.total && ((q.dup + q.listy) / 2) / q.total > 0.25;
     showToast((r.failed || poor ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' + t('findDescDone')
       + (poor ? ' · ' + (lang === 'el' ? q.dup + ' ίδιες μεταξύ τους' : q.dup + ' are identical to each other') : ''));
-    // The failures get to say what happened, on screen, rather than only in a count.
-    if (r.failed && _descFailures.length) {
-      const why = {};
-      _descFailures.forEach(f => { why[f.why] = (why[f.why] || 0) + 1; });
-      const top = Object.entries(why).sort((a, b) => b[1] - a[1])
-        .map(([w, n]) => n + '× ' + w).join(', ');
-      const refs = _descFailures.slice(0, 6).map(f => f.ref).join(', ');
-      const box = document.getElementById('findDescBox');
-      if (box) box.insertAdjacentHTML('beforeend',
-        `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center;margin-top:6px;line-height:1.5">
-           ${r.failed} ${lang === 'el' ? 'απέτυχαν' : 'failed'} — ${_resEsc(top)}<br>${_resEsc(refs)}${_descFailures.length > 6 ? '…' : ''}</div>`);
-      console.warn('description failures:', _descFailures);
-    }
+    if (r.failed) console.warn('description failures:', _descFailures);
   } catch (e) {
     showToast('⚠️ ' + t('findPhotoFail'));
   } finally {
@@ -28922,7 +28920,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.97';
+const APP_VERSION = '11.98';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
