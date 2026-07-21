@@ -1908,7 +1908,7 @@
     <div class="cloud-box" style="margin-bottom:14px">
       <div id="findFilters"></div>
 
-      <div class="inv-fs-group" style="margin-bottom:0">
+      <div class="inv-fs-group" style="margin-bottom:14px">
         <div class="inv-fs-label" data-i18n="findWeightLbl">Βάρος στη ζυγαριά</div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="number" id="findWeight" inputmode="decimal" step="0.01" min="0" oninput="_findWeightChanged()" autocomplete="off"
@@ -1916,6 +1916,16 @@
             style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:20px;padding:12px 14px">
           <span style="font-family:'DM Mono',monospace;font-size:15px;color:var(--gold-light);flex:0 0 auto">g</span>
         </div>
+      </div>
+
+      <div class="inv-fs-group" style="margin-bottom:0">
+        <div class="inv-fs-label" data-i18n="findPhotoLbl">Ή φωτογράφισέ το</div>
+        <button id="findPhotoBtn" onclick="_findPhotoPick()"
+          style="width:100%;padding:13px;background:rgba(120,200,255,0.10);border:1px solid rgba(120,200,255,0.35);color:#9fd4ff;border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">
+          📷 <span data-i18n="findPhotoBtn">Ταύτιση με φωτογραφία</span></button>
+        <input type="file" id="findPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="_findPhotoChanged(this)">
+        <div id="findPhotoStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-align:center;margin-top:7px;min-height:14px"></div>
+        <div id="findIndexBox" style="display:none;margin-top:8px"></div>
       </div>
     </div>
 
@@ -3324,6 +3334,16 @@ const T = {
     findSoldMark:'ΠΩΛΗΘΗΚΕ',
     findPieces:'κομμάτια',
     findPiece:'κομμάτι',
+    findPhotoLbl:'Ή φωτογράφισέ το',
+    findPhotoBtn:'Ταύτιση με φωτογραφία',
+    findPhotoResults:'Μοιάζουν περισσότερο',
+    findSearched:'κομμάτια ελέγχθηκαν',
+    findPhotoFail:'Δεν έγινε η ταύτιση. Χρειάζεται ίντερνετ την πρώτη φορά (κατέβασμα μοντέλου).',
+    findNoIndex:'Δεν υπάρχουν ακόμη αποτυπώματα φωτογραφιών. Πάτησε «Δημιουργία ευρετηρίου» πιο πάνω.',
+    findIndexBtn:'Δημιουργία ευρετηρίου φωτογραφιών',
+    findIndexHint:'Μία φορά, ~1–7 λεπτά. Γίνεται στη συσκευή — καμία φωτογραφία δεν φεύγει.',
+    findIndexStop:'Διακοπή',
+    findIndexed:'φωτογραφίες στο ευρετήριο',
     featuresTitle:'✨ Λίστα Λειτουργιών', manualTitle:'📖 Οδηγίες Χρήσης', changelogTitle:'📋 Ιστορικό Αλλαγών',
     supportTitle:'🛠️ Υποστήριξη', supportText:'Για αναφορά προβλημάτων ή νέες λειτουργίες επικοινωνήστε με τον developer.',
     scanQr:'Σάρωση QR Κωδικού',
@@ -3762,6 +3782,16 @@ const T = {
     findSoldMark:'SOLD',
     findPieces:'pieces',
     findPiece:'piece',
+    findPhotoLbl:'Or photograph it',
+    findPhotoBtn:'Match by photo',
+    findPhotoResults:'Closest matches',
+    findSearched:'pieces checked',
+    findPhotoFail:'Could not match. Needs internet the first time (model download).',
+    findNoIndex:'No photo fingerprints yet. Tap "Build photo index" above.',
+    findIndexBtn:'Build photo index',
+    findIndexHint:'One time, ~1–7 minutes. Runs on this device — no photo leaves it.',
+    findIndexStop:'Stop',
+    findIndexed:'photos indexed',
     featuresTitle:'✨ Feature List', manualTitle:'📖 User Manual', changelogTitle:'📋 Changelog',
     supportTitle:'🛠️ Support', supportText:'For bug reports or new feature requests please contact the developer.',
     scanQr:'Scan QR Code',
@@ -24657,12 +24687,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.83', date: 'Ιούλιος 2026', items: [
-        "🆔 Ένας κωδικός = ένα κόσμημα. Στο «Προσθήκη όμοιων ειδών», αν το νέο κομμάτι διαφέρει σε ΒΑΡΟΣ, ΠΕΤΡΑ ή ΧΡΩΜΑ, παίρνει πλέον ΔΙΚΟ ΤΟΥ κωδικό αναφοράς (π.χ. ER0702) αντί να μοιράζεται τον ER0701. Το σκανάρισμα το βρίσκει κατευθείαν, χωρίς να σε ρωτάει «ποιο κρατάς;».",
-        "🔗 Αν το νέο κομμάτι είναι ΟΛΟΪΔΙΟ, κρατάει τον ίδιο κωδικό όπως πριν — 12 ίδια δαχτυλίδια, ένας κωδικός, μία ετικέτα σε πολλά αντίτυπα. Μένουν και τα δύο στην ίδια ομάδα είτε έτσι είτε αλλιώς.",
-        "🆔 Το παράθυρο σου λέει από πριν τι θα γίνει: «ίδιος κωδικός ER0701» ή «θα πάρει δικό του κωδικό».",
-        "💎 Ο έλεγχος ταυτότητας κοιτάει τώρα και την ΠΕΤΡΑ — πριν έβλεπε μόνο βάρος και χρώμα, οπότε δύο κομμάτια που διέφεραν μόνο στην πέτρα θεωρούνταν ίδια.",
-        "❓ Η ερώτηση «ποιο κρατάς;» παραμένει μόνο για τα παλιά κομμάτια που ήδη μοιράζονται κωδικό. Τυπώνοντας ετικέτα σε ένα από αυτά, η εφαρμογή προσφέρεται να του δώσει δικό του κωδικό.",
+      { version: 'v11.84', date: 'Ιούλιος 2026', items: [
+        "📷 Ταύτιση με φωτογραφία στο «Βρες Κόσμημα». Έχασες την ετικέτα και το βάρος δεν βοηθάει (γιατί έχεις αφαιρέσει το βάρος των πετρών); Φωτογράφισε το κόσμημα και η εφαρμογή σου δείχνει τα πιο όμοια από το απόθεμα, με ποσοστό ταιριάσματος.",
+        "🎯 Δουλεύει μαζί με τα φίλτρα: διάλεξε π.χ. Δαχτυλίδι + 18Κ και μετά φωτογράφισε — η σύγκριση γίνεται μόνο μέσα σε αυτά, που είναι πιο αξιόπιστο.",
+        "🔒 Όλα γίνονται ΣΤΗ ΣΥΣΚΕΥΗ. Καμία φωτογραφία δεν φεύγει από το κινητό.",
+        "⚙️ Την πρώτη φορά χρειάζεται ίντερνετ (κατέβασμα μοντέλου) και ένα «χτίσιμο ευρετηρίου» των φωτογραφιών του αποθέματος — μία φορά, λίγα λεπτά. Τα νέα κομμάτια μπαίνουν μετά αυτόματα.",
+        "⚖️ Το βάρος αγνοείται στην αναζήτηση με φωτογραφία — ακριβώς επειδή στα κομμάτια με πέτρες το αποθηκευμένο βάρος είναι μικρότερο από το πραγματικό.",
       ]},
       ]
   },
@@ -24693,12 +24723,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.83', date: 'Jul 2026', items: [
-        "🆔 One code = one piece. In \"Add similar items\", a new piece that differs in WEIGHT, STONE or COLOUR now gets its OWN reference code (e.g. ER0702) instead of sharing ER0701. Scanning finds it directly, with no \"which one are you holding?\" question.",
-        "🔗 A piece that is truly IDENTICAL keeps sharing the code exactly as before — 12 identical rings, one code, one label printed N times. Either way they stay in the same group.",
-        "🆔 The sheet tells you up front which it will be: \"shares code ER0701\" or \"gets its own code\".",
-        "💎 The identity check now looks at the STONE too — it previously compared only weight and colour, so two pieces differing only by stone were treated as interchangeable.",
-        "❓ The \"which one?\" question remains only for older pieces that already share a code. Printing a tag for one of them offers to give it its own code.",
+      { version: 'v11.84', date: 'Jul 2026', items: [
+        "📷 Match by photo in \"Find Jewelry\". Lost the tag and the weight can't help (because you deducted the stone weight)? Photograph the piece and the app shows the closest matches in your stock, with a match score.",
+        "🎯 Works together with the filters: pick e.g. Ring + 18K first, then photograph — it compares only within those, which is more reliable.",
+        "🔒 Everything runs ON THE DEVICE. No photo ever leaves your phone.",
+        "⚙️ The first time it needs internet (model download) and a one-off \"build photo index\" of your stock photos — a few minutes, once. New pieces are added automatically after that.",
+        "⚖️ Weight is ignored in a photo search — precisely because a stone-set piece is stored lighter than it really is.",
       ]},
           ]
   }
@@ -27978,6 +28008,7 @@ async function openFindPanel() {
   await _invEnsureForScan();
   _findRenderFilters();
   _findRun();
+  _findRefreshIndexBox();      // fire-and-forget: the weight search never waits on it
 }
 
 // Every piece the finder will ever consider: real jewelry with a usable weight.
@@ -28187,6 +28218,144 @@ function _findRun() {
   box.innerHTML = html;
 }
 
+// ── Photo match, from the Find panel ─────────────────────────────────────────
+let _findPhotoBusy = false;
+let _findIndexRunning = false;
+let _findIndexStop = false;
+
+function _findPhotoPick() {
+  if (_findPhotoBusy) return;
+  document.getElementById('findPhotoInput')?.click();
+}
+
+async function _findPhotoChanged(input) {
+  const f = input.files && input.files[0];
+  input.value = '';                       // so picking the same file twice still fires
+  if (f) await _findPhotoRun(f);
+}
+
+function _findSay(msg) {
+  const el = document.getElementById('findPhotoStatus');
+  if (el) el.textContent = msg || '';
+}
+
+async function _findPhotoRun(file) {
+  if (_findPhotoBusy) return;
+  _findPhotoBusy = true;
+  const box = document.getElementById('findResults');
+  try {
+    await _invEnsureForScan();
+    _findSay(lang === 'el' ? 'Φόρτωση…' : 'Loading…');
+    await _visLoad(_findSay);
+    _findSay(lang === 'el' ? 'Σύγκριση…' : 'Comparing…');
+
+    // Search whatever the filters already narrowed to — the weight box is deliberately
+    // IGNORED here, because a stone-set piece is exactly the case where the stored weight
+    // is short by the stones and would exclude the right answer.
+    const ids = _findAllPieces().filter(p => _findFilterOk(p.it)).map(p => p.id);
+    const canvas = await _visCanvasFrom(file);
+    const rows = await visMatch(canvas, ids);
+
+    if (!rows.length) {
+      box.innerHTML = `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);line-height:1.6;text-align:center;padding:22px 14px">${t('findNoIndex')}</div>`;
+      await _findRefreshIndexBox();
+      return;
+    }
+    const shown = rows.slice(0, 12);
+    const thumb = URL.createObjectURL(file);
+    box.innerHTML =
+      `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;padding:0 2px">
+         <img src="${thumb}" style="width:40px;height:40px;border-radius:8px;object-fit:contain;background:#fff;flex:0 0 auto">
+         <div style="flex:1;min-width:0">
+           <div style="font-family:var(--font-body);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#9fd4ff">${t('findPhotoResults')}</div>
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted)">${rows.length} ${t('findSearched')}</div>
+         </div>
+       </div>` +
+      shown.map((r, i) => _findPhotoCard(r, i)).join('');
+  } catch (e) {
+    box.innerHTML = `<div style="font-family:var(--font-body);font-size:12px;color:#e88;line-height:1.6;text-align:center;padding:22px 14px">${t('findPhotoFail')}</div>`;
+  } finally {
+    _findSay('');
+    _findPhotoBusy = false;
+  }
+}
+
+// Cosine similarity is not a probability, and dressing it up as "97% sure" would be a lie.
+// The bar is a relative confidence cue only; the ranking is the actual answer.
+function _findPhotoCard(row, i) {
+  const it = row.it;
+  const ref = itemRefCode(it) || it.qrCode || it.code || '';
+  const desc = _resEsc(_itemDesc(it) || invTypeLabel(it.jewelryType));
+  const pct = Math.max(0, Math.min(100, Math.round(row.score * 100)));
+  const strong = i === 0 && row.score >= 0.75;
+  const photo = it.photoUrl
+    ? `<img src="${it.photoUrl}" style="width:64px;height:64px;border-radius:8px;object-fit:contain;background:#fff;flex:0 0 auto">`
+    : `<div style="width:64px;height:64px;border-radius:8px;background:var(--dark-3);border:1px solid var(--wa08);flex:0 0 auto"></div>`;
+  return `<div style="display:flex;gap:10px;align-items:flex-start;padding:11px;margin-bottom:8px;background:var(--dark-2);border:1px solid ${strong ? 'rgba(120,200,255,0.45)' : 'var(--card-border)'};border-radius:10px">
+    ${photo}
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--gold-light);font-weight:600">${_resEsc(ref)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:#9fd4ff">${pct}%</span>
+      </div>
+      <div style="height:3px;background:var(--wa08);border-radius:2px;margin:5px 0 4px">
+        <div style="height:100%;width:${pct}%;background:#6fb6e8;border-radius:2px"></div>
+      </div>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis">${desc}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:3px">
+        ${_resEsc(invTypeLabel(it.jewelryType))} · ${t(it.metal)} ${_findKaratLabel(it.karat)} · ${parseFloat(it.weight || 0).toFixed(2)} g
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button onclick="invPrintTagFromCard('${row.id}')" style="flex:1;min-width:92px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);font-family:var(--font-body);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer">${t('findPrintTag')}</button>
+        <button onclick="_jumpToInvCard('${row.id}')" style="flex:1;min-width:92px;background:var(--wa06);border:1px solid var(--wa12);color:var(--text-muted);font-family:var(--font-body);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer">${t('findOpenItem')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// The index has to be built before any of this works, so the panel says so plainly and
+// lets the owner run it himself rather than waiting for a hidden background job.
+async function _findRefreshIndexBox() {
+  const box = document.getElementById('findIndexBox');
+  if (!box) return;
+  if (!can('manage_stock')) { box.style.display = 'none'; return; }
+  const vectors = await loadImgVectors();
+  const pending = _visPending(vectors).length;
+  const total = Object.keys(vectors).length;
+  box.style.display = 'block';
+  if (_findIndexRunning) return;
+  box.innerHTML = pending
+    ? `<button onclick="_findRunIndex()" style="width:100%;padding:11px;background:var(--wa06);border:1px solid var(--wa15);color:var(--text);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">
+         ⚙️ ${t('findIndexBtn')} <span style="opacity:.7">(${pending})</span></button>
+       <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center;margin-top:5px">${t('findIndexHint')}</div>`
+    : `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center">✓ ${total} ${t('findIndexed')}</div>`;
+}
+
+async function _findRunIndex() {
+  if (_findIndexRunning) { _findIndexStop = true; return; }
+  _findIndexRunning = true; _findIndexStop = false;
+  const box = document.getElementById('findIndexBox');
+  const draw = (d, n, f) => {
+    if (!box) return;
+    const pct = n ? Math.round(d / n * 100) : 100;
+    box.innerHTML = `<div style="height:5px;background:var(--wa08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#6fb6e8"></div></div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-align:center;margin-top:5px">${d}/${n}${f ? ' · ' + f + ' ✕' : ''}</div>
+      <button onclick="_findRunIndex()" style="width:100%;margin-top:6px;padding:8px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">${t('findIndexStop')}</button>`;
+  };
+  try {
+    await _visLoad(_findSay);
+    draw(0, 1, 0);
+    const r = await visIndexStock(draw, () => _findIndexStop);
+    showToast((r.failed ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' + t('findIndexed'));
+  } catch (e) {
+    showToast('⚠️ ' + t('findPhotoFail'));
+  } finally {
+    _findSay('');
+    _findIndexRunning = false;
+    await _findRefreshIndexBox();
+  }
+}
+
 // Hand the current narrowing over to the Stock tab's own filters.
 function _findOpenStock() {
   if (typeof _invFilters !== 'undefined') {
@@ -28203,7 +28372,200 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.83';
+// ─── PHOTO MATCH — find a piece by photographing it ──────────────────────────
+// The weight finder cannot reach a stone-set piece: the owner deducts the stone weight
+// when adding it (a 13.2 g ring is stored as 12.7 g), so the scale disagrees by more than
+// any sane tolerance. Those pieces are the visually distinctive ones though — a byzantine
+// ring with emerald, ruby and sapphire looks like nothing else in the stock — so a picture
+// is the right sensor exactly where grams are the wrong one.
+//
+// Everything runs ON THE DEVICE. The model is fetched once from a CDN and cached by the
+// browser (same pattern as the OCR scanner); no photo ever leaves the phone.
+//
+// Model choice — measured on 140 real stock photos, not assumed. DINOv2 is built for
+// instance retrieval ("find THIS object again") rather than text matching, and under a
+// deliberately hard query (rotated 8°, pulled back 22%, on a wooden surface, 10% dimmer)
+// it returned 99% top-1 / 100% top-3, worst case rank 2. A cheap colour-grid descriptor
+// scored 96% on an easier test but its confidence margin was 0.011 — it was mostly
+// measuring the white studio background, and collapsed to 71% once the crop widened.
+// DINOv2's margin on the same task is 0.177, sixteen times larger. That margin is the
+// reason this is worth shipping and the fingerprint was not.
+const VIS_PATH  = '/jewelprice_imgvec';
+const VIS_LIB   = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6';
+const VIS_MODEL = 'Xenova/dinov2-small';
+const VIS_DIMS  = 384;
+const VIS_SIZE  = 224;
+let _visLib = null, _visModel = null, _visLoading = null, _visDevice = '';
+let _visVectors = null;      // { itemId: {v: Float32Array, p: photoKey} }
+
+// A piece is re-indexed only when its PHOTO changes, so the pass is cheap to repeat.
+function _visPhotoKey(item) { return (item && item.photoUrl) ? String(item.photoUrl) : ''; }
+
+async function _visLoad(onStatus) {
+  if (_visModel) return _visModel;
+  if (_visLoading) return _visLoading;
+  const say = (s) => { try { onStatus && onStatus(s); } catch (e) {} };
+  _visLoading = (async () => {
+    say(lang === 'el' ? 'Λήψη μοντέλου…' : 'Downloading model…');
+    _visLib = await import(VIS_LIB);
+    _visLib.env.allowLocalModels = false;
+    // WebGPU is ~6× faster (110 ms vs 620 ms per photo) but is not everywhere yet;
+    // the wasm path is the same model and the same answers, only slower.
+    try {
+      _visModel = await _visLib.pipeline('image-feature-extraction', VIS_MODEL,
+        { device: 'webgpu', dtype: 'fp16' });
+      _visDevice = 'webgpu';
+    } catch (e) {
+      _visModel = await _visLib.pipeline('image-feature-extraction', VIS_MODEL, { dtype: 'q8' });
+      _visDevice = 'wasm';
+    }
+    say('');
+    return _visModel;
+  })().catch(e => { _visLoading = null; say(''); throw e; });
+  return _visLoading;
+}
+
+// Draw any image source into the square the model expects. White backdrop, because that
+// is what the stock photos have and it keeps a transparent PNG from going black.
+async function _visCanvasFrom(src) {
+  const bmp = (src instanceof ImageBitmap) ? src : await createImageBitmap(src);
+  const C = (typeof OffscreenCanvas !== 'undefined')
+    ? new OffscreenCanvas(VIS_SIZE, VIS_SIZE)
+    : Object.assign(document.createElement('canvas'), { width: VIS_SIZE, height: VIS_SIZE });
+  const ctx = C.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, VIS_SIZE, VIS_SIZE);
+  // Contain (never crop): a cropped piece loses the very outline that identifies it.
+  const s = Math.min(VIS_SIZE / bmp.width, VIS_SIZE / bmp.height);
+  const w = bmp.width * s, h = bmp.height * s;
+  ctx.drawImage(bmp, (VIS_SIZE - w) / 2, (VIS_SIZE - h) / 2, w, h);
+  return C;
+}
+
+// Pixels straight from the canvas into the model. Encoding each frame to JPEG and
+// decoding it again — the obvious way — cost a FULL SECOND per photo, nine times the
+// inference itself, and was the difference between a 70-second index and a 17-minute one.
+async function _visEmbedCanvas(canvas) {
+  const model = await _visLoad();
+  const ctx = canvas.getContext('2d');
+  const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const rgb = new Uint8ClampedArray(canvas.width * canvas.height * 3);
+  for (let i = 0, j = 0; i < id.data.length; i += 4, j += 3) {
+    rgb[j] = id.data[i]; rgb[j + 1] = id.data[i + 1]; rgb[j + 2] = id.data[i + 2];
+  }
+  const out = await model(new _visLib.RawImage(rgb, canvas.width, canvas.height, 3));
+  // DINOv2's retrieval descriptor is the CLS token — the first VIS_DIMS of the output.
+  const d = out.data, v = new Float32Array(VIS_DIMS);
+  for (let i = 0; i < VIS_DIMS; i++) v[i] = d[i];
+  return _visNorm(v);
+}
+
+function _visNorm(v) {
+  let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) || 1;
+  for (let i = 0; i < v.length; i++) v[i] /= n;
+  return v;
+}
+function _visCos(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+
+// int8 + base64: 384 bytes a piece, ~320 KB for the whole stock. Measured cost to
+// accuracy: top-1 unchanged, average score drift 0.00012 — free, in other words.
+function _visPack(v) {
+  let m = 0; for (const x of v) m = Math.max(m, Math.abs(x));
+  m = m || 1;
+  let s = '';
+  for (let i = 0; i < v.length; i++) s += String.fromCharCode((Math.round(v[i] * 127 / m) + 128) & 255);
+  return btoa(s);
+}
+function _visUnpack(b64) {
+  try {
+    const s = atob(b64), v = new Float32Array(s.length);
+    for (let i = 0; i < s.length; i++) v[i] = s.charCodeAt(i) - 128;
+    return _visNorm(v);
+  } catch (e) { return null; }
+}
+
+async function loadImgVectors(force) {
+  if (_visVectors && !force) return _visVectors;
+  const out = {};
+  try {
+    const res = await fetch(fbUrl(VIS_PATH + '.json'), { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      Object.entries(data || {}).forEach(([id, rec]) => {
+        if (!rec || !rec.v) return;
+        const v = _visUnpack(rec.v);
+        if (v) out[id] = { v, p: rec.p || '' };
+      });
+    }
+  } catch (e) {}
+  _visVectors = out;
+  return out;
+}
+
+// Which in-stock pieces still need a fingerprint (never indexed, or the photo changed).
+function _visPending(vectors) {
+  const out = [];
+  for (const id in (_inventoryCache || {})) {
+    const it = _inventoryCache[id];
+    if (!it || it.status !== 'in_stock' || it.isCoin || it.isMetal || it.isBulk) continue;
+    if (!it.photoUrl) continue;
+    const have = vectors[id];
+    if (!have || have.p !== _visPhotoKey(it)) out.push(id);
+  }
+  return out;
+}
+
+// Index the stock. Resumable by construction: it only ever works on _visPending, so an
+// interrupted run simply picks up where it stopped. Writes in batches — 642 separate PUTs
+// would be slower than the embedding itself.
+async function visIndexStock(onProgress, shouldStop) {
+  await _invEnsureForScan();
+  const vectors = await loadImgVectors(true);
+  const pending = _visPending(vectors);
+  let done = 0, failed = 0, batch = {};
+  const flush = async () => {
+    if (!Object.keys(batch).length) return;
+    try {
+      await fetch(fbUrl(VIS_PATH + '.json'), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(batch) });
+    } catch (e) {}
+    batch = {};
+  };
+  for (const id of pending) {
+    if (shouldStop && shouldStop()) break;
+    const it = _inventoryCache[id];
+    try {
+      const blob = await (await fetch(it.photoUrl)).blob();
+      const v = await _visEmbedCanvas(await _visCanvasFrom(blob));
+      const p = _visPhotoKey(it);
+      vectors[id] = { v, p };
+      batch[id] = { v: _visPack(v), p, at: Date.now() };
+      done++;
+    } catch (e) { failed++; }
+    if (Object.keys(batch).length >= 40) await flush();
+    if (onProgress) onProgress(done + failed, pending.length, failed);
+  }
+  await flush();
+  return { done, failed, total: pending.length };
+}
+
+// Rank candidates against a photographed piece. `ids` limits the search to whatever the
+// Find panel is already showing — filtering by type or stone first and ranking second is
+// far more reliable than searching all 642, and it is what the owner does by hand anyway.
+async function visMatch(canvas, ids) {
+  const vectors = await loadImgVectors();
+  const q = await _visEmbedCanvas(canvas);
+  const rows = [];
+  (ids && ids.length ? ids : Object.keys(vectors)).forEach(id => {
+    const rec = vectors[id];
+    const it = _inventoryCache[id];
+    if (!rec || !it || it.status !== 'in_stock') return;
+    rows.push({ id, it, score: _visCos(q, rec.v) });
+  });
+  rows.sort((a, b) => b.score - a.score);
+  return rows;
+}
+
+const APP_VERSION = '11.84';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
