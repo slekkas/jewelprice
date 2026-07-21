@@ -10928,7 +10928,29 @@ async function openSaleEditModal(s) {
 
 // Combined detail for a multi-item transaction: shows the summed amount/cost/profit, lists
 // each line item (tap to open that item on its own), and lets an owner delete the whole sale.
+// Open ONE line of a multi-item transaction, remembering the transaction so the
+// ✕ hands the owner back to it instead of dumping him on the Sales list. The
+// return target is set AFTER the sheet is drawn, because showSaleDetail() clears
+// it — a sale opened fresh from the list has nothing above it.
+async function _sdmOpenMember(groupSaleId, memberId) {
+  await showSaleDetail(memberId, true);
+  window._sdmReturnToGroup = groupSaleId;
+}
+
+// Same idea one level out: a sale opened from a client's purchase history should
+// hand him back to that history, not to the Clients list.
+async function _sdmOpenFromClient(saleId) {
+  const ov = document.getElementById('clientPurchasesOverlay');
+  const name = ov ? (ov.dataset.client || '') : '';
+  if (ov) ov.remove();
+  await showSaleDetail(saleId);
+  window._sdmReturnToClient = name || null;
+}
+
 async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
+  // Back at the transaction: from here the ✕ closes (or returns to the gift card
+  // this sale was opened from — that target lives a level further out).
+  window._sdmReturnToGroup = null;
   document.getElementById('sdmTitle').textContent = s.isReturn
     ? ('↩️ ' + (lang === 'el' ? 'Επιστροφή ' + members.length + ' Αντικειμένων' : 'Return · ' + members.length + ' Items'))
     : ((lang === 'el' ? '🛍 Πώληση ' : '🛍 Sale · ') + members.length + (lang === 'el' ? ' Αντικειμένων' : ' Items'));
@@ -11006,7 +11028,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
       const _retMark = _wasRet
         ? ' <span style="font-size:10px;color:#ff8a80">↩️ ' + (lang === 'el' ? 'επιστράφηκε' : 'returned') + '</span>'
         : '';
-      return '<div onclick="showSaleDetail(' + m.id + ',true)" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--wa05);cursor:pointer' + (_wasRet ? ';opacity:0.6' : '') + '">' +
+      return '<div onclick="_sdmOpenMember(' + s.id + ',' + m.id + ')" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--wa05);cursor:pointer' + (_wasRet ? ';opacity:0.6' : '') + '">' +
         '<div style="min-width:0"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + memberDesc(m) + _retMark + '</div>' +
         (sub ? '<div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-top:1px">' + sub + '</div>' : '') + '</div>' +
         '<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);white-space:nowrap">' + cur + parseFloat(m.amount).toFixed(2) + ' ›</div>' +
@@ -11091,6 +11113,10 @@ async function showSaleDetail(id, forceSingle) {
   const sales = await getSales();
   const s = sales.find(x => x.id === id);
   if (!s) return;
+  // A sale opened fresh (from the list, a search, a scan) has nothing above it —
+  // never inherit a stale "go back to" target. _sdmOpenMember re-arms it after
+  // this returns, which is the only way in that legitimately has one.
+  window._sdmReturnToGroup = null;
   const cur = state.currency || '€';
   const vat = parseFloat(state.vat) || 0;
   const isOwnerMgr = can('see_cost');
@@ -11346,12 +11372,26 @@ async function showSaleDetail(id, forceSingle) {
 
 // `navigating` = the sheet is closing because we are going SOMEWHERE (view the
 // item, return, edit). Only a plain close — the ✕ or the backdrop — should hand
-// the owner back to the gift card he opened this sale from.
+// the owner back to wherever he opened this sale from.
+//
+// Levels, innermost first, so a client's history → transaction → one line unwinds
+// ONE step per ✕ instead of dropping to the bottom from any depth:
+//   1. one line of a multi-item transaction → back to the transaction
+//   2. a sale opened from a gift card       → back to the card
+//   3. a sale opened from a client's history → back to that history
+// Each target is cleared whatever the reason for closing, so it can never be
+// inherited by the next sale opened; only a plain close acts on it.
 function closeSaleDetailModal(navigating) {
   document.getElementById('saleDetailModal').style.display = 'none';
+  const _grp = window._sdmReturnToGroup;
+  window._sdmReturnToGroup = null;
+  if (_grp && !navigating) { try { showSaleDetail(_grp); } catch (e) {} return; }
   const _back = window._gcDetailReturnTo;
   window._gcDetailReturnTo = null;
-  if (_back && !navigating) { try { openGiftCardDetail(_back); } catch (e) {} }
+  if (_back && !navigating) { try { openGiftCardDetail(_back); } catch (e) {} return; }
+  const _cli = window._sdmReturnToClient;
+  window._sdmReturnToClient = null;
+  if (_cli && !navigating) { try { showClientPurchases(_cli); } catch (e) {} }
 }
 
 // ─── QUOTE / CERTIFICATE FOR A SALE THAT HAS ALREADY HAPPENED ────────────────
@@ -24300,10 +24340,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.78', date: 'Ιούλιος 2026', items: [
-        "🔧 Σημαντική διόρθωση: μια πώληση από την αριθμομηχανή συνέδεε το κόσμημα με βάση τον κωδικό ως κείμενο. Σε 4 παλιά κομμάτια (Ιούνιος 2026, σταυροί/σκουλαρίκια με πέτρες) ο αποθηκευμένος κωδικός γράφτηκε με «+» αντί για «−», οπότε η πώληση δεν ταίριαζε με κανένα κομμάτι: το κόσμημα έμενε στο απόθεμα, το «Δες Αντικείμενο» έβγαζε σφάλμα και το πιστοποιητικό τυπωνόταν χωρίς φωτογραφία και στοιχεία.",
-        "🔗 Πλέον κάθε πώληση κρατάει την ΑΚΡΙΒΗ εγγραφή του κομματιού (όχι τον κωδικό ως κείμενο) — όπως ήδη έκαναν οι πωλήσεις από την καρτέλα Απόθεμα. Επίσης οι δύο γραφές του ίδιου κωδικού («+» και «−») θεωρούνται πια ίδιες παντού, ώστε και οι παλιές εγγραφές να βρίσκουν το κόσμημά τους.",
-        "🔍 Ρυθμίσεις → «Έλεγχος Συνδέσεων Πωλήσεων»: βρίσκει τώρα και τις πωλήσεις που πληρώθηκαν αλλά το κόσμημα έμεινε στο απόθεμα, και με ένα πάτημα το σημειώνει πουλημένο και το συνδέει. Τα ποσά δεν αλλάζουν.",
+      { version: 'v11.79', date: 'Ιούλιος 2026', items: [
+        "↩️ Το ✕ σε γυρίζει πίσω ένα βήμα, όχι στην αρχή. Σε πώληση με πολλά αντικείμενα, αν πατήσεις ένα κομμάτι για να δεις τα στοιχεία του, το ✕ σε επιστρέφει τώρα στη συνολική πώληση — όχι στη λίστα πωλήσεων.",
+        "↩️ Το ίδιο και στο ιστορικό αγορών ενός πελάτη: ανοίγεις μια πώληση, πατάς ✕, και γυρίζεις στο ιστορικό του πελάτη.",
       ]},
       ]
   },
@@ -24334,10 +24373,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.78', date: 'Jul 2026', items: [
-        "🔧 Important fix: a sale made from the calculator linked to the jewel by its code as TEXT. On 4 older pieces (June 2026, stone-set crosses/earrings) the stored code was written with a \"+\" where a \"−\" belongs, so the sale matched no piece at all: the jewel stayed listed in stock, \"View Item\" errored, and the certificate printed with no photo and no details.",
-        "🔗 Every sale now remembers the EXACT piece record instead of a code string — the way sales made from the Stock card already did. The two spellings of a code (\"+\" and \"−\") are also treated as the same code everywhere, so older sale records find their jewel too.",
-        "🔍 Settings → \"Sale Link Check\" now also finds sales that were paid for while the jewel stayed in stock, and marks it sold and links it in one tap. No amounts are changed.",
+      { version: 'v11.79', date: 'Jul 2026', items: [
+        "↩️ The ✕ now takes you back one step, not all the way out. In a multi-item sale, tapping a piece to see its details and then pressing ✕ returns you to the whole transaction — not to the sales list.",
+        "↩️ Same in a client's purchase history: open a sale, press ✕, and you land back in that client's history.",
       ]},
           ]
   }
@@ -27582,7 +27620,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.78';
+const APP_VERSION = '11.79';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -29899,6 +29937,9 @@ async function showClientPurchases(clientName) {
 
   const overlay = document.createElement('div');
   overlay.id = 'clientPurchasesOverlay';
+  // The name rides on the element, never inside the row's onclick string — a
+  // client called O'Brien (or any Greek name in quotes) would break the attribute.
+  overlay.dataset.client = clientName;
   overlay.style.cssText = 'position:fixed;inset:0;z-index:999995;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center';
 
   // Collapse multi-item transactions (shared saleGroup) into one row each — matching how
@@ -29929,7 +29970,7 @@ async function showClientPurchases(clientName) {
           ? `<span style="margin-left:6px;background:rgba(120,170,255,0.12);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${lang==='el'?'τεμ.':'items'}</span>`
           : '';
 
-        return `<div onclick="document.getElementById('clientPurchasesOverlay').remove();showSaleDetail(${e.id})" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer">
+        return `<div onclick="_sdmOpenFromClient(${e.id})" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer">
           <div style="flex:1;min-width:0">
             <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;color:var(--gold-light)">${cur}${parseFloat(e.amount).toFixed(2)}${groupTag}</div>
             <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5">${parts.filter(Boolean).join(' · ')}</div>
