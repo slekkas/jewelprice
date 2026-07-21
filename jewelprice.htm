@@ -24742,12 +24742,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.96', date: 'Ιούλιος 2026', items: [
-        "⚠️ Παραλίγο σοβαρό λάθος: το «καλό παράδειγμα» που έδωσα στο AI το είχα γράψει από ΤΟ ΔΙΚΟ ΣΟΥ μενταγιόν με τα δελφίνια. Η πρώτη δοκιμή γύρισε το παράδειγμα αυτούσιο, λέξη προς λέξη — που σημαίνει ότι δεν ξεχωρίζει αν κοίταξε τη φωτογραφία ή απλώς το αντέγραψε.",
-        "🛑 Αν έτρεχε έτσι σε όλα, 698 κοσμήματα θα έπαιρναν «τρία δελφίνια σε τετράγωνο ασημένιο πλαίσιο» — πολύ χειρότερο από τις λίστες λέξεων.",
-        "🧪 Τα παραδείγματα περιγράφουν πλέον κοσμήματα που ΔΕΝ υπάρχουν στο μαγαζί σου, και η εφαρμογή ΑΠΟΡΡΙΠΤΕΙ αυτόματα κάθε απάντηση που αντιγράφει παράδειγμα.",
-        "🐬 Έφυγε και η λέξη «δελφίνια» από τις οδηγίες — δεν πρέπει να μπαίνει στο μυαλό του AI σε κάθε φωτογραφία.",
-        "🔄 Ξαναδοκίμασε ΕΝΑ κομμάτι («Ξαναδές τη φωτογραφία») πριν τρέξεις όλα τα 698.",
+      { version: 'v11.97', date: 'Ιούλιος 2026', items: [
+        "🔧 Βρέθηκε γιατί κολλούσαν τα 42: έφταιγε ΤΟ ΔΙΚΟ ΜΟΥ φίλτρο κατά της αντιγραφής. Απέρριπτε κάθε περιγραφή που μοιραζόταν 7 λέξεις με τα παραδείγματα — και μια αληθινή αλυσίδα περιγράφεται αναγκαστικά με λέξεις σαν το παράδειγμα της αλυσίδας. Έτσι αλυσίδες και δαχτυλίδια-σφραγίδες αποτύγχαναν ξανά και ξανά.",
+        "✅ Τώρα το φίλτρο κρίνει ΟΛΗ την πρόταση: αντιγραφή = επαναλαμβάνει σχεδόν τα πάντα. Απλή κοινή ορολογία περνάει κανονικά.",
+        "🎈 Τα παραδείγματα άλλαξαν σε κοσμήματα που δεν θα υπάρξουν ποτέ στο μαγαζί (καρφίτσα αερόστατο, δερμάτινο βραχιόλι με φίδι), ώστε να μη μοιάζουν ποτέ κατά λάθος με αληθινό κομμάτι.",
+        "💬 Και όταν κάτι αποτυγχάνει, σου λέει ΓΙΑΤΙ και ΠΟΙΑ κομμάτια — όχι σκέτο νούμερο.",
+        "🔄 Πάτησε ξανά «Δημιουργία περιγραφών»: θα δουλέψει μόνο τα 42 που λείπουν, όχι τα υπόλοιπα.",
       ]},
       ]
   },
@@ -24778,12 +24778,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.96', date: 'Jul 2026', items: [
-        "⚠️ A near-miss: the \"good example\" I gave the AI had been written from YOUR OWN dolphin pendant. The first test returned that example back word for word — meaning it is impossible to tell whether it looked at the photo or simply copied.",
-        "🛑 Run across the whole stock, 698 pieces could have been labelled \"three dolphins in a square silver frame\" — far worse than the word lists.",
-        "🧪 The examples now describe pieces that are NOT in your shop, and the app automatically REJECTS any answer that copies an example.",
-        "🐬 The word \"dolphins\" is gone from the instructions too — it should not be in the AI's mind for every photo.",
-        "🔄 Test ONE piece again (\"Look at the photo again\") before running all 698.",
+      { version: 'v11.97', date: 'Jul 2026', items: [
+        "🔧 Found why the 42 kept failing: MY OWN anti-copying filter. It rejected any description sharing 7 words with an example — and a real chain is inevitably described in words like the chain example. So chains and signet rings failed over and over.",
+        "✅ The filter now judges the WHOLE sentence: copying means repeating nearly everything. Simply sharing ordinary jewellery vocabulary passes.",
+        "🎈 The examples are now pieces that will never exist in your shop (a hot-air-balloon brooch, a leather cuff with a serpent buckle), so they can never accidentally resemble a real one.",
+        "💬 And when something fails it now tells you WHY and WHICH pieces — not just a number.",
+        "🔄 Press \"Build search descriptions\" again: it will only work on the 42 that are missing, not the rest.",
       ]},
           ]
   }
@@ -28427,20 +28427,25 @@ let _findDescRunning = false, _findDescStop = false;
 // A line that repeats an example IS the example, not a description. Rejecting it is the
 // difference between one wasted cent and a stock full of dolphins.
 const AI_DESC_EXAMPLES = [
-  "heavy men's signet ring in matte white gold, its flat oval face engraved with a lion's head in profile",
-  "long fine chain of alternating oval and figure-of-eight links, with a small enamelled ladybird hanging near the clasp"
+  "enamelled brooch shaped like a hot-air balloon, with a tiny woven basket hanging beneath the envelope",
+  "wide leather cuff fastened by a pewter buckle cast as a coiled serpent"
 ];
 function _echoesExample(line) {
   const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const n = norm(line);
   if (!n) return false;
+  const nw = n.split(' ');
   return AI_DESC_EXAMPLES.some(ex => {
     const e = norm(ex);
     if (n === e) return true;
-    const w = e.split(' ');                       // or a long verbatim run lifted out of one
-    for (let i = 0; i + 7 <= w.length; i++)
-      if (n.includes(w.slice(i, i + 7).join(' '))) return true;
-    return false;
+    // Judge the WHOLE line, never a shared phrase. The first version rejected any lifted
+    // 7-word run, which threw away perfectly honest work: a real chain is described in
+    // words close to a chain example ("long fine chain of alternating oval and…"), and 42
+    // chains and signet rings failed over and over because of it. A parrot repeats nearly
+    // everything; a genuine description merely shares some vocabulary.
+    const ew = e.split(' '), set = new Set(ew);
+    const shared = nw.filter(w => set.has(w)).length;
+    return (shared / Math.max(nw.length, ew.length)) >= 0.8 && Math.abs(nw.length - ew.length) <= 4;
   });
 }
 
@@ -28670,7 +28675,10 @@ function _descQuality() {
   return { total: lines.length, dup, listy };
 }
 
+let _descFailures = [], _lastDescError = '';
+
 async function buildSearchDescriptions(onProgress, shouldStop) {
+  _descFailures = []; _lastDescError = '';
   const pending = await _findDescPending();
   const total = pending.length;
   let done = 0, failed = 0, next = 0;
@@ -28689,12 +28697,20 @@ async function buildSearchDescriptions(onProgress, shouldStop) {
         lines = [];
         for (const id of batch) {
           try { lines.push((await _findDescribeBatch([id]))[0]); }
-          catch (e2) { lines.push(''); }
+          catch (e2) { _lastDescError = String(e2.message || e2).slice(0, 40); lines.push(''); }
         }
       }
       for (let k = 0; k < batch.length; k++) {
         const ok = lines[k] ? await _findSaveDesc(batch[k], lines[k]) : false;
-        if (ok) done++; else failed++;
+        if (ok) done++;
+        else {
+          failed++;
+          // Say WHY. A silent failure count is unanswerable: 42 pieces failed over and
+          // over and the only way to find out was to read the source.
+          const it = (_inventoryCache || {})[batch[k]] || {};
+          _descFailures.push({ ref: itemRefCode(it) || batch[k],
+                               why: lines[k] ? 'not saved' : (_lastDescError || 'no answer') });
+        }
       }
       if (onProgress) onProgress(done + failed, total, failed);
     }
@@ -28869,6 +28885,19 @@ async function _findRunDescs() {
     const poor = q && q.total && ((q.dup + q.listy) / 2) / q.total > 0.25;
     showToast((r.failed || poor ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' + t('findDescDone')
       + (poor ? ' · ' + (lang === 'el' ? q.dup + ' ίδιες μεταξύ τους' : q.dup + ' are identical to each other') : ''));
+    // The failures get to say what happened, on screen, rather than only in a count.
+    if (r.failed && _descFailures.length) {
+      const why = {};
+      _descFailures.forEach(f => { why[f.why] = (why[f.why] || 0) + 1; });
+      const top = Object.entries(why).sort((a, b) => b[1] - a[1])
+        .map(([w, n]) => n + '× ' + w).join(', ');
+      const refs = _descFailures.slice(0, 6).map(f => f.ref).join(', ');
+      const box = document.getElementById('findDescBox');
+      if (box) box.insertAdjacentHTML('beforeend',
+        `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center;margin-top:6px;line-height:1.5">
+           ${r.failed} ${lang === 'el' ? 'απέτυχαν' : 'failed'} — ${_resEsc(top)}<br>${_resEsc(refs)}${_descFailures.length > 6 ? '…' : ''}</div>`);
+      console.warn('description failures:', _descFailures);
+    }
   } catch (e) {
     showToast('⚠️ ' + t('findPhotoFail'));
   } finally {
@@ -28893,7 +28922,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.96';
+const APP_VERSION = '11.97';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
