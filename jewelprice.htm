@@ -24742,10 +24742,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.98', date: 'Ιούλιος 2026', items: [
-        "💬 Τώρα βλέπεις ΓΙΑΤΙ αποτυγχάνουν. Το μήνυμα υπήρχε ήδη αλλά το έσβηνε το ίδιο το πάνελ ένα δευτερόλεπτο μετά — γι' αυτό τα 42 αποτύγχαναν ξανά και ξανά χωρίς καμία εξήγηση.",
-        "🔢 Κάτω από το κουμπί εμφανίζεται πλέον κάτι σαν «⚠️ 42 απέτυχαν — 42× ai-http-429» μαζί με τους κωδικούς των κομματιών, και μένει εκεί.",
-        "🔄 Πάτησε ξανά «Δημιουργία περιγραφών» και στείλε μου αυτή τη γραμμή — λέει ακριβώς τι φταίει.",
+      { version: 'v11.99', date: 'Ιούλιος 2026', items: [
+        "💳 Τα 42 δεν ήταν λάθος της εφαρμογής: είχαν τελειώσει τα credits στο OpenRouter. Η σάρωση πρόλαβε τα ~656 και ξέμεινε στα τελευταία 42.",
+        "🗣️ Τα μηνύματα σφάλματος μιλάνε πλέον ελληνικά: «τελείωσαν τα credits στο OpenRouter» αντί για «ai-http-402».",
+        "➡️ Βάλε credits στο openrouter.ai/credits και ξαναπάτησε «Δημιουργία περιγραφών» — μένουν μόνο 42, λίγα λεπτά του ευρώ.",
       ]},
       ]
   },
@@ -24776,10 +24776,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.98', date: 'Jul 2026', items: [
-        "💬 You can now see WHY they fail. The message already existed but the panel itself wiped it a second later — which is why 42 pieces failed over and over with no explanation.",
-        "🔢 Under the button you now get something like \"⚠️ 42 failed — 42× ai-http-429\" together with the reference codes, and it stays there.",
-        "🔄 Press \"Build search descriptions\" again and send me that line — it says exactly what is wrong.",
+      { version: 'v11.99', date: 'Jul 2026', items: [
+        "💳 The 42 were not an app fault: the OpenRouter credit had run out. The scan got through ~656 and ran dry on the last 42.",
+        "🗣️ Error messages now speak plainly: \"OpenRouter credit used up\" instead of \"ai-http-402\".",
+        "➡️ Add credit at openrouter.ai/credits and press \"Build search descriptions\" again — only 42 remain, a couple of cents.",
       ]},
           ]
   }
@@ -28845,6 +28845,19 @@ function _findToggleOthers() {
   b.innerHTML = (open ? '▾ ' + t('findShowOthers') : '▴ ' + t('findHideOthers')) + ' (' + n + ')';
 }
 
+// "ai-http-402" is a correct answer to the wrong audience. The owner spent several
+// attempts and a message from me to learn it meant "your OpenRouter credit ran out".
+function _descErrorLabel(code) {
+  const el = lang === 'el';
+  if (/402/.test(code)) return el ? 'τελείωσαν τα credits στο OpenRouter' : 'OpenRouter credit used up';
+  if (/429/.test(code)) return el ? 'πολλά αιτήματα μαζί — ξαναδοκίμασε' : 'too many requests — try again';
+  if (/401|403/.test(code)) return el ? 'το κλειδί AI δεν έγινε δεκτό' : 'the AI key was refused';
+  if (/count-mismatch|bad-json|echoed-example/.test(code)) return el ? 'ακατάλληλη απάντηση' : 'unusable answer';
+  if (/not saved/.test(code)) return el ? 'δεν αποθηκεύτηκε' : 'could not save';
+  if (/no answer/.test(code)) return el ? 'καμία απάντηση' : 'no answer';
+  return code;
+}
+
 // Tells the owner how many pieces the photo search currently cannot see, and lets him
 // fix it himself — the same self-service shape as the other maintenance actions.
 async function _findRefreshDescBox() {
@@ -28861,7 +28874,7 @@ async function _findRefreshDescBox() {
   if (_descFailures.length) {
     const why = {};
     _descFailures.forEach(f => { why[f.why] = (why[f.why] || 0) + 1; });
-    const top = Object.entries(why).sort((a, b) => b[1] - a[1]).map(([w, n]) => n + '× ' + w).join(', ');
+    const top = Object.entries(why).sort((a, b) => b[1] - a[1]).map(([w, n]) => n + '× ' + _descErrorLabel(w)).join(', ');
     const refs = _descFailures.slice(0, 8).map(f => f.ref).join(', ');
     failHtml = `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center;margin-top:7px;line-height:1.6">
         ⚠️ ${_descFailures.length} ${lang === 'el' ? 'απέτυχαν' : 'failed'} — ${_resEsc(top)}<br>
@@ -28920,7 +28933,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.98';
+const APP_VERSION = '11.99';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
