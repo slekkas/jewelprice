@@ -24735,11 +24735,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.91', date: 'Ιούλιος 2026', items: [
-        "🔍 Πάτα τη φωτογραφία ενός αποτελέσματος για να τη δεις ΜΕΓΑΛΗ — ώστε να σιγουρευτείς ότι είναι όντως το κομμάτι που κρατάς.",
-        "🖼️ Ανοίγει η φωτογραφία ΥΨΗΛΗΣ ΑΝΑΛΥΣΗΣ όπου υπάρχει, γιατί ακριβώς τη λεπτομέρεια ελέγχεις. Η λίστα συνεχίζει να φορτώνει με τις μικρές.",
-        "📷 Πατιέται και η δική σου φωτογραφία πάνω αριστερά, για να συγκρίνεις τις δύο.",
-        "⚖️ Το ίδιο και στα αποτελέσματα αναζήτησης με βάρος.",
+      { version: 'v11.92', date: 'Ιούλιος 2026', items: [
+        "🔬 Το μενταγιόν με τα δελφίνια εξηγήθηκε: οι περιγραφές γράφονταν από τη ΜΙΚΡΗ φωτογραφία (270×480, 8KB), όπου το χρυσό δισκάκι πιάνει ~89 pixel — αρκετά για να δει «χρυσός δίσκος», όχι για να δει δύο δελφίνια. Η φωτογραφία που τραβάς εσύ τα δείχνει πέντε φορές μεγαλύτερα, γι' αυτό τα διάβασε.",
+        "🖼️ Τώρα οι περιγραφές γράφονται από τη ΦΩΤΟΓΡΑΦΙΑ ΥΨΗΛΗΣ ΑΝΑΛΥΣΗΣ (675×1200) — το 99% των κομματιών έχει τέτοια.",
+        "🐬 Το AI υποχρεώνεται πλέον να ονομάζει ΠΡΩΤΑ το θέμα (δελφίνι, χελώνα, ψάρι, σταυρός, ματάκι, κλειδί…) και να κοιτάζει ΜΕΣΑ στο κεντρικό δισκάκι, εκεί που συνήθως βρίσκεται. Το όριο ανέβηκε από 14 σε 30 λέξεις.",
+        "🎯 Δύο φωτογραφίες ανά κλήση αντί για τέσσερις, για περισσότερη προσοχή στην καθεμία.",
+        "🔄 Πάτησε ξανά «Δημιουργία περιγραφών» — θα ξαναγραφούν ΟΛΕΣ με τη νέα μέθοδο. Υπολόγισε γύρω στα €0.60–1 (η προηγούμενη σάρωση κόστισε €0.20).",
       ]},
       ]
   },
@@ -24770,11 +24771,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.91', date: 'Jul 2026', items: [
-        "🔍 Tap a result's photo to see it BIG — so you can be sure it really is the piece in your hand.",
-        "🖼️ It opens the HIGH-RESOLUTION photo where one exists, because the detail is exactly what you are checking. The list still loads the small ones.",
-        "📷 Your own photo, top left, is tappable too, so you can compare the two.",
-        "⚖️ Same in the weight search results.",
+      { version: 'v11.92', date: 'Jul 2026', items: [
+        "🔬 The dolphin pendant explained: descriptions were written from the SMALL photo (270×480, 8KB), where the gold disc lands on about 89 pixels — enough to see \"a gold disc\", not enough to see two dolphins. Your own photo shows them five times larger, which is why it read them.",
+        "🖼️ Descriptions are now written from the HIGH-RESOLUTION photo (675×1200) — 99% of pieces have one.",
+        "🐬 The AI must now name the SUBJECT first (dolphin, turtle, fish, cross, evil eye, key…) and look INSIDE the central disc, which is where it usually is. The limit went from 14 words to 30.",
+        "🎯 Two photos per request instead of four, for more attention on each.",
+        "🔄 Press \"Build search descriptions\" again — ALL of them will be rewritten with the new method. Expect roughly €0.60–1 (the last scan cost €0.20).",
       ]},
           ]
   }
@@ -28399,7 +28401,12 @@ At most 5 matches, best first.`;
 // field used only for searching. The owner's own descriptions are never touched, and the
 // write is a PATCH of two keys — not a whole-record PUT — so nothing else can be
 // disturbed and the public showroom feed is not re-synced 650 times.
-const AI_DESC_BATCH = 4;
+// Two photos per request, not four: fewer images per call means more attention on each,
+// and at 20 cents for the whole stock the extra requests are irrelevant.
+const AI_DESC_BATCH = 2;
+// Bump this whenever the recipe below changes in a way that should regenerate existing
+// lines. v2 = describe from the HI-RES photo, longer limit, motif named explicitly.
+const AI_DESC_VERSION = 2;
 let _findDescRunning = false, _findDescStop = false;
 
 async function _findDescPending() {
@@ -28409,7 +28416,7 @@ async function _findDescPending() {
     const it = _inventoryCache[id];
     if (!it || it.status !== 'in_stock' || it.isCoin || it.isMetal || it.isBulk) continue;
     if (!it.photoUrl) continue;
-    if (it.aiDesc && it.aiDescPhoto === it.photoUrl) continue;   // done, and for THIS photo
+    if (it.aiDesc && it.aiDescPhoto === it.photoUrl && it.aiDescV === AI_DESC_VERSION) continue;
     out.push(id);
   }
   // Pieces with nothing to match on are the ones failing today, so they go first: the
@@ -28428,20 +28435,36 @@ async function _findDescribeBatch(ids) {
   const key = _aiKey();
   if (!key) throw new Error('no-ai-key');
   const content = [{ type: 'text', text:
-`You are writing short search labels for a jeweller's own stock photos.
+`You are writing search labels for a jeweller's own stock photos. These labels are the ONLY
+way a piece can later be found from a photograph, so what is engraved or depicted on it
+matters more than anything else.
 
-For EACH numbered photo write ONE line, at most 14 words, in English, naming what makes the
-piece recognisable: its shape, any motif or subject (turtle, cross, evil eye, key, flower…),
-the metal colours you can actually see, the texture or style, and the cord or chain if shown.
+For EACH numbered photo write ONE line of up to 30 words, in English.
 
-Do not guess prices, karat or stones you cannot see. No commentary, no adjectives of quality.
+Start with the SUBJECT if the piece depicts anything at all — an animal, figure, symbol or
+scene (dolphin, turtle, fish, bee, owl, horse, cross, evil eye, key, anchor, tree, flower,
+star, spiral, Greek letter, face, ship…). Look carefully INSIDE any central disc, coin,
+medallion or inset panel: that is usually where the subject is, and it is often small.
+Name it plainly even if it is stylised or worn. If you genuinely see no subject, say so
+with "no motif" and describe the form instead.
+
+Then add: the overall shape (square, round, oval, teardrop, bar, free-form), the metal
+colours you can see (silver, gold, two-tone, blackened/oxidised), the surface (hammered,
+textured, granulated, polished, matte), any visible stones and their colour, and the cord
+or chain if one is shown.
+
+Do not guess price, karat or stone names you cannot see. No opinions, no quality words.
 
 Return ONLY strict JSON, no markdown:
 {"d":["line for photo 1","line for photo 2", …]}
 with exactly ${ids.length} lines, in the same order as the photos.` }];
   ids.forEach((id, i) => {
     content.push({ type: 'text', text: 'Photo ' + (i + 1) + ':' });
-    content.push({ type: 'image_url', image_url: { url: _inventoryCache[id].photoUrl } });
+    const _it = _inventoryCache[id];
+    // The hi-res copy, always. The small file is 270x480 and an engraved motif inside a
+    // pendant lands on ~89px there — enough to see "a gold disc", not enough to see two
+    // dolphins. 99% of pieces have a distinct hi-res; this is the whole fix.
+    content.push({ type: 'image_url', image_url: { url: _it.photoUrlHi || _it.photoUrl } });
   });
 
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -28462,7 +28485,7 @@ with exactly ${ids.length} lines, in the same order as the photos.` }];
   // to the wrong piece — silently poisoning the very index this builds. Refuse it; the
   // caller then redoes those photos one at a time, where alignment cannot be wrong.
   if (!Array.isArray(d) || d.length !== ids.length) throw new Error('count-mismatch');
-  return d.map(x => String(x || '').trim().slice(0, 120));
+  return d.map(x => String(x || '').trim().slice(0, 240));   // 30 words needs the room
 }
 
 // PATCH exactly two keys. Never a whole-record PUT: this runs across ~650 pieces and a
@@ -28473,10 +28496,10 @@ async function _findSaveDesc(id, text) {
   try {
     const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ aiDesc: text, aiDescPhoto: it.photoUrl })
+      body: JSON.stringify({ aiDesc: text, aiDescPhoto: it.photoUrl, aiDescV: AI_DESC_VERSION })
     });
     if (!res.ok) return false;
-    it.aiDesc = text; it.aiDescPhoto = it.photoUrl;
+    it.aiDesc = text; it.aiDescPhoto = it.photoUrl; it.aiDescV = AI_DESC_VERSION;
     return true;
   } catch (e) { return false; }
 }
@@ -28495,7 +28518,7 @@ function _autoDescribe(id, item) {
   if (!_aiKey() || !item || !item.photoUrl) return;
   if (item.isCoin || item.isMetal || item.isBulk) return;
   if (item.status !== 'in_stock') return;                       // a sold piece is not searched for
-  if (item.aiDesc && item.aiDescPhoto === item.photoUrl) return; // done, and for THIS photo
+  if (item.aiDesc && item.aiDescPhoto === item.photoUrl && item.aiDescV === AI_DESC_VERSION) return;
   if (_autoDescQ.includes(id)) return;
   _autoDescQ.push(id);
   if (!_autoDescBusy) _autoDescDrain();
@@ -28508,11 +28531,11 @@ async function _autoDescDrain() {
       const id = _autoDescQ.shift();
       const it = (_inventoryCache || {})[id];
       if (!it || !it.photoUrl || it.status !== 'in_stock') continue;
-      if (it.aiDesc && it.aiDescPhoto === it.photoUrl) continue;   // described while queued
+      if (it.aiDesc && it.aiDescPhoto === it.photoUrl && it.aiDescV === AI_DESC_VERSION) continue;
       // "Add similar items" creates N pieces sharing ONE photo. Describe that picture
       // once and copy the line to its twins instead of paying for it N times.
       const twin = Object.values(_inventoryCache).find(o =>
-        o && o !== it && o.photoUrl === it.photoUrl && o.aiDesc && o.aiDescPhoto === o.photoUrl);
+        o && o !== it && o.photoUrl === it.photoUrl && o.aiDesc && o.aiDescV === AI_DESC_VERSION);
       if (twin) { await _findSaveDesc(id, twin.aiDesc); continue; }
       try {
         const lines = await _findDescribeBatch([id]);
@@ -28726,7 +28749,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.91';
+const APP_VERSION = '11.92';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
