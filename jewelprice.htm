@@ -19428,6 +19428,15 @@ function renderInvList() {
     allItems.splice(0, allItems.length, ...allItems.filter(([,item]) => _nqrSet.has(item.qrCode || item.code || '')));
   }
 
+  // How many in-stock pieces each group still holds. A group of one is unwrapped into a
+  // plain card further down, so the "🔗 Grouped" pill has to agree with what is drawn —
+  // otherwise filtering by Grouped would list cards that aren't groups.
+  const _grpLive = new Map();
+  for (const it of Object.values(_inventoryCache || {})) {
+    if (!it || it.isMetal || !it.groupId || it.status !== 'in_stock') continue;
+    _grpLive.set(it.groupId, (_grpLive.get(it.groupId) || 0) + 1);
+  }
+
   // Apply active filters (all filters combine with AND)
   let filtered = allItems.filter(([id, item]) => {
     const f = _invFilters;
@@ -19490,7 +19499,7 @@ function renderInvList() {
     // item must be hidden-from-showroom / part of a similar-items group. The in_stock/sold
     // pills still apply (so "Rings + Grouped" narrows to in-stock ring groups).
     if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
-    if (f.status.includes('grouped') && !(item.groupId && !item.isMetal)) return false;
+    if (f.status.includes('grouped') && !(item.groupId && !item.isMetal && (_grpLive.get(item.groupId) || 0) > 1)) return false;
     if (f.status.includes('reserved') && !item.reservationId) return false;
     // 'nophoto' — pieces whose photo was never uploaded, so they can be found and
     // photographed without scrolling the whole stock. Coins/raw metal never carry a
@@ -20049,6 +20058,17 @@ function renderInvList() {
     if (gid && _grpIndex.has(gid)) { groupedRows[_grpIndex.get(gid)][2].push([id, item]); continue; }
     if (gid) { _grpIndex.set(gid, groupedRows.length); groupedRows.push([id, item, [[id, item]]]); }
     else groupedRows.push([id, item]);
+  }
+  // A group of ONE is not a group. Once the other members have sold, the last piece should
+  // look and behave like an ordinary item, not a "🔗 1 in stock" card whose every action sits
+  // a tap deeper. Unwrapping it back to a plain row does exactly that.
+  //
+  // Done at DISPLAY time on purpose: the groupId STAYS on the record, so adding pieces to it
+  // later re-forms the group by itself, ticking "Sold" still shows the whole batch together,
+  // and nothing is silently rewritten in the database to achieve a cosmetic change.
+  for (let i = 0; i < groupedRows.length; i++) {
+    const row = groupedRows[i];
+    if (row[2] && row[2].length === 1) groupedRows[i] = [row[0], row[1]];
   }
   // The group's face is its ORIGINAL piece — the earliest one added — not whichever member
   // the current sort happens to put first. Otherwise adding a new colour to a group (or
@@ -23594,7 +23614,34 @@ function invAddSimilar(sourceId) {
     _stoneSuffix = _wm ? _after.slice(_wm[0].length) : _after;
     if (_stoneSuffix.startsWith('+')) _stoneSuffix = '-' + _stoneSuffix.slice(1);
   }
-  const buildQR = (w) => _canRegenQR ? (_latinBase + w.toString() + _stoneSuffix) : _existingQR;
+  // ── Stone swap ──────────────────────────────────────────────────────────────
+  // A group is often the same piece set with a different stone (the evil-eye earrings:
+  // one aquamarine, one turquoise). Without this the clone inherited the source's stone
+  // and had to be hand-edited afterwards — which also left its code stale.
+  // Only the TYPE is swappable: qty/melee, carat, clarity, colour and shape are carried
+  // over, because this is the same piece with a different stone, not a different piece.
+  // Offered only when the source has exactly ONE stone — with several, "change the stone"
+  // has no unambiguous meaning and the safe thing is to inherit them.
+  const _srcStones   = _invEditParseStoredStones(source.stonesDesc || '');
+  const _srcStoneType = _srcStones.length === 1 ? _srcStones[0].type : '';
+  const _canSwapStone = _canRegenQR && _srcStones.length === 1;
+  const _chosenStone  = () => document.getElementById('invAddSimStone')?.value || _srcStoneType;
+  // null = "unchanged", which makes the code fall back to the source's ORIGINAL suffix
+  // verbatim rather than a regenerated one — so leaving the stone alone stays byte-identical
+  // to how this flow behaved before, legacy suffix formatting and all.
+  const _newStones = () => {
+    if (!_canSwapStone) return null;
+    const t = _chosenStone();
+    if (!t || t === _srcStoneType) return null;
+    return [Object.assign({}, _srcStones[0], { type: t })];
+  };
+  // nsOverride lets the save path pass the stones it captured up front, so a select
+  // touched mid-save can't give two pieces of one batch different codes.
+  const buildQR = (w, nsOverride) => {
+    if (!_canRegenQR) return _existingQR;
+    const ns = (nsOverride !== undefined) ? nsOverride : _newStones();
+    return _latinBase + w.toString() + (ns ? _buildStoneQRSuffix(ns) : _stoneSuffix);
+  };
 
   const typeStr = source.jewelryType ? invTypeLabel(source.jewelryType) : '';
   const summary = [typeStr, _itemDesc(source)].filter(Boolean).join(' · ') || (source.qrCode || '—');
@@ -23615,6 +23662,9 @@ function invAddSimilar(sourceId) {
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Ποσότητα (ίδιο βάρος)':'Quantity (same weight)'}</div>
       <input id="invAddSimQty" type="number" step="1" min="1" max="50" value="1" inputmode="numeric"
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
+      ${_canSwapStone ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Πέτρα':'Stone'} <span style="color:var(--text-dim)">· ${lang==='el'?'αλλάζει τον κωδικό QR':'changes the QR code'}</span></div>
+      <select id="invAddSimStone" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(120,200,255,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${STONE_TYPES.map(s => `<option value="${s}"${s===_srcStoneType?' selected':''}>${_resEsc(stoneLabel(s))}</option>`).join('')}</select>`
+      : (_srcStones.length > 1 ? `<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">${lang==='el'?`💎 ${_srcStones.length} πέτρες — αντιγράφονται όπως είναι`:`💎 ${_srcStones.length} stones — copied as they are`}</div>` : '')}
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα':'Color'}</div>
       <select id="invAddSimColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${itemColorOptionsHtml(source.color)}</select>
       ${source.metal === 'gold' ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα Χρυσού':'Gold Color'}</div>
@@ -23657,6 +23707,7 @@ function invAddSimilar(sourceId) {
     previewEl.style.color = 'var(--gold)';
   }
   wEl().addEventListener('input', updatePreview);
+  document.getElementById('invAddSimStone')?.addEventListener('change', updatePreview);
   updatePreview();
 
   // Add a batch of N identical pieces (same weight/colour). They share one QR (weight-encoded),
@@ -23671,6 +23722,9 @@ function invAddSimilar(sourceId) {
     const colorVal = document.getElementById('invAddSimColor').value || null;
     const goldColorEl = document.getElementById('invAddSimGoldColor');
     const goldColorVal = (source.metal === 'gold') ? (goldColorEl?.value || 'gold') : (source.goldColor || null);
+    // Read the stone ONCE for the whole batch (null when unchanged), so every piece in it
+    // gets the same code and description even if the select were touched mid-save.
+    const _swapped = _newStones();
     // Upload a per-variant photo once (shared by the whole batch); blank → reuse the
     // source's existing photoUrl/photoUrlHi (already copied by Object.assign below).
     let _photoUrl = null, _photoUrlHi = null;
@@ -23700,7 +23754,10 @@ function invAddSimilar(sourceId) {
       });
       if (_photoUrl) { newItem.photoUrl = _photoUrl; newItem.photoUrlHi = _photoUrlHi || _photoUrl; }
       delete newItem.dateSold;
-      if (_canRegenQR) { newItem.qrCode = buildQR(w); newItem.code = _latinBase + w.toString(); }
+      // A swapped stone has to reach the DESCRIPTION as well as the code, or the piece
+      // would price and read as the source's stone while its QR said otherwise.
+      if (_swapped) newItem.stonesDesc = buildStoneDescription(_swapped);
+      if (_canRegenQR) { newItem.qrCode = buildQR(w, _swapped); newItem.code = _latinBase + w.toString(); }
       // Keep seqId + refType (shared reference code) — copied by Object.assign above.
       // Re-baseline initialRetail to THIS piece's own retail so its gain % starts at 0
       // (never inherit the source's baseline, which would be wrong for per-gram pricing).
@@ -24539,13 +24596,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.81', date: 'Ιούλιος 2026', items: [
-        "🔎 Νέα καρτέλα «Βρες Κόσμημα» (μενού ☰) — έχασες την ετικέτα; Διάλεξε είδος / μέταλλο / καθαρότητα, ζύγισε το κόσμημα και βρες το, χωρίς να ψάχνεις όλο το απόθεμα.",
-        "⚖️ Ψάχνει πρώτα με ΑΚΡΙΒΕΣ βάρος (συνήθως ένα μόνο αποτέλεσμα). Αν δεν βρεθεί τίποτα, το κουμπί «Ψάξε πιο πλατιά» ανοίγει σε ±0.2 γρ. — για όταν δύο ζυγαριές δεν συμφωνούν.",
-        "🏷️ Κάθε αποτέλεσμα δείχνει φωτογραφία, κωδικό και βάρος, με κουμπί εκτύπωσης ετικέτας δίπλα.",
-        "🔒 Δεν αλλάζει ΠΟΤΕ το αποθηκευμένο βάρος — μόνο ψάχνει.",
-        "🔧 Διόρθωση: όταν δύο κομμάτια της ίδιας ομάδας έχουν τον ΙΔΙΟ κωδικό αναφοράς αλλά διαφορετικές πέτρες (π.χ. ακουαμαρίνα και τυρκουάζ), το σκανάρισμα έδειχνε ΠΑΝΤΑ το πρώτο. Τώρα ρωτάει «Ποιο κρατάτε;» και δείχνει χρώμα ΚΑΙ πέτρα, ώστε να διαλέξεις το σωστό — και η τιμή, η φωτογραφία και η πώληση ακολουθούν αυτό ακριβώς το κομμάτι.",
-        "🔧 Αν το ένα από τα δύο έχει ήδη πουληθεί, το σκανάρισμα πάει κατευθείαν σε αυτό που υπάρχει στο απόθεμα, χωρίς ερώτηση.",
+      { version: 'v11.82', date: 'Ιούλιος 2026', items: [
+        "💎 Στο «Προσθήκη όμοιων ειδών» μπορείς τώρα να διαλέξεις ΑΛΛΗ ΠΕΤΡΑ. Φτιάχνεις το ίδιο κόσμημα με τυρκουάζ αντί για ακουαμαρίνα με μία κίνηση — ο κωδικός QR και η περιγραφή ενημερώνονται μόνα τους, χωρίς να χρειάζεται να το διορθώσεις μετά με επεξεργασία.",
+        "💎 Καράτια, ποσότητα/μελέ και ποιότητα κρατιούνται όπως είναι — αλλάζει μόνο το είδος της πέτρας. (Εμφανίζεται όταν το κόσμημα έχει μία πέτρα· με πολλές, αντιγράφονται όπως είναι.)",
+        "🔗 Όταν μείνει ΕΝΑ μόνο κομμάτι σε μια ομάδα, εμφανίζεται πλέον σαν κανονικό κόσμημα και όχι σαν ομάδα του ενός — όλα τα κουμπιά είναι κατευθείαν στην κάρτα. Αν προσθέσεις ξανά όμοια κομμάτια, η ομάδα ξαναφτιάχνεται μόνη της.",
+        "🔎 Νέα καρτέλα «Βρες Κόσμημα» (μενού ☰) — έχασες την ετικέτα; Διάλεξε είδος / μέταλλο / καθαρότητα, ζύγισε το κόσμημα και βρες το. Ψάχνει πρώτα με ΑΚΡΙΒΕΣ βάρος· αν δεν βρεθεί τίποτα, το «Ψάξε πιο πλατιά» ανοίγει σε ±0.2 γρ. Δεν αλλάζει ΠΟΤΕ αποθηκευμένο βάρος.",
+        "🔧 Διόρθωση: όταν δύο κομμάτια της ίδιας ομάδας έχουν τον ΙΔΙΟ κωδικό αναφοράς αλλά διαφορετικές πέτρες, το σκανάρισμα έδειχνε ΠΑΝΤΑ το πρώτο. Τώρα ρωτάει «Ποιο κρατάτε;» και δείχνει χρώμα ΚΑΙ πέτρα — και η τιμή, η φωτογραφία και η πώληση ακολουθούν αυτό ακριβώς το κομμάτι.",
       ]},
       ]
   },
@@ -24576,13 +24632,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.81', date: 'Jul 2026', items: [
-        "🔎 New \"Find Jewelry\" tab (☰ menu) — lost the tag? Pick type / metal / purity, weigh the piece and find it, instead of walking the whole inventory.",
-        "⚖️ Searches EXACT weight first (usually a single result). If nothing matches, a \"Search wider\" button opens it to ±0.2 g — for when two scales disagree.",
-        "🏷️ Each result shows photo, reference code and weight, with a print-tag button right there.",
-        "🔒 It NEVER changes a stored weight — it only searches.",
-        "🔧 Fix: when two pieces of the same group share ONE reference code but have different stones (e.g. aquamarine and turquoise), scanning always showed the first one. It now asks \"Which one are you holding?\" and shows colour AND stone, so you pick the right piece — and the price, the photo and the sale all follow that exact record.",
-        "🔧 If one of the two is already sold, the scan goes straight to the one still in stock, with no question.",
+      { version: 'v11.82', date: 'Jul 2026', items: [
+        "💎 \"Add similar items\" can now use a DIFFERENT STONE. Make the same piece in turquoise instead of aquamarine in one step — the QR code and the description update themselves, with no need to edit the piece afterwards.",
+        "💎 Carats, quantity/melee and grade are carried over — only the stone type changes. (Shown when the piece has one stone; with several, they are copied as they are.)",
+        "🔗 When only ONE piece is left in a group it now shows as an ordinary item instead of a group of one, with all its buttons on the card. Add similar pieces again and the group re-forms by itself.",
+        "🔎 New \"Find Jewelry\" tab (☰ menu) — lost the tag? Pick type / metal / purity, weigh the piece and find it. Exact weight first; if nothing matches, \"Search wider\" opens it to ±0.2 g. It NEVER changes a stored weight.",
+        "🔧 Fix: when two pieces of the same group share ONE reference code but have different stones, scanning always showed the first one. It now asks \"Which one are you holding?\" showing colour AND stone — and the price, photo and sale all follow that exact record.",
       ]},
           ]
   }
@@ -28087,7 +28142,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.81';
+const APP_VERSION = '11.82';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
