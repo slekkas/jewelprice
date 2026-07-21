@@ -17709,8 +17709,16 @@ function refTypeMismatch(item) {
 // How a piece LOOKS / weighs. Two records may share one ref code only while they are
 // interchangeable; the moment they differ, one printed code can no longer identify a
 // piece — not for a scan, not for OCR, not for typing.
+// The descriptive code is part of the identity, not just the weight: it encodes the
+// STONES as well, and since v11.82 a similar-items batch can be set with a different
+// stone at the same weight and colour. Judging those "interchangeable" would hand two
+// visibly different pieces one printed number — the exact thing this key exists to stop.
+// Weight is kept alongside it so a piece with no code (or an unparsed one) is still
+// separated by what it weighs. _qrKey normalises the legacy '+' suffix spelling so an
+// old tag and its regenerated form aren't read as two different pieces.
 function _refIdentityKey(it) {
-  return [String(it.weight || ''), it.color || '', it.goldColor || ''].join('|');
+  return [String(it.weight || ''), _qrKey(it.qrCode || it.code || ''),
+          it.color || '', it.goldColor || ''].join('|');
 }
 
 // "1 κομμάτι" but "4 κομμάτια" — Greek and English both inflect, and these warnings are
@@ -23655,7 +23663,7 @@ function invAddSimilar(sourceId) {
     <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:22px;width:100%;max-width:390px;max-height:90vh;overflow-y:auto">
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">${summary}</div>
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:14px">${refStr ? refStr + ' · ' : ''}${lang==='el'?'ίδιος κωδικός σε όλα, μοναδικό QR ανά βάρος':'same ref code on all, unique QR per weight'}</div>
+      <div id="invAddSimRefNote" style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:14px"></div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}${(parseFloat(source.weight)>0)?` <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδιο με ομάδα':'blank = same as group'}</span>`:''}</div>
       <input id="invAddSimWeight" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${(parseFloat(source.weight)>0)?((lang==='el'?'ίδιο με ομάδα (':'same as group (')+parseFloat(source.weight)+'g)'):''}"
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
@@ -23703,11 +23711,36 @@ function invAddSimilar(sourceId) {
   };
   function updatePreview() {
     const w = _effWeight();
-    previewEl.textContent = (!isNaN(w) && w > 0) ? buildQR(w) : (_existingQR || '—');
+    const ns = _newStones();
+    previewEl.textContent = (!isNaN(w) && w > 0) ? buildQR(w, ns) : (_existingQR || '—');
     previewEl.style.color = 'var(--gold)';
+    // Say up front which number these pieces will carry — the owner is deciding whether
+    // he is extending a group or starting a variant, and that is what the printed tag
+    // will say. Uses the same identity test the save path applies, so the note can never
+    // promise one thing and the save do another.
+    const noteEl = document.getElementById('invAddSimRefNote');
+    if (!noteEl) return;
+    if (!refStr) { noteEl.textContent = ''; return; }
+    const _w = (!isNaN(w) && w > 0) ? w : parseFloat(source.weight);
+    const probe = {
+      weight: _w, qrCode: buildQR(_w, ns),
+      color: document.getElementById('invAddSimColor')?.value || null,
+      goldColor: (source.metal === 'gold')
+        ? (document.getElementById('invAddSimGoldColor')?.value || 'gold')
+        : (source.goldColor || null)
+    };
+    const diff = _refIdentityKey(probe) !== _refIdentityKey(source);
+    noteEl.innerHTML = diff
+      ? (lang === 'el' ? '🆔 διαφορετικό κομμάτι — θα πάρει <b>δικό του κωδικό</b>'
+                       : '🆔 different piece — gets its <b>own code</b>')
+      : (lang === 'el' ? '🔗 ίδιο κομμάτι — ίδιος κωδικός <b>' + refStr + '</b>'
+                       : '🔗 identical — shares code <b>' + refStr + '</b>');
+    noteEl.style.color = diff ? '#7fc8ff' : 'var(--text-dim)';
   }
   wEl().addEventListener('input', updatePreview);
-  document.getElementById('invAddSimStone')?.addEventListener('change', updatePreview);
+  // Every field that feeds the identity test re-evaluates the note.
+  ['invAddSimStone', 'invAddSimColor', 'invAddSimGoldColor'].forEach(id =>
+    document.getElementById(id)?.addEventListener('change', updatePreview));
   updatePreview();
 
   // Add a batch of N identical pieces (same weight/colour). They share one QR (weight-encoded),
@@ -23725,6 +23758,31 @@ function invAddSimilar(sourceId) {
     // Read the stone ONCE for the whole batch (null when unchanged), so every piece in it
     // gets the same code and description even if the select were touched mid-save.
     const _swapped = _newStones();
+
+    // ── One printed number, one identifiable piece ──────────────────────────────
+    // A reference code is only allowed to be shared while the pieces are genuinely
+    // interchangeable. The moment this batch differs from the source in weight, stone
+    // or colour it is a DIFFERENT piece, and copying the source's number would print
+    // one code onto two things a scan can never tell apart — which is exactly how
+    // ER0701 ended up on both an aquamarine and a turquoise earring.
+    //
+    // _printAsRefTag has enforced this for years ("One tag cannot identify two different
+    // pieces"); this flow simply never went through it, printing its own labels and
+    // copying seqId unconditionally. Now it applies the same test up front.
+    //
+    // The whole batch shares ONE new number, because the N pieces in it are identical to
+    // each other — only the source is being diverged from. An unchanged batch keeps the
+    // source's number and stays a true group, which is what "12 identical rings, one
+    // code, N copies of one label" needs.
+    const _probe = { weight: w, qrCode: buildQR(w, _swapped), color: colorVal, goldColor: goldColorVal };
+    const _differs = _refIdentityKey(_probe) !== _refIdentityKey(source);
+    let _batchSeq = null;
+    if (_differs && source.seqId) {
+      const st0 = document.getElementById('invAddSimStatus');
+      if (st0) st0.textContent = lang==='el' ? 'Νέος κωδικός…' : 'New code…';
+      _batchSeq = await getNextSeqId();
+      if (st0) st0.textContent = '';
+    }
     // Upload a per-variant photo once (shared by the whole batch); blank → reuse the
     // source's existing photoUrl/photoUrlHi (already copied by Object.assign below).
     let _photoUrl = null, _photoUrlHi = null;
@@ -23758,6 +23816,9 @@ function invAddSimilar(sourceId) {
       // would price and read as the source's stone while its QR said otherwise.
       if (_swapped) newItem.stonesDesc = buildStoneDescription(_swapped);
       if (_canRegenQR) { newItem.qrCode = buildQR(w, _swapped); newItem.code = _latinBase + w.toString(); }
+      // Its own number when it differs from the source; refType is dropped so the fresh
+      // number takes its prefix from this piece's own type (same rule as a restock).
+      if (_batchSeq) { newItem.seqId = _batchSeq; delete newItem.refType; }
       // Keep seqId + refType (shared reference code) — copied by Object.assign above.
       // Re-baseline initialRetail to THIS piece's own retail so its gain % starts at 0
       // (never inherit the source's baseline, which would be wrong for per-gram pricing).
@@ -24596,12 +24657,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.82', date: 'Ιούλιος 2026', items: [
-        "💎 Στο «Προσθήκη όμοιων ειδών» μπορείς τώρα να διαλέξεις ΑΛΛΗ ΠΕΤΡΑ. Φτιάχνεις το ίδιο κόσμημα με τυρκουάζ αντί για ακουαμαρίνα με μία κίνηση — ο κωδικός QR και η περιγραφή ενημερώνονται μόνα τους, χωρίς να χρειάζεται να το διορθώσεις μετά με επεξεργασία.",
-        "💎 Καράτια, ποσότητα/μελέ και ποιότητα κρατιούνται όπως είναι — αλλάζει μόνο το είδος της πέτρας. (Εμφανίζεται όταν το κόσμημα έχει μία πέτρα· με πολλές, αντιγράφονται όπως είναι.)",
-        "🔗 Όταν μείνει ΕΝΑ μόνο κομμάτι σε μια ομάδα, εμφανίζεται πλέον σαν κανονικό κόσμημα και όχι σαν ομάδα του ενός — όλα τα κουμπιά είναι κατευθείαν στην κάρτα. Αν προσθέσεις ξανά όμοια κομμάτια, η ομάδα ξαναφτιάχνεται μόνη της.",
-        "🔎 Νέα καρτέλα «Βρες Κόσμημα» (μενού ☰) — έχασες την ετικέτα; Διάλεξε είδος / μέταλλο / καθαρότητα, ζύγισε το κόσμημα και βρες το. Ψάχνει πρώτα με ΑΚΡΙΒΕΣ βάρος· αν δεν βρεθεί τίποτα, το «Ψάξε πιο πλατιά» ανοίγει σε ±0.2 γρ. Δεν αλλάζει ΠΟΤΕ αποθηκευμένο βάρος.",
-        "🔧 Διόρθωση: όταν δύο κομμάτια της ίδιας ομάδας έχουν τον ΙΔΙΟ κωδικό αναφοράς αλλά διαφορετικές πέτρες, το σκανάρισμα έδειχνε ΠΑΝΤΑ το πρώτο. Τώρα ρωτάει «Ποιο κρατάτε;» και δείχνει χρώμα ΚΑΙ πέτρα — και η τιμή, η φωτογραφία και η πώληση ακολουθούν αυτό ακριβώς το κομμάτι.",
+      { version: 'v11.83', date: 'Ιούλιος 2026', items: [
+        "🆔 Ένας κωδικός = ένα κόσμημα. Στο «Προσθήκη όμοιων ειδών», αν το νέο κομμάτι διαφέρει σε ΒΑΡΟΣ, ΠΕΤΡΑ ή ΧΡΩΜΑ, παίρνει πλέον ΔΙΚΟ ΤΟΥ κωδικό αναφοράς (π.χ. ER0702) αντί να μοιράζεται τον ER0701. Το σκανάρισμα το βρίσκει κατευθείαν, χωρίς να σε ρωτάει «ποιο κρατάς;».",
+        "🔗 Αν το νέο κομμάτι είναι ΟΛΟΪΔΙΟ, κρατάει τον ίδιο κωδικό όπως πριν — 12 ίδια δαχτυλίδια, ένας κωδικός, μία ετικέτα σε πολλά αντίτυπα. Μένουν και τα δύο στην ίδια ομάδα είτε έτσι είτε αλλιώς.",
+        "🆔 Το παράθυρο σου λέει από πριν τι θα γίνει: «ίδιος κωδικός ER0701» ή «θα πάρει δικό του κωδικό».",
+        "💎 Ο έλεγχος ταυτότητας κοιτάει τώρα και την ΠΕΤΡΑ — πριν έβλεπε μόνο βάρος και χρώμα, οπότε δύο κομμάτια που διέφεραν μόνο στην πέτρα θεωρούνταν ίδια.",
+        "❓ Η ερώτηση «ποιο κρατάς;» παραμένει μόνο για τα παλιά κομμάτια που ήδη μοιράζονται κωδικό. Τυπώνοντας ετικέτα σε ένα από αυτά, η εφαρμογή προσφέρεται να του δώσει δικό του κωδικό.",
       ]},
       ]
   },
@@ -24632,12 +24693,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.82', date: 'Jul 2026', items: [
-        "💎 \"Add similar items\" can now use a DIFFERENT STONE. Make the same piece in turquoise instead of aquamarine in one step — the QR code and the description update themselves, with no need to edit the piece afterwards.",
-        "💎 Carats, quantity/melee and grade are carried over — only the stone type changes. (Shown when the piece has one stone; with several, they are copied as they are.)",
-        "🔗 When only ONE piece is left in a group it now shows as an ordinary item instead of a group of one, with all its buttons on the card. Add similar pieces again and the group re-forms by itself.",
-        "🔎 New \"Find Jewelry\" tab (☰ menu) — lost the tag? Pick type / metal / purity, weigh the piece and find it. Exact weight first; if nothing matches, \"Search wider\" opens it to ±0.2 g. It NEVER changes a stored weight.",
-        "🔧 Fix: when two pieces of the same group share ONE reference code but have different stones, scanning always showed the first one. It now asks \"Which one are you holding?\" showing colour AND stone — and the price, photo and sale all follow that exact record.",
+      { version: 'v11.83', date: 'Jul 2026', items: [
+        "🆔 One code = one piece. In \"Add similar items\", a new piece that differs in WEIGHT, STONE or COLOUR now gets its OWN reference code (e.g. ER0702) instead of sharing ER0701. Scanning finds it directly, with no \"which one are you holding?\" question.",
+        "🔗 A piece that is truly IDENTICAL keeps sharing the code exactly as before — 12 identical rings, one code, one label printed N times. Either way they stay in the same group.",
+        "🆔 The sheet tells you up front which it will be: \"shares code ER0701\" or \"gets its own code\".",
+        "💎 The identity check now looks at the STONE too — it previously compared only weight and colour, so two pieces differing only by stone were treated as interchangeable.",
+        "❓ The \"which one?\" question remains only for older pieces that already share a code. Printing a tag for one of them offers to give it its own code.",
       ]},
           ]
   }
@@ -28142,7 +28203,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.82';
+const APP_VERSION = '11.83';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
