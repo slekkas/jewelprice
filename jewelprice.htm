@@ -5638,7 +5638,26 @@ async function _gcSave() {
 }
 
 // ── Detail sheet ─────────────────────────────────────────────────────────────
+// A gift card opened from the 🔔 notification panel hands the owner back to it —
+// expiry warnings arrive several at a time, and losing the list after each one
+// means reopening the bell to reach the next. Same pattern as the sale sheet.
+let _gcDetailReturnToNotif = false;
+
+function closeGiftCardDetail(navigating) {
+  document.getElementById('giftDetailOverlay')?.remove();
+  const back = _gcDetailReturnToNotif;
+  _gcDetailReturnToNotif = false;
+  if (back && !navigating) { try { openNotifPanel(); } catch (e) {} }
+}
+
+async function _gcOpenFromNotif(gcId) {
+  document.getElementById('notifPanelOverlay')?.remove();
+  await openGiftCardDetail(gcId);
+  _gcDetailReturnToNotif = true;
+}
+
 async function openGiftCardDetail(id) {
+  _gcDetailReturnToNotif = false;
   const g = gcFindById(id); if (!g) return;
   // Sales carry the item descriptions the redemption statement below resolves.
   // Sales carry the redemption→sale link; inventory carries the ref code and
@@ -5727,7 +5746,7 @@ async function openGiftCardDetail(id) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">${gcKindIcon(g)} ${gcKindLabel(g)} · ${gcNoFmt(g)}</div>
-      <button onclick="document.getElementById('giftDetailOverlay').remove()" class="modal-x">✕</button>
+      <button onclick="closeGiftCardDetail()" class="modal-x">✕</button>
     </div>
 
     <div style="text-align:center;padding:14px 0 10px">
@@ -5980,7 +5999,7 @@ async function _gcEditSave(id) {
       await pushSalesToCloud(sales);
     }
     ov.remove();
-    document.getElementById('giftDetailOverlay')?.remove();
+    closeGiftCardDetail(true);
     renderGiftCards();
     openGiftCardDetail(id);
     showToast(isEl ? '✓ Αποθηκεύτηκε' : '✓ Saved');
@@ -6011,7 +6030,7 @@ function _gcExtend(id) {
       rec.status = 'active';
       rec.expiryNotifSent = false; // let it warn again near the new date
       saveGiftCardsLocal(list); pushGiftCardsToCloud(list);
-      document.getElementById('giftDetailOverlay')?.remove();
+      closeGiftCardDetail(true);
       renderGiftCards();
       showToast(isEl ? 'Παρατάθηκε' : 'Extended');
     }
@@ -6044,7 +6063,7 @@ async function _gcBookBreakage(id) {
         card.redemptions.push({ saleId: rec ? rec.id : null, amount: bal, date: todayStr(), by: creds.displayName || creds.userName || '', breakage: true });
         saveGiftCardsLocal(list); pushGiftCardsToCloud(list);
       }
-      document.getElementById('giftDetailOverlay')?.remove();
+      closeGiftCardDetail(true);
       renderGiftCards();
       showToast(isEl ? '✓ Καταχωρήθηκε στις πωλήσεις' : '✓ Booked to sales');
     }
@@ -6092,7 +6111,7 @@ function _gcDelete(id) {
       const list = getGiftCards().filter(x => x.id !== id);
       saveGiftCardsLocal(list);
       await pushGiftCardsToCloud(list, { allowEmpty: true });
-      document.getElementById('giftDetailOverlay')?.remove();
+      closeGiftCardDetail(true);
       renderGiftCards();
       showToast(isEl ? 'Διαγράφηκε' : 'Deleted');
     }, null, { danger: true }
@@ -6138,7 +6157,7 @@ async function _gcReleaseOrphans(id) {
       saveGiftCardsLocal(list);
       await pushGiftCardsToCloud(list);
       _gcUpdateBadges();
-      document.getElementById('giftDetailOverlay')?.remove();
+      closeGiftCardDetail(true);
       renderGiftCards();
       openGiftCardDetail(id);
       showToast('↩️ ' + (isEl ? `Επιστράφηκαν ${cur}${amt.toFixed(2)}` : `${cur}${amt.toFixed(2)} given back`));
@@ -6154,7 +6173,7 @@ function _gcCancel(id) {
     const g = list.find(x => x.id === id); if (!g) return;
     g.status = 'cancelled';
     saveGiftCardsLocal(list); pushGiftCardsToCloud(list);
-    document.getElementById('giftDetailOverlay')?.remove();
+    closeGiftCardDetail(true);
     renderGiftCards();
     showToast(isEl ? 'Ακυρώθηκε' : 'Cancelled');
   }, null, { danger: true });
@@ -9939,7 +9958,7 @@ function _gcOpenRedemptionSale(saleId, gcId) {
   // Remember where we came from: closing the sale should hand the owner back to
   // the card he was reading, not dump him on whatever tab is underneath.
   window._gcDetailReturnTo = gcId || null;
-  document.getElementById('giftDetailOverlay')?.remove();
+  closeGiftCardDetail(true);
   try { showSaleDetail(saleId); } catch (e) {}
 }
 
@@ -16393,7 +16412,13 @@ function _staleRenderList() {
     </div>`;
   }).join('');
 }
-function _staleOpen(id) { document.getElementById('staleOverlay')?.remove(); invEdit(id); }
+// Closing the edit form comes back to the report — the owner is working through a
+// list he chose a threshold for, and _staleThreshold survives, so it reopens as it was.
+function _staleOpen(id) {
+  document.getElementById('staleOverlay')?.remove();
+  invEdit(id);
+  _invEditReturn = { kind: 'stale' };
+}
 function _staleShare(id) { invShareSingle(id); }
 async function _staleShow(id) {
   const it = (_inventoryCache || {})[id]; if (!it) return;
@@ -20657,7 +20682,7 @@ function invEditResetInitialPrice(id) {
     const ok = await saveInventoryItem(id, item);
     if (ok) {
       showToast(lang === 'el' ? '✅ Αρχική τιμή επαναφέρθηκε' : '✅ Initial price reset');
-      document.getElementById('invEditOverlay')?.remove();
+      closeInvEdit(true);
       renderInventory();
     }
   }, null, { danger: true });
@@ -20745,14 +20770,45 @@ function _invEditVendorChanged() {
   _invEditPopulateCats(parseInt(vSel.value), _first ? _first.i : -1);
 }
 
+// ── Where the Edit form hands the owner back to ──────────────────────────────
+// Editing is usually reached from a LIST he was working through — a similar-items
+// group, or the Stale Stock report he built with a threshold. Closing straight to
+// the Stock list loses that place, so the next piece means rebuilding the list.
+// Same return-target pattern as the sale sheet (see closeSaleDetailModal).
+let _invEditReturn = null;   // {kind:'group', id} | {kind:'stale'} | null
+
+// `navigating` = the form is closing because we are going SOMEWHERE ELSE (print a
+// tag, add similar pieces, or a reprint prompt is about to appear). The target is
+// cleared either way, so it can never be inherited by the next Edit.
+function closeInvEdit(navigating) {
+  document.getElementById('invEditOverlay')?.remove();
+  const r = _invEditReturn;
+  _invEditReturn = null;
+  if (!r || navigating) return;
+  try {
+    if (r.kind === 'group') openInvGroup(r.id);
+    else if (r.kind === 'stale') openStaleReport();
+  } catch (e) {}
+}
+
+// The two ways in that legitimately have a place to go back to. Each sets the
+// target AFTER invEdit() runs, because invEdit clears it — a form opened straight
+// from a Stock card has nothing above it.
+function _invEditFromGroup(gid, id) {
+  closeInvGroup();
+  invEdit(id);
+  _invEditReturn = { kind: 'group', id: gid };
+}
+
 // Close the edit form and take the owner straight to the tag print, where "Print as ref
 // tag" converts the piece. Reopening Edit then shows the fields unlocked.
 function _invEditUnlock(id) {
-  document.getElementById('invEditOverlay')?.remove();
+  closeInvEdit(true);
   invPrintTagFromCard(id);
 }
 
 function invEdit(id) {
+  _invEditReturn = null;
   const item = _inventoryCache[id];
   if (!item) return;
 
@@ -20980,7 +21036,7 @@ function invEdit(id) {
     <button type="button" onclick="invAddSimilar('${id}')" style="width:100%;padding:12px;margin-bottom:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</button>` : ''}
     <div style="display:flex;gap:10px">
       <button id="invEditSaveBtn" style="flex:2;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">${t('invEditSave')}</button>
-      <button onclick="document.getElementById('invEditOverlay').remove()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
+      <button onclick="closeInvEdit()" style="flex:1;padding:13px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${lang==='el'?'Ακύρωση':'Cancel'}</button>
     </div>`;
 
   overlay.appendChild(box);
@@ -21601,7 +21657,10 @@ RETAIL: \u20ac[integer]`;
 
     const ok = await saveInventoryItem(id, item);
     if (ok) {
-      overlay.remove();
+      // The stone-reprint prompt sits at z-index 99997, BELOW the Stale Stock report
+      // (99998) — so reopening a list on top of it would hide the very question being
+      // asked. When a prompt is coming, close to the Stock list and let it speak.
+      closeInvEdit(!!(_stoneTagStale && _newFullQRForStones));
       showToast('✓ ' + t('invEditSave'));
       renderInvList();
       if (_stoneTagStale && _newFullQRForStones) {
@@ -23375,7 +23434,7 @@ function invAddSimilar(sourceId) {
   const source = _inventoryCache[sourceId];
   if (!source) return;
   // Close any edit / group overlay so the add sheet is on top
-  document.getElementById('invEditOverlay')?.remove();
+  closeInvEdit(true);
   closeInvGroup();
   document.getElementById('invAddSimilarOverlay')?.remove();
 
@@ -24340,9 +24399,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.79', date: 'Ιούλιος 2026', items: [
-        "↩️ Το ✕ σε γυρίζει πίσω ένα βήμα, όχι στην αρχή. Σε πώληση με πολλά αντικείμενα, αν πατήσεις ένα κομμάτι για να δεις τα στοιχεία του, το ✕ σε επιστρέφει τώρα στη συνολική πώληση — όχι στη λίστα πωλήσεων.",
-        "↩️ Το ίδιο και στο ιστορικό αγορών ενός πελάτη: ανοίγεις μια πώληση, πατάς ✕, και γυρίζεις στο ιστορικό του πελάτη.",
+      { version: 'v11.80', date: 'Ιούλιος 2026', items: [
+        "↩️ Το ✕ γυρίζει πίσω ένα βήμα και στα υπόλοιπα σημεία: από ομάδα ίδιων κομματιών → Επεξεργασία → ✕ επιστρέφεις στην ομάδα· από την αναφορά «Στάσιμο Απόθεμα» → Επεξεργασία → ✕ επιστρέφεις στην αναφορά (με το ίδιο φίλτρο ετών)· από τις ειδοποιήσεις 🔔 → δωροεπιταγή → ✕ επιστρέφεις στις ειδοποιήσεις.",
+        "↩️ Όταν μετά την αποθήκευση εμφανίζεται η ερώτηση για νέα ετικέτα (αλλαγή πετρών), η λίστα ΔΕΝ ξανανοίγει από πάνω — για να μην κρύψει την ερώτηση.",
       ]},
       ]
   },
@@ -24373,9 +24432,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.79', date: 'Jul 2026', items: [
-        "↩️ The ✕ now takes you back one step, not all the way out. In a multi-item sale, tapping a piece to see its details and then pressing ✕ returns you to the whole transaction — not to the sales list.",
-        "↩️ Same in a client's purchase history: open a sale, press ✕, and you land back in that client's history.",
+      { version: 'v11.80', date: 'Jul 2026', items: [
+        "↩️ The ✕ steps back one level in the remaining places too: from a group of similar pieces → Edit → ✕ returns to the group; from the Stale Stock report → Edit → ✕ returns to the report (with the same years filter); from 🔔 notifications → gift card → ✕ returns to the notifications.",
+        "↩️ When the \"print a new tag\" question appears after saving (because the stones changed), the list is NOT reopened on top of it — so the question is never hidden.",
       ]},
           ]
   }
@@ -27620,7 +27679,7 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.79';
+const APP_VERSION = '11.80';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -28121,7 +28180,7 @@ function openNotifPanel() {
               : `Expires in ${n.days} day${n.days === 1 ? '' : 's'}${n.expiresAt ? ' (' + fmtDate(n.expiresAt) + ')' : ''}. Contact the customer.`}</div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
               <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${dt}</div>
-              <button onclick="document.getElementById('notifPanelOverlay')?.remove();openGiftCardDetail('${n.giftCardId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(46,158,99,0.25),rgba(46,158,99,0.1));border:1px solid rgba(46,158,99,0.45);border-radius:8px;color:#7fd6b0;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
+              <button onclick="_gcOpenFromNotif('${n.giftCardId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(46,158,99,0.25),rgba(46,158,99,0.1));border:1px solid rgba(46,158,99,0.45);border-radius:8px;color:#7fd6b0;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
             </div>
           </div>`;
         }
@@ -28549,7 +28608,7 @@ function openInvGroup(gid) {
         <button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invPrintTagFromCard('${id}')">🏷️ ${lang==='el'?'Ετικέτα':'Tag'}</button>
         <button class="inv-action-btn inv-action-sell" style="${_bStyle}" onclick="closeInvGroup();invMarkSold('${id}')">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
         ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${it.reservationId?'rgba(212,175,55,0.22)':'var(--wa06)'};border:1px solid ${it.reservationId?'var(--gold)':'var(--wa18)'};color:${it.reservationId?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${it.reservationId?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
-        ${isEmp ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invEdit('${id}')">✏️ ${lang==='el'?'Επεξ.':'Edit'}</button>`}
+        ${isEmp ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="_invEditFromGroup('${gid}','${id}')">✏️ ${lang==='el'?'Επεξ.':'Edit'}</button>`}
         ${isEmp ? '' : `<button class="inv-action-btn inv-action-del" style="${_bStyle}" onclick="closeInvGroup();invDelete('${id}')">🗑</button>`}
       </div>
     </div>`;
