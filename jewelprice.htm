@@ -24742,10 +24742,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.94', date: 'Ιούλιος 2026', items: [
-        "🔎 Στην Επεξεργασία κάθε κομματιού βλέπεις τώρα «Τι βλέπει η αναζήτηση με φωτογραφία» — την ακριβή περιγραφή που έχει το AI για αυτό το κόσμημα.",
-        "❓ Αν ένα κομμάτι δεν βρίσκεται από φωτογραφία, άνοιξέ το και δες: αν η γραμμή δεν αναφέρει αυτό που δείχνει η φωτογραφία, το πρόβλημα είναι η περιγραφή. Αν το αναφέρει, το πρόβλημα είναι αλλού.",
-        "↻ Κουμπί «Ξαναδές τη φωτογραφία» για να ξαναγραφεί η περιγραφή μόνο αυτού του κομματιού.",
+      { version: 'v11.95', date: 'Ιούλιος 2026', items: [
+        "🎯 Βρέθηκε το πραγματικό πρόβλημα με το μενταγιόν των δελφινιών — και ήταν δικό μου λάθος στις οδηγίες προς το AI.",
+        "📋 Οι οδηγίες ήταν γραμμένες σαν λίστα («πες το σχήμα: τετράγωνο, στρογγυλό, οβάλ… πες το φινίρισμα: γυαλιστερό, ματ…») και το AI επέστρεφε ΤΙΣ ΛΕΞΕΙΣ ΜΟΥ αντί να περιγράψει το κόσμημα. Το μενταγιόν σου πήρε «dolphins, round, square, two-tone, textured, polished» — λέει και στρογγυλό και τετράγωνο.",
+        "📊 Στα 698 κομμάτια: το 87% ήταν λίστες λέξεων και το 33% ΟΛΟΪΔΙΕΣ μεταξύ τους. Πέντε χρυσά δελφίνια είχαν ακριβώς την ίδια γραμμή — γι' αυτό η αναζήτηση τα παρατούσε.",
+        "✍️ Τώρα ζητείται ΠΡΟΤΑΣΗ, με παραδείγματα σωστού και λάθους: «Τετράγωνο οξειδωμένο ασημένιο πλαίσιο γύρω από στρογγυλό ορειχάλκινο νόμισμα με τρία δελφίνια, σε καφέ πλεκτό κορδόνι».",
+        "⚠️ Και στο τέλος κάθε σάρωσης η εφαρμογή ελέγχει μόνη της την ποιότητα: αν βγουν πολλές ίδιες ή γενικές, σου το λέει αντί για ένα χαρούμενο ✓.",
+        "🔄 Χρειάζεται νέα «Δημιουργία περιγραφών». ΔΟΚΙΜΑΣΕ ΠΡΩΤΑ ΕΝΑ: άνοιξε το μενταγιόν → Επεξεργασία → «Ξαναδές τη φωτογραφία» και δες αν βγαίνει σωστή πρόταση, πριν τρέξεις όλα τα 698.",
       ]},
       ]
   },
@@ -24776,10 +24779,13 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.94', date: 'Jul 2026', items: [
-        "🔎 Editing any piece now shows \"What the photo search sees\" — the exact description the AI holds for it.",
-        "❓ If a piece cannot be found by photo, open it and look: if the line does not mention what the photo shows, the description is the problem. If it does, the problem is elsewhere.",
-        "↻ A \"Look at the photo again\" button rewrites the description for just that one piece.",
+      { version: 'v11.95', date: 'Jul 2026', items: [
+        "🎯 Found the real problem with the dolphin pendant — and it was my mistake in the instructions given to the AI.",
+        "📋 They were written as a checklist (\"give the shape: square, round, oval… the finish: polished, matte…\") and the AI returned MY OWN WORDS instead of describing the piece. Your pendant got \"dolphins, round, square, two-tone, textured, polished\" — both round and square.",
+        "📊 Across 698 pieces: 87% were word lists and 33% were IDENTICAL to another piece. Five gold dolphins shared exactly the same line — which is why the search gave up.",
+        "✍️ It now asks for a SENTENCE, with worked right and wrong examples: \"Square oxidised silver frame around a round brass coin engraved with three dolphins, on a brown braided cord.\"",
+        "⚠️ And every scan now checks its own quality: if too many come out identical or generic it tells you, instead of a cheerful tick.",
+        "🔄 A fresh \"Build search descriptions\" is needed. TEST ONE FIRST: open the pendant → Edit → \"Look at the photo again\" and see whether you get a proper sentence, before running all 698.",
       ]},
           ]
   }
@@ -28409,7 +28415,7 @@ At most 5 matches, best first.`;
 const AI_DESC_BATCH = 2;
 // Bump this whenever the recipe below changes in a way that should regenerate existing
 // lines. v2 = describe from the HI-RES photo, longer limit, motif named explicitly.
-const AI_DESC_VERSION = 2;
+const AI_DESC_VERSION = 3;
 let _findDescRunning = false, _findDescStop = false;
 
 async function _findDescPending() {
@@ -28438,29 +28444,40 @@ async function _findDescribeBatch(ids) {
   const key = _aiKey();
   if (!key) throw new Error('no-ai-key');
   const content = [{ type: 'text', text:
-`You are writing search labels for a jeweller's own stock photos. These labels are the ONLY
-way a piece can later be found from a photograph, so what is engraved or depicted on it
-matters more than anything else.
+`You are describing a jeweller's stock photos so that each piece can later be recognised
+from a NEW photograph of it. Hundreds of pieces are being described, so your sentence must
+say what makes THIS one different from the others.
 
-For EACH numbered photo write ONE line of up to 30 words, in English.
+For EACH numbered photo write ONE natural sentence of 15-30 words, in English, the way you
+would describe the piece to a colleague on the telephone.
 
-Start with the SUBJECT if the piece depicts anything at all — an animal, figure, symbol or
-scene (dolphin, turtle, fish, bee, owl, horse, cross, evil eye, key, anchor, tree, flower,
-star, spiral, Greek letter, face, ship…). Look carefully INSIDE any central disc, coin,
-medallion or inset panel: that is usually where the subject is, and it is often small.
-Name it plainly even if it is stylised or worn. If you genuinely see no subject, say so
-with "no motif" and describe the form instead.
+GOOD — a specific sentence:
+  "Square oxidised silver frame around a round brass coin engraved with three dolphins,
+   hanging from a brown braided cord."
+  "Wide 18K band with granulated edges, a central emerald flanked by a ruby and a sapphire,
+   with small diamonds between them."
+  "Plain polished gold hoop earrings, slightly flattened, with no stones or decoration."
 
-Then add: the overall shape (square, round, oval, teardrop, bar, free-form), the metal
-colours you can see (silver, gold, two-tone, blackened/oxidised), the surface (hammered,
-textured, granulated, polished, matte), any visible stones and their colour, and the cord
-or chain if one is shown.
+BAD — never write anything like this:
+  "dolphins, round, square, two-tone, textured, polished, brown braided cord"
+  "no motif, round, gold, polished"
+It is a list of labels, it describes nothing, and dozens of pieces end up identical.
 
-Do not guess price, karat or stone names you cannot see. No opinions, no quality words.
+Rules:
+- Write a SENTENCE. Never a comma-separated list of attributes.
+- If the piece depicts something — an animal, figure, symbol or scene — say what it is and
+  WHERE it sits ("engraved on the central disc", "cut out of the pendant"). Look carefully
+  inside any coin, medallion or inset panel; the subject is often small but it is the single
+  most useful thing you can record.
+- If it truly depicts nothing, describe its actual form so it is still recognisable — the
+  proportions, the edge, the finish, how the links or stones are arranged.
+- Never use the phrase "no motif".
+- Prefer what you can SEE over vocabulary: never write both "round" and "square".
+- Do not guess price, karat, or stone names you cannot identify. No quality or sales words.
 
 Return ONLY strict JSON, no markdown:
-{"d":["line for photo 1","line for photo 2", …]}
-with exactly ${ids.length} lines, in the same order as the photos.` }];
+{"d":["sentence for photo 1","sentence for photo 2", …]}
+with exactly ${ids.length} sentences, in the same order as the photos.` }];
   ids.forEach((id, i) => {
     content.push({ type: 'text', text: 'Photo ' + (i + 1) + ':' });
     const _it = _inventoryCache[id];
@@ -28599,6 +28616,26 @@ document.addEventListener('visibilitychange', () => {
 // difference between minutes and a whole evening. Quality is untouched: the batch stays
 // at 2 photos, there are simply more batches running side by side.
 const AI_DESC_WORKERS = 4;
+
+// Is the batch any good? v2 wrote 658 descriptions that were 87% keyword lists and 33%
+// exact duplicates of each other, and NOTHING said so — it was only discovered by
+// photographing a pendant and getting nothing back. A rebuild now reports on itself.
+function _descQuality() {
+  const lines = [];
+  for (const id in (_inventoryCache || {})) {
+    const t = (((_inventoryCache[id] || {}).aiDesc) || '').trim().toLowerCase();
+    if (t) lines.push(t);
+  }
+  if (!lines.length) return null;
+  const seen = new Map();
+  lines.forEach(t => seen.set(t, (seen.get(t) || 0) + 1));
+  const dup = lines.filter(t => seen.get(t) > 1).length;
+  const listy = lines.filter(t => {
+    const parts = t.split(',').map(x => x.trim()).filter(Boolean);
+    return parts.length >= 4 && parts.every(x => x.split(/\s+/).length <= 3);
+  }).length;
+  return { total: lines.length, dup, listy };
+}
 
 async function buildSearchDescriptions(onProgress, shouldStop) {
   const pending = await _findDescPending();
@@ -28793,7 +28830,12 @@ async function _findRunDescs() {
   try {
     draw(0, 1, 0);
     const r = await buildSearchDescriptions(draw, () => _findDescStop);
-    showToast((r.failed ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' + t('findDescDone'));
+    const q = _descQuality();
+    // A quarter of the lines being generic or repeated means the batch is not usable for
+    // searching, however many of them completed. Say so rather than a cheerful tick.
+    const poor = q && q.total && ((q.dup + q.listy) / 2) / q.total > 0.25;
+    showToast((r.failed || poor ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' + t('findDescDone')
+      + (poor ? ' · ' + (lang === 'el' ? q.dup + ' ίδιες μεταξύ τους' : q.dup + ' are identical to each other') : ''));
   } catch (e) {
     showToast('⚠️ ' + t('findPhotoFail'));
   } finally {
@@ -28818,7 +28860,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '11.94';
+const APP_VERSION = '11.95';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
