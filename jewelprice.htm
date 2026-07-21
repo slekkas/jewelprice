@@ -967,7 +967,7 @@
     #panel-inventory.panel { max-width:1120px; }
     #panel-sales.panel { max-width:1120px; width:1120px; }
     /* Form/list panels stay comfortably readable, centred inside the wide frame */
-    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about, #panel-desk, #panel-team { max-width:560px; margin-left:auto; margin-right:auto; }
+    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about, #panel-desk, #panel-team, #panel-find { max-width:560px; margin-left:auto; margin-right:auto; }
     .sales-panel-inner { max-width:560px; margin-left:auto; margin-right:auto; }
     .customer-price-bar { max-width:560px; width:560px; }
     #cartPanel { max-width:560px !important; }
@@ -1230,6 +1230,10 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
           </button>
           <div id="moreMenu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.55);padding:6px;min-width:184px;z-index:99999">
+            <button class="more-item" id="nav-find" onclick="showPanel('find');closeMoreMenu()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span data-i18n="findTitle">Βρες Κόσμημα</span>
+            </button>
             <button class="more-item" id="nav-vendors" onclick="showPanel('vendors');closeMoreMenu()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span data-i18n="navVendors">Προμηθευτές</span>
@@ -1891,6 +1895,31 @@
         <div id="teamList"></div>
       </div>
     </div>
+  </div>
+
+  <!-- FIND JEWELRY (lost-tag finder) -->
+  <div id="panel-find" class="panel">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+      <span style="font-family:var(--font-heading);font-size:22px;font-weight:700;color:var(--gold-light)" data-i18n="findTitle">Βρες Κόσμημα</span>
+    </div>
+    <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);line-height:1.6;margin:0 0 14px 0" data-i18n="findDesc">Έχασες την ετικέτα; Διάλεξε τι είναι το κόσμημα, ζύγισέ το, και βρες το στο απόθεμα.</p>
+
+    <div class="cloud-box" style="margin-bottom:14px">
+      <div id="findFilters"></div>
+
+      <div class="inv-fs-group" style="margin-bottom:0">
+        <div class="inv-fs-label" data-i18n="findWeightLbl">Βάρος στη ζυγαριά</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" id="findWeight" inputmode="decimal" step="0.01" min="0" oninput="_findWeightChanged()" autocomplete="off"
+            data-i18n-ph="findWeightPh"
+            style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:20px;padding:12px 14px">
+          <span style="font-family:'DM Mono',monospace;font-size:15px;color:var(--gold-light);flex:0 0 auto">g</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="findResults"></div>
   </div>
 
   <!-- ABOUT PANEL -->
@@ -3272,6 +3301,29 @@ const T = {
       'Στείλτε το ίδιο URL στους υπαλλήλους. Αυτοί επιλέγουν <strong>Υπάλληλος</strong> → επικολλούν το URL → <strong>Σύνδεση</strong>.'
     ],
     navCalc:'Υπολ.', navVendors:'Προμ.', navSettings:'Ρυθμ.', navSync:'Συγχρ.', navAbout:'Πληρ.', navSales:'Πωλ.',
+    findTitle:'Βρες Κόσμημα',
+    findDesc:'Έχασες την ετικέτα; Διάλεξε τι είναι το κόσμημα, ζύγισέ το, και βρες το στο απόθεμα.',
+    findWeightLbl:'Βάρος στη ζυγαριά',
+    findWeightPh:'π.χ. 3.80',
+    findMetalLbl:'Μέταλλο',
+    findTypeLbl:'Είδος',
+    findKaratLbl:'Καθαρότητα',
+    findGenderLbl:'Κοινό',
+    findAll:'Όλα',
+    findSoldToo:'Και πουλημένα',
+    findNeedWeight:'Δώσε το βάρος για να ξεκινήσει η αναζήτηση.',
+    findExactTitle:'Ακριβές βάρος',
+    findWideTitle:'Κοντινό βάρος (±0.2 γρ.)',
+    findWidenBtn:'Ψάξε πιο πλατιά (±0.2 γρ.)',
+    findNoneExact:'Κανένα κόσμημα με ακριβώς αυτό το βάρος.',
+    findNoneWide:'Κανένα κόσμημα κοντά σε αυτό το βάρος.',
+    findStoneHint:'Αν το κόσμημα έχει πέτρες, το αποθηκευμένο βάρος μπορεί να μην τις περιλαμβάνει — ψάξε στο Απόθεμα με φίλτρο πέτρας.',
+    findOpenStock:'Άνοιγμα στο Απόθεμα',
+    findPrintTag:'🏷️ Ετικέτα',
+    findOpenItem:'Άνοιγμα',
+    findSoldMark:'ΠΩΛΗΘΗΚΕ',
+    findPieces:'κομμάτια',
+    findPiece:'κομμάτι',
     featuresTitle:'✨ Λίστα Λειτουργιών', manualTitle:'📖 Οδηγίες Χρήσης', changelogTitle:'📋 Ιστορικό Αλλαγών',
     supportTitle:'🛠️ Υποστήριξη', supportText:'Για αναφορά προβλημάτων ή νέες λειτουργίες επικοινωνήστε με τον developer.',
     scanQr:'Σάρωση QR Κωδικού',
@@ -3687,6 +3739,29 @@ const T = {
       'Send the same URL to your employees. They select <strong>Employee</strong> → paste the URL → <strong>Connect</strong>.'
     ],
     navCalc:'Calc', navVendors:'Vendors', navSettings:'Settings', navSync:'Sync', navAbout:'Info', navSales:'Sales',
+    findTitle:'Find Jewelry',
+    findDesc:'Lost the tag? Pick what the piece is, weigh it, and find it in stock.',
+    findWeightLbl:'Weight on the scale',
+    findWeightPh:'e.g. 3.80',
+    findMetalLbl:'Metal',
+    findTypeLbl:'Type',
+    findKaratLbl:'Purity',
+    findGenderLbl:'Audience',
+    findAll:'All',
+    findSoldToo:'Include sold',
+    findNeedWeight:'Enter the weight to start searching.',
+    findExactTitle:'Exact weight',
+    findWideTitle:'Close weight (±0.2 g)',
+    findWidenBtn:'Search wider (±0.2 g)',
+    findNoneExact:'No piece at exactly this weight.',
+    findNoneWide:'No piece close to this weight.',
+    findStoneHint:'If the piece has stones, its stored weight may not include them — search Stock with the stone filter.',
+    findOpenStock:'Open in Stock',
+    findPrintTag:'🏷️ Tag',
+    findOpenItem:'Open',
+    findSoldMark:'SOLD',
+    findPieces:'pieces',
+    findPiece:'piece',
     featuresTitle:'✨ Feature List', manualTitle:'📖 User Manual', changelogTitle:'📋 Changelog',
     supportTitle:'🛠️ Support', supportText:'For bug reports or new feature requests please contact the developer.',
     scanQr:'Scan QR Code',
@@ -5087,6 +5162,7 @@ function showPanel(name) {
     _spYear = new Date().getFullYear(); _spMonth = new Date().getMonth(); _spDay = null; _spLevel = 'year'; renderSalesPanel();
   }
   if (name === 'desk') deskShow('reservations');
+  if (name === 'find') openFindPanel();
 }
 
 // ─── ☰ MORE MENU (Vendors / Sync / Settings / Info) ───────────────────────────
@@ -15415,10 +15491,30 @@ function parseCodeInput(raw) {
 // truly identical twins are interchangeable and must never nag the owner.
 function _variantKey(it) { return (it.goldColor || '') + '|' + (it.color || ''); }
 
+// At the REF level a shared code hides more than a colour difference. A similar-items
+// group deliberately prints ONE number (invAddSimilar copies seqId/refType), and its
+// members can carry different stones or weights — which live in the descriptive code,
+// not in the colour. Two pieces are interchangeable only if they LOOK the same AND
+// price the same, so the descriptive code joins the key.
+function _refVariantKey(it) {
+  return _variantKey(it) + '|' + String(it.qrCode || it.code || '').trim().toUpperCase();
+}
+
+// Variants found by a REF scan must survive the re-lookup that answering the question
+// triggers. _checkInvStatusForCalc resets the chooser on every code change — right for a
+// fresh scan, wrong for the pick's own re-run, which is the ANSWER to the question and
+// must leave the chip in place so the choice can still be changed.
+let _refVariantCarry = null;   // { ref, list }
+
 function _variantLabel(it) {
   const bits = [];
   if (it.goldColor) bits.push(goldColorLabel(it.goldColor));
   if (it.color) bits.push(itemColorLabel(it.color));
+  // Pieces sharing a ref code can be told apart by their STONES rather than their colour
+  // (a group whose members were each set with a different stone). Show that only when it
+  // is what actually distinguishes them, so the ordinary case stays short.
+  const stoneSet = new Set(_scanVariants.map(([, v]) => v.stonesDesc || ''));
+  if (stoneSet.size > 1 && it.stonesDesc) bits.push(stonesDescDisplay(it.stonesDesc));
   return bits.join(' · ') || (lang === 'el' ? 'Χωρίς χρώμα' : 'No colour');
 }
 
@@ -15454,8 +15550,8 @@ function openScanVariantSheet() {
   overlay.innerHTML = `<div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-top-left-radius:18px;border-top-right-radius:18px;padding:18px 16px 22px;width:100%;max-width:480px;max-height:82vh;display:flex;flex-direction:column">
     <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">${isEl ? 'Ποιο κρατάτε;' : 'Which one are you holding?'}</div>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
-      ? `Αυτά τα ${_scanVariants.length} κομμάτια έχουν την ΙΔΙΑ ετικέτα (ίδιο βάρος), οπότε το σκανάρισμα δεν ξέρει ποιο κρατάτε. Διαλέξτε το.`
-      : `These ${_scanVariants.length} pieces share the SAME tag (same weight), so the scan can't tell which one you have. Pick it.`}</div>
+      ? `Αυτά τα ${_scanVariants.length} κομμάτια έχουν την ΙΔΙΑ ετικέτα, οπότε το σκανάρισμα δεν ξέρει ποιο κρατάτε. Διαλέξτε το.`
+      : `These ${_scanVariants.length} pieces share the SAME tag, so the scan can't tell which one you have. Pick it.`}</div>
     <div style="overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch">${rows}</div>
   </div>`;
   document.body.appendChild(overlay);
@@ -15488,14 +15584,43 @@ function _applyScanVariantPhoto(it) {
   else { t.removeAttribute('data-src'); t.src = ''; t.style.display = 'none'; }
 }
 
+// Pin a ref-scanned piece and run the normal lookup by ITS OWN descriptive code, so the
+// price, the stones and the sale target all follow that exact record.
+function _refResolvePiece(entry) {
+  const [fbKey, item] = entry;
+  const qr = item.qrCode || item.code || '';
+  if (!qr) return;
+  // A ref code names ONE piece. Remember which — AND the descriptive code it maps to — so
+  // the re-run (which goes in by that code, possibly shared with a twin or a sold
+  // collision) resolves this exact piece, now and on every later re-check.
+  _refPinnedInvId = fbKey;
+  _refPinnedForCode = qr.trim().toUpperCase();
+  const inp = document.getElementById('codeInput');
+  if (inp) inp.value = qr;
+  lookupCode(qr, { fromRef: true });
+}
+
 function _pickScanVariant(id) {
   const hit = _scanVariants.find(([vid]) => vid === id);
   if (!hit) return;
   _scanChosenInvId = id;
   _lastScannedInvEntry = hit[1];   // drives calculate()'s photo lookup on any re-render
+  closeScanVariantSheet();
+  // Pieces sharing a REF code can carry DIFFERENT descriptive codes (different stones or
+  // weights), so there the pick decides the price, not just the photo — re-run the lookup by
+  // the chosen piece's own code. Gated on the variants actually having come from a ref scan:
+  // the shared-descriptive-code case this chooser was originally built for must keep behaving
+  // exactly as before (one code, same price, only the photo moves).
+  const fromRef = !!(_refVariantCarry && _refVariantCarry.list.some(([vid]) => vid === id));
+  const qr  = String(hit[1].qrCode || hit[1].code || '').trim();
+  const cur = String(document.getElementById('codeInput')?.value || '').trim();
+  if (fromRef && qr && _qrKey(qr) !== _qrKey(cur)) {
+    _refResolvePiece(hit);
+    _renderScanVariantPicker();
+    return;
+  }
   _applyScanVariantPhoto(hit[1]);
   _renderScanVariantPicker();
-  closeScanVariantSheet();
 }
 
 function _resetScanVariants() {
@@ -15563,6 +15688,14 @@ async function _checkInvStatusForCalc(raw) {
     if (_wasPinned) {
       // The ref code named this piece: the sale, the photo and the hold all follow `found`.
       _scanChosenInvId = fbKey;
+      // If that ref covers several different pieces, put the chooser back — _resetScanVariants
+      // at the top of this function cleared it, which is right for a fresh scan but wrong for
+      // the re-lookup a PICK triggers. Without this the "✓ Turquoise — Change →" chip would
+      // vanish the moment it was answered.
+      if (_refVariantCarry && _refVariantCarry.list.some(([vid]) => vid === fbKey)) {
+        _scanVariants = _refVariantCarry.list;
+        _renderScanVariantPicker();
+      }
     } else {
       // Do the in-stock twins LOOK different? Then the tag alone can't identify the piece —
       // ask. Identical twins stay silent (any of them will do). Candidates come from _pool,
@@ -15741,7 +15874,7 @@ function lookupCode(raw, opts) {
   // recursive re-run (opts.fromRef) is allowed to keep the pin it just set. This is what
   // makes the pin reset on a genuinely new scan while surviving passive re-checks (which
   // call _checkInvStatusForCalc directly, never lookupCode).
-  if (!opts || !opts.fromRef) { _refPinnedInvId = null; _refPinnedForCode = null; _otherPriceUnverified = false; }
+  if (!opts || !opts.fromRef) { _refPinnedInvId = null; _refPinnedForCode = null; _refVariantCarry = null; _otherPriceUnverified = false; }
   // ── Ref code lookup — e.g. PE0142 or pe0142 ──────────────────────────────
   if (raw && /^[A-Za-z]{2}\d{4}$/.test(raw.trim())) {
     const refNorm = raw.trim().toUpperCase();
@@ -15749,27 +15882,34 @@ function lookupCode(raw, opts) {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
       }
-      const found = Object.entries(_inventoryCache || {}).find(([, it]) =>
+      // EVERY piece that prints this ref code, not just the first. A similar-items group
+      // shares ONE number by design, so a ref scan can be exactly as ambiguous as a
+      // descriptive one — taking .find() here meant both tags of a two-piece group
+      // resolved to whichever record happened to come first in the cache.
+      const matches = Object.entries(_inventoryCache || {}).filter(([, it]) =>
         it.seqId && itemRefCode(it) === refNorm
       );
-      if (found) {
-        const [fbKey, item] = found;
-        const qr = item.qrCode || item.code || '';
-        if (qr) {
-          // A ref code names ONE piece. Remember which — AND the descriptive code it maps to
-          // — so the re-run below (which goes in by that code, possibly shared with a twin or
-          // a sold collision) resolves this exact piece, now and on every later re-check.
-          _refPinnedInvId = fbKey;
-          _refPinnedForCode = qr.trim().toUpperCase();
-          // Populate the input with the real QR and run normal lookup
-          const inp = document.getElementById('codeInput');
-          if (inp) inp.value = qr;
-          lookupCode(qr, { fromRef: true });
-        }
-      } else {
+      const inStock = matches.filter(([, it]) => it.status === 'in_stock' && !it.isBulk);
+      const pool = inStock.length ? inStock : matches;   // all sold → still resolve, for the history
+      if (!pool.length) {
         const notFound = document.getElementById('codeNotFound');
         if (notFound) notFound.classList.add('show');
+        return;
       }
+      // Do the in-stock pieces behind this number actually differ? Then the tag cannot say
+      // which one is in hand — ask, exactly as a shared descriptive code does. Unlike that
+      // case these can price DIFFERENTLY (their stones and weight live in the descriptive
+      // code), so NOTHING is looked up until the answer arrives: a provisional price for the
+      // wrong piece, in front of a customer, is worse than a blank one.
+      if (inStock.length > 1 && new Set(inStock.map(([, it]) => _refVariantKey(it))).size > 1) {
+        _scanVariants = inStock;
+        _scanChosenInvId = null;
+        _refVariantCarry = { ref: refNorm, list: inStock };
+        _renderScanVariantPicker();
+        openScanVariantSheet();
+        return;
+      }
+      _refResolvePiece(pool[0]);
     })();
     return;
   }
@@ -24399,9 +24539,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v11.80', date: 'Ιούλιος 2026', items: [
-        "↩️ Το ✕ γυρίζει πίσω ένα βήμα και στα υπόλοιπα σημεία: από ομάδα ίδιων κομματιών → Επεξεργασία → ✕ επιστρέφεις στην ομάδα· από την αναφορά «Στάσιμο Απόθεμα» → Επεξεργασία → ✕ επιστρέφεις στην αναφορά (με το ίδιο φίλτρο ετών)· από τις ειδοποιήσεις 🔔 → δωροεπιταγή → ✕ επιστρέφεις στις ειδοποιήσεις.",
-        "↩️ Όταν μετά την αποθήκευση εμφανίζεται η ερώτηση για νέα ετικέτα (αλλαγή πετρών), η λίστα ΔΕΝ ξανανοίγει από πάνω — για να μην κρύψει την ερώτηση.",
+      { version: 'v11.81', date: 'Ιούλιος 2026', items: [
+        "🔎 Νέα καρτέλα «Βρες Κόσμημα» (μενού ☰) — έχασες την ετικέτα; Διάλεξε είδος / μέταλλο / καθαρότητα, ζύγισε το κόσμημα και βρες το, χωρίς να ψάχνεις όλο το απόθεμα.",
+        "⚖️ Ψάχνει πρώτα με ΑΚΡΙΒΕΣ βάρος (συνήθως ένα μόνο αποτέλεσμα). Αν δεν βρεθεί τίποτα, το κουμπί «Ψάξε πιο πλατιά» ανοίγει σε ±0.2 γρ. — για όταν δύο ζυγαριές δεν συμφωνούν.",
+        "🏷️ Κάθε αποτέλεσμα δείχνει φωτογραφία, κωδικό και βάρος, με κουμπί εκτύπωσης ετικέτας δίπλα.",
+        "🔒 Δεν αλλάζει ΠΟΤΕ το αποθηκευμένο βάρος — μόνο ψάχνει.",
+        "🔧 Διόρθωση: όταν δύο κομμάτια της ίδιας ομάδας έχουν τον ΙΔΙΟ κωδικό αναφοράς αλλά διαφορετικές πέτρες (π.χ. ακουαμαρίνα και τυρκουάζ), το σκανάρισμα έδειχνε ΠΑΝΤΑ το πρώτο. Τώρα ρωτάει «Ποιο κρατάτε;» και δείχνει χρώμα ΚΑΙ πέτρα, ώστε να διαλέξεις το σωστό — και η τιμή, η φωτογραφία και η πώληση ακολουθούν αυτό ακριβώς το κομμάτι.",
+        "🔧 Αν το ένα από τα δύο έχει ήδη πουληθεί, το σκανάρισμα πάει κατευθείαν σε αυτό που υπάρχει στο απόθεμα, χωρίς ερώτηση.",
       ]},
       ]
   },
@@ -24432,9 +24576,13 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v11.80', date: 'Jul 2026', items: [
-        "↩️ The ✕ steps back one level in the remaining places too: from a group of similar pieces → Edit → ✕ returns to the group; from the Stale Stock report → Edit → ✕ returns to the report (with the same years filter); from 🔔 notifications → gift card → ✕ returns to the notifications.",
-        "↩️ When the \"print a new tag\" question appears after saving (because the stones changed), the list is NOT reopened on top of it — so the question is never hidden.",
+      { version: 'v11.81', date: 'Jul 2026', items: [
+        "🔎 New \"Find Jewelry\" tab (☰ menu) — lost the tag? Pick type / metal / purity, weigh the piece and find it, instead of walking the whole inventory.",
+        "⚖️ Searches EXACT weight first (usually a single result). If nothing matches, a \"Search wider\" button opens it to ±0.2 g — for when two scales disagree.",
+        "🏷️ Each result shows photo, reference code and weight, with a print-tag button right there.",
+        "🔒 It NEVER changes a stored weight — it only searches.",
+        "🔧 Fix: when two pieces of the same group share ONE reference code but have different stones (e.g. aquamarine and turquoise), scanning always showed the first one. It now asks \"Which one are you holding?\" and shows colour AND stone, so you pick the right piece — and the price, the photo and the sale all follow that exact record.",
+        "🔧 If one of the two is already sold, the scan goes straight to the one still in stock, with no question.",
       ]},
           ]
   }
@@ -24909,6 +25057,7 @@ function clearCalc() {
   _lastChipRaw = null;
   _refPinnedInvId = null;
   _refPinnedForCode = null;
+  _refVariantCarry = null;
   _resetScanVariants();
   const cpbThumb = document.getElementById('cpbPhotoThumb');
   if (cpbThumb) { cpbThumb.removeAttribute('data-src'); cpbThumb.src = ''; cpbThumb.style.display = 'none'; }
@@ -27679,7 +27828,266 @@ function _itemDesc(item) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '11.80';
+// ─── FIND JEWELRY — lost-tag finder ──────────────────────────────────────────
+// A tag comes off a ring in the window display. Weigh the piece, say what you can
+// see about it (type / metal / karat), and find it — instead of walking 600 cards.
+//
+// It NEVER writes a weight, or anything else, back onto an item. The stored weight
+// drives the metal value, the retail price and the gain % on every card, so an
+// automatic "correction" there is exactly the class of silent write that had to be
+// cleaned up after v10.19. (Printing a tag from a result uses the existing
+// invPrintTagFromCard flow and behaves exactly as it does from a Stock card.)
+//
+// Two stages, deliberately separate so a result says how confident it is:
+//   1. exact weight      — 59% of pieces land here, usually a single hit
+//   2. ±FIND_WIDE grams  — covers two scales disagreeing by a tenth
+// There is deliberately NO "add the stone weight back" stage. The pieces that would
+// need one are the cheap-stone pieces (zircon and similar) and those never had a
+// carat recorded, so any allowance would be pure guesswork — and a search that
+// quietly returns a list not containing your ring is worse than one that admits it
+// found nothing. When both stages come up empty the panel says so and hands over to
+// the Stock stone filter, which is the workflow that already works for those.
+//
+// Measured against the real 600-piece stock: weight ALONE is not distinctive
+// (median 8 exact hits, 34 within ±0.2 g — many pieces sit on round weights, 25 of
+// them at exactly 1.0 g). The type/metal/karat filters are the load-bearing part.
+const FIND_WIDE = 0.2;
+let _findStage = 1;
+let _findF = { metal: '', type: '', karat: '', gender: '', sold: false };
+let _findTimer = null;
+
+async function openFindPanel() {
+  // Safe loader (v11.74): keeps the last good cache if the network is down, rather
+  // than replacing it with {} and reporting "nothing in stock".
+  await _invEnsureForScan();
+  _findRenderFilters();
+  _findRun();
+}
+
+// Every piece the finder will ever consider: real jewelry with a usable weight.
+// Coins and raw metal are excluded (they carry no tag to lose), and so are bulk
+// chains (sold by the gram — their weight is a remaining batch, not a piece).
+function _findAllPieces() {
+  const out = [];
+  const cache = _inventoryCache || {};
+  for (const id in cache) {
+    const it = cache[id];
+    if (!it || typeof it !== 'object') continue;
+    if (it.isCoin || it.isMetal || it.isBulk) continue;
+    if (it.metal !== 'gold' && it.metal !== 'silver') continue;
+    if (it.status !== 'in_stock' && !(_findF.sold && it.status === 'sold')) continue;
+    const w = parseFloat(it.weight);
+    if (!(w > 0)) continue;
+    out.push({ id, it, w });
+  }
+  return out;
+}
+
+function _findFilterOk(it) {
+  if (_findF.metal && it.metal !== _findF.metal) return false;
+  if (_findF.type && it.jewelryType !== _findF.type) return false;
+  if (_findF.karat && String(it.karat) !== _findF.karat) return false;
+  if (_findF.gender) {
+    // The same rule the Stock filter uses (v10.24 / v10.26): a unisex piece belongs
+    // under both Men and Women, and alsoGenders cross-lists it.
+    const g = it.gender || 'unisex';
+    const also = it.alsoGenders || [];
+    const sel = _findF.gender;
+    if (!(sel === g || also.includes(sel) ||
+          (g === 'unisex' && (sel === 'men' || sel === 'women')))) return false;
+  }
+  return true;
+}
+
+// Gold karats are 9..24 and print as "18K"; silver/other finenesses (925, 999, 800)
+// print as they are. Deciding on the value keeps this right when Metal is "All".
+function _findKaratLabel(k) {
+  const n = parseFloat(k);
+  return (n > 0 && n <= 24) ? n + 'K' : String(k);
+}
+
+function _findRenderFilters() {
+  const box = document.getElementById('findFilters');
+  if (!box) return;
+  const all = _findAllPieces();
+  const byMetal = all.filter(p => !_findF.metal || p.it.metal === _findF.metal);
+  const pill = (label, active, call) =>
+    `<button class="inv-fs-pill${active ? ' sel' : ''}" onclick="${call}">${label}</button>`;
+
+  let html = '';
+
+  // Metal
+  html += `<div class="inv-fs-group"><div class="inv-fs-label">${t('findMetalLbl')}</div><div class="inv-fs-pills">`;
+  html += pill(t('findAll'), !_findF.metal, `_findSet('metal','')`);
+  ['gold', 'silver'].forEach(m => {
+    if (all.some(p => p.it.metal === m)) html += pill(t(m), _findF.metal === m, `_findSet('metal','${m}')`);
+  });
+  html += `</div></div>`;
+
+  // Type — only the types actually present, in the app's canonical order
+  const types = INV_JEWELRY_TYPES.map(x => x.key).filter(k => byMetal.some(p => p.it.jewelryType === k));
+  if (types.length) {
+    html += `<div class="inv-fs-group"><div class="inv-fs-label">${t('findTypeLbl')}</div><div class="inv-fs-pills">`;
+    html += pill(t('findAll'), !_findF.type, `_findSet('type','')`);
+    types.forEach(k => { html += pill(_resEsc(invTypeLabel(k)), _findF.type === k, `_findSet('type','${k}')`); });
+    html += `</div></div>`;
+  }
+
+  // Karat / purity
+  const karats = [...new Set(byMetal.map(p => String(p.it.karat)).filter(k => k && k !== 'undefined'))]
+    .sort((a, b) => (parseFloat(b) || 0) - (parseFloat(a) || 0));
+  if (karats.length) {
+    html += `<div class="inv-fs-group"><div class="inv-fs-label">${t('findKaratLbl')}</div><div class="inv-fs-pills">`;
+    html += pill(t('findAll'), !_findF.karat, `_findSet('karat','')`);
+    karats.forEach(k => { html += pill(_findKaratLabel(k), _findF.karat === k, `_findSet('karat','${_resEsc(k)}')`); });
+    html += `</div></div>`;
+  }
+
+  // Audience + the sold escape hatch
+  html += `<div class="inv-fs-group"><div class="inv-fs-label">${t('findGenderLbl')}</div><div class="inv-fs-pills">`;
+  html += pill(t('findAll'), !_findF.gender, `_findSet('gender','')`);
+  [['women', 'genderWomen'], ['men', 'genderMen'], ['children', 'genderChildren']].forEach(([g, key]) => {
+    // Mirror _findFilterOk exactly, or a pill could offer a category that returns
+    // nothing (unisex spans Men and Women only — never Children).
+    const present = byMetal.some(p => {
+      const pg = p.it.gender || 'unisex';
+      return pg === g || (p.it.alsoGenders || []).includes(g) ||
+             (pg === 'unisex' && (g === 'men' || g === 'women'));
+    });
+    if (present) html += pill(t(key), _findF.gender === g, `_findSet('gender','${g}')`);
+  });
+  html += pill(t('findSoldToo'), _findF.sold, `_findToggleSold()`);
+  html += `</div></div>`;
+
+  box.innerHTML = html;
+}
+
+function _findWeightChanged() {
+  clearTimeout(_findTimer);
+  _findStage = 1;                       // a new weight always starts narrow again
+  _findTimer = setTimeout(_findRun, 220);
+}
+
+function _findSet(key, val) {
+  _findF[key] = val;
+  if (key === 'metal') {
+    // The type/karat lists depend on the metal — drop a selection that no longer exists
+    const pool = _findAllPieces().filter(p => !val || p.it.metal === val);
+    if (_findF.karat && !pool.some(p => String(p.it.karat) === _findF.karat)) _findF.karat = '';
+    if (_findF.type && !pool.some(p => p.it.jewelryType === _findF.type)) _findF.type = '';
+  }
+  _findStage = 1;
+  _findRenderFilters();
+  _findRun();
+}
+
+function _findToggleSold() {
+  _findF.sold = !_findF.sold;
+  _findStage = 1;
+  _findRenderFilters();
+  _findRun();
+}
+
+function _findWiden() { _findStage = 2; _findRun(); }
+
+function _findCard(p, m) {
+  const it = p.it;
+  const ref = itemRefCode(it) || it.qrCode || it.code || '';
+  const desc = _resEsc(_itemDesc(it) || invTypeLabel(it.jewelryType));
+  const diff = p.w - m;
+  const diffTxt = Math.abs(diff) < 0.005 ? ''
+    : ` <span style="color:var(--text-muted)">(${diff > 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)})</span>`;
+  const soldMark = it.status === 'sold'
+    ? `<span style="font-family:var(--font-body);font-size:9px;letter-spacing:0.1em;padding:2px 7px;border-radius:10px;background:rgba(220,80,80,0.18);border:1px solid rgba(220,80,80,0.45);color:#e88">${t('findSoldMark')}</span>` : '';
+  const photo = it.photoUrl
+    ? `<img src="${it.photoUrl}" style="width:64px;height:64px;border-radius:8px;object-fit:contain;background:#fff;flex:0 0 auto">`
+    : `<div style="width:64px;height:64px;border-radius:8px;background:var(--dark-3);border:1px solid var(--wa08);flex:0 0 auto"></div>`;
+  const stones = it.stonesDesc
+    ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);margin-top:2px">${_resEsc(stonesDescDisplay(it.stonesDesc))}</div>` : '';
+
+  return `<div style="display:flex;gap:10px;align-items:flex-start;padding:11px;margin-bottom:8px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:10px">
+    ${photo}
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--gold-light);font-weight:600">${_resEsc(ref)}</span>
+        ${soldMark}
+      </div>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text);margin-top:2px;overflow:hidden;text-overflow:ellipsis">${desc}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:3px">
+        ${_resEsc(invTypeLabel(it.jewelryType))} · ${t(it.metal)} ${_findKaratLabel(it.karat)} · <span style="color:var(--gold-light)">${p.w.toFixed(2)} g</span>${diffTxt}
+      </div>
+      ${stones}
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button onclick="invPrintTagFromCard('${p.id}')" style="flex:1;min-width:92px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);font-family:var(--font-body);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer">${t('findPrintTag')}</button>
+        <button onclick="_jumpToInvCard('${p.id}')" style="flex:1;min-width:92px;background:var(--wa06);border:1px solid var(--wa12);color:var(--text-muted);font-family:var(--font-body);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer">${t('findOpenItem')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _findRun() {
+  const box = document.getElementById('findResults');
+  if (!box) return;
+  const raw = (document.getElementById('findWeight')?.value || '').trim();
+  const m = parseFloat(raw);
+  const muted = 'font-family:var(--font-body);font-size:12px;color:var(--text-muted);line-height:1.6;text-align:center;padding:22px 14px';
+
+  if (!raw || !(m > 0)) { box.innerHTML = `<div style="${muted}">${t('findNeedWeight')}</div>`; return; }
+
+  const pool  = _findAllPieces().filter(p => _findFilterOk(p.it));
+  const exact = pool.filter(p => Math.abs(p.w - m) < 0.005);
+  const wide  = pool.filter(p => Math.abs(p.w - m) <= FIND_WIDE + 0.005);
+  const rows  = (_findStage === 1 ? exact : wide)
+    .sort((a, b) => Math.abs(a.w - m) - Math.abs(b.w - m) ||
+                    String(itemRefCode(a.it)).localeCompare(String(itemRefCode(b.it))));
+
+  let html = '';
+  if (rows.length) {
+    const word = rows.length === 1 ? t('findPiece') : t('findPieces');
+    html += `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:9px;padding:0 2px">
+      <span style="font-family:var(--font-body);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold-light)">${_findStage === 1 ? t('findExactTitle') : t('findWideTitle')}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted)">${rows.length} ${word}</span>
+    </div>`;
+    html += rows.map(p => _findCard(p, m)).join('');
+  } else {
+    html += `<div style="${muted}">${_findStage === 1 ? t('findNoneExact') : t('findNoneWide')}</div>`;
+  }
+
+  // Stage 2 is offered whenever it would actually add something, with the count on
+  // the button — so a widen never leads into an empty screen.
+  if (_findStage === 1 && wide.length > exact.length) {
+    html += `<button onclick="_findWiden()" style="width:100%;margin-top:4px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);font-family:var(--font-body);font-size:12px;padding:12px;border-radius:8px;cursor:pointer">
+      ${t('findWidenBtn')} <span style="opacity:.75">— +${wide.length - exact.length}</span></button>`;
+  }
+
+  // Nothing at all within ±0.2 g. The likeliest reason is a stone-set piece whose
+  // stored weight excludes the stone, and the honest answer is to say that and open
+  // the Stock filters rather than guess at an allowance.
+  if (!wide.length) {
+    html += `<div style="${muted};padding-top:4px">${t('findStoneHint')}</div>
+      <button onclick="_findOpenStock()" style="width:100%;background:var(--wa06);border:1px solid var(--wa12);color:var(--text);font-family:var(--font-body);font-size:12px;padding:12px;border-radius:8px;cursor:pointer">${t('findOpenStock')}</button>`;
+  }
+
+  box.innerHTML = html;
+}
+
+// Hand the current narrowing over to the Stock tab's own filters.
+function _findOpenStock() {
+  if (typeof _invFilters !== 'undefined') {
+    const all = _findAllPieces();
+    _invFilters.status = _findF.sold ? ['in_stock', 'sold'] : [];
+    _invFilters.metals = _findF.metal ? [_findF.metal] : [];
+    _invFilters.types  = _findF.type ? [_findF.type] : [];
+    // f.karats is compared against the RAW stored value, which is a string on some
+    // records and a number on others — map back through the pool instead of guessing.
+    _invFilters.karats = _findF.karat
+      ? [...new Set(all.map(p => p.it.karat).filter(k => String(k) === _findF.karat))] : [];
+    _invFilters.gender = _findF.gender ? [_findF.gender] : [];
+  }
+  showPanel('inventory');
+}
+
+const APP_VERSION = '11.81';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
