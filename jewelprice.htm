@@ -18408,6 +18408,13 @@ async function saveInventoryItem(id, item) {
       body: JSON.stringify(item)
     });
     if (res.ok) {
+      // The cache must reflect the saved piece BEFORE _autoDescribe runs. The describe
+      // queue (and _findDescribeBatch / _findSaveDesc under it) resolves the piece by id
+      // out of _inventoryCache — but a NEWLY created item is cached by its caller only
+      // AFTER this function returns, so the drain read `undefined` and skipped it in
+      // silence. That is why edited/old pieces had a photo-search description and every
+      // brand-new one had none. The save succeeded, so the piece genuinely exists here.
+      if (_inventoryCache && !_inventoryCache[id]) _inventoryCache[id] = item;
       syncPublicItem(id, item);   // keep the public showroom feed in step (best-effort)
       _autoDescribe(id, item);    // and give the photo search something to match on
     }
@@ -24863,11 +24870,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.07', date: 'Ιούλιος 2026', items: [
-        "🏷️ Οι ετικέτες από τα «Όμοια είδη» τύπωναν το ΚΕΙΜΕΝΟ του κωδικού αναφοράς (ER0712) αλλά το QR έκρυβε τον παλιό κοινό κωδικό — γι' αυτό ρωτούσε ακόμα «ποιο κρατάς;».",
-        "✅ Τώρα το QR έχει τον κωδικό αναφοράς, όπως σε κάθε άλλη εκτύπωση. Δύο χρώματα = δύο κωδικοί = καμία ερώτηση.",
-        "🔁 Το ίδιο διορθώθηκε και στην επανεκτύπωση μετά από αλλαγή πέτρας και στο restock.",
-        "⚠️ Οι ήδη τυπωμένες ετικέτες θέλουν ξανά τύπωμα (Απόθεμα → 🏷️ TAG).",
+      { version: 'v12.08', date: 'Ιούλιος 2026', items: [
+        "🔎 Τα ΝΕΑ κομμάτια δεν έπαιρναν ποτέ περιγραφή για την αναζήτηση με φωτογραφία — γι' αυτό τα παλιά είχαν και τα καινούργια όχι.",
+        "🐛 Η αυτόματη περιγραφή έψαχνε το κομμάτι στη λίστα πριν προλάβει να μπει σε αυτήν, οπότε το προσπερνούσε αθόρυβα.",
+        "✅ Πλέον κάθε νέο κομμάτι περιγράφεται μόλις αποθηκευτεί, χωρίς να κάνεις τίποτα.",
+        "🔁 Για όσα προστέθηκαν στο μεταξύ: Ρυθμίσεις → «Αναζήτηση με Φωτογραφία» → φτιάξε τις περιγραφές που λείπουν.",
       ]},
       ]
   },
@@ -24898,11 +24905,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.07', date: 'Jul 2026', items: [
-        "🏷️ Tags printed from \"Add similar items\" showed the reference code as TEXT (ER0712) but hid the old shared code in the QR — which is why it still asked \"which one are you holding?\".",
-        "✅ The QR now carries the reference code, like every other print path. Two colours = two codes = no question.",
-        "🔁 The same was fixed for the reprint after a stone change, and for restock.",
-        "⚠️ Tags already printed need reprinting (Stock → 🏷️ TAG).",
+      { version: 'v12.08', date: 'Jul 2026', items: [
+        "🔎 NEW pieces never got a photo-search description — which is why the old ones had one and the new ones didn't.",
+        "🐛 The automatic description looked the piece up in the stock list before it had been added to it, so it skipped it in silence.",
+        "✅ Every new piece is now described the moment it is saved, with nothing for you to do.",
+        "🔁 For the ones added in between: Settings → \"Photo Search\" → build the missing descriptions.",
       ]},
           ]
   }
@@ -29258,7 +29265,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.07';
+const APP_VERSION = '12.08';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
