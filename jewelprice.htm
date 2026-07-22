@@ -20173,9 +20173,11 @@ function renderInvList() {
       if (item.metal !== 'silver' || !item.silverPlating) return '';
       const lbl = silverPlatingLabel(item.silverPlating);
       if (!lbl) return '';
-      const _rose = item.silverPlating === 'rose' || item.silverPlating === 'silver_rose';
-      const c = _rose
+      const _pl = item.silverPlating;
+      const c = (_pl === 'rose' || _pl === 'silver_rose')
         ? { bg:'rgba(255,180,160,0.15)', border:'rgba(255,160,130,0.45)', text:'#ffb4a0' }
+        : (_pl === 'platinum')   // a white finish — mirror the white-gold badge, not the gold one
+        ? { bg:'rgba(220,230,255,0.15)', border:'rgba(200,215,255,0.45)', text:'#c8d8ff' }
         : { bg:'rgba(212,175,55,0.13)',  border:'rgba(212,175,55,0.35)',  text:'var(--gold-light)' };
       return `<span class="inv-card-badge" style="background:${c.bg};border:1px solid ${c.border};color:${c.text};font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${lbl}</span>`;
     })();
@@ -25088,8 +25090,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.12', date: 'Ιούλιος 2026', items: [
-        "✨ Νέο: «Επιχρύσωση» για τα ασημένια — επιχρυσωμένο, ροζ επιχρυσωμένο και οι συνδυασμοί δύο τόνων.",
+      { version: 'v12.13', date: 'Ιούλιος 2026', items: [
+        "✨ Νέο: «Επιχρύσωση» για τα ασημένια — επιχρυσωμένο, ροζ επιχρυσωμένο, επιπλατινωμένο και οι συνδυασμοί δύο τόνων.",
         "📍 Στα ίδια σημεία με το χρώμα χρυσού: Υπολογισμός → Ετικέτα, Απόθεμα → Επεξεργασία, και «Προσθήκη παρόμοιων».",
         "🌐 Στη βιτρίνα η κάρτα γράφει πλέον «Επιχρυσωμένο Ασήμι 925» — κι όχι πια το λανθασμένο «925K».",
         "🔗 Δύο επιχρυσώσεις της ίδιας ομάδας εμφανίζονται ως ξεχωριστές κάρτες στη βιτρίνα, όπως και τα χρώματα χρυσού.",
@@ -25124,8 +25126,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.12', date: 'Jul 2026', items: [
-        "✨ New: \"Plating\" for silver pieces — gold plated, rose gold plated and the two-tone combinations.",
+      { version: 'v12.13', date: 'Jul 2026', items: [
+        "✨ New: \"Plating\" for silver pieces — gold plated, rose gold plated, platinum plated and the two-tone combinations.",
         "📍 In the same three places as gold colour: Calc → Tag, Stock → Edit, and \"Add similar items\".",
         "🌐 The showroom card now reads \"Gold Plated Silver 925\" — and no longer the incorrect \"925K\".",
         "🔗 Two platings of the same group show as separate showroom cards, exactly like gold colours.",
@@ -29671,7 +29673,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.12';
+const APP_VERSION = '12.13';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -29708,6 +29710,8 @@ const SILVER_PLATING = [
     // In front of the metal the short Greek would read «Επιχρυσωμένο & Ροζ Ασήμι» — i.e.
     // "pink silver". The full phrase repeats the participle so it can't be misread.
     pre_el: 'Επιχρυσωμένο & Ροζ Επιχρυσωμένο' },
+  { value: 'platinum',         el: 'Επιπλατινωμένο',              en: 'Platinum Plated',            mode: 'pre' },
+  { value: 'gold_platinum',    el: 'Επιχρυσωμένο & Επιπλατινωμένο', en: 'Gold & Platinum Plated',    mode: 'pre' },
   { value: 'silver_gold',      el: 'Ασήμι & Επιχρυσωμένο',        en: 'Silver & Gold Plated',       mode: 'post',
     post_el: '& Επιχρυσωμένο',      post_en: '& Gold Plated' },
   { value: 'silver_rose',      el: 'Ασήμι & Ροζ Επιχρυσωμένο',    en: 'Silver & Rose Gold Plated',  mode: 'post',
