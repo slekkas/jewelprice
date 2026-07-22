@@ -1329,12 +1329,20 @@
 
 <script>
 // ─── CONFIG ────────────────────────────────────────────────────────────────────
-const SHOWROOM_PASSWORD = 'lekkas2025';   // ← change this whenever you like
+// Legacy fallback, used only until the owner sets a code from the app (Sync tab), and
+// whenever the gate config below cannot be read (offline / node missing). Keeping it
+// means an unreachable Firebase leaves the door SHUT, never open.
+const SHOWROOM_PASSWORD = 'lekkas2025';
 const FIREBASE_URL      = 'https://jewelprice-33846-default-rtdb.europe-west1.firebasedatabase.app';
 // This page reads ONLY the public, display-only feed at /jewelprice_public
 // (Firebase rule: read-only, world-readable). It must NEVER carry the master
 // DB secret or read the private /jewelprice_inventory node — see CLAUDE.md.
 const PUBLIC_PATH       = '/jewelprice_public';
+// Owner-controlled gate: { enabled: bool, hash: <sha256 hex of the code> }. Written from
+// the app's Sync tab, world-readable like /jewelprice_public. Only the HASH lives here —
+// the readable code is kept in the app's PRIVATE config for the owner's own reference,
+// so a world-readable node never carries the code itself.
+const SHOWROOM_CFG_PATH = '/jewelprice_showroom_config';
 const EMAILJS_SERVICE   = 'service_hnnyy5h';   // ← fill after EmailJS setup
 const EMAILJS_TEMPLATE  = 'template_d31sgws';  // ← fill after EmailJS setup
 const EMAILJS_PUBLIC    = 'NiGGzsEeq15508VzX';   // ← fill after EmailJS setup
@@ -1520,14 +1528,51 @@ function setLang(l) {
 }
 
 // ─── PASSWORD ──────────────────────────────────────────────────────────────────
-function checkPassword() {
-  const val = document.getElementById('passwordInput').value;
-  if (val === SHOWROOM_PASSWORD) {
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('mainContent').style.display = 'block';
-    loadInventory();
+// The gate is a DOORMAN, not a lock, and always was: this page is public and the check
+// runs in the browser, so anyone determined can read past it. It keeps casual visitors
+// and search engines out — that is its whole job. Do not treat it as protecting data;
+// what protects the data is that /jewelprice_public carries no prices or costs.
+let _srGate = null;                       // { enabled, hash } once loaded
+const _srGateReady = _loadShowroomGate(); // starts immediately, awaited by checkPassword
+
+async function _loadShowroomGate() {
+  try {
+    const r = await fetch(`${FIREBASE_URL}${SHOWROOM_CFG_PATH}.json`, { cache: 'no-store' });
+    if (r.ok) _srGate = await r.json();
+  } catch (e) { /* offline → legacy code below, i.e. the door stays shut */ }
+  // Gate switched off by the owner: skip the lock screen entirely.
+  if (_srGate && _srGate.enabled === false) _srUnlock();
+  return _srGate;
+}
+
+async function _sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function _srUnlock() {
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  loadInventory();
+}
+
+async function checkPassword() {
+  const inp = document.getElementById('passwordInput');
+  const val = inp.value;
+  await _srGateReady;               // a fast typist must not beat the config fetch
+  let ok = false;
+  if (_srGate && _srGate.hash) {
+    // crypto.subtle needs a secure context; the live site is https, so this is the
+    // normal path. If it ever fails we deliberately fail CLOSED rather than falling
+    // back — SHOWROOM_PASSWORD is visible in this public file, so honouring it once
+    // the owner has set his own code would be a published backdoor.
+    try { ok = (await _sha256Hex(val)) === _srGate.hash; } catch (e) { ok = false; }
+  } else if (val === SHOWROOM_PASSWORD) {
+    ok = true;   // no code set from the app yet → the original one still works
+  }
+  if (ok) {
+    _srUnlock();
   } else {
-    const inp = document.getElementById('passwordInput');
     const err = document.getElementById('lockError');
     inp.classList.add('error');
     err.textContent = lang === 'el' ? 'Λάθος κωδικός. Δοκιμάστε ξανά.' : 'Incorrect password. Please try again.';
