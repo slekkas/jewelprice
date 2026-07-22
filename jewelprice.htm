@@ -25175,12 +25175,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.14', date: 'Ιούλιος 2026', items: [
-        "✨ Νέο: αυτόματη στρογγυλοποίηση τιμής. Σκανάρετε ένα κομμάτι και ο πελάτης βλέπει 240,00 αντί για 239,42.",
-        "🎯 Στρογγυλοποιεί στα πλησιέστερα 5 €: 80, 85, 90, 155, 160… (82,49 → 80 · 82,50 → 85).",
-        "🔓 Η ακριβής τιμή δεν χάνεται πουθενά — πατήστε το ✕ δίπλα στη στρογγυλοποίηση και επανέρχεται.",
-        "💶 Κομμάτια κάτω από 20 € κρατούν την ακριβή τιμή τους (μια στρογγυλοποίηση 2,50 € είναι πολλή για ένα κομμάτι των 5 €).",
-        "⚙️ Ρυθμίσεις → Φόρος & Περιθώριο: απενεργοποιήστε το ή αλλάξτε το βήμα (1 €, 5 €, 10 €) και το κατώφλι όποτε θέλετε.",
+      { version: 'v12.15', date: 'Ιούλιος 2026', items: [
+        "🖼️ Φωτογραφία σε κάθε κομμάτι μέσα στην ομάδα — πατήστε την για μεγέθυνση.",
+        "🔁 Αν τα κομμάτια είναι ίδια, η φωτογραφία εμφανίζεται μία φορά, στο πρώτο· αν διαφέρουν (π.χ. κόκκινο και γαλάζιο), το καθένα δείχνει τη δική του.",
       ]},
       ]
   },
@@ -25211,12 +25208,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.14', date: 'Jul 2026', items: [
-        "✨ New: automatic price rounding. Scan a piece and the customer sees 240.00 instead of 239.42.",
-        "🎯 Rounds to the nearest €5: 80, 85, 90, 155, 160… (82.49 → 80 · 82.50 → 85).",
-        "🔓 The exact price is never lost — tap the ✕ next to the rounding box and it comes straight back.",
-        "💶 Pieces under €20 keep their exact price (a €2.50 rounding is a lot on a €5 piece).",
-        "⚙️ Settings → Tax & Margin: switch it off, or change the step (€1, €5, €10) and the threshold, whenever you like.",
+      { version: 'v12.15', date: 'Jul 2026', items: [
+        "🖼️ A photo on every piece inside a group — tap it to enlarge.",
+        "🔁 Identical pieces show the photo once, on the first one; pieces that differ (a red and a light blue) each show their own.",
       ]},
           ]
   }
@@ -29758,7 +29752,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.14';
+const APP_VERSION = '12.15';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -30989,6 +30983,10 @@ function openInvGroup(gid) {
   const _piecesCollapsed = members.length > 8;
   const typeStr = rep.jewelryType ? invTypeLabel(rep.jewelryType) : '';
   const title = [typeStr, (rep.isCoin ? coinItemLabel(rep) : _itemDesc(rep))].filter(Boolean).join(' · ') || (rep.qrCode || '—');
+  // One thumbnail per DISTINCT photo. Pieces that actually differ (a red and a light blue)
+  // each show their own picture; a batch of identical pieces shares one photo, so it appears
+  // once — on the first row — rather than repeating the same image down the whole list.
+  const _seenPhotos = new Set();
   const rowsHtml = members.map(([id, it]) => {
     const p = calcInvItemPrice(it);
     // Coins: value row (live melt + suggested) + Sell/Delete only — Calc/Share/Tag/Edit
@@ -31049,11 +31047,19 @@ function openInvGroup(gid) {
     // their own code (REF_TAG_DESIGN.md), so this is what tells them apart; the descriptive
     // code sits underneath, quieter, since it no longer identifies anything on its own.
     const _pieceRef = it.seqId ? itemRefCode(it) : '';
+    let _thumb = '';
+    if (it.photoUrl && !_seenPhotos.has(it.photoUrl)) {
+      _seenPhotos.add(it.photoUrl);
+      _thumb = _findThumb(it, 56);   // tap to enlarge (photoUrlHi), same as the Find results
+    }
     return `<div style="padding:11px 2px 12px;border-bottom:1px solid var(--wa06)">
-      <div style="margin-bottom:8px">
-        ${_pieceRef ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);letter-spacing:0.06em">${_pieceRef}</div>` : ''}
-        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);word-break:break-all${_pieceRef ? ';margin-top:1px' : ''}">${it.qrCode || it.code || '—'}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${sub}</div>
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px">
+        ${_thumb}
+        <div style="flex:1 1 auto;min-width:0">
+          ${_pieceRef ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--gold-light);letter-spacing:0.06em">${_pieceRef}</div>` : ''}
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);word-break:break-all${_pieceRef ? ';margin-top:1px' : ''}">${it.qrCode || it.code || '—'}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${sub}</div>
+        </div>
       </div>
       ${apprecHtml}
       <div style="display:flex;flex-wrap:wrap;gap:6px">
