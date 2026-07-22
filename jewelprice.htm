@@ -1671,6 +1671,17 @@
       <h3 data-i18n="taxMargin">Φόρος & Περιθώριο</h3>
       <div class="field"><label data-i18n="vat">ΦΠΑ (%)</label><input type="number" id="vatPct" placeholder="17" step="0.1" inputmode="decimal"></div>
       <div class="field"><label data-i18n="margin">Περιθώριο Κέρδους (%)</label><input type="number" id="marginPct" placeholder="35" step="0.1" inputmode="decimal"></div>
+      <div class="field">
+        <label data-i18n="autoRoundLbl">Αυτόματη στρογγυλοποίηση τιμής</label>
+        <select id="autoRoundStepSelect" style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 12px">
+          <option value="0" data-i18n="autoRoundOff">Απενεργοποιημένη — ακριβής τιμή</option>
+          <option value="1">1 € — 239, 240, 241</option>
+          <option value="5">5 € — 80, 85, 90, 240</option>
+          <option value="10">10 € — 80, 90, 240, 250</option>
+        </select>
+        <div class="hint" data-i18n="autoRoundHint">Όταν σκανάρετε ή πληκτρολογείτε τον κωδικό ενός κομματιού, η τιμή που βλέπει ο πελάτης στρογγυλοποιείται (π.χ. 239,42 → 240). Η ακριβής τιμή δεν αλλάζει πουθενά — πατήστε ✕ δίπλα στη στρογγυλοποίηση για να τη δείτε.</div>
+      </div>
+      <div class="field"><label data-i18n="autoRoundMinLbl">Στρογγυλοποίηση μόνο από (€)</label><input type="number" id="autoRoundMinInput" placeholder="20" step="1" inputmode="decimal"><div class="hint" data-i18n="autoRoundMinHint">Κομμάτια φθηνότερα από αυτό το ποσό κρατούν την ακριβή τους τιμή (μια στρογγυλοποίηση 2,50€ είναι πολλή για ένα κομμάτι των 5€).</div></div>
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
       <div class="field"><label data-i18n="refiningLossLbl">Απώλεια καθαρισμού μετάλλου (%)</label><input type="number" id="refiningLossInput" placeholder="3" step="0.1" inputmode="decimal"><div class="hint" data-i18n="refiningLossHint">Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.</div></div>
@@ -3291,6 +3302,12 @@ const T = {
     coinMarkupSilverHint:'0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.',
     refiningLossLbl:'Απώλεια καθαρισμού μετάλλου (%)',
     refiningLossHint:'Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.',
+    autoRoundLbl:'Αυτόματη στρογγυλοποίηση τιμής',
+    autoRoundHint:'Όταν σκανάρετε ή πληκτρολογείτε τον κωδικό ενός κομματιού, η τιμή που βλέπει ο πελάτης στρογγυλοποιείται (π.χ. 239,42 → 240). Η ακριβής τιμή δεν αλλάζει πουθενά — πατήστε ✕ δίπλα στη στρογγυλοποίηση για να τη δείτε.',
+    autoRoundOff:'Απενεργοποιημένη — ακριβής τιμή',
+    autoRoundNearest:'Στα πλησιέστερα',
+    autoRoundMinLbl:'Στρογγυλοποίηση μόνο από (€)',
+    autoRoundMinHint:'Κομμάτια φθηνότερα από αυτό το ποσό κρατούν την ακριβή τους τιμή (μια στρογγυλοποίηση 2,50€ είναι πολλή για ένα κομμάτι των 5€).',
     invAddMetalBtn:'🧱 Προσθήκη μετάλλου',
     metalAddedValueLbl:'Αξία κατά την προσθήκη',
     metalModalAddTitle:'🧱 Προσθήκη μετάλλου',
@@ -4018,6 +4035,12 @@ const T = {
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
     refiningLossLbl:'Metal refining loss (%)',
     refiningLossHint:'How much is lost when you melt/refine scrap into pure gold/silver. Used for the gain when you buy metal below its value.',
+    autoRoundLbl:'Automatic price rounding',
+    autoRoundHint:'When you scan or type a piece\'s code, the price the customer sees is rounded (e.g. 239.42 → 240). The exact price is not changed anywhere — tap the ✕ next to the rounding box to see it.',
+    autoRoundOff:'Off — show the exact price',
+    autoRoundNearest:'Nearest',
+    autoRoundMinLbl:'Only round from (€)',
+    autoRoundMinHint:'Pieces cheaper than this keep their exact price (a €2.50 rounding is a lot on a €5 piece).',
     invAddMetalBtn:'🧱 Add Metal',
     metalAddedValueLbl:'Value when added',
     metalModalAddTitle:'🧱 Add metal',
@@ -4423,7 +4446,8 @@ function defaultState() {
     // 17% = Karpathos reduced island VAT rate (not the 24% mainland rate).
     // Only used until applyCloudConfig loads the owner's saved value.
     vat: 17, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
-    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3
+    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3,
+    autoRoundStep: 5, autoRoundMin: 20
   };
 }
 
@@ -4767,6 +4791,7 @@ function cloudConfig() {
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
            customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
+           autoRoundStep: state.autoRoundStep, autoRoundMin: state.autoRoundMin,
            aiKey: localStorage.getItem('jpro_ai_key') || '',
            imgbbKey: localStorage.getItem('jpro_imgbb_key') || '',
            cldName: localStorage.getItem('jpro_cld_name') || '',
@@ -4824,6 +4849,8 @@ function applyCloudConfig(cfg) {
   if (cfg.coinMarkupSilver !== undefined) state.coinMarkupSilver = cfg.coinMarkupSilver;
   if (cfg.customCoins !== undefined) state.customCoins = cfg.customCoins;
   if (cfg.refiningLoss !== undefined) state.refiningLoss = cfg.refiningLoss;
+  if (cfg.autoRoundStep !== undefined) state.autoRoundStep = cfg.autoRoundStep;
+  if (cfg.autoRoundMin !== undefined) state.autoRoundMin = cfg.autoRoundMin;
   // Sync owner PIN so employees are prompted when switching to Owner
   if (cfg.ownerPin) localStorage.setItem('jpro_owner_pin', cfg.ownerPin);
   if (cfg.telegramToken) {
@@ -14189,9 +14216,51 @@ function calculate() {
     const rBtn = document.getElementById('roundApplyBtn');
     if (rBtn) rBtn.textContent = '+';
   }
+  // Round the customer-facing figure for a piece that is actually in hand (see autoRoundPrice).
+  _autoRoundScannedPrice(finalPrice);
 }
 
 // ─── FINAL PRICE ROUNDING ────────────────────────────────────────────────────
+// A piece is priced to the cent (€239.42). That is the right number for the owner and the
+// wrong one to read out to a customer, so when a REAL tagged piece is looked up (scanned,
+// typed, or loaded with the Stock card's +) the figure shown is rounded to a jeweller's
+// price — 80, 85, 90, 240. Display only: nothing is written to the record, the Stock card
+// keeps the exact price, and one tap on the ✕ in the rounding box brings the cents back.
+// Off, step and floor all live in Settings so the owner can change or revert it himself.
+// (Other-type items have always rounded to the nearest 5 in calculateOtherPrice.)
+function _autoRoundStep() { const v = parseFloat(state.autoRoundStep); return isNaN(v) ? 5 : Math.max(0, v); }
+function _autoRoundMin()  { const v = parseFloat(state.autoRoundMin);  return isNaN(v) ? 20 : Math.max(0, v); }
+
+// Returns the rounded price, or null when nothing should change.
+function autoRoundPrice(price) {
+  const step = _autoRoundStep();
+  if (!step || !(price > 0)) return null;
+  // Below the floor a €2.50 move is a huge percentage (a €5 clasp would become €7.50),
+  // so cheap pieces keep their exact price.
+  if (price < _autoRoundMin()) return null;
+  const rounded = Math.round(price / step) * step;
+  if (!(rounded > 0)) return null;                      // never round a price away to €0
+  if (Math.abs(rounded - price) < 0.005) return null;   // already round — leave it alone
+  return rounded;
+}
+
+// Only for a piece that is actually in hand. Creating a NEW piece from scratch has no code
+// in the box and must keep its exact figure — that number is what the owner is pricing it at.
+function _autoRoundScannedPrice(finalPrice) {
+  try {
+    if (!lastCalcResult) return;
+    if (!document.getElementById('codeInput')?.value.trim()) return;
+    const target = autoRoundPrice(parseFloat(finalPrice));
+    if (target === null) return;
+    applyRoundedPrice(target);
+    // Fill the rounding box too, so it is visible that it happened and the ✕ undoes it.
+    const inp = document.getElementById('roundPriceInput');
+    const btn = document.getElementById('roundApplyBtn');
+    if (inp) inp.value = target;
+    if (btn) btn.textContent = '✕';
+  } catch (e) { console.warn('auto-round failed', e); }
+}
+
 function _refreshBreakdownTail() {
   if (!lastCalcResult) return;
   const cur = state.currency || '€';
@@ -14247,12 +14316,20 @@ function applyRoundedPrice(val) {
   if (!lastCalcResult || isNaN(rounded) || rounded <= 0) return;
   const cur = state.currency || '€';
   const retail = parseFloat(lastCalcResult.retail);
-  // Back-calculate effective discount from rounded price vs full retail
-  const effectiveDiscountAmt = retail - rounded;
+  // Back-calculate effective discount from rounded price vs full retail. Rounding UP is not a
+  // negative discount — it is simply the price, so clamp at 0 rather than storing a minus
+  // figure that would print as "-0.24% discount" on a quote.
+  const effectiveDiscountAmt = Math.max(0, retail - rounded);
   const effectiveDiscountPct = retail > 0 ? (effectiveDiscountAmt / retail) * 100 : 0;
 
   // Update display
   document.getElementById('retailPriceDisplay').textContent = cur + rounded.toFixed(2);
+  // Keep the ex-VAT line under the price in step with the figure above it.
+  const _pvEl = document.getElementById('preVatDisplay');
+  if (_pvEl && _pvEl.style.display !== 'none') {
+    const _vatPct = parseFloat(lastCalcResult.vat) || 0;
+    _pvEl.textContent = (lang === 'el' ? 'χωρίς ΦΠΑ ' : 'excl. VAT ') + cur + (rounded / (1 + _vatPct / 100)).toFixed(2);
+  }
   const badge = document.getElementById('discountBadge');
   if (effectiveDiscountPct > 0.001) {
     badge.innerHTML = `<div class="cpb-badge"><span class="badge-pct">-${effectiveDiscountPct.toFixed(1)}%</span><span class="badge-saved">${t('rSave')} ${cur}${effectiveDiscountAmt.toFixed(2)}</span></div>`;
@@ -14274,6 +14351,10 @@ function resetRoundedPrice() {
   // Restore to the original calculated final price
   const original = parseFloat(lastCalcResult._originalFinalPrice || lastCalcResult.finalPrice);
   document.getElementById('retailPriceDisplay').textContent = cur + original.toFixed(2);
+  const _pvEl = document.getElementById('preVatDisplay');
+  if (_pvEl && _pvEl.style.display !== 'none' && lastCalcResult.preVat != null) {
+    _pvEl.textContent = (lang === 'el' ? 'χωρίς ΦΠΑ ' : 'excl. VAT ') + cur + parseFloat(lastCalcResult.preVat).toFixed(2);
+  }
   const origDiscount = parseFloat(lastCalcResult._originalDiscount || 0);
   const origDiscountAmt = parseFloat(lastCalcResult._originalDiscountAmt || 0);
   const badge = document.getElementById('discountBadge');
@@ -16586,6 +16667,8 @@ function loadSettingsForm() {
   { const _cm = document.getElementById('coinMarkupInput'); if (_cm) _cm.value = (state.coinMarkup != null && state.coinMarkup !== '') ? state.coinMarkup : ''; }
   { const _cms = document.getElementById('coinMarkupSilverInput'); if (_cms) _cms.value = (state.coinMarkupSilver != null && state.coinMarkupSilver !== '') ? state.coinMarkupSilver : ''; }
   { const _rl = document.getElementById('refiningLossInput'); if (_rl) _rl.value = (state.refiningLoss != null && state.refiningLoss !== '') ? state.refiningLoss : ''; }
+  { const _ar = document.getElementById('autoRoundStepSelect'); if (_ar) _ar.value = String(_autoRoundStep()); }
+  { const _arm = document.getElementById('autoRoundMinInput'); if (_arm) _arm.value = _autoRoundMin(); }
   renderCustomCoinsManager();
   // Populate weight tier rows
   const tierInputRows = document.querySelectorAll('.tier-row');
@@ -16607,6 +16690,8 @@ function saveSettings() {
   { const _cmv = document.getElementById('coinMarkupInput'); const _cmn = _cmv ? parseFloat(_cmv.value) : NaN; state.coinMarkup = isNaN(_cmn) ? 30 : _cmn; }
   { const _cmsv = document.getElementById('coinMarkupSilverInput'); const _cmsn = _cmsv ? parseFloat(_cmsv.value) : NaN; state.coinMarkupSilver = isNaN(_cmsn) ? 0 : _cmsn; }
   { const _rlv = document.getElementById('refiningLossInput'); const _rln = _rlv ? parseFloat(_rlv.value) : NaN; state.refiningLoss = isNaN(_rln) ? 3 : Math.max(0, Math.min(100, _rln)); }
+  { const _arv = document.getElementById('autoRoundStepSelect'); const _arn = _arv ? parseFloat(_arv.value) : NaN; state.autoRoundStep = isNaN(_arn) ? 5 : Math.max(0, _arn); }
+  { const _armv = document.getElementById('autoRoundMinInput'); const _armn = _armv ? parseFloat(_armv.value) : NaN; state.autoRoundMin = isNaN(_armn) ? 20 : Math.max(0, _armn); }
   // Collect weight tiers
   const tierRows = document.querySelectorAll('.tier-row');
   state.weightTiers = [];
@@ -25090,12 +25175,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.13', date: 'Ιούλιος 2026', items: [
-        "✨ Νέο: «Επιχρύσωση» για τα ασημένια — επιχρυσωμένο, ροζ επιχρυσωμένο, επιπλατινωμένο και οι συνδυασμοί δύο τόνων.",
-        "📍 Στα ίδια σημεία με το χρώμα χρυσού: Υπολογισμός → Ετικέτα, Απόθεμα → Επεξεργασία, και «Προσθήκη παρόμοιων».",
-        "🌐 Στη βιτρίνα η κάρτα γράφει πλέον «Επιχρυσωμένο Ασήμι 925» — κι όχι πια το λανθασμένο «925K».",
-        "🔗 Δύο επιχρυσώσεις της ίδιας ομάδας εμφανίζονται ως ξεχωριστές κάρτες στη βιτρίνα, όπως και τα χρώματα χρυσού.",
-        "🔎 Νέο φίλτρο «Επιχρύσωση» — στο Απόθεμα και στη βιτρίνα.",
+      { version: 'v12.14', date: 'Ιούλιος 2026', items: [
+        "✨ Νέο: αυτόματη στρογγυλοποίηση τιμής. Σκανάρετε ένα κομμάτι και ο πελάτης βλέπει 240,00 αντί για 239,42.",
+        "🎯 Στρογγυλοποιεί στα πλησιέστερα 5 €: 80, 85, 90, 155, 160… (82,49 → 80 · 82,50 → 85).",
+        "🔓 Η ακριβής τιμή δεν χάνεται πουθενά — πατήστε το ✕ δίπλα στη στρογγυλοποίηση και επανέρχεται.",
+        "💶 Κομμάτια κάτω από 20 € κρατούν την ακριβή τιμή τους (μια στρογγυλοποίηση 2,50 € είναι πολλή για ένα κομμάτι των 5 €).",
+        "⚙️ Ρυθμίσεις → Φόρος & Περιθώριο: απενεργοποιήστε το ή αλλάξτε το βήμα (1 €, 5 €, 10 €) και το κατώφλι όποτε θέλετε.",
       ]},
       ]
   },
@@ -25126,12 +25211,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.13', date: 'Jul 2026', items: [
-        "✨ New: \"Plating\" for silver pieces — gold plated, rose gold plated, platinum plated and the two-tone combinations.",
-        "📍 In the same three places as gold colour: Calc → Tag, Stock → Edit, and \"Add similar items\".",
-        "🌐 The showroom card now reads \"Gold Plated Silver 925\" — and no longer the incorrect \"925K\".",
-        "🔗 Two platings of the same group show as separate showroom cards, exactly like gold colours.",
-        "🔎 New \"Plating\" filter — in Stock and in the showroom.",
+      { version: 'v12.14', date: 'Jul 2026', items: [
+        "✨ New: automatic price rounding. Scan a piece and the customer sees 240.00 instead of 239.42.",
+        "🎯 Rounds to the nearest €5: 80, 85, 90, 155, 160… (82.49 → 80 · 82.50 → 85).",
+        "🔓 The exact price is never lost — tap the ✕ next to the rounding box and it comes straight back.",
+        "💶 Pieces under €20 keep their exact price (a €2.50 rounding is a lot on a €5 piece).",
+        "⚙️ Settings → Tax & Margin: switch it off, or change the step (€1, €5, €10) and the threshold, whenever you like.",
       ]},
           ]
   }
@@ -29673,7 +29758,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.13';
+const APP_VERSION = '12.14';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
