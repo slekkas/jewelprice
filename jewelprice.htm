@@ -1879,6 +1879,7 @@
         </div>
         <button class="save-btn" onclick="ownerSaveAndPush()" data-i18n="savePush">💾 Αποθήκευση & Ανέβασμα</button>
         <button class="save-btn" onclick="showShareOptions()" style="margin-top:8px;border-color:rgba(176,184,200,0.4);color:var(--silver-light)" id="shareBtnEl">📤 <span id="shareBtnText">Κοινοποίηση Εφαρμογής</span></button>
+        <button class="save-btn" onclick="openRecoveryCard()" style="margin-top:8px;border-color:rgba(201,168,76,0.4);color:var(--gold)" id="recoveryCardBtnEl">🔑 <span data-i18n="recoveryCardBtn">Κάρτα Ανάκτησης</span></button>
         <div class="status-bar" id="ownerStatus"></div>
         <div id="binIdDisplay" style="display:none; margin-top:12px;">
           <div class="sync-indicator synced">
@@ -3324,6 +3325,7 @@ const T = {
     empBinIdLabel:'Firebase Database URL (από τον ιδιοκτήτη)',
     connectSync:'🔗 Σύνδεση & Συγχρονισμός',
     savePush:'💾 Αποθήκευση & Ανέβασμα',
+    recoveryCardBtn:'Κάρτα Ανάκτησης',
     configLive:'Η ρύθμιση είναι ζωντανή — μοιραστείτε το Firebase URL',
     yourBinId:'Firebase URL (κοινοποιήστε στους υπαλλήλους)',
     empApiKeyHint:'Ζητήστε το από τον ιδιοκτήτη',
@@ -3784,6 +3786,7 @@ const T = {
     empBinIdLabel:'Firebase Database URL (from your owner)',
     connectSync:'🔗 Connect & Sync',
     savePush:'💾 Save & Push to Cloud',
+    recoveryCardBtn:'Recovery Card',
     configLive:'Config live in cloud — share Firebase URL with employees',
     yourBinId:'Firebase URL (share with employees)',
     empApiKeyHint:'Ask your owner for this',
@@ -14623,7 +14626,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // Restore cart UI if items were persisted in sessionStorage
   if (quoteCart.length > 0) updateCartUI();
   _jpInitBackGuard();
+  _requestPersistentStorage();
 });
+
+// Ask the browser to mark this origin's storage as PERSISTENT.
+//
+// Everything the app keeps on the device lives in localStorage: the Firebase credentials
+// (`jpro_creds` — the DB secret is the one setting the cloud cannot restore, since it is
+// what unlocks the cloud in the first place), the offline OUTBOX of unsent sales
+// (`jpro_outbox`, v11.65), the last good spot prices, and the saved settings.
+//
+// Without this flag a browser may evict that storage on its own when the device runs low
+// on space — silently, with no prompt, taking unsent offline sales with it. Persistent
+// storage tells it this data is not disposable.
+//
+// It does NOT (and cannot) stop the user manually clearing site data — that is the
+// browser's own button and no page can block it. For that case the answer is the
+// Recovery Card in the Sync tab (openRecoveryCard), which is how a wiped device gets
+// back in. Fire-and-forget: unsupported browsers and a refusal are both harmless.
+async function _requestPersistentStorage() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    // Already granted (e.g. an installed PWA often gets it automatically) — don't re-ask.
+    if (navigator.storage.persisted && await navigator.storage.persisted()) return;
+    await navigator.storage.persist();
+  } catch (e) {}
+}
 
 function toggleRateType(btn) {
   // Cycle: pergram → flat → peritem → pergram
@@ -24767,10 +24795,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.02', date: 'Ιούλιος 2026', items: [
-        "🔕 Τέλος το «Αποθήκευση κωδικού;» του browser σε κάθε αλλαγή καρτέλας. Δεν υπάρχει σύνδεση με κωδικό εδώ — ο μόνος αληθινός κωδικός είναι του Showroom.",
-        "🧹 Έτσι σταματάει και το να γεμίζουν μόνα τους κάποια πεδία με άσχετους αριθμούς (π.χ. 5.8 από κάποιο βάρος).",
-        "👁️ Τα τρία μυστικά πεδία στο Συγχρονισμό (Database Secret, Owner PIN, OpenRouter Key) δείχνουν κανονικά τελείες, όπως πριν.",
+      { version: 'v12.03', date: 'Ιούλιος 2026', items: [
+        "🔑 Νέα «Κάρτα Ανάκτησης» στο Συγχρονισμό: δείχνει το Firebase URL και το Database Secret, με Αντιγραφή και Εκτύπωση. Τύπωσέ την μία φορά και βάλ' την στο χρηματοκιβώτιο.",
+        "🛟 Είναι το μόνο πράγμα που δεν επιστρέφει μόνο του από το cloud — το PIN, το Telegram και το κλειδί OpenRouter ξανακατεβαίνουν μόνα τους.",
+        "🔒 Η εφαρμογή ζητά πλέον «μόνιμη αποθήκευση» από τον browser, ώστε να μη σβήνει μόνος του δεδομένα όταν γεμίσει το κινητό — προστατεύει και τις πωλήσεις που περιμένουν να συγχρονιστούν.",
       ]},
       ]
   },
@@ -24801,10 +24829,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.02', date: 'Jul 2026', items: [
-        "🔕 No more \"Save password?\" from the browser on every tab change. There is no password login in this app — the only real password is the Showroom's.",
-        "🧹 This also stops stray numbers autofilling themselves into fields (e.g. 5.8 from a weight you once typed).",
-        "👁️ The three secret fields in Sync (Database Secret, Owner PIN, OpenRouter Key) still show dots exactly as before.",
+      { version: 'v12.03', date: 'Jul 2026', items: [
+        "🔑 New \"Recovery Card\" in Sync: shows your Firebase URL and Database Secret, with Copy and Print. Print it once and put it in the safe.",
+        "🛟 It is the one thing that cannot come back from the cloud by itself — the PIN, Telegram token and OpenRouter key all restore on their own.",
+        "🔒 The app now asks the browser for \"persistent storage\", so it won't quietly discard data when the phone runs low on space — this also protects sales still waiting to sync.",
       ]},
           ]
   }
@@ -26576,6 +26604,135 @@ function showShareOptions() {
 
 function closeShareModal() {
   document.getElementById('shareModal').style.display = 'none';
+}
+
+// ── RECOVERY CARD ──────────────────────────────────────────────────────────────
+// Everything this device keeps lives in localStorage, and the browser's "clear site data"
+// button can wipe it — no page can prevent that (_requestPersistentStorage only stops the
+// browser evicting storage on its OWN initiative). The shop's records are never at risk:
+// they are in Firebase. What is lost is this device's ability to REACH them.
+//
+// Of the four secrets in the Sync tab, three (Owner PIN, Telegram token, OpenRouter key)
+// are mirrored into the Firebase config by pushToCloud and come back by themselves on the
+// next connect. The Database Secret cannot: it is what unlocks the cloud, so it can never
+// be restored FROM the cloud. It lives only in `jpro_creds`. This card is its paper copy.
+//
+// Deliberately NO QR code. Every QR in this app is rendered by api.qrserver.com, which
+// would mean handing a master write-credential to a third-party server — the same reason
+// the secret is kept out of the JSON backups that sync to Google Drive. Copy and print only.
+function openRecoveryCard() {
+  const isEl = lang === 'el';
+  if (!creds.binId || !creds.dbSecret) {
+    showToast(isEl
+      ? '⚠️ Δεν υπάρχει ακόμα Database Secret σε αυτή τη συσκευή.'
+      : '⚠️ There is no Database Secret on this device yet.');
+    return;
+  }
+  closeRecoveryCard();
+  const ov = document.createElement('div');
+  ov.id = 'recoveryCardOverlay';
+  // Anchored to the TOP (not centred): the secret is long and this must stay reachable on
+  // a short screen — same rule as every other scrollable sheet in the app.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.82);' +
+    'display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;' +
+    'padding:16px;padding-top:max(16px,env(safe-area-inset-top))';
+  const box = 'background:var(--dark-2);border:1px solid rgba(201,168,76,0.35);border-radius:16px;' +
+    'max-width:440px;width:100%;margin:auto;padding:20px;box-sizing:border-box';
+  const fieldCss = 'background:var(--dark-3);border:1px solid rgba(201,168,76,0.25);border-radius:8px;' +
+    'padding:10px 12px;font-family:var(--font-mono);font-size:12px;color:var(--text);' +
+    'word-break:break-all;user-select:all;-webkit-user-select:all;margin-bottom:12px';
+  const btn = 'flex:1;min-width:120px;padding:11px;border-radius:9px;font-family:var(--font-body);' +
+    'font-size:13px;font-weight:600;cursor:pointer';
+  ov.innerHTML = `
+    <div style="${box}">
+      <h3 style="margin:0 0 4px;color:var(--gold);font-size:17px">🔑 ${isEl ? 'Κάρτα Ανάκτησης' : 'Recovery Card'}</h3>
+      <p style="margin:0 0 14px;font-size:12.5px;color:var(--text-muted);line-height:1.5">
+        ${isEl
+          ? 'Τύπωσέ την ή βγάλε της φωτογραφία και φύλαξέ την στο χρηματοκιβώτιο. Με αυτά τα δύο ξαναμπαίνεις σε οποιαδήποτε συσκευή, αν ποτέ σβηστούν τα δεδομένα του browser.'
+          : 'Print it or photograph it and keep it in the safe. These two get you back in on any device, if the browser data is ever cleared.'}
+      </p>
+      <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px">Firebase URL</div>
+      <div style="${fieldCss}">${_gcEsc(creds.binId)}</div>
+      <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px">Database Secret</div>
+      <div style="${fieldCss}">${_gcEsc(creds.dbSecret)}</div>
+      <div style="background:rgba(224,90,90,0.10);border:1px solid rgba(224,90,90,0.35);border-radius:8px;padding:10px 12px;font-size:12px;color:#e88;line-height:1.5;margin-bottom:14px">
+        ${isEl
+          ? '⚠️ Το Secret δίνει πλήρη πρόσβαση στη βάση. Μην το στείλεις με email ή WhatsApp και μην το ανεβάσεις πουθενά.'
+          : '⚠️ The secret grants full access to the database. Do not email or message it, and do not upload it anywhere.'}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button id="recCopyBtn" onclick="_recCopy()" style="${btn};background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.45);color:var(--gold)">📋 ${isEl ? 'Αντιγραφή' : 'Copy'}</button>
+        <button onclick="_recPrint()" style="${btn};background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.45);color:var(--gold)">🖨 ${isEl ? 'Εκτύπωση' : 'Print'}</button>
+      </div>
+      <button onclick="closeRecoveryCard()" style="width:100%;padding:11px;border-radius:9px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>
+    </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) closeRecoveryCard(); });
+  document.body.appendChild(ov);
+}
+
+function closeRecoveryCard() {
+  const ov = document.getElementById('recoveryCardOverlay');
+  if (ov) ov.remove();
+}
+
+function _recCopy() {
+  const isEl = lang === 'el';
+  const txt = 'JewelPrice Pro — ' + (isEl ? 'Κάρτα Ανάκτησης' : 'Recovery Card') + '\n\n' +
+              'Firebase URL: ' + creds.binId + '\n' +
+              'Database Secret: ' + creds.dbSecret + '\n';
+  const done = () => {
+    const b = document.getElementById('recCopyBtn');
+    if (!b) return;
+    const o = b.innerHTML;
+    b.innerHTML = '✓ ' + (isEl ? 'Αντιγράφηκε' : 'Copied');
+    setTimeout(() => { const b2 = document.getElementById('recCopyBtn'); if (b2) b2.innerHTML = o; }, 1800);
+  };
+  // clipboard.writeText needs a secure context; fall back to the textarea trick.
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(done).catch(() => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+      done();
+    } catch (e) {
+      showToast(isEl ? '⚠️ Η αντιγραφή απέτυχε — κράτησέ το πατημένο για επιλογή.'
+                     : '⚠️ Copy failed — long-press the text to select it.');
+    }
+  });
+}
+
+function _recPrint() {
+  const isEl = lang === 'el';
+  // Plain black-on-white so it prints legibly, and lang set so any all-caps Greek drops
+  // its tonos (the v11.41 rule — every generated document declares its language).
+  const html = `<!DOCTYPE html><html lang="${isEl ? 'el' : 'en'}"><head><meta charset="utf-8">
+<title>${isEl ? 'Κάρτα Ανάκτησης' : 'Recovery Card'}</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; color:#111; margin:0; padding:26mm 22mm; }
+  h1 { font-size:20pt; margin:0 0 2mm; letter-spacing:0.04em; }
+  .sub { font-size:10pt; color:#555; margin:0 0 10mm; }
+  .lbl { font-size:8.5pt; letter-spacing:0.12em; text-transform:uppercase; color:#666; margin-bottom:1.5mm; }
+  .val { font-family:'Courier New',monospace; font-size:11pt; border:1px solid #bbb; border-radius:3px;
+         padding:4mm; word-break:break-all; margin-bottom:7mm; }
+  .warn { border:1px solid #b33; color:#b33; border-radius:3px; padding:4mm; font-size:9.5pt; line-height:1.5; }
+  .foot { margin-top:10mm; font-size:8.5pt; color:#777; }
+</style></head><body>
+<h1>JewelPrice Pro — ${isEl ? 'Κάρτα Ανάκτησης' : 'Recovery Card'}</h1>
+<p class="sub">${isEl
+  ? 'Φύλαξέ την στο χρηματοκιβώτιο. Χρειάζεται μόνο αν σβηστούν τα δεδομένα του browser σε μια συσκευή.'
+  : 'Keep this in the safe. It is only needed if a device’s browser data is ever cleared.'}</p>
+<div class="lbl">Firebase URL</div><div class="val">${_gcEsc(creds.binId)}</div>
+<div class="lbl">Database Secret</div><div class="val">${_gcEsc(creds.dbSecret)}</div>
+<div class="warn">${isEl
+  ? '⚠️ Το Secret δίνει πλήρη πρόσβαση στη βάση δεδομένων. Κράτησέ το κλειδωμένο.'
+  : '⚠️ The secret grants full access to the database. Keep it locked away.'}</div>
+<p class="foot">${isEl ? 'Πώς ξαναμπαίνεις' : 'How to get back in'}: ${isEl
+  ? 'Άνοιξε την εφαρμογή → Συγχρονισμός → 👑 Ιδιοκτήτης → βάλε τα δύο παραπάνω → Αποθήκευση & Ανέβασμα.'
+  : 'Open the app → Sync → 👑 Owner → enter the two above → Save & Push to Cloud.'}<br>
+${isEl ? 'Εκτυπώθηκε' : 'Printed'}: ${fmtDate(new Date())}</p>
+</body></html>`;
+  openQuoteWindow(html, false, null);
 }
 
 function doShare(role, userName, displayName) {
@@ -29031,7 +29188,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.02';
+const APP_VERSION = '12.03';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
