@@ -1877,6 +1877,14 @@
           <button onclick="saveAiKey()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ <span data-i18n="aiKeySave">Αποθήκευση κλειδιού</span></button>
           <div id="aiKeyStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
         </div>
+        <div class="field">
+          <label data-i18n="srGateLabel">🔒 Κωδικός Showroom</label>
+          <button type="button" id="srGateToggle" onclick="_srToggleGate()" style="width:100%;padding:11px;border-radius:9px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px"></button>
+          <input type="text" id="srGatePassInput" placeholder="π.χ. lekkas2025" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore style="font-family:var(--font-mono)">
+          <div class="hint" data-i18n="srGateHint">Ο κωδικός που δίνεις στους πελάτες για το online Showroom. Φαίνεται καθαρά εδώ για να μπορείς να τον πεις.</div>
+          <button onclick="saveShowroomGate()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ <span data-i18n="srGateSave">Αποθήκευση κωδικού</span></button>
+          <div id="srGateStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
+        </div>
         <button class="save-btn" onclick="ownerSaveAndPush()" data-i18n="savePush">💾 Αποθήκευση & Ανέβασμα</button>
         <button class="save-btn" onclick="showShareOptions()" style="margin-top:8px;border-color:rgba(176,184,200,0.4);color:var(--silver-light)" id="shareBtnEl">📤 <span id="shareBtnText">Κοινοποίηση Εφαρμογής</span></button>
         <button class="save-btn" onclick="openRecoveryCard()" style="margin-top:8px;border-color:rgba(201,168,76,0.4);color:var(--gold)" id="recoveryCardBtnEl">🔑 <span data-i18n="recoveryCardBtn">Κάρτα Ανάκτησης</span></button>
@@ -3326,6 +3334,9 @@ const T = {
     connectSync:'🔗 Σύνδεση & Συγχρονισμός',
     savePush:'💾 Αποθήκευση & Ανέβασμα',
     recoveryCardBtn:'Κάρτα Ανάκτησης',
+    srGateLabel:'🔒 Κωδικός Showroom',
+    srGateHint:'Ο κωδικός που δίνεις στους πελάτες για το online Showroom. Φαίνεται καθαρά εδώ για να μπορείς να τον πεις.',
+    srGateSave:'Αποθήκευση κωδικού',
     configLive:'Η ρύθμιση είναι ζωντανή — μοιραστείτε το Firebase URL',
     yourBinId:'Firebase URL (κοινοποιήστε στους υπαλλήλους)',
     empApiKeyHint:'Ζητήστε το από τον ιδιοκτήτη',
@@ -3787,6 +3798,9 @@ const T = {
     connectSync:'🔗 Connect & Sync',
     savePush:'💾 Save & Push to Cloud',
     recoveryCardBtn:'Recovery Card',
+    srGateLabel:'🔒 Showroom Code',
+    srGateHint:'The code you give customers for the online showroom. Shown in plain text here so you can read it out.',
+    srGateSave:'Save code',
     configLive:'Config live in cloud — share Firebase URL with employees',
     yourBinId:'Firebase URL (share with employees)',
     empApiKeyHint:'Ask your owner for this',
@@ -4249,7 +4263,7 @@ function setLang(l) {
   populateVendorSelect();
   const activePanel = document.querySelector('.panel.active')?.id;
   if (activePanel === 'panel-vendors') renderVendors();
-  if (activePanel === 'panel-sync') renderSetupSteps();
+  if (activePanel === 'panel-sync') { renderSetupSteps(); _srSyncGateUI(); }
   if (activePanel === 'panel-inventory') renderInvList(); // Fix: re-render on lang change
   // Re-render result if visible
   if (document.getElementById('resultCard').classList.contains('show')) calculate();
@@ -4699,7 +4713,12 @@ function cloudConfig() {
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
            customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
-           aiKey: localStorage.getItem('jpro_ai_key') || '' };
+           aiKey: localStorage.getItem('jpro_ai_key') || '',
+           // Readable showroom code + gate state. Kept in the PRIVATE config so the owner
+           // can look the code up on any of his devices; only its hash is published to
+           // the world-readable /jewelprice_showroom_config that showroom.htm reads.
+           showroomPass: localStorage.getItem('jpro_showroom_pass') || '',
+           showroomGate: localStorage.getItem('jpro_showroom_gate') === 'off' ? 'off' : 'on' };
 }
 
 // ─── AI KEY ──────────────────────────────────────────────────────────────────
@@ -4759,6 +4778,11 @@ function applyCloudConfig(cfg) {
     const akEl = document.getElementById('aiKeyInput');
     if (akEl && !akEl.value) akEl.value = cfg.aiKey;
   }
+  // Showroom code: only a reference copy for the owner (the live gate is the published
+  // hash). `showroomGate` is checked against undefined, not truthiness, or 'off' would
+  // never survive the round trip.
+  if (cfg.showroomPass) localStorage.setItem('jpro_showroom_pass', cfg.showroomPass);
+  if (cfg.showroomGate !== undefined) localStorage.setItem('jpro_showroom_gate', cfg.showroomGate === 'off' ? 'off' : 'on');
   saveState(); populateVendorSelect(); updateSpotDisplay();
 }
 
@@ -5126,6 +5150,7 @@ function loadSyncForm() {
   if (creds.binId) setSyncStatus('synced', t(isOwnerOrManager() ? 'syncedOwner' : 'syncedEmp'));
   const tgEl = document.getElementById('telegramTokenInput');
   if (tgEl) tgEl.value = localStorage.getItem('jpro_telegram_token') || '';
+  loadShowroomGateForm();
   renderSetupSteps();
 }
 
@@ -24795,10 +24820,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.03', date: 'Ιούλιος 2026', items: [
-        "🔑 Νέα «Κάρτα Ανάκτησης» στο Συγχρονισμό: δείχνει το Firebase URL και το Database Secret, με Αντιγραφή και Εκτύπωση. Τύπωσέ την μία φορά και βάλ' την στο χρηματοκιβώτιο.",
-        "🛟 Είναι το μόνο πράγμα που δεν επιστρέφει μόνο του από το cloud — το PIN, το Telegram και το κλειδί OpenRouter ξανακατεβαίνουν μόνα τους.",
-        "🔒 Η εφαρμογή ζητά πλέον «μόνιμη αποθήκευση» από τον browser, ώστε να μη σβήνει μόνος του δεδομένα όταν γεμίσει το κινητό — προστατεύει και τις πωλήσεις που περιμένουν να συγχρονιστούν.",
+      { version: 'v12.04', date: 'Ιούλιος 2026', items: [
+        "🔒 Ο κωδικός του Showroom αλλάζει πλέον μέσα από την εφαρμογή: Συγχρονισμός → «Κωδικός Showroom». Δεν χρειάζεται να αλλάξει τίποτα στον κώδικα.",
+        "🔓 Μπορείς και να τον σβήσεις τελείως, ώστε το Showroom να ανοίγει σε όλους — και να τον ξαναβάλεις όποτε θες.",
+        "👁️ Ο κωδικός φαίνεται καθαρά εδώ για να τον λες στους πελάτες, αλλά στο διαδίκτυο ανεβαίνει μόνο κρυπτογραφημένος.",
       ]},
       ]
   },
@@ -24829,10 +24854,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.03', date: 'Jul 2026', items: [
-        "🔑 New \"Recovery Card\" in Sync: shows your Firebase URL and Database Secret, with Copy and Print. Print it once and put it in the safe.",
-        "🛟 It is the one thing that cannot come back from the cloud by itself — the PIN, Telegram token and OpenRouter key all restore on their own.",
-        "🔒 The app now asks the browser for \"persistent storage\", so it won't quietly discard data when the phone runs low on space — this also protects sales still waiting to sync.",
+      { version: 'v12.04', date: 'Jul 2026', items: [
+        "🔒 The showroom code can now be changed from inside the app: Sync → \"Showroom Code\". No code editing needed.",
+        "🔓 You can also switch it off completely so the showroom is open to everyone — and switch it back on whenever you like.",
+        "👁️ The code is shown in plain text here so you can read it out to customers, but only an encrypted form of it is published online.",
       ]},
           ]
   }
@@ -29188,7 +29213,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.03';
+const APP_VERSION = '12.04';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -29504,6 +29529,181 @@ autoSync().then(async () => {
   setInterval(notifCheckAndUpdateBadge, 20000);
 
 });
+
+// ── SHOWROOM GATE (the public showroom's access code) ─────────────────────────
+// The code used to be hardcoded in showroom.htm, so changing it meant editing and
+// redeploying the site. It is now owner-controlled from here.
+//
+// TWO PLACES, ON PURPOSE:
+//   • the HASH goes to /jewelprice_showroom_config — world-readable, because
+//     showroom.htm has no credentials and must be able to read it;
+//   • the READABLE code goes to the app's PRIVATE config (`showroomPass`, via
+//     cloudConfig/pushToCloud) so the owner can look it up to tell a customer.
+// Storing only the hash publicly means a world-readable node never carries the code.
+//
+// Be honest about what this is: the showroom is a public page and the check runs in
+// the customer's browser, so the gate is a DOORMAN, not a lock. What actually protects
+// the business is that /jewelprice_public carries no prices, costs or vendors.
+const SHOWROOM_CFG_PATH = '/jewelprice_showroom_config';
+
+async function _sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function _srGateEnabled() { return localStorage.getItem('jpro_showroom_gate') !== 'off'; }
+
+// Paints the toggle + field from the stored state. Called by loadSyncForm.
+function loadShowroomGateForm() {
+  const inp = document.getElementById('srGatePassInput');
+  if (inp) inp.value = localStorage.getItem('jpro_showroom_pass') || '';
+  _srSyncGateUI();
+  const st = document.getElementById('srGateStatus');
+  if (st) { st.textContent = ''; st.style.color = 'var(--text-muted)'; }
+}
+
+function _srSyncGateUI() {
+  const btn = document.getElementById('srGateToggle');
+  if (!btn) return;
+  const isEl = lang === 'el';
+  const on = _srGateEnabled();
+  btn.textContent = on
+    ? (isEl ? '🔒 Ο κωδικός είναι ΕΝΕΡΓΟΣ' : '🔒 Code is ON')
+    : (isEl ? '🔓 Ανοιχτό σε όλους' : '🔓 Open to everyone');
+  btn.style.background   = on ? 'rgba(201,168,76,0.15)' : 'rgba(224,90,90,0.12)';
+  btn.style.border       = on ? '1px solid rgba(201,168,76,0.45)' : '1px solid rgba(224,90,90,0.40)';
+  btn.style.color        = on ? 'var(--gold)' : '#e88';
+  // The code box is pointless while the gate is off — grey it out rather than hide it,
+  // so the owner can still see what it will be when he switches it back on.
+  const inp = document.getElementById('srGatePassInput');
+  if (inp) { inp.disabled = !on; inp.style.opacity = on ? '1' : '0.45'; }
+}
+
+function _srToggleGate() {
+  localStorage.setItem('jpro_showroom_gate', _srGateEnabled() ? 'off' : 'on');
+  _srSyncGateUI();
+  const st = document.getElementById('srGateStatus');
+  if (st) {
+    st.textContent = lang === 'el' ? '↓ Πάτα «Αποθήκευση κωδικού» για να ισχύσει'
+                                   : '↓ Press "Save code" to apply';
+    st.style.color = 'var(--gold)';
+  }
+}
+
+async function saveShowroomGate() {
+  const isEl = lang === 'el';
+  const st = document.getElementById('srGateStatus');
+  const say = (m, c) => { if (st) { st.textContent = m; st.style.color = c || 'var(--text-muted)'; } };
+  if (!creds.binId || !creds.dbSecret) {
+    say(isEl ? '⚠️ Χρειάζεται πρώτα Firebase URL και Secret' : '⚠️ Set the Firebase URL and secret first', '#e88');
+    return;
+  }
+  const on = _srGateEnabled();
+  const pass = (document.getElementById('srGatePassInput')?.value || '').trim();
+  if (on && pass.length < 4) {
+    say(isEl ? '⚠️ Ο κωδικός θέλει τουλάχιστον 4 χαρακτήρες' : '⚠️ The code needs at least 4 characters', '#e88');
+    return;
+  }
+  say(isEl ? '⏳ Αποθήκευση…' : '⏳ Saving…');
+  try {
+    const cfg = { enabled: on };
+    if (on) cfg.hash = await _sha256Hex(pass);
+    const res = await fetch(fbUrl(SHOWROOM_CFG_PATH + '.json'), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg)
+    });
+    if (!res.ok) { say((isEl ? '❌ Αποτυχία αποθήκευσης (' : '❌ Save failed (') + res.status + ')', '#e88'); return; }
+    localStorage.setItem('jpro_showroom_pass', pass);
+    try { await pushToCloud(); } catch (e) {}   // keep the readable code on the other devices
+
+    // Read it back the way the SHOWROOM does — no auth token — because that is the one
+    // thing that can silently fail: the Firebase rule must expose this node publicly.
+    // Without this check a saved code would look fine here and do nothing out there.
+    let visible = false;
+    try {
+      const base = (creds.binId || '').replace(/\/+$/, '');
+      const r = await fetch(base + SHOWROOM_CFG_PATH + '.json', { cache: 'no-store' });
+      if (r.ok) { const d = await r.json(); visible = !!d && d.enabled === on; }
+    } catch (e) {}
+    if (!visible) {
+      say(isEl ? '⚠️ Αποθηκεύτηκε, αλλά το Showroom ΔΕΝ μπορεί να το διαβάσει — δες τις οδηγίες'
+               : '⚠️ Saved, but the showroom CANNOT read it — see the instructions', '#e88');
+      _srShowRulesHelp();
+      return;
+    }
+    say(on ? (isEl ? '✓ Ενεργό — κωδικός: ' + pass : '✓ On — code: ' + pass)
+           : (isEl ? '✓ Το Showroom είναι πλέον ανοιχτό σε όλους' : '✓ The showroom is now open to everyone'),
+        'var(--success)');
+  } catch (e) {
+    say(isEl ? '❌ Σφάλμα: ' + e.message : '❌ Error: ' + e.message, '#e88');
+  }
+}
+
+// Shown only when the read-back check above proves the showroom cannot see the config.
+// A dedicated sheet rather than showConfirm, because showConfirm renders with textContent
+// and would collapse the JSON onto one line — and this text exists to be COPIED.
+function _srShowRulesHelp() {
+  const isEl = lang === 'el';
+  const old = document.getElementById('srRulesOverlay');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'srRulesOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,0.85);display:flex;' +
+    'align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px;padding-top:max(16px,env(safe-area-inset-top))';
+  ov.innerHTML = `
+    <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.35);border-radius:16px;max-width:460px;width:100%;margin:auto;padding:20px;box-sizing:border-box">
+      <h3 style="margin:0 0 10px;color:var(--gold);font-size:17px">⚠️ ${isEl ? 'Λείπει ένας κανόνας στο Firebase' : 'A Firebase rule is missing'}</h3>
+      <p style="margin:0 0 12px;font-size:12.5px;color:var(--text-muted);line-height:1.55">
+        ${isEl
+          ? 'Ο κωδικός αποθηκεύτηκε, αλλά η σελίδα του Showroom δεν έχει ακόμα δικαίωμα να τον διαβάσει — οπότε εκεί δεν θα αλλάξει τίποτα. Γίνεται μία φορά:'
+          : 'The code was saved, but the showroom page is not yet allowed to read it — so nothing will change out there. This is a one-time step:'}
+      </p>
+      <ol style="margin:0 0 12px;padding-left:20px;font-size:12.5px;color:var(--text);line-height:1.7">
+        <li>${isEl ? 'Άνοιξε <b>console.firebase.google.com</b>' : 'Open <b>console.firebase.google.com</b>'}</li>
+        <li>${isEl ? 'Realtime Database → <b>Rules</b>' : 'Realtime Database → <b>Rules</b>'}</li>
+        <li>${isEl ? 'Σβήσε ό,τι υπάρχει και βάλε <b>ακριβώς</b> αυτό, μετά <b>Publish</b>:' : 'Replace everything with <b>exactly</b> this, then <b>Publish</b>:'}</li>
+      </ol>
+      <pre id="srRulesPre" style="background:var(--dark-3);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--text);overflow-x:auto;margin:0 0 12px;user-select:all;-webkit-user-select:all">${_gcEsc(_srRulesSnippet())}</pre>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="srRulesCopyBtn" onclick="_srCopyRules()" style="flex:1;min-width:120px;padding:11px;border-radius:9px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.45);color:var(--gold);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">📋 ${isEl ? 'Αντιγραφή' : 'Copy'}</button>
+        <button onclick="document.getElementById('srRulesOverlay').remove()" style="flex:1;min-width:120px;padding:11px;border-radius:9px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>
+      </div>
+    </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function _srCopyRules() {
+  const isEl = lang === 'el';
+  const txt = _srRulesSnippet();
+  const done = () => {
+    const b = document.getElementById('srRulesCopyBtn');
+    if (!b) return;
+    const o = b.innerHTML;
+    b.innerHTML = '✓ ' + (isEl ? 'Αντιγράφηκε' : 'Copied');
+    setTimeout(() => { const b2 = document.getElementById('srRulesCopyBtn'); if (b2) b2.innerHTML = o; }, 1800);
+  };
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(done).catch(() => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta); done();
+    } catch (e) {}
+  });
+}
+
+// The exact rules JSON the database needs. Keep it in one place so the message the
+// owner is told to paste can never drift from what the code actually requires.
+function _srRulesSnippet() {
+  return '{\n'
+       + '  "rules": {\n'
+       + '    ".read": false,\n'
+       + '    ".write": false,\n'
+       + '    "jewelprice_public": { ".read": true, ".write": false },\n'
+       + '    "jewelprice_showroom_config": { ".read": true, ".write": false }\n'
+       + '  }\n'
+       + '}';
+}
 
 // ── TELEGRAM NOTIFICATIONS ─────────────────────────────────────────────────────
 
