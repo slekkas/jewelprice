@@ -1885,6 +1885,20 @@
           <div id="imgbbKeyStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
         </div>
         <div class="field">
+          <label data-i18n="cldLabel">☁️ Cloudinary (φωτογραφίες)</label>
+          <input type="text" id="cldNameInput" placeholder="Cloud name" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" style="font-family:var(--font-mono);font-size:12px">
+          <input type="text" id="cldPresetInput" placeholder="Upload preset (unsigned)" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" style="font-family:var(--font-mono);font-size:12px;margin-top:8px">
+          <div class="hint" data-i18n="cldHint">Cloudinary → Settings → Upload → Upload presets → Add, με Signing mode = Unsigned. Το «Δοκιμή & Αποθήκευση» ανεβάζει μια πραγματική δοκιμαστική εικόνα.</div>
+          <button onclick="saveCloudinary()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ <span data-i18n="cldSave">Δοκιμή & Αποθήκευση</span></button>
+          <div id="cldStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
+          <div style="margin-top:10px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)" data-i18n="photoProviderLbl">Νέες φωτογραφίες πάνε σε</div>
+          <div style="display:flex;gap:8px;margin-top:5px">
+            <button type="button" id="provImgbbBtn" onclick="_setPhotoProvider('imgbb')" style="flex:1;padding:10px;border-radius:9px;font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">ImgBB</button>
+            <button type="button" id="provCldBtn" onclick="_setPhotoProvider('cloudinary')" style="flex:1;padding:10px;border-radius:9px;font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">Cloudinary</button>
+          </div>
+          <div class="hint" data-i18n="photoProviderHint">Οι παλιές φωτογραφίες δεν πειράζονται — συνεχίζουν να δουλεύουν όπου κι αν είναι.</div>
+        </div>
+        <div class="field">
           <label data-i18n="srGateLabel">🔒 Κωδικός Showroom</label>
           <button type="button" id="srGateToggle" onclick="_srToggleGate()" style="width:100%;padding:11px;border-radius:9px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px"></button>
           <input type="text" id="srGatePassInput" placeholder="π.χ. lekkas2025" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore style="font-family:var(--font-mono)">
@@ -3344,6 +3358,11 @@ const T = {
     imgbbKeyLabel:'📷 Κλειδί Ανεβάσματος Φωτογραφιών (ImgBB)',
     imgbbKeyHint:'Από imgbb.com → API. Αν οι φωτογραφίες σταματήσουν να ανεβαίνουν, βγάλε νέο κλειδί και βάλ\' το εδώ — δοκιμάζεται αμέσως με μια πραγματική φωτογραφία.',
     imgbbKeySave:'Δοκιμή & Αποθήκευση',
+    cldLabel:'☁️ Cloudinary (φωτογραφίες)',
+    cldHint:'Cloudinary → Settings → Upload → Upload presets → Add, με Signing mode = Unsigned. Το «Δοκιμή & Αποθήκευση» ανεβάζει μια πραγματική δοκιμαστική εικόνα.',
+    cldSave:'Δοκιμή & Αποθήκευση',
+    photoProviderLbl:'Νέες φωτογραφίες πάνε σε',
+    photoProviderHint:'Οι παλιές φωτογραφίες δεν πειράζονται — συνεχίζουν να δουλεύουν όπου κι αν είναι.',
     srGateLabel:'🔒 Κωδικός Showroom',
     srGateHint:'Ο κωδικός που δίνεις στους πελάτες για το online Showroom. Φαίνεται καθαρά εδώ για να μπορείς να τον πεις.',
     srGateSave:'Αποθήκευση κωδικού',
@@ -3811,6 +3830,11 @@ const T = {
     imgbbKeyLabel:'📷 Photo Upload Key (ImgBB)',
     imgbbKeyHint:'From imgbb.com → API. If photos stop uploading, make a new key and paste it here — it is tested straight away with a real photo.',
     imgbbKeySave:'Test & Save',
+    cldLabel:'☁️ Cloudinary (photos)',
+    cldHint:'Cloudinary → Settings → Upload → Upload presets → Add, with Signing mode = Unsigned. "Test & Save" uploads a real test image.',
+    cldSave:'Test & Save',
+    photoProviderLbl:'New photos go to',
+    photoProviderHint:'Old photos are untouched — they keep working wherever they are.',
     srGateLabel:'🔒 Showroom Code',
     srGateHint:'The code you give customers for the online showroom. Shown in plain text here so you can read it out.',
     srGateSave:'Save code',
@@ -4728,6 +4752,9 @@ function cloudConfig() {
            customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
            aiKey: localStorage.getItem('jpro_ai_key') || '',
            imgbbKey: localStorage.getItem('jpro_imgbb_key') || '',
+           cldName: localStorage.getItem('jpro_cld_name') || '',
+           cldPreset: localStorage.getItem('jpro_cld_preset') || '',
+           photoProvider: localStorage.getItem('jpro_photo_provider') || '',
            // Readable showroom code + gate state. Kept in the PRIVATE config so the owner
            // can look the code up on any of his devices; only its hash is published to
            // the world-readable /jewelprice_showroom_config that showroom.htm reads.
@@ -4797,6 +4824,9 @@ function applyCloudConfig(cfg) {
     const ibEl = document.getElementById('imgbbKeyInput');
     if (ibEl && !ibEl.value) ibEl.value = cfg.imgbbKey;
   }
+  if (cfg.cldName)   localStorage.setItem('jpro_cld_name', cfg.cldName);
+  if (cfg.cldPreset) localStorage.setItem('jpro_cld_preset', cfg.cldPreset);
+  if (cfg.photoProvider) localStorage.setItem('jpro_photo_provider', cfg.photoProvider);
   // Showroom code: only a reference copy for the owner (the live gate is the published
   // hash). `showroomGate` is checked against undefined, not truthiness, or 'off' would
   // never survive the round trip.
@@ -5171,6 +5201,11 @@ function loadSyncForm() {
   if (tgEl) tgEl.value = localStorage.getItem('jpro_telegram_token') || '';
   const ibEl = document.getElementById('imgbbKeyInput');
   if (ibEl) ibEl.value = localStorage.getItem('jpro_imgbb_key') || '';
+  const cnEl = document.getElementById('cldNameInput');
+  if (cnEl) cnEl.value = _cldName();
+  const cpEl = document.getElementById('cldPresetInput');
+  if (cpEl) cpEl.value = _cldPreset();
+  _syncProviderUI();
   loadShowroomGateForm();
   renderSetupSteps();
 }
@@ -18129,6 +18164,72 @@ async function uploadToImgBB(dataUrl, name) {
   }
 }
 
+// ── CLOUDINARY ───────────────────────────────────────────────────────────────
+// Added 22/07/2026 after ImgBB cut the shop's account off mid-season with no notice and
+// no reply, behind a "down for maintenance" message that was demonstrably untrue (a
+// keyless request from the same connection in the same second got a normal reply).
+//
+// Uploads go straight from the browser using an UNSIGNED UPLOAD PRESET — the same shape
+// as ImgBB's public key, and the only shape that works without a server. The cloud name
+// and preset are therefore semi-public by nature; they live in the private config (never
+// in this file, per v11.85/v12.09) and the preset itself is the thing to lock down, in
+// Cloudinary: restrict it to one folder, to images, and to a sane max size. If it is ever
+// abused, delete the preset and make another — a swap that takes seconds and no deploy.
+//
+// EXISTING PHOTOS ARE NOT TOUCHED. Their i.ibb.co URLs are stored per item and keep
+// working; only NEW uploads go to Cloudinary. That is what makes this reversible.
+function _cldName()   { return (localStorage.getItem('jpro_cld_name')   || '').trim(); }
+function _cldPreset() { return (localStorage.getItem('jpro_cld_preset') || '').trim(); }
+function _cldReady()  { return !!(_cldName() && _cldPreset()); }
+
+// Which service new photos go to. Explicit rather than inferred, so the Sync panel can
+// state it plainly — but it can never point at a service that isn't configured.
+function _photoProvider() {
+  const p = localStorage.getItem('jpro_photo_provider');
+  if (p === 'cloudinary' && _cldReady()) return 'cloudinary';
+  if (p === 'imgbb') return 'imgbb';
+  return _cldReady() ? 'cloudinary' : 'imgbb';   // default to whichever actually works
+}
+
+async function uploadToCloudinary(dataUrl, name) {
+  const isEl = lang === 'el';
+  try {
+    if (!dataUrl) { showToast('⚠️ No image data'); return null; }
+    if (!_cldReady()) {
+      showToast('⚠️ ' + (isEl ? 'Ρύθμισε το Cloudinary: Συγχρονισμός' : 'Set up Cloudinary: Sync'));
+      return null;
+    }
+    showToast('📤 ' + (isEl ? 'Αποστολή φωτογραφίας...' : 'Uploading photo...'));
+    const fd = new FormData();
+    // Cloudinary accepts a base64 data URI directly as `file`, so no Blob conversion.
+    fd.append('file', dataUrl);
+    fd.append('upload_preset', _cldPreset());
+    // A TAG, not a public_id: tags are always allowed on an unsigned upload, so this can
+    // never be rejected for a preset setting, and it still makes a photo findable by its
+    // code in the Cloudinary media library. Cloudinary names the file itself.
+    if (name) fd.append('tags', String(name).replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 100));
+    const res = await fetch('https://api.cloudinary.com/v1_1/' + encodeURIComponent(_cldName()) + '/image/upload',
+                            { method: 'POST', body: fd });
+    let json = null;
+    try { json = JSON.parse(await res.text()); } catch (e) {}
+    if (json && json.secure_url) return { url: json.secure_url, name: json.public_id || (name || '') };
+    // Cloudinary's own words, same principle as ImgBB: never turn a real reason into a
+    // generic "failed" — that is what made the ImgBB outage take a whole day to pin down.
+    const reason = (json && json.error && json.error.message) ? json.error.message : 'HTTP ' + res.status;
+    showToast('⚠️ ' + (isEl ? 'Αποτυχία αποστολής φωτογραφίας' : 'Photo upload failed') + ' — ' + reason);
+    return null;
+  } catch (e) {
+    showToast('⚠️ ' + (isEl ? 'Σφάλμα σύνδεσης' : 'Connection error'));
+    return null;
+  }
+}
+
+// One entry point, so every existing caller is untouched by the provider switch.
+function _uploadOnePhoto(dataUrl, name) {
+  return _photoProvider() === 'cloudinary' ? uploadToCloudinary(dataUrl, name)
+                                           : uploadToImgBB(dataUrl, name);
+}
+
 // Upload the app-sized photo plus a high-res copy (for the public showroom &
 // promo images) in parallel. Returns { url, name, hiUrl }, or null if the main
 // upload failed. When the source is too small to warrant a distinct high-res
@@ -18137,8 +18238,8 @@ async function uploadToImgBB(dataUrl, name) {
 async function uploadInventoryPhoto(smallDataUrl, hiDataUrl, name) {
   const wantHi = hiDataUrl && hiDataUrl !== smallDataUrl;
   const [small, hi] = await Promise.all([
-    uploadToImgBB(smallDataUrl, name),
-    wantHi ? uploadToImgBB(hiDataUrl, name ? name + '_hi' : 'hi') : Promise.resolve(null)
+    _uploadOnePhoto(smallDataUrl, name),
+    wantHi ? _uploadOnePhoto(hiDataUrl, name ? name + '_hi' : 'hi') : Promise.resolve(null)
   ]);
   if (!small) return null;
   return { url: small.url, name: small.name, hiUrl: hi ? hi.url : small.url };
@@ -24896,11 +24997,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.09', date: 'Ιούλιος 2026', items: [
-        "📷 Το κλειδί ανεβάσματος φωτογραφιών μπαίνει πλέον από την εφαρμογή: Συγχρονισμός → «Κλειδί Ανεβάσματος Φωτογραφιών».",
-        "🔑 Αν το ImgBB σου κόψει το κλειδί, βγάζεις νέο και το αλλάζεις μόνος σου σε δευτερόλεπτα — χωρίς να περιμένεις καμία ενημέρωση.",
-        "🧪 Το «Δοκιμή & Αποθήκευση» ανεβάζει μια πραγματική δοκιμαστική εικόνα και σου λέει ΑΚΡΙΒΩΣ τι απαντά το ImgBB. Κλειδί που δεν δουλεύει δεν αποθηκεύεται.",
-        "🔒 Το κλειδί έφυγε από το αρχείο της εφαρμογής, που είναι δημόσιο — τώρα φυλάγεται ιδιωτικά, όπως το κλειδί του AI.",
+      { version: 'v12.10', date: 'Ιούλιος 2026', items: [
+        "☁️ Οι φωτογραφίες μπορούν πλέον να ανεβαίνουν στο Cloudinary αντί για το ImgBB: Συγχρονισμός → Cloudinary.",
+        "🧪 Το «Δοκιμή & Αποθήκευση» ανεβάζει πραγματική δοκιμαστική εικόνα — αν δεν δουλέψει, δεν αποθηκεύεται τίποτα.",
+        "🔀 Διακόπτης «Νέες φωτογραφίες πάνε σε»: ImgBB ή Cloudinary, όποτε θες.",
+        "🖼️ Οι 1770 παλιές φωτογραφίες ΔΕΝ πειράζονται — συνεχίζουν να δουλεύουν ακριβώς όπως είναι.",
       ]},
       ]
   },
@@ -24931,11 +25032,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.09', date: 'Jul 2026', items: [
-        "📷 The photo upload key is now set from inside the app: Sync → \"Photo Upload Key\".",
-        "🔑 If ImgBB ever cuts off your key, make a new one and swap it yourself in seconds — no waiting for an update.",
-        "🧪 \"Test & Save\" uploads a real test image and tells you EXACTLY what ImgBB replies. A key that doesn't work is not saved.",
-        "🔒 The key is out of the app file, which is public — it is now kept privately, like the AI key.",
+      { version: 'v12.10', date: 'Jul 2026', items: [
+        "☁️ Photos can now go to Cloudinary instead of ImgBB: Sync → Cloudinary.",
+        "🧪 \"Test & Save\" uploads a real test image — if it doesn't work, nothing is saved.",
+        "🔀 A \"New photos go to\" switch: ImgBB or Cloudinary, whenever you like.",
+        "🖼️ Your 1770 existing photos are NOT touched — they keep working exactly as they are.",
       ]},
           ]
   }
@@ -29301,7 +29402,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.09';
+const APP_VERSION = '12.10';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -29660,6 +29761,68 @@ async function saveImgbbKey() {
   } catch (e) {
     say((isEl ? '❌ Χωρίς σύνδεση: ' : '❌ No connection: ') + e.message, '#e88');
   }
+}
+
+// ── CLOUDINARY SETTINGS ───────────────────────────────────────────────────────
+// Same principle as saveImgbbKey: prove it with a REAL upload rather than a format check,
+// show the service's own words, and refuse to store a setup that cannot upload — storing
+// it would just move the failure to the next jewel, where it costs a photo.
+async function saveCloudinary() {
+  const isEl = lang === 'el';
+  const st = document.getElementById('cldStatus');
+  const say = (m, c) => { if (st) { st.textContent = m; st.style.color = c || 'var(--text-muted)'; } };
+  const cloud  = (document.getElementById('cldNameInput')?.value || '').trim();
+  const preset = (document.getElementById('cldPresetInput')?.value || '').trim();
+  if (!cloud || !preset) { say(isEl ? '⚠️ Συμπλήρωσε και τα δύο' : '⚠️ Fill in both', '#e88'); return; }
+  say(isEl ? '⏳ Δοκιμή με πραγματικό ανέβασμα…' : '⏳ Testing with a real upload…');
+  const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  try {
+    const fd = new FormData();
+    fd.append('file', PX);
+    fd.append('upload_preset', preset);
+    fd.append('tags', 'jewelprice_setup_test');
+    const r = await fetch('https://api.cloudinary.com/v1_1/' + encodeURIComponent(cloud) + '/image/upload',
+                          { method: 'POST', body: fd });
+    let j = null;
+    try { j = JSON.parse(await r.text()); } catch (e) {}
+    if (j && j.secure_url) {
+      localStorage.setItem('jpro_cld_name', cloud);
+      localStorage.setItem('jpro_cld_preset', preset);
+      localStorage.setItem('jpro_photo_provider', 'cloudinary');   // it works — start using it
+      try { await pushToCloud(); } catch (e) {}
+      _syncProviderUI();
+      say(isEl ? '✓ Δουλεύει — οι νέες φωτογραφίες πάνε στο Cloudinary' : '✓ Works — new photos now go to Cloudinary', 'var(--success)');
+      return;
+    }
+    const reason = (j && j.error && j.error.message) ? j.error.message : 'HTTP ' + r.status;
+    say((isEl ? '❌ Το Cloudinary το απέρριψε: ' : '❌ Cloudinary refused it: ') + reason, '#e88');
+  } catch (e) {
+    say((isEl ? '❌ Χωρίς σύνδεση: ' : '❌ No connection: ') + e.message, '#e88');
+  }
+}
+
+function _setPhotoProvider(p) {
+  const isEl = lang === 'el';
+  if (p === 'cloudinary' && !_cldReady()) {
+    const st = document.getElementById('cldStatus');
+    if (st) { st.textContent = isEl ? '⚠️ Ρύθμισε πρώτα το Cloudinary παραπάνω' : '⚠️ Set up Cloudinary above first'; st.style.color = '#e88'; }
+    return;
+  }
+  localStorage.setItem('jpro_photo_provider', p);
+  _syncProviderUI();
+  try { pushToCloud(); } catch (e) {}
+}
+
+function _syncProviderUI() {
+  const cur = _photoProvider();
+  [['provImgbbBtn', 'imgbb'], ['provCldBtn', 'cloudinary']].forEach(([id, val]) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    const on = cur === val;
+    b.style.background   = on ? 'rgba(201,168,76,0.18)' : 'transparent';
+    b.style.border       = on ? '1px solid rgba(201,168,76,0.55)' : '1px solid var(--wa15)';
+    b.style.color        = on ? 'var(--gold)' : 'var(--text-muted)';
+  });
 }
 
 // ── SHOWROOM GATE (the public showroom's access code) ─────────────────────────
