@@ -1878,6 +1878,13 @@
           <div id="aiKeyStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
         </div>
         <div class="field">
+          <label data-i18n="imgbbKeyLabel">📷 Κλειδί Ανεβάσματος Φωτογραφιών (ImgBB)</label>
+          <input type="text" class="masked-field" id="imgbbKeyInput" placeholder="32 χαρακτήρες" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other" style="font-family:var(--font-mono);font-size:12px">
+          <div class="hint" data-i18n="imgbbKeyHint">Από imgbb.com → API. Αν οι φωτογραφίες σταματήσουν να ανεβαίνουν, βγάλε νέο κλειδί και βάλ' το εδώ — δοκιμάζεται αμέσως με μια πραγματική φωτογραφία.</div>
+          <button onclick="saveImgbbKey()" style="margin-top:6px;padding:7px 14px;background:rgba(41,121,255,0.15);border:1px solid rgba(41,121,255,0.4);border-radius:8px;color:#82b1ff;font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer">✓ <span data-i18n="imgbbKeySave">Δοκιμή & Αποθήκευση</span></button>
+          <div id="imgbbKeyStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px"></div>
+        </div>
+        <div class="field">
           <label data-i18n="srGateLabel">🔒 Κωδικός Showroom</label>
           <button type="button" id="srGateToggle" onclick="_srToggleGate()" style="width:100%;padding:11px;border-radius:9px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px"></button>
           <input type="text" id="srGatePassInput" placeholder="π.χ. lekkas2025" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore style="font-family:var(--font-mono)">
@@ -3334,6 +3341,9 @@ const T = {
     connectSync:'🔗 Σύνδεση & Συγχρονισμός',
     savePush:'💾 Αποθήκευση & Ανέβασμα',
     recoveryCardBtn:'Κάρτα Ανάκτησης',
+    imgbbKeyLabel:'📷 Κλειδί Ανεβάσματος Φωτογραφιών (ImgBB)',
+    imgbbKeyHint:'Από imgbb.com → API. Αν οι φωτογραφίες σταματήσουν να ανεβαίνουν, βγάλε νέο κλειδί και βάλ\' το εδώ — δοκιμάζεται αμέσως με μια πραγματική φωτογραφία.',
+    imgbbKeySave:'Δοκιμή & Αποθήκευση',
     srGateLabel:'🔒 Κωδικός Showroom',
     srGateHint:'Ο κωδικός που δίνεις στους πελάτες για το online Showroom. Φαίνεται καθαρά εδώ για να μπορείς να τον πεις.',
     srGateSave:'Αποθήκευση κωδικού',
@@ -3798,6 +3808,9 @@ const T = {
     connectSync:'🔗 Connect & Sync',
     savePush:'💾 Save & Push to Cloud',
     recoveryCardBtn:'Recovery Card',
+    imgbbKeyLabel:'📷 Photo Upload Key (ImgBB)',
+    imgbbKeyHint:'From imgbb.com → API. If photos stop uploading, make a new key and paste it here — it is tested straight away with a real photo.',
+    imgbbKeySave:'Test & Save',
     srGateLabel:'🔒 Showroom Code',
     srGateHint:'The code you give customers for the online showroom. Shown in plain text here so you can read it out.',
     srGateSave:'Save code',
@@ -4714,6 +4727,7 @@ function cloudConfig() {
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
            customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
            aiKey: localStorage.getItem('jpro_ai_key') || '',
+           imgbbKey: localStorage.getItem('jpro_imgbb_key') || '',
            // Readable showroom code + gate state. Kept in the PRIVATE config so the owner
            // can look the code up on any of his devices; only its hash is published to
            // the world-readable /jewelprice_showroom_config that showroom.htm reads.
@@ -4777,6 +4791,11 @@ function applyCloudConfig(cfg) {
     localStorage.setItem('jpro_ai_key', cfg.aiKey);
     const akEl = document.getElementById('aiKeyInput');
     if (akEl && !akEl.value) akEl.value = cfg.aiKey;
+  }
+  if (cfg.imgbbKey) {
+    localStorage.setItem('jpro_imgbb_key', cfg.imgbbKey);
+    const ibEl = document.getElementById('imgbbKeyInput');
+    if (ibEl && !ibEl.value) ibEl.value = cfg.imgbbKey;
   }
   // Showroom code: only a reference copy for the owner (the live gate is the published
   // hash). `showroomGate` is checked against undefined, not truthiness, or 'off' would
@@ -5150,6 +5169,8 @@ function loadSyncForm() {
   if (creds.binId) setSyncStatus('synced', t(isOwnerOrManager() ? 'syncedOwner' : 'syncedEmp'));
   const tgEl = document.getElementById('telegramTokenInput');
   if (tgEl) tgEl.value = localStorage.getItem('jpro_telegram_token') || '';
+  const ibEl = document.getElementById('imgbbKeyInput');
+  if (ibEl) ibEl.value = localStorage.getItem('jpro_imgbb_key') || '';
   loadShowroomGateForm();
   renderSetupSteps();
 }
@@ -18076,12 +18097,17 @@ async function uploadToImgBB(dataUrl, name) {
   try {
     const base64 = (dataUrl || '').split(',')[1];
     if (!base64) { showToast('⚠️ No image data'); return null; }
+    if (!_imgbbKey()) {
+      showToast('⚠️ ' + (isEl ? 'Βάλε κλειδί φωτογραφιών: Συγχρονισμός → Κλειδί Ανεβάσματος'
+                              : 'Set the photo key: Sync → Photo Upload Key'));
+      return null;
+    }
     showToast('📤 ' + (isEl ? 'Αποστολή φωτογραφίας...' : 'Uploading photo...'));
     const fd = new FormData();
     fd.append('image', base64);
     // Pass custom name so photos are identifiable and recoverable if service changes
     if (name) fd.append('name', String(name).replace(/[^a-zA-Z0-9_\-\.]/g, '_').substring(0, 100));
-    const res = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, { method: 'POST', body: fd });
+    const res = await fetch('https://api.imgbb.com/1/upload?key=' + _imgbbKey(), { method: 'POST', body: fd });
     const text = await res.text();
     let json = null;
     try { json = JSON.parse(text); } catch (e) {}
@@ -24870,11 +24896,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.08', date: 'Ιούλιος 2026', items: [
-        "🔎 Τα ΝΕΑ κομμάτια δεν έπαιρναν ποτέ περιγραφή για την αναζήτηση με φωτογραφία — γι' αυτό τα παλιά είχαν και τα καινούργια όχι.",
-        "🐛 Η αυτόματη περιγραφή έψαχνε το κομμάτι στη λίστα πριν προλάβει να μπει σε αυτήν, οπότε το προσπερνούσε αθόρυβα.",
-        "✅ Πλέον κάθε νέο κομμάτι περιγράφεται μόλις αποθηκευτεί, χωρίς να κάνεις τίποτα.",
-        "🔁 Για όσα προστέθηκαν στο μεταξύ: Ρυθμίσεις → «Αναζήτηση με Φωτογραφία» → φτιάξε τις περιγραφές που λείπουν.",
+      { version: 'v12.09', date: 'Ιούλιος 2026', items: [
+        "📷 Το κλειδί ανεβάσματος φωτογραφιών μπαίνει πλέον από την εφαρμογή: Συγχρονισμός → «Κλειδί Ανεβάσματος Φωτογραφιών».",
+        "🔑 Αν το ImgBB σου κόψει το κλειδί, βγάζεις νέο και το αλλάζεις μόνος σου σε δευτερόλεπτα — χωρίς να περιμένεις καμία ενημέρωση.",
+        "🧪 Το «Δοκιμή & Αποθήκευση» ανεβάζει μια πραγματική δοκιμαστική εικόνα και σου λέει ΑΚΡΙΒΩΣ τι απαντά το ImgBB. Κλειδί που δεν δουλεύει δεν αποθηκεύεται.",
+        "🔒 Το κλειδί έφυγε από το αρχείο της εφαρμογής, που είναι δημόσιο — τώρα φυλάγεται ιδιωτικά, όπως το κλειδί του AI.",
       ]},
       ]
   },
@@ -24905,11 +24931,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.08', date: 'Jul 2026', items: [
-        "🔎 NEW pieces never got a photo-search description — which is why the old ones had one and the new ones didn't.",
-        "🐛 The automatic description looked the piece up in the stock list before it had been added to it, so it skipped it in silence.",
-        "✅ Every new piece is now described the moment it is saved, with nothing for you to do.",
-        "🔁 For the ones added in between: Settings → \"Photo Search\" → build the missing descriptions.",
+      { version: 'v12.09', date: 'Jul 2026', items: [
+        "📷 The photo upload key is now set from inside the app: Sync → \"Photo Upload Key\".",
+        "🔑 If ImgBB ever cuts off your key, make a new one and swap it yourself in seconds — no waiting for an update.",
+        "🧪 \"Test & Save\" uploads a real test image and tells you EXACTLY what ImgBB replies. A key that doesn't work is not saved.",
+        "🔒 The key is out of the app file, which is public — it is now kept privately, like the AI key.",
       ]},
           ]
   }
@@ -28262,7 +28288,17 @@ function showToast(msg) {
   t._timer = setTimeout(function() { t.style.opacity = '0'; }, 2500);
 }
 
-const IMGBB_KEY = atob('YmE5N2I4ZTFiOTY0ZWFkY2RjZmFhMTg1ZWRiODU5YTA=');
+// The ImgBB key used to live here as atob('…') — base64 is an ENCODING, not encryption, so
+// it was readable (and spendable) by anyone who opened this public page's source. It now
+// lives in the private Firebase config like the OpenRouter key and the Telegram token,
+// entered once in Sync → Photo Upload Key. RULE: never put a credential in this file.
+//
+// Owner-settable also means the owner can swap keys himself the moment a key stops
+// working, with no code change and no deploy — which is exactly the situation that
+// prompted this (22/07/2026: ImgBB began answering only his key with "Imgbb is currently
+// down for maintenance" while the same request with NO key got a normal "Invalid API v1
+// key" from the same connection in the same second — i.e. account-level, not an outage).
+function _imgbbKey() { return (localStorage.getItem('jpro_imgbb_key') || '').trim(); }
 // ── Bilingual description helpers ─────────────────────────────────────────────
 // Returns the description in the current UI language, falling back to the other.
 // Also handles migration: old items have only `description`, no descEl/descEn.
@@ -29265,7 +29301,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.08';
+const APP_VERSION = '12.09';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -29581,6 +29617,50 @@ autoSync().then(async () => {
   setInterval(notifCheckAndUpdateBadge, 20000);
 
 });
+
+// ── IMGBB PHOTO-UPLOAD KEY ────────────────────────────────────────────────────
+// Saves the key, then PROVES it by actually uploading a 1x1 pixel with it. A format
+// check is not enough and this is the whole lesson of 22/07/2026: the owner's key was
+// perfectly valid and ImgBB still refused every upload with "Imgbb is currently down for
+// maintenance" — a message it returned ONLY for his key. So the only honest test is a
+// real upload, and whatever ImgBB says is shown verbatim rather than translated into a
+// reassuring "saved". Lets him swap keys himself and know in two seconds if it worked.
+async function saveImgbbKey() {
+  const isEl = lang === 'el';
+  const el = document.getElementById('imgbbKeyInput');
+  const st = document.getElementById('imgbbKeyStatus');
+  const say = (m, c) => { if (st) { st.textContent = m; st.style.color = c || 'var(--text-muted)'; } };
+  const val = (el?.value || '').trim();
+  if (!val) { say(isEl ? '⚠️ Βάλε το κλειδί' : '⚠️ Enter the key', '#e88'); return; }
+  if (!/^[a-f0-9]{20,64}$/i.test(val)) {
+    say(isEl ? '⚠️ Δεν μοιάζει με κλειδί ImgBB' : '⚠️ That does not look like an ImgBB key', '#e88');
+    return;
+  }
+  say(isEl ? '⏳ Δοκιμή με πραγματικό ανέβασμα…' : '⏳ Testing with a real upload…');
+  // 1x1 transparent PNG — the smallest thing that is still a real upload.
+  const PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  try {
+    const fd = new FormData();
+    fd.append('image', PX);
+    fd.append('name', 'jewelprice_key_test');
+    const r = await fetch('https://api.imgbb.com/1/upload?key=' + encodeURIComponent(val), { method: 'POST', body: fd });
+    let j = null;
+    try { j = JSON.parse(await r.text()); } catch (e) {}
+    if (j && j.success) {
+      localStorage.setItem('jpro_imgbb_key', val);
+      try { await pushToCloud(); } catch (e) {}   // the other devices get it without retyping
+      say(isEl ? '✓ Δουλεύει — αποθηκεύτηκε' : '✓ Works — saved', 'var(--success)');
+      return;
+    }
+    const err = j && j.error;
+    const reason = (err && err.message) ? err.message + (err.code ? ' (' + err.code + ')' : '') : 'HTTP ' + r.status;
+    // Not saved: storing a key that cannot upload would just move the failure to the
+    // next jewel he adds, where it costs him a photo instead of two seconds here.
+    say((isEl ? '❌ Το ImgBB το απέρριψε: ' : '❌ ImgBB refused it: ') + reason, '#e88');
+  } catch (e) {
+    say((isEl ? '❌ Χωρίς σύνδεση: ' : '❌ No connection: ') + e.message, '#e88');
+  }
+}
 
 // ── SHOWROOM GATE (the public showroom's access code) ─────────────────────────
 // The code used to be hardcoded in showroom.htm, so changing it meant editing and
