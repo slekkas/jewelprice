@@ -322,6 +322,16 @@ let LANG = localStorage.getItem('jpro_lang') || ((navigator.language || '').toLo
 let _item = null, _qr = '';
 function tr(k) { return (T[LANG] || T.en)[k] || (T.en[k] || k); }
 function metalLabelFor(m) { return (METAL_L[LANG] || METAL_L.en)[m] || m; }
+// Silver plating — mirrors SILVER_PLATING in jewelprice.htm. `pre` = reads in front of
+// the metal ("Gold Plated Silver"); otherwise it follows it ("Silver & Gold Plated").
+const SILVER_PLATING_L = {
+  gold:             { el:'Επιχρυσωμένο',              en:'Gold Plated',                pre:true  },
+  rose:             { el:'Ροζ Επιχρυσωμένο',          en:'Rose Gold Plated',           pre:true  },
+  gold_rose:        { el:'Επιχρυσωμένο & Ροζ Επιχρυσωμένο', en:'Gold & Rose Gold Plated', pre:true },
+  silver_gold:      { el:'& Επιχρυσωμένο',            en:'& Gold Plated',              pre:false },
+  silver_rose:      { el:'& Ροζ Επιχρυσωμένο',        en:'& Rose Gold Plated',         pre:false },
+  silver_gold_rose: { el:'& Επιχρυσωμένο & Ροζ',      en:'& Gold & Rose Plated',       pre:false },
+};
 function genderLabelFor(g) { return (GENDER_L[LANG] || GENDER_L.en)[g] || g; }
 function typeLabelFor(t) { return (TYPE_L[LANG] || TYPE_L.en)[t] || t; }
 function setLang(l) {
@@ -410,8 +420,16 @@ function render(item, qr) {
   const name       = ((typeLbl + handmade + (desc.trim() ? ' ' + desc.trim() : '')).trim()) || qr;
 
   const karat      = item.karat ? item.karat.replace(/s$/, '') : '';
+  // Plated silver: the plating goes in front, trade-style («Επιχρυσωμένο Ασήμι» /
+  // "Gold Plated Silver"); a two-tone piece takes it as a suffix instead.
+  const _plating   = (item.metal === 'silver' && item.silverPlating)
+    ? (SILVER_PLATING_L[item.silverPlating] || null) : null;
+  const _metalName = _plating
+    ? (_plating.pre ? _plating[LANG] + ' ' + metalLabelFor(item.metal)
+                    : metalLabelFor(item.metal) + ' ' + _plating[LANG])
+    : metalLabelFor(item.metal);
   const metalStr   = item.metal && item.metal !== 'other'
-    ? metalLabelFor(item.metal) + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '')
+    ? _metalName + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '')
     : '';
 
   let rows = '';

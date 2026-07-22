@@ -1353,9 +1353,9 @@ let allItems   = [];
 let filtered   = [];
 let selected   = new Set();   // firebase keys
 // Multi-select filters — each is an array of active values (empty = all)
-let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
 // Draft filters inside the drawer (applied on tap Apply)
-let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
 let lightboxKey = null;
 let searchQuery = ''; // current search string
 
@@ -1415,6 +1415,47 @@ function goldColorLabel(value) {
   const e = GOLD_COLORS.find(c => c.value === value);
   if (!e) return value;
   return lang === 'el' ? e.el : e.en;
+}
+
+// Silver plating — mirror of SILVER_PLATING in jewelprice.htm. Blank/absent = plain silver.
+// Trade wording: the plating is an adjective in front of the base metal ("Gold Plated
+// Silver 925" / «Επιχρυσωμένο Ασήμι 925»); a two-tone piece takes it as a suffix instead.
+const SILVER_PLATING = [
+  { value: 'gold',             el: 'Επιχρυσωμένο',              en: 'Gold Plated',                mode: 'pre' },
+  { value: 'rose',             el: 'Ροζ Επιχρυσωμένο',          en: 'Rose Gold Plated',           mode: 'pre' },
+  { value: 'gold_rose',        el: 'Επιχρυσωμένο & Ροζ',        en: 'Gold & Rose Gold Plated',    mode: 'pre',
+    pre_el: 'Επιχρυσωμένο & Ροζ Επιχρυσωμένο' },
+  { value: 'silver_gold',      el: 'Ασήμι & Επιχρυσωμένο',      en: 'Silver & Gold Plated',       mode: 'post',
+    post_el: '& Επιχρυσωμένο',       post_en: '& Gold Plated' },
+  { value: 'silver_rose',      el: 'Ασήμι & Ροζ Επιχρυσωμένο',  en: 'Silver & Rose Gold Plated',  mode: 'post',
+    post_el: '& Ροζ Επιχρυσωμένο',   post_en: '& Rose Gold Plated' },
+  { value: 'silver_gold_rose', el: 'Ασήμι, Επιχρυσωμένο & Ροζ', en: 'Silver, Gold & Rose Plated', mode: 'post',
+    post_el: '& Επιχρυσωμένο & Ροζ', post_en: '& Gold & Rose Plated' },
+];
+function silverPlatingLabel(value) {
+  const e = SILVER_PLATING.find(c => c.value === (value || ''));
+  if (!e) return '';
+  return lang === 'el' ? e.el : e.en;
+}
+// Filter-pill label: a real plating by name, plain silver spelled out ('' is a valid,
+// selectable value here — most silver is plain).
+function _platFilterLabel(v) {
+  if (!v) return lang === 'el' ? 'Απλό ασήμι' : 'Plain silver';
+  return silverPlatingLabel(v);
+}
+// The full metal phrase shown to the customer. Silver purity is a millesimal fineness
+// (925), NOT karats — so no 'K' on silver; gold keeps its 14K/18K.
+function metalWithPlating(item) {
+  const isEl = lang === 'el';
+  const names = { gold: isEl?'Χρυσός':'Gold', silver: isEl?'Ασήμι':'Silver', other: isEl?'Άλλο':'Other' };
+  const k = item.karat ? String(item.karat).replace(/s$/, '') : '';
+  let base = names[item.metal] || item.metal || '';
+  if (k) base += ' ' + (item.metal === 'silver' ? k : k + 'K');
+  if (item.metal !== 'silver') return base;
+  const e = SILVER_PLATING.find(c => c.value === (item.silverPlating || ''));
+  if (!e) return base;
+  return e.mode === 'pre' ? (isEl ? (e.pre_el || e.el) : (e.pre_en || e.en)) + ' ' + base
+                          : base + ' ' + (isEl ? e.post_el : e.post_en);
 }
 
 // Decorative item colours (enamel/stone) — mirror of ITEM_COLORS in jewelprice.htm.
@@ -1633,6 +1674,14 @@ function getFilterOptions() {
   const goldColors = [...new Set(allItems.filter(i => i.metal==='gold').map(i => i.goldColor||'gold'))];
   // Sort gold colors by GOLD_COLORS order
   const gcSorted   = GOLD_COLORS.filter(c => goldColors.includes(c.value)).map(c => c.value);
+  // Silver platings present in stock, in SILVER_PLATING order. '' = plain silver, which is
+  // most of the stock — only worth offering as a choice when a real plating exists too.
+  // ('' is not in SILVER_PLATING — that list holds only real platings — so plain silver is
+  // prepended by hand. It must be a choice, or "plain + gold plated" would be ONE option
+  // and the group would never render.)
+  const _plats     = [...new Set(allItems.filter(i => i.metal==='silver').map(i => i.silverPlating||''))];
+  const platSorted = (_plats.includes('') ? [''] : [])
+    .concat(SILVER_PLATING.filter(c => _plats.includes(c.value)).map(c => c.value));
   const hasHandmade = allItems.some(i => i.handmade);
   // Vendors
   const vendors = [...new Set(allItems.map(i => i.vendorName).filter(Boolean))].sort();
@@ -1645,13 +1694,14 @@ function getFilterOptions() {
     ...STONE_PRIORITY.filter(s => allStones.includes(s)),
     ...allStones.filter(s => !STONE_PRIORITY.includes(s)).sort()
   ];
-  return { types, vendors, genders, metals, karats, goldColors: gcSorted, stones: stonesSorted, hasHandmade };
+  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, stones: stonesSorted, hasHandmade };
 }
 
 function countActiveFilters() {
   return activeFilters.types.length + activeFilters.vendors.length + activeFilters.genders.length +
     activeFilters.metals.length + activeFilters.karats.length +
-    activeFilters.goldColors.length + activeFilters.stones.length + (activeFilters.handmade ? 1 : 0);
+    activeFilters.goldColors.length + (activeFilters.platings||[]).length +
+    activeFilters.stones.length + (activeFilters.handmade ? 1 : 0);
 }
 
 function updateFilterBar() {
@@ -1680,6 +1730,7 @@ function updateFilterBar() {
     if (activeFilters.metals.length)     parts.push(activeFilters.metals.map(m=>metalLabel[m]||m).join(', '));
     if (activeFilters.karats.length)     parts.push(activeFilters.karats.map(k=>k+'K').join(', '));
     if (activeFilters.goldColors.length) parts.push(activeFilters.goldColors.map(goldColorLabel).join(', '));
+    if ((activeFilters.platings||[]).length) parts.push(activeFilters.platings.map(_platFilterLabel).join(', '));
     if (activeFilters.stones.length)     parts.push('💎 ' + activeFilters.stones.map(s=>stoneLabel(s)).join(', '));
     if (activeFilters.handmade)          parts.push(lang==='el'?'Χειροποίητα':'Handmade');
     summary.textContent = parts.join(' · ');
@@ -1838,7 +1889,7 @@ function _navFacetResultCount(typeKey) {
   let count = 0;
   matched.forEach(i => {
     if (i.groupId) {
-      const key = i.groupId + '|' + (i.color || '') + '|' + (i.goldColor || '');
+      const key = i.groupId + '|' + (i.color || '') + '|' + (i.goldColor || '') + '|' + (i.silverPlating || '');
       if (seen.has(key)) return;
       seen.add(key);
     }
@@ -1850,7 +1901,7 @@ function _navFacetResultCount(typeKey) {
 function navApplyFacets(typeKey) {
   activeFilters = {
     types: typeKey ? [typeKey] : [],
-    vendors: [], karats: [], goldColors: [], stones: [], handmade: false,
+    vendors: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false,
     metals:  [..._navDraftMetals],
     genders: [..._navDraftGenders]
   };
@@ -1871,6 +1922,7 @@ function openFilterDrawer() {
     vendors:    [...activeFilters.vendors],
     karats:     [...activeFilters.karats],
     goldColors: [...activeFilters.goldColors],
+    platings: [...(activeFilters.platings||[])],
     stones:     [...activeFilters.stones],
     handmade:   activeFilters.handmade
   };
@@ -1936,6 +1988,9 @@ function renderDrawer() {
   }
   if (opts.goldColors.length > 1) {
     html += pillGroup(isEl?'Χρώμα Χρυσού':'Gold Color', opts.goldColors, 'goldColors', goldColorLabel);
+  }
+  if (opts.platings.length > 1) {
+    html += pillGroup(isEl?'Επιχρύσωση':'Plating', opts.platings, 'platings', _platFilterLabel);
   }
     if (opts.stones.length > 0) {
       // Build pearl-subcategory aware stone group
@@ -2057,7 +2112,7 @@ function toggleDraftPickerItem(el) {
 }
 
 function clearDraftFilters() {
-  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
   renderDrawer();
 }
 
@@ -2124,6 +2179,7 @@ function applyDrawerFilters() {
     vendors:    [...draftFilters.vendors],
     karats:     [...draftFilters.karats],
     goldColors: [...draftFilters.goldColors],
+    platings: [...(draftFilters.platings||[])],
     stones:     [...draftFilters.stones],
     handmade:   draftFilters.handmade
   };
@@ -2132,7 +2188,7 @@ function applyDrawerFilters() {
 }
 
 function clearAllFilters() {
-  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], stones: [], handmade: false };
+  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
   // "Clear" means clear everything, including any leftover search text
   clearSearchInputOnly();
   applyFilters();
@@ -2242,6 +2298,10 @@ function applyFilters() {
       const k = (item.karat||'').replace(/s$/,'');
       if (!activeFilters.karats.includes(k)) return false;
     }
+    if ((activeFilters.platings||[]).length) {
+      if (item.metal !== 'silver') return false;
+      if (!activeFilters.platings.includes(item.silverPlating || '')) return false;
+    }
     if (activeFilters.goldColors.length) {
       if (item.metal !== 'gold') return false;
       const gc = item.goldColor || 'gold';
@@ -2293,7 +2353,7 @@ function renderGrid() {
     if (!gid) { rows.push({ item, count: 1 }); continue; }
     // Split a group by BOTH decorative colour and gold colour, so e.g. a yellow-gold
     // and a white-gold version of the same cross show as two separate cards.
-    const key = gid + '|' + (item.color || '') + '|' + (item.goldColor || '');
+    const key = gid + '|' + (item.color || '') + '|' + (item.goldColor || '') + '|' + (item.silverPlating || '');
     if (_rowMap.has(key)) { rows[_rowMap.get(key)].count++; }
     else { _rowMap.set(key, rows.length); rows.push({ item, count: 1 }); }
   }
@@ -2303,8 +2363,9 @@ function renderGrid() {
     const name = getLabel(item);
     const tags = [];
     if (item.metal && item.metal !== 'other') {
-      const k = item.karat ? item.karat.replace(/s$/,'') : '';
-      tags.push(`<span class="card-tag">${metalLabel[item.metal]||item.metal}${k?' '+k+'K':''}</span>`);
+      // Plated silver reads as one phrase — «Επιχρυσωμένο Ασήμι 925» — not two tags:
+      // the plating is what the customer sees, the 925 is what it is underneath.
+      tags.push(`<span class="card-tag">${metalWithPlating(item)}</span>`);
       if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
         tags.push(`<span class="card-tag">${goldColorLabel(item.goldColor)}</span>`);
       }
@@ -2403,14 +2464,14 @@ function openLightbox(key) {
   // In-stock count for grouped similar items (same group + same colour), matching the grid card
   if (item.groupId) {
     const stockN = (filtered || allItems).filter(i =>
-      i.groupId === item.groupId && (i.color || '') === (item.color || '') && (i.goldColor || '') === (item.goldColor || '')).length;
+      i.groupId === item.groupId && (i.color || '') === (item.color || '') && (i.goldColor || '') === (item.goldColor || '')
+      && (i.silverPlating || '') === (item.silverPlating || '')).length;
     if (stockN > 1) rows += row(lang==='el'?'Απόθεμα':'In stock', stockN + (lang==='el'?' διαθέσιμα':' available'));
   }
   const _colLbl = itemColorLabel(item.color);
   if (_colLbl) rows += row(lang==='el'?'Χρώμα':'Colour', _colLbl);
   if (item.metal && item.metal !== 'other') {
-    const k = item.karat ? item.karat.replace(/s$/,'') : '';
-    let metalStr = `${metalLabel[item.metal]||item.metal}${k?' · '+k+'K':''}`;
+    let metalStr = metalWithPlating(item);
     if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
       metalStr += ' · ' + goldColorLabel(item.goldColor);
     }
@@ -2552,8 +2613,7 @@ function renderCompare(items) {
     let rows = '';
     if (item.jewelryType) rows += row(lang==='el'?'Τύπος':'Type', typeLabel(item.jewelryType));
     if (item.metal && item.metal !== 'other') {
-      const k = item.karat ? item.karat.replace(/s$/,'') : '';
-      let metalStr = `${metalLabel[item.metal]||item.metal}${k?' · '+k+'K':''}`;
+      let metalStr = metalWithPlating(item);
       if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
         metalStr += ' · ' + goldColorLabel(item.goldColor);
       }

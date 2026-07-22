@@ -2372,6 +2372,10 @@
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="goldColorLabel">Χρώμα Χρυσού</label>
       <select id="labelGoldColorSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
     </div>
+    <div id="labelPlatingWrap" style="margin-bottom:16px;display:none">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="platingLabel">Επιχρύσωση</label>
+      <select id="labelPlatingSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
+    </div>
     <div style="margin-bottom:16px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:8px" data-i18n="photoLabel">Φωτογραφία Κοσμήματος</label>
       <div id="labelPhotoPickerWrap"></div>
@@ -3739,6 +3743,7 @@ const T = {
     ok:'OK',
     genderLabel:'Κοινό Αγοραστικό',
     goldColorLabel:'Χρώμα Χρυσού',
+    platingLabel:'Επιχρύσωση',
     invFilterGender:'Φύλο',
     genderWomen:'♀️ Γυναικεία',
     genderMen:'♂️ Ανδρικά',
@@ -4256,6 +4261,7 @@ const T = {
     genderChildren:'👶 Children',
     genderUnisex:'✨ Unisex',
     goldColorLabel:'Gold Color',
+    platingLabel:'Plating',
     colorLabel:'Color (enamel/stone)',
     invFilterGender:'Gender',
     invFilterMixed:'Mixed Metal',
@@ -9359,6 +9365,14 @@ function _openLabelModalInner(data, modal, content) {
     _lblGcSel.innerHTML = GOLD_COLORS.map(c => `<option value="${c.value}">${lang==='el'?c.el:c.en}</option>`).join('');
     _lblGcSel.value = 'gold'; // always reset to default on new item
   }
+  // Silver plating — the silver counterpart of the gold-colour selector (blank = plain)
+  const _lblPlWrap = document.getElementById('labelPlatingWrap');
+  const _lblPlSel = document.getElementById('labelPlatingSelect');
+  if (_lblPlWrap) _lblPlWrap.style.display = (metal === 'silver') ? 'block' : 'none';
+  if (_lblPlSel) {
+    _lblPlSel.innerHTML = silverPlatingOptionsHtml('');
+    _lblPlSel.value = ''; // always reset to plain on a new item
+  }
   // Populate the decorative color selector (blank = plain) — reset on each open
   const _lblColorSel = document.getElementById('labelColorSelect');
   if (_lblColorSel) {
@@ -14095,12 +14109,14 @@ function calculate() {
     lastCalcResult.descEn = _lastScannedInvEntry.descEn || _lastScannedInvEntry.description || '';
     lastCalcResult.jewelryType = _lastScannedInvEntry.jewelryType || '';
     lastCalcResult.goldColor = _lastScannedInvEntry.goldColor || null;
+    lastCalcResult.silverPlating = _lastScannedInvEntry.silverPlating || null;
   } else {
     lastCalcResult.seqRef = null;
     lastCalcResult.descEl = '';
     lastCalcResult.descEn = '';
     lastCalcResult.jewelryType = '';
     lastCalcResult.goldColor = null;
+    lastCalcResult.silverPlating = null;
   }
   // Show ➕ Add to Cart button now that we have a result
   updateCartUI();
@@ -15710,7 +15726,7 @@ function parseCodeInput(raw) {
 
 // How a piece LOOKS. Two records sharing a QR only need telling apart when this differs —
 // truly identical twins are interchangeable and must never nag the owner.
-function _variantKey(it) { return (it.goldColor || '') + '|' + (it.color || ''); }
+function _variantKey(it) { return (it.goldColor || '') + '|' + (it.color || '') + '|' + (it.silverPlating || ''); }
 
 // At the REF level a shared code hides more than a colour difference. A similar-items
 // group deliberately prints ONE number (invAddSimilar copies seqId/refType), and its
@@ -15730,6 +15746,7 @@ let _refVariantCarry = null;   // { ref, list }
 function _variantLabel(it) {
   const bits = [];
   if (it.goldColor) bits.push(goldColorLabel(it.goldColor));
+  if (it.silverPlating) bits.push(silverPlatingLabel(it.silverPlating));
   if (it.color) bits.push(itemColorLabel(it.color));
   // Pieces sharing a ref code can be told apart by their STONES rather than their colour
   // (a group whose members were each set with a different stone). Show that only when it
@@ -17939,7 +17956,7 @@ function refTypeMismatch(item) {
 // old tag and its regenerated form aren't read as two different pieces.
 function _refIdentityKey(it) {
   return [String(it.weight || ''), _qrKey(it.qrCode || it.code || ''),
-          it.color || '', it.goldColor || ''].join('|');
+          it.color || '', it.goldColor || '', it.silverPlating || ''].join('|');
 }
 
 // "1 κομμάτι" but "4 κομμάτια" — Greek and English both inflect, and these warnings are
@@ -17994,7 +18011,7 @@ async function _printAsRefTag(id, data, statusEl, copies, alsoIds) {
   const newSeq = await getNextSeqId();
   const preview = formatSeqId(newSeq, item.refType || item.jewelryType);
   const others = clash.map(([, it]) =>
-    `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
+    `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.silverPlating ? ' · ' + silverPlatingLabel(it.silverPlating) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
   const n = clash.length;
   showConfirm(isEl
     ? `Ο κωδικός ${itemRefCode(item)} τυπώνεται και σε ${n} ${n === 1 ? 'ΔΙΑΦΟΡΕΤΙΚΟ κομμάτι' : 'ΔΙΑΦΟΡΕΤΙΚΑ κομμάτια'}:\n${others}\n\nΜια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Να πάρει αυτό δικό του κωδικό ${preview} και να τυπωθεί;`
@@ -18021,7 +18038,7 @@ function _refCheckSplitAfterEdit(id, item) {
   if (!clash.length) return;
   const isEl = lang === 'el';
   const others = clash.map(([, it]) =>
-    `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
+    `• ${it.weight}g${it.goldColor ? ' · ' + goldColorLabel(it.goldColor) : ''}${it.silverPlating ? ' · ' + silverPlatingLabel(it.silverPlating) : ''}${it.color ? ' · ' + itemColorLabel(it.color) : ''}`).join('\n');
   const n = clash.length;
   showConfirm(isEl
     ? `Ο κωδικός ${itemRefCode(item)} τυπώνεται και σε ${n} ακόμη ${_piecesWord(n)} που τώρα ${n === 1 ? 'ΔΙΑΦΕΡΕΙ' : 'ΔΙΑΦΕΡΟΥΝ'}:\n${others}\n\nΜια ετικέτα δεν μπορεί να δείχνει δύο διαφορετικά κομμάτια. Τυπώστε νέα ετικέτα για να πάρει αυτό δικό του κωδικό.`
@@ -18486,6 +18503,7 @@ async function _saveToInventoryFromLabel(labelData) {
     alsoGenders: readGenderAlso('label'),
     color: (document.getElementById('labelColorSelect')?.value) || null,
     goldColor: (metal === 'gold') ? (document.getElementById('labelGoldColorSelect')?.value || 'gold') : null,
+    silverPlating: (metal === 'silver') ? (document.getElementById('labelPlatingSelect')?.value || null) : null,
     secondaryMetal: r ? (r.secondaryMetal || null) : null,
     secondaryKarat: r ? (r.secondaryKarat || null) : null,
     secondaryWeight: r ? (r.secondaryWeight || null) : null,
@@ -18569,7 +18587,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded'];
+  'metal','karat','goldColor','silverPlating','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -18857,7 +18875,7 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 
 // Label for one Status-group pill. 'in_stock'/'sold' are real statuses; the rest are
 // cross-cutting flags (reserved / grouped / hidden / no-photo) that narrow within them.
@@ -19054,7 +19072,7 @@ let _invShowSelectedOnly = false; // select mode: narrow the list to only picked
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.colors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -19074,6 +19092,8 @@ function updateInvFilterBadge() {
     if (_invFilters.status.length) parts.push(_invFilters.status.map(s => _statusPillLabel(s)).join(', '));
     if (_invFilters.gender.length) parts.push(_invFilters.gender.map(g => t('gender'+g.charAt(0).toUpperCase()+g.slice(1))).join(', '));
     if ((_invFilters.goldColors||[]).length) parts.push((_invFilters.goldColors||[]).map(v => goldColorLabel(v)).join(', '));
+    if ((_invFilters.platings||[]).length) parts.push((_invFilters.platings||[]).map(v =>
+      v === PLATING_PLAIN ? (lang==='el'?'Απλό ασήμι':'Plain silver') : silverPlatingLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
@@ -19224,6 +19244,27 @@ function openInvFilterSheet() {
     if (!pills) return '';
     return `<div class="inv-fs-group"><div class="inv-fs-label">${lang==='el'?'Χρώμα Χρυσού':'Gold Color'}</div><div class="inv-fs-pills">${pills}</div></div>`;
   })();
+  // Silver plating filter pills — mirrors the gold-colour group. Only platings actually
+  // present in stock, plus a "plain silver" pill (which is what most silver is), so the
+  // group is absent entirely for a shop with no plated pieces.
+  const platingGroup = (function() {
+    const used = new Set();
+    Object.values(_inventoryCache || {}).forEach(item => {
+      if (item.metal === 'silver') used.add(item.silverPlating || '');
+    });
+    // Nothing to choose between if every silver piece is plain
+    if (used.size === 0 || (used.size === 1 && used.has(''))) return '';
+    const pills = SILVER_PLATING.filter(c => used.has(c.value)).map(c => {
+      // Plain silver is stored as null/'' but the shared pill handler rejects an empty
+      // data-val, so it travels as a sentinel and is mapped back in applyFilters.
+      const v = c.value || PLATING_PLAIN;
+      const sel = (_invFilters.platings || []).includes(v);
+      const lbl = c.mode ? (lang === 'el' ? c.el : c.en) : (lang === 'el' ? 'Απλό ασήμι' : 'Plain silver');
+      return `<button class="inv-fs-pill${sel?' sel':''}" data-group="platings" data-val="${v}">${lbl}</button>`;
+    }).join('');
+    if (!pills) return '';
+    return `<div class="inv-fs-group"><div class="inv-fs-label">${lang==='el'?'Επιχρύσωση':'Plating'}</div><div class="inv-fs-pills">${pills}</div></div>`;
+  })();
   // Decorative color filter pills — only colors actually present in stock
   const colorGroup = (function() {
     const used = new Set();
@@ -19332,6 +19373,7 @@ function openInvFilterSheet() {
     })() +
     pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => _statusPillLabel(v)) +
     goldColorGroup +
+    platingGroup +
     colorGroup +
     genderGroup +
     mixedMetalGroup +
@@ -19495,7 +19537,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -19814,6 +19856,11 @@ function renderInvList() {
       const gc = item.goldColor || 'gold';
       if (!f.goldColors.includes(gc)) return false;
     }
+    if (f.platings && f.platings.length) {
+      if (item.metal !== 'silver') return false;
+      const pl = item.silverPlating || PLATING_PLAIN;   // plain silver travels as a sentinel
+      if (!f.platings.includes(pl)) return false;
+    }
     if (f.colors && f.colors.length) {
       if (!item.color || !f.colors.includes(item.color)) return false;
     }
@@ -20121,6 +20168,17 @@ function renderInvList() {
       const _gcDisplay = _gcParts.length > 1 ? _gcParts[0] + ' &<br>' + _gcParts.slice(1).join(' & ') : lbl;
       return `<span class="inv-card-badge" style="background:${c.bg};border:1px solid ${c.border};color:${c.text};font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${_gcDisplay}</span>`;
     })();
+    // Silver plating badge — only for plated silver (blank = plain silver, no badge)
+    const _platingBadge = (function() {
+      if (item.metal !== 'silver' || !item.silverPlating) return '';
+      const lbl = silverPlatingLabel(item.silverPlating);
+      if (!lbl) return '';
+      const _rose = item.silverPlating === 'rose' || item.silverPlating === 'silver_rose';
+      const c = _rose
+        ? { bg:'rgba(255,180,160,0.15)', border:'rgba(255,160,130,0.45)', text:'#ffb4a0' }
+        : { bg:'rgba(212,175,55,0.13)',  border:'rgba(212,175,55,0.35)',  text:'var(--gold-light)' };
+      return `<span class="inv-card-badge" style="background:${c.bg};border:1px solid ${c.border};color:${c.text};font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${lbl}</span>`;
+    })();
     // Decorative color badge (enamel/stone) — only when a color is set (blank = plain)
     const _colorBadge = (function() {
       if (!item.color) return '';
@@ -20224,7 +20282,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${_reservedBadge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_genderBadge}${_secMetalBadge}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${_reservedBadge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_platingBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -20272,7 +20330,7 @@ function renderInvList() {
     members.forEach(([,it]) => {
       const key = it.color ? itemColorLabel(it.color)
         : (it.metal === 'gold' ? goldColorLabel(it.goldColor || 'gold')
-        : it.metal === 'silver' ? t('silver') : '');
+        : it.metal === 'silver' ? (silverPlatingLabel(it.silverPlating) || t('silver')) : '');
       if (key) buckets[key] = (buckets[key] || 0) + 1;
     });
     const colorSummary = Object.keys(buckets).length > 1
@@ -20322,6 +20380,8 @@ function renderInvList() {
       ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
     const _grpGoldColor = (rep.metal === 'gold' && rep.goldColor && rep.goldColor !== 'gold')
       ? `<span class="inv-card-badge" style="background:rgba(212,175,55,0.13);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${goldColorLabel(rep.goldColor)}</span>` : '';
+    const _grpPlating = (rep.metal === 'silver' && rep.silverPlating)
+      ? `<span class="inv-card-badge" style="background:rgba(212,175,55,0.13);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${silverPlatingLabel(rep.silverPlating)}</span>` : '';
     const _grpGender = (function() {
       const g = rep.gender, m = { women:'♀️', men:'♂️', children:'👶' }; let o = '';
       if (g && g !== 'unisex') o += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.13);border:1px solid rgba(100,160,255,0.3);color:#80b4ff;font-size:11px">${m[g]||''}</span>`;
@@ -20371,7 +20431,7 @@ function renderInvList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${rep.photoUrl ? `<img src="${rep.photoUrl}" onclick="showPhotoFullscreen('${rep.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}${_grpHandmade}${_grpHidden}${_grpGoldColor}${_grpGender}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${countBadge}${_grpHandmade}${_grpHidden}${_grpGoldColor}${_grpPlating}${_grpGender}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -21493,6 +21553,13 @@ function invEdit(id) {
         ${GOLD_COLORS.map(c => `<option value="${c.value}"${(item.goldColor||'gold')===c.value?' selected':''}>${lang==='el'?c.el:c.en}</option>`).join('')}
       </select>
     </div>` : ''}
+    ${!isOtherEdit && item.metal === 'silver' ? `
+    <div style="margin-bottom:18px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Επιχρύσωση':'Plating'}</label>
+      <select id="invEditPlatingSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+        ${silverPlatingOptionsHtml(item.silverPlating)}
+      </select>
+    </div>` : ''}
     ${!isOtherEdit && item.metal !== 'other' ? `
     <div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">⚗️ ${lang==='el'?'Δευτερεύον Μέταλλο (προαιρετικό)':'Secondary Metal (optional)'}</label>
@@ -21996,6 +22063,10 @@ RETAIL: \u20ac[integer]`;
     } else {
       item.goldColor = null;
     }
+    // Save silver plating (only for silver items; blank = plain silver)
+    item.silverPlating = (item.metal === 'silver')
+      ? (document.getElementById('invEditPlatingSelect')?.value || null)
+      : null;
     // Save secondary metal — read from reliable data attribute set by invEditSetSecMetal()
     const _smContainer = document.getElementById('invEditSecMetalNone')?.closest('div');
     const _smSelection = _smContainer?.dataset?.secMetal || 'none';
@@ -24019,6 +24090,8 @@ function invAddSimilar(sourceId) {
       <select id="invAddSimColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${itemColorOptionsHtml(source.color)}</select>
       ${source.metal === 'gold' ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα Χρυσού':'Gold Color'}</div>
       <select id="invAddSimGoldColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${GOLD_COLORS.map(c => `<option value="${c.value}"${(source.goldColor||'gold')===c.value?' selected':''}>${lang==='el'?c.el:c.en}</option>`).join('')}</select>` : ''}
+      ${source.metal === 'silver' ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Επιχρύσωση':'Plating'}</div>
+      <select id="invAddSimPlating" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${silverPlatingOptionsHtml(source.silverPlating)}</select>` : ''}
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Φωτογραφία':'Photo'} <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδια με την ομάδα':'blank = same as group'}</span></div>
       <div id="invAddSimPhotoWrap" style="margin-bottom:12px"></div>
       <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
@@ -24069,7 +24142,10 @@ function invAddSimilar(sourceId) {
       color: document.getElementById('invAddSimColor')?.value || null,
       goldColor: (source.metal === 'gold')
         ? (document.getElementById('invAddSimGoldColor')?.value || 'gold')
-        : (source.goldColor || null)
+        : (source.goldColor || null),
+      silverPlating: (source.metal === 'silver')
+        ? (document.getElementById('invAddSimPlating')?.value || null)
+        : (source.silverPlating || null)
     };
     const diff = _refIdentityKey(probe) !== _refIdentityKey(source);
     noteEl.innerHTML = diff
@@ -24081,7 +24157,7 @@ function invAddSimilar(sourceId) {
   }
   wEl().addEventListener('input', updatePreview);
   // Every field that feeds the identity test re-evaluates the note.
-  ['invAddSimStone', 'invAddSimColor', 'invAddSimGoldColor'].forEach(id =>
+  ['invAddSimStone', 'invAddSimColor', 'invAddSimGoldColor', 'invAddSimPlating'].forEach(id =>
     document.getElementById(id)?.addEventListener('change', updatePreview));
   updatePreview();
 
@@ -24097,6 +24173,9 @@ function invAddSimilar(sourceId) {
     const colorVal = document.getElementById('invAddSimColor').value || null;
     const goldColorEl = document.getElementById('invAddSimGoldColor');
     const goldColorVal = (source.metal === 'gold') ? (goldColorEl?.value || 'gold') : (source.goldColor || null);
+    const platingVal = (source.metal === 'silver')
+      ? (document.getElementById('invAddSimPlating')?.value || null)
+      : (source.silverPlating || null);
     // Read the stone ONCE for the whole batch (null when unchanged), so every piece in it
     // gets the same code and description even if the select were touched mid-save.
     const _swapped = _newStones();
@@ -24116,7 +24195,7 @@ function invAddSimilar(sourceId) {
     // each other — only the source is being diverged from. An unchanged batch keeps the
     // source's number and stays a true group, which is what "12 identical rings, one
     // code, N copies of one label" needs.
-    const _probe = { weight: w, qrCode: buildQR(w, _swapped), color: colorVal, goldColor: goldColorVal };
+    const _probe = { weight: w, qrCode: buildQR(w, _swapped), color: colorVal, goldColor: goldColorVal, silverPlating: platingVal };
     const _differs = _refIdentityKey(_probe) !== _refIdentityKey(source);
     let _batchSeq = null;
     if (_differs && source.seqId) {
@@ -24150,7 +24229,7 @@ function invAddSimilar(sourceId) {
     for (let i = 0; i < qty; i++) {
       const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
       const newItem = Object.assign({}, source, {
-        weight: w, color: colorVal, goldColor: goldColorVal, groupId: gid, status: 'in_stock',
+        weight: w, color: colorVal, goldColor: goldColorVal, silverPlating: platingVal, groupId: gid, status: 'in_stock',
         dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || '', dateSold: null
       });
       if (_photoUrl) { newItem.photoUrl = _photoUrl; newItem.photoUrlHi = _photoUrlHi || _photoUrl; }
@@ -25009,11 +25088,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.11', date: 'Ιούλιος 2026', items: [
-        "🚚 Νέο: Ρυθμίσεις → «Μεταφορά Φωτογραφιών στο Cloudinary». Αντιγράφει όλες τις παλιές φωτογραφίες από το ImgBB.",
-        "🛡️ Τίποτα δεν σβήνεται από το ImgBB. Κάθε κόσμημα αλλάζει ΜΟΝΟ αφού η νέα του φωτογραφία δουλέψει — αν κάτι αποτύχει, κρατάει την παλιά που δουλεύει.",
-        "⏸️ Σταματάει και ξανατρέχει όποτε θες· ό,τι έχει ήδη μεταφερθεί το προσπερνά.",
-        "💡 Οι περιγραφές για την αναζήτηση με φωτογραφία μεταφέρονται κι αυτές, ώστε να μην ξαναγραφούν 700 φορές.",
+      { version: 'v12.12', date: 'Ιούλιος 2026', items: [
+        "✨ Νέο: «Επιχρύσωση» για τα ασημένια — επιχρυσωμένο, ροζ επιχρυσωμένο και οι συνδυασμοί δύο τόνων.",
+        "📍 Στα ίδια σημεία με το χρώμα χρυσού: Υπολογισμός → Ετικέτα, Απόθεμα → Επεξεργασία, και «Προσθήκη παρόμοιων».",
+        "🌐 Στη βιτρίνα η κάρτα γράφει πλέον «Επιχρυσωμένο Ασήμι 925» — κι όχι πια το λανθασμένο «925K».",
+        "🔗 Δύο επιχρυσώσεις της ίδιας ομάδας εμφανίζονται ως ξεχωριστές κάρτες στη βιτρίνα, όπως και τα χρώματα χρυσού.",
+        "🔎 Νέο φίλτρο «Επιχρύσωση» — στο Απόθεμα και στη βιτρίνα.",
       ]},
       ]
   },
@@ -25044,11 +25124,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.11', date: 'Jul 2026', items: [
-        "🚚 New: Settings → \"Move Photos to Cloudinary\". Copies all your old photos across from ImgBB.",
-        "🛡️ Nothing is deleted from ImgBB. A piece is changed ONLY once its new photo works — if one fails, it keeps the old one that works.",
-        "⏸️ Stop and re-run it whenever; anything already moved is skipped.",
-        "💡 The photo-search descriptions move with them, so they aren't rewritten 700 times over.",
+      { version: 'v12.12', date: 'Jul 2026', items: [
+        "✨ New: \"Plating\" for silver pieces — gold plated, rose gold plated and the two-tone combinations.",
+        "📍 In the same three places as gold colour: Calc → Tag, Stock → Edit, and \"Add similar items\".",
+        "🌐 The showroom card now reads \"Gold Plated Silver 925\" — and no longer the incorrect \"925K\".",
+        "🔗 Two platings of the same group show as separate showroom cards, exactly like gold colours.",
+        "🔎 New \"Plating\" filter — in Stock and in the showroom.",
       ]},
           ]
   }
@@ -25340,6 +25421,11 @@ function togglePriceFullscreen() {
     if (lastCalcResult.goldColor) {
       const colorLabel = goldColorLabel(lastCalcResult.goldColor);
       if (colorLabel) metalType = colorLabel;
+    }
+    // Plated silver — the customer is looking at a gold-coloured piece, so say so
+    if (lastCalcResult.silverPlating) {
+      const _plLbl = silverPlatingLabel(lastCalcResult.silverPlating);
+      if (_plLbl) metalType = _plLbl + ' ' + metalType;
     }
     rows.push([t('pfsMetal'), (metalType + (purityPart ? ' · ' + purityPart : '')).trim()]);
   }
@@ -28720,6 +28806,13 @@ function _findCatalogueLines(pieces) {
     bits.push(invTypeLabel(it.jewelryType) || it.jewelryType || '?');
     bits.push((it.metal === 'gold' ? 'gold' : 'silver') + ' ' + (it.karat || ''));
     if (it.goldColor && it.goldColor !== 'gold') bits.push(goldColorLabel(it.goldColor));
+    // Plating matters more here than anywhere: a gold-plated silver piece READS as gold in
+    // the photo while the record says silver, so without this the model is told the wrong
+    // colour. English regardless of UI language — the whole prompt is English.
+    if (it.silverPlating) {
+      const _pl = SILVER_PLATING.find(c => c.value === it.silverPlating);
+      if (_pl && _pl.mode) bits.push(_pl.en);
+    }
     if (it.color) bits.push(itemColorLabel(it.color));
     const st = (it.stonesDesc || '').trim();
     bits.push(st ? st.replace(/\s+/g, ' ') : 'no stones');
@@ -29578,7 +29671,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.11';
+const APP_VERSION = '12.12';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -29594,6 +29687,61 @@ function goldColorLabel(value) {
   const entry = GOLD_COLORS.find(c => c.value === value);
   if (!entry) return '';
   return lang === 'el' ? entry.el : entry.en;
+}
+
+// ─── SILVER PLATING ───────────────────────────────────────────────────────────
+// The silver equivalent of GOLD_COLORS: a 925 piece can be gold plated, rose gold
+// plated, or two-tone (part left plain silver). Stored language-neutral in
+// item.silverPlating; blank/null = plain silver, which is the vast majority.
+//
+// Wording follows the jewellery trade: the plating is an ADJECTIVE in front of the
+// base metal — "Gold Plated Silver 925" / «Επιχρυσωμένο Ασήμι 925» — the form used
+// by Pandora, Missoma and Monica Vinader. (The technical term for gold on sterling
+// is "vermeil", deliberately not used: no walk-in customer would know it.)
+// A two-tone piece is not "gold plated" as a whole, so those read as a SUFFIX
+// instead — "Silver 925 & Gold Plated" / «Ασήμι 925 & Επιχρυσωμένο» — hence `mode`.
+const SILVER_PLATING = [
+  { value: '',                 el: '— (απλό ασήμι)',              en: '— (plain silver)',           mode: null  },
+  { value: 'gold',             el: 'Επιχρυσωμένο',                en: 'Gold Plated',                mode: 'pre' },
+  { value: 'rose',             el: 'Ροζ Επιχρυσωμένο',            en: 'Rose Gold Plated',           mode: 'pre' },
+  { value: 'gold_rose',        el: 'Επιχρυσωμένο & Ροζ',          en: 'Gold & Rose Gold Plated',    mode: 'pre',
+    // In front of the metal the short Greek would read «Επιχρυσωμένο & Ροζ Ασήμι» — i.e.
+    // "pink silver". The full phrase repeats the participle so it can't be misread.
+    pre_el: 'Επιχρυσωμένο & Ροζ Επιχρυσωμένο' },
+  { value: 'silver_gold',      el: 'Ασήμι & Επιχρυσωμένο',        en: 'Silver & Gold Plated',       mode: 'post',
+    post_el: '& Επιχρυσωμένο',      post_en: '& Gold Plated' },
+  { value: 'silver_rose',      el: 'Ασήμι & Ροζ Επιχρυσωμένο',    en: 'Silver & Rose Gold Plated',  mode: 'post',
+    post_el: '& Ροζ Επιχρυσωμένο',  post_en: '& Rose Gold Plated' },
+  { value: 'silver_gold_rose', el: 'Ασήμι, Επιχρυσωμένο & Ροζ',   en: 'Silver, Gold & Rose Plated', mode: 'post',
+    post_el: '& Επιχρυσωμένο & Ροζ', post_en: '& Gold & Rose Plated' },
+];
+// Short label — dropdowns, badges, the group colour breakdown.
+// Filter sentinel for "plain silver" — the field is null/'' but the shared filter-pill
+// handler ignores an empty data-val, so the pill carries this instead.
+const PLATING_PLAIN = '__plain__';
+function silverPlatingLabel(value) {
+  const entry = SILVER_PLATING.find(c => c.value === (value || ''));
+  if (!entry || !entry.mode) return '';
+  return lang === 'el' ? entry.el : entry.en;
+}
+function silverPlatingOptionsHtml(current) {
+  const cur = current || '';
+  return SILVER_PLATING.map(c =>
+    `<option value="${c.value}"${cur === c.value ? ' selected' : ''}>${lang === 'el' ? c.el : c.en}</option>`).join('');
+}
+// The full customer-facing metal phrase, e.g. «Επιχρυσωμένο Ασήμι 925» / "Gold Plated
+// Silver 925". Silver purity is a millesimal fineness (925), NOT karats — so no 'K'.
+function metalWithPlating(item, isEl) {
+  const _el = (isEl === undefined) ? (lang === 'el') : isEl;
+  const names = { gold: _el ? 'Χρυσός' : 'Gold', silver: _el ? 'Ασήμι' : 'Silver', other: _el ? 'Άλλο' : 'Other' };
+  const k = item.karat ? String(item.karat).replace(/s$/, '') : '';
+  let base = names[item.metal] || item.metal || '';
+  if (k) base += ' ' + (item.metal === 'silver' ? k : k + 'K');
+  if (item.metal !== 'silver') return base;
+  const e = SILVER_PLATING.find(c => c.value === (item.silverPlating || ''));
+  if (!e || !e.mode) return base;
+  if (e.mode === 'pre') return (_el ? (e.pre_el || e.el) : (e.pre_en || e.en)) + ' ' + base;
+  return base + ' ' + (_el ? e.post_el : e.post_en);
 }
 
 // Decorative colors for items (enamel / stone / cord) — INDEPENDENT of metal.
@@ -30901,6 +31049,9 @@ function invEditGroup(gid) {
   const _isGoldGroup = members.every(([,it]) => it.metal === 'gold');
   const _gcs = members.map(([,it]) => it.goldColor || 'gold');
   const _gcUniform = _gcs.every(c => c === _gcs[0]);
+  const _isSilverGroup = members.every(([,it]) => it.metal === 'silver');
+  const _pls = members.map(([,it]) => _norm(it.silverPlating));
+  const _plUniform = _pls.every(c => c === _pls[0]);
   const _keepColorLbl = `— ${isEl ? 'Διατήρηση χρώματος κάθε κομματιού' : "Keep each piece's colour"} —`;
   const _NO_MATCH = ' ';   // a value no real option carries, so nothing else is preselected
   const _inS = 'width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none';
@@ -30958,6 +31109,14 @@ function invEditGroup(gid) {
           ${GOLD_COLORS.map(c => `<option value="${c.value}"${(_gcUniform && (_gcs[0]===c.value))?' selected':''}>${isEl?c.el:c.en}</option>`).join('')}
         </select>
       </div>` : ''}
+      ${_isSilverGroup ? `
+      <div style="margin-bottom:16px">
+        <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl?'Επιχρύσωση':'Plating'}</label>
+        <select id="invEditGroupPlating" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px">
+          <option value="__keep__"${_plUniform?'':' selected'}>— ${isEl ? 'Διατήρηση επιχρύσωσης κάθε κομματιού' : "Keep each piece's plating"} —</option>
+          ${silverPlatingOptionsHtml(_plUniform ? _pls[0] : _NO_MATCH)}
+        </select>
+      </div>` : ''}
       <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
         <button id="invEditGroupHide" style="flex:0 0 46px;height:46px;background:${rep.hideFromShowroom?'rgba(229,115,115,0.15)':'var(--wa04)'};border:1px solid ${rep.hideFromShowroom?'rgba(229,115,115,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${rep.hideFromShowroom?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(b){const on=b.style.opacity!=='1';b.style.opacity=on?'1':'0.35';b.style.background=on?'rgba(229,115,115,0.15)':'var(--wa04)';b.style.borderColor=on?'rgba(229,115,115,0.5)':'var(--wa10)'})(this)">🙈</button>
         <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);line-height:1.35">${isEl?'Απόκρυψη από βιτρίνα':'Hide from showroom'}</span>
@@ -30987,13 +31146,15 @@ async function _invEditGroupSave(gid) {
   const applyColor = colorSel !== undefined && colorSel !== '__keep__';
   const gcSel = document.getElementById('invEditGroupGoldColor')?.value;   // absent for non-gold groups
   const applyGoldColor = gcSel !== undefined && gcSel !== '__keep__';
+  const plSel = document.getElementById('invEditGroupPlating')?.value;     // absent for non-silver groups
+  const applyPlating = plSel !== undefined && plSel !== '__keep__';
   const btn = document.getElementById('invEditGroupSaveBtn');
   const status = document.getElementById('invEditGroupStatus');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ …'; }
 
   // Snapshot every field we touch, per piece, so a failed write can be rolled back rather
   // than leaving the cache disagreeing with the cloud (the v11.62 lesson).
-  const fields = ['descEl','descEn','description','vendorCode','handmade','hideFromShowroom','gender','alsoGenders','color','goldColor'];
+  const fields = ['descEl','descEn','description','vendorCode','handmade','hideFromShowroom','gender','alsoGenders','color','goldColor','silverPlating'];
   let saved = 0, failed = 0;
   for (const [id, item] of members) {
     const snap = {}; fields.forEach(f => snap[f] = item[f]);
@@ -31007,6 +31168,7 @@ async function _invEditGroupSave(gid) {
     item.alsoGenders = alsoGenders;
     if (applyColor) item.color = colorSel || null;   // blank option → plain (null)
     if (applyGoldColor) item.goldColor = gcSel;
+    if (applyPlating) item.silverPlating = plSel || null;   // blank option → plain silver (null)
     const ok = await saveInventoryItem(id, item);   // public feed syncs inside on success
     if (ok) { saved++; if (status) status.textContent = (isEl?'Αποθηκεύτηκαν ':'Saved ') + saved + '/' + members.length; }
     else { fields.forEach(f => item[f] = snap[f]); failed++; }   // roll this one back
