@@ -17897,7 +17897,10 @@ function _refSharedWithDifferent(id, item) {
 // (`tagRef`) so later edits know the tag can't go stale.
 // If this piece shares its ref with a piece that differs, the ref must be split first —
 // otherwise the ref tag would be exactly as ambiguous as the code it replaces.
-async function _printAsRefTag(id, data, statusEl) {
+// `copies` prints one label N times (an "add similar" batch of N identical pieces shares
+// ONE label); `alsoIds` are the batch's other pieces, which that same label also tags and
+// which therefore must be stamped `tagRef` too.
+async function _printAsRefTag(id, data, statusEl, copies, alsoIds) {
   const item = _inventoryCache[id];
   if (!item) return;
   const isEl = lang === 'el';
@@ -17905,11 +17908,15 @@ async function _printAsRefTag(id, data, statusEl) {
 
   const doPrint = async () => {
     data.refCode = itemRefCode(item);
-    const ok = await printLabel(data, statusEl, false, 1, true);
+    const ok = await printLabel(data, statusEl, false, copies || 1, true);
     if (!ok) return;
-    item.tagRef = true;
-    _inventoryCache[id] = item;
-    await saveInventoryItem(id, item);
+    for (const _id of [id].concat(alsoIds || [])) {
+      const it = _inventoryCache[_id];
+      if (!it) continue;
+      it.tagRef = true;
+      _inventoryCache[_id] = it;
+      await saveInventoryItem(_id, it);
+    }
     renderInvList();
   };
 
@@ -22091,7 +22098,11 @@ function _promptStoneTagReprint(id, item, newQR) {
     // Printing a fresh tag — offer to re-sync the ref code if the type changed since.
     _withRefSync(id, item, async (refCode) => {
       const data = { fullQR: newQR, baseQR, greekCode: baseQR, lines, hasStones: stoneParts.length > 0, refCode };
-      await printLabel(data, statusEl || document.createElement('div'));
+      const _el = statusEl || document.createElement('div');
+      // Ref-code QR like every other print path (v11.31); descriptive here meant a
+      // reprinted tag silently went back to being ambiguous.
+      if (item.seqId) await _printAsRefTag(id, data, _el);
+      else await printLabel(data, _el);
       renderInvList();
       setTimeout(() => overlay.remove(), 1200);
     });
@@ -22957,7 +22968,9 @@ function invRestock(id) {
       // already derives from the current type, so this prints without a prompt.
       _withRefSync(newId, newItem, async (refCode) => {
         const data = buildDataFromItem(newItem, refCode);
-        await printLabel(data, statusEl || document.createElement('div'));
+        const _el = statusEl || document.createElement('div');
+        if (newItem.seqId) await _printAsRefTag(newId, data, _el);
+        else await printLabel(data, _el);
       });
     });
   });
@@ -23986,7 +23999,8 @@ function invAddSimilar(sourceId) {
       _inventoryCache[sourceId] = source;
       await saveInventoryItem(sourceId, source);
     }
-    let lastItem = null;
+    let lastItem = null, lastId = null;
+    const createdIds = [];
     for (let i = 0; i < qty; i++) {
       const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
       const newItem = Object.assign({}, source, {
@@ -24016,7 +24030,7 @@ function invAddSimilar(sourceId) {
       _inventoryCache[newId] = newItem;
       await saveInventoryItem(newId, newItem);
       _added++;
-      lastItem = newItem;
+      lastItem = newItem; lastId = newId; createdIds.push(newId);
     }
     counterEl.textContent = (lang==='el'?'Προστέθηκαν: ':'Added: ') + _added;
     wEl().value = ''; document.getElementById('invAddSimQty').value = '1'; updatePreview(); wEl().focus();
@@ -24031,7 +24045,16 @@ function invAddSimilar(sourceId) {
       const lines = [baseQR];
       if (isOther) lines.push('-' + parts[0]); else parts.forEach((p, i) => lines.push((i === 0 ? '-' : '+') + p));
       const data = { fullQR: qr, baseQR, greekCode: baseQR, lines, hasStones: parts.length > 0 || isOther, refCode: lastItem.seqId ? itemRefCode(lastItem) : null };
-      try { await printLabel(data, statusEl || document.createElement('div'), false, qty); } catch(e) {}
+      // Every printed tag is a REFERENCE-code tag (v11.31). This path used to print the
+      // descriptive QR: the tag's TEXT read ER0712 while its QR carried the shared
+      // AMA925S4.2, so scanning two colour variants still asked "which one are you
+      // holding?" even though v11.83 had correctly given them different ref codes.
+      // One label, `qty` copies — so the whole batch is stamped tagRef, not just the last.
+      const _el = statusEl || document.createElement('div');
+      try {
+        if (lastItem.seqId) await _printAsRefTag(lastId, data, _el, qty, createdIds.slice(0, -1));
+        else await printLabel(data, _el, false, qty);   // legacy piece with no ref code
+      } catch(e) {}
     }
   }
 
@@ -24840,10 +24863,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.06', date: 'Ιούλιος 2026', items: [
-        "↩️ Πίσω στον έναν έλεγχο ανά φωτογραφία, όπως ήταν όταν ανέβηκαν πάνω από 1000 φωτογραφίες χωρίς πρόβλημα.",
-        "⚠️ Οι 4 προσπάθειες της v12.05 έκαναν μέχρι 8 αιτήματα ανά κόσμημα σε 5 δευτερόλεπτα — ακριβώς όταν το ImgBB ήδη αρνιόταν. Πιθανότατα χειροτέρευε το πρόβλημα.",
-        "🗣️ Κρατήθηκε μόνο το χρήσιμο: αν αποτύχει, λέει ΓΙΑΤΙ. Δεν κοστίζει κανένα επιπλέον αίτημα.",
+      { version: 'v12.07', date: 'Ιούλιος 2026', items: [
+        "🏷️ Οι ετικέτες από τα «Όμοια είδη» τύπωναν το ΚΕΙΜΕΝΟ του κωδικού αναφοράς (ER0712) αλλά το QR έκρυβε τον παλιό κοινό κωδικό — γι' αυτό ρωτούσε ακόμα «ποιο κρατάς;».",
+        "✅ Τώρα το QR έχει τον κωδικό αναφοράς, όπως σε κάθε άλλη εκτύπωση. Δύο χρώματα = δύο κωδικοί = καμία ερώτηση.",
+        "🔁 Το ίδιο διορθώθηκε και στην επανεκτύπωση μετά από αλλαγή πέτρας και στο restock.",
+        "⚠️ Οι ήδη τυπωμένες ετικέτες θέλουν ξανά τύπωμα (Απόθεμα → 🏷️ TAG).",
       ]},
       ]
   },
@@ -24874,10 +24898,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.06', date: 'Jul 2026', items: [
-        "↩️ Back to one try per photo — the way it was when 1000+ photos uploaded without a single problem.",
-        "⚠️ The 4 retries in v12.05 meant up to 8 requests per jewel in 5 seconds, precisely when ImgBB was already refusing. It most likely made things worse.",
-        "🗣️ Only the useful half was kept: if it fails, it says WHY. That costs no extra request.",
+      { version: 'v12.07', date: 'Jul 2026', items: [
+        "🏷️ Tags printed from \"Add similar items\" showed the reference code as TEXT (ER0712) but hid the old shared code in the QR — which is why it still asked \"which one are you holding?\".",
+        "✅ The QR now carries the reference code, like every other print path. Two colours = two codes = no question.",
+        "🔁 The same was fixed for the reprint after a stone change, and for restock.",
+        "⚠️ Tags already printed need reprinting (Stock → 🏷️ TAG).",
       ]},
           ]
   }
@@ -29233,7 +29258,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.06';
+const APP_VERSION = '12.07';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
