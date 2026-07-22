@@ -18047,56 +18047,53 @@ function _scaleToJpeg(img, maxPx, quality) {
 
 // Compress an image File/Blob to a small JPEG dataURL
 // Upload a base64 dataURL to ImgBB, return the direct image URL or null
-// ImgBB is occasionally flaky: it answers a perfectly good request with
-// {"error":{"message":"Internal upload error","code":111}} for a few seconds and then
-// works again (measured 22/07/2026: 2 failures in a row, then 12/12 successes with the
-// SAME key and image). There was no retry here, so one unlucky moment lost the photo for
-// good — the piece saved without it and the owner had to notice and re-add it by hand.
-// Now: up to IMGBB_TRIES attempts with a growing pause between them.
+// ONE attempt per photo. Do NOT add a retry loop here.
 //
-// A PERMANENT error is never retried — an invalid key (code 100) answers identically
-// however many times you ask, so retrying only delays the bad news. That distinction is
-// what makes the retry safe rather than a way to hide a real problem.
-const IMGBB_TRIES = 4;
-const IMGBB_BACKOFF_MS = [700, 1500, 3000];
-
+// This is deliberate and was learned the hard way (22/07/2026). A single upload failure
+// prompted a 4-attempt retry with backoff. Because a jewel uploads TWO images (small +
+// hi-res) in parallel, that turned one jewel into up to EIGHT requests in ~5 seconds —
+// and those extra requests only ever fire when ImgBB is ALREADY refusing, i.e. exactly
+// when hammering it is most likely to make things worse. Failed attempts still count
+// against a rate limit, so the retry feeds the very condition it is trying to survive.
+// Uploads then failed across two different wifi IPs, 5G, both devices and ImgBB's own
+// website, and stayed failing.
+//
+// The single-attempt version had uploaded 1000+ photos without incident. A one-off
+// hiccup is not evidence that a working path needs re-engineering — and a "fix" that
+// multiplies load during an outage is worse than the outage. Reverted in v12.06.
+//
+// If a photo is ever genuinely worth rescuing after a failure, the answer is a QUEUE
+// that retries minutes later (like the offline sales outbox), never a tight loop here.
 async function uploadToImgBB(dataUrl, name) {
   const isEl = lang === 'el';
-  const base64 = (dataUrl || '').split(',')[1];
-  if (!base64) { showToast('⚠️ No image data'); return null; }
-  const fd = new FormData();
-  fd.append('image', base64);
-  // Pass custom name so photos are identifiable and recoverable if service changes
-  if (name) fd.append('name', String(name).replace(/[^a-zA-Z0-9_\-\.]/g, '_').substring(0, 100));
-
-  let lastReason = '';
-  for (let attempt = 1; attempt <= IMGBB_TRIES; attempt++) {
-    showToast('📤 ' + (isEl ? 'Αποστολή φωτογραφίας...' : 'Uploading photo...')
-              + (attempt > 1 ? ' (' + attempt + '/' + IMGBB_TRIES + ')' : ''));
-    let permanent = false;
-    try {
-      const res = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, { method: 'POST', body: fd });
-      const text = await res.text();
-      let json = null;
-      try { json = JSON.parse(text); } catch (e) {}
-      if (json && json.success) {
-        return { url: json.data.url, name: json.data.image?.filename || (name || '') };
-      }
-      // Keep ImgBB's OWN words. Throwing them away is why the first report of this was
-      // an unexplainable "Photo upload failed" with nothing to act on.
-      const err = json && json.error;
-      lastReason = (err && err.message) ? err.message + (err.code ? ' (' + err.code + ')' : '')
-                                        : 'HTTP ' + res.status;
-      if (err && err.code === 100) permanent = true;   // invalid API key — asking again cannot help
-    } catch (e) {
-      lastReason = isEl ? 'χωρίς σύνδεση' : 'no connection';
+  try {
+    const base64 = (dataUrl || '').split(',')[1];
+    if (!base64) { showToast('⚠️ No image data'); return null; }
+    showToast('📤 ' + (isEl ? 'Αποστολή φωτογραφίας...' : 'Uploading photo...'));
+    const fd = new FormData();
+    fd.append('image', base64);
+    // Pass custom name so photos are identifiable and recoverable if service changes
+    if (name) fd.append('name', String(name).replace(/[^a-zA-Z0-9_\-\.]/g, '_').substring(0, 100));
+    const res = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, { method: 'POST', body: fd });
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) {}
+    if (json && json.success) {
+      // Return both the URL and the filename ImgBB stored
+      return { url: json.data.url, name: json.data.image?.filename || (name || '') };
     }
-    if (permanent) break;
-    if (attempt < IMGBB_TRIES) await new Promise(r => setTimeout(r, IMGBB_BACKOFF_MS[attempt - 1] || 3000));
+    // Keep ImgBB's OWN words — this costs no extra request and is the one part of the
+    // v12.05 change worth keeping. Discarding json.error is why the first report of this
+    // was an unexplainable "Photo upload failed" with nothing to act on.
+    const err = json && json.error;
+    const reason = (err && err.message) ? err.message + (err.code ? ' (' + err.code + ')' : '')
+                                        : 'HTTP ' + res.status;
+    showToast('⚠️ ' + (isEl ? 'Αποτυχία αποστολής φωτογραφίας' : 'Photo upload failed') + ' — ' + reason);
+    return null;
+  } catch (e) {
+    showToast('⚠️ ' + (isEl ? 'Σφάλμα σύνδεσης' : 'Connection error'));
+    return null;
   }
-  showToast('⚠️ ' + (isEl ? 'Αποτυχία αποστολής φωτογραφίας' : 'Photo upload failed')
-            + (lastReason ? ' — ' + lastReason : ''));
-  return null;
 }
 
 // Upload the app-sized photo plus a high-res copy (for the public showroom &
@@ -24843,10 +24840,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.05', date: 'Ιούλιος 2026', items: [
-        "📷 Η φωτογραφία ξαναδοκιμάζει μόνη της μέχρι 4 φορές αν το ImgBB κάνει στιγμιαία κοιλιά. Πριν, μία άτυχη στιγμή έχανε τη φωτογραφία οριστικά.",
-        "🗣️ Αν τελικά αποτύχει, λέει πλέον ΓΙΑΤΙ (το ακριβές μήνυμα του ImgBB) αντί για ένα σκέτο «απέτυχε».",
-        "🔍 Για να βρεις κομμάτια χωρίς φωτογραφία: Απόθεμα → Φίλτρα → «📷 Χωρίς φωτογραφία».",
+      { version: 'v12.06', date: 'Ιούλιος 2026', items: [
+        "↩️ Πίσω στον έναν έλεγχο ανά φωτογραφία, όπως ήταν όταν ανέβηκαν πάνω από 1000 φωτογραφίες χωρίς πρόβλημα.",
+        "⚠️ Οι 4 προσπάθειες της v12.05 έκαναν μέχρι 8 αιτήματα ανά κόσμημα σε 5 δευτερόλεπτα — ακριβώς όταν το ImgBB ήδη αρνιόταν. Πιθανότατα χειροτέρευε το πρόβλημα.",
+        "🗣️ Κρατήθηκε μόνο το χρήσιμο: αν αποτύχει, λέει ΓΙΑΤΙ. Δεν κοστίζει κανένα επιπλέον αίτημα.",
       ]},
       ]
   },
@@ -24877,10 +24874,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.05', date: 'Jul 2026', items: [
-        "📷 A photo now retries by itself up to 4 times if ImgBB has a momentary wobble. Before, one unlucky moment lost the photo for good.",
-        "🗣️ If it does fail, it now says WHY (ImgBB's exact message) instead of just \"failed\".",
-        "🔍 To find pieces with no photo: Stock → Filters → \"📷 No photo\".",
+      { version: 'v12.06', date: 'Jul 2026', items: [
+        "↩️ Back to one try per photo — the way it was when 1000+ photos uploaded without a single problem.",
+        "⚠️ The 4 retries in v12.05 meant up to 8 requests per jewel in 5 seconds, precisely when ImgBB was already refusing. It most likely made things worse.",
+        "🗣️ Only the useful half was kept: if it fails, it says WHY. That costs no extra request.",
       ]},
           ]
   }
@@ -29236,7 +29233,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.05';
+const APP_VERSION = '12.06';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
