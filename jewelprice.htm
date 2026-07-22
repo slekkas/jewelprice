@@ -1788,6 +1788,13 @@
         <button id="aiDescPeekBtn" onclick="_toggleAiDescPeek()" style="width:100%;padding:12px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase"></button>
       </div>
 
+      <!-- PHOTO MIGRATION — move photos off ImgBB onto Cloudinary. Safe to re-run. -->
+      <div class="settings-section" id="photoMigSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="pmigTitle">🚚 Μεταφορά Φωτογραφιών στο Cloudinary</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="pmigDesc">Αντιγράφει τις παλιές φωτογραφίες από το ImgBB στο Cloudinary. Τίποτα δεν σβήνεται από το ImgBB, και κάθε κόσμημα αλλάζει μόνο αφού η νέα του φωτογραφία δουλεύει. Μπορείς να το σταματήσεις και να το ξανατρέξεις όποτε θες.</p>
+        <div id="pmigBox"></div>
+      </div>
+
       <!-- SALE LINK REPAIR (one-off cleanup for records written before v11.69) -->
       <div class="settings-section" id="saleLinkFixSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="slfTitle">🔗 Έλεγχος Συνδέσεων Πωλήσεων</h4>
@@ -3358,6 +3365,8 @@ const T = {
     imgbbKeyLabel:'📷 Κλειδί Ανεβάσματος Φωτογραφιών (ImgBB)',
     imgbbKeyHint:'Από imgbb.com → API. Αν οι φωτογραφίες σταματήσουν να ανεβαίνουν, βγάλε νέο κλειδί και βάλ\' το εδώ — δοκιμάζεται αμέσως με μια πραγματική φωτογραφία.',
     imgbbKeySave:'Δοκιμή & Αποθήκευση',
+    pmigTitle:'🚚 Μεταφορά Φωτογραφιών στο Cloudinary',
+    pmigDesc:'Αντιγράφει τις παλιές φωτογραφίες από το ImgBB στο Cloudinary. Τίποτα δεν σβήνεται από το ImgBB, και κάθε κόσμημα αλλάζει μόνο αφού η νέα του φωτογραφία δουλεύει. Μπορείς να το σταματήσεις και να το ξανατρέξεις όποτε θες.',
     cldLabel:'☁️ Cloudinary (φωτογραφίες)',
     cldHint:'Cloudinary → Settings → Upload → Upload presets → Add, με Signing mode = Unsigned. Το «Δοκιμή & Αποθήκευση» ανεβάζει μια πραγματική δοκιμαστική εικόνα.',
     cldSave:'Δοκιμή & Αποθήκευση',
@@ -3830,6 +3839,8 @@ const T = {
     imgbbKeyLabel:'📷 Photo Upload Key (ImgBB)',
     imgbbKeyHint:'From imgbb.com → API. If photos stop uploading, make a new key and paste it here — it is tested straight away with a real photo.',
     imgbbKeySave:'Test & Save',
+    pmigTitle:'🚚 Move Photos to Cloudinary',
+    pmigDesc:'Copies your old photos from ImgBB to Cloudinary. Nothing is deleted from ImgBB, and a piece is only changed once its new photo works. You can stop it and re-run it whenever you like.',
     cldLabel:'☁️ Cloudinary (photos)',
     cldHint:'Cloudinary → Settings → Upload → Upload presets → Add, with Signing mode = Unsigned. "Test & Save" uploads a real test image.',
     cldSave:'Test & Save',
@@ -5156,6 +5167,7 @@ function applyRoleUI() {
   show('stocktakeSection',  can('stocktake'));
   show('saleLinkFixSection', can('sales_admin'));
   show('aiDescPeekSection', can('manage_stock'));
+  show('photoMigSection', can('manage_stock'));
   show('stkOwnerFooter',    can('stocktake') && _stkActive, 'block');
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
 
@@ -5316,7 +5328,7 @@ function showPanel(name) {
     renderVendors();
     if (document.getElementById('laborList').children.length === 0) addLaborRow();
   }
-  if (name === 'settings') { loadSettingsForm(); _renderAiDescPeekBtn(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); } if (can('sales_admin')) renderSalesDashboard(); }
+  if (name === 'settings') { loadSettingsForm(); _renderAiDescPeekBtn(); if (can('manage_stock')) _photoMigRefreshBox(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); } if (can('sales_admin')) renderSalesDashboard(); }
   if (name === 'sync') {
     const _syncPin = localStorage.getItem('jpro_owner_pin') || '';
     if (_syncPin && creds.role !== 'owner') {
@@ -24997,11 +25009,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.10', date: 'Ιούλιος 2026', items: [
-        "☁️ Οι φωτογραφίες μπορούν πλέον να ανεβαίνουν στο Cloudinary αντί για το ImgBB: Συγχρονισμός → Cloudinary.",
-        "🧪 Το «Δοκιμή & Αποθήκευση» ανεβάζει πραγματική δοκιμαστική εικόνα — αν δεν δουλέψει, δεν αποθηκεύεται τίποτα.",
-        "🔀 Διακόπτης «Νέες φωτογραφίες πάνε σε»: ImgBB ή Cloudinary, όποτε θες.",
-        "🖼️ Οι 1770 παλιές φωτογραφίες ΔΕΝ πειράζονται — συνεχίζουν να δουλεύουν ακριβώς όπως είναι.",
+      { version: 'v12.11', date: 'Ιούλιος 2026', items: [
+        "🚚 Νέο: Ρυθμίσεις → «Μεταφορά Φωτογραφιών στο Cloudinary». Αντιγράφει όλες τις παλιές φωτογραφίες από το ImgBB.",
+        "🛡️ Τίποτα δεν σβήνεται από το ImgBB. Κάθε κόσμημα αλλάζει ΜΟΝΟ αφού η νέα του φωτογραφία δουλέψει — αν κάτι αποτύχει, κρατάει την παλιά που δουλεύει.",
+        "⏸️ Σταματάει και ξανατρέχει όποτε θες· ό,τι έχει ήδη μεταφερθεί το προσπερνά.",
+        "💡 Οι περιγραφές για την αναζήτηση με φωτογραφία μεταφέρονται κι αυτές, ώστε να μην ξαναγραφούν 700 φορές.",
       ]},
       ]
   },
@@ -25032,11 +25044,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.10', date: 'Jul 2026', items: [
-        "☁️ Photos can now go to Cloudinary instead of ImgBB: Sync → Cloudinary.",
-        "🧪 \"Test & Save\" uploads a real test image — if it doesn't work, nothing is saved.",
-        "🔀 A \"New photos go to\" switch: ImgBB or Cloudinary, whenever you like.",
-        "🖼️ Your 1770 existing photos are NOT touched — they keep working exactly as they are.",
+      { version: 'v12.11', date: 'Jul 2026', items: [
+        "🚚 New: Settings → \"Move Photos to Cloudinary\". Copies all your old photos across from ImgBB.",
+        "🛡️ Nothing is deleted from ImgBB. A piece is changed ONLY once its new photo works — if one fails, it keeps the old one that works.",
+        "⏸️ Stop and re-run it whenever; anything already moved is skipped.",
+        "💡 The photo-search descriptions move with them, so they aren't rewritten 700 times over.",
       ]},
           ]
   }
@@ -29386,6 +29398,170 @@ async function _findRunDescs() {
   }
 }
 
+// ── PHOTO MIGRATION: ImgBB → Cloudinary ──────────────────────────────────────
+// ImgBB restricted the shop's paid account (v12.09/v12.10). Uploads are blocked but the
+// old images still SERVE, so there is a window to copy them somewhere safe before that
+// changes. This copies them; it never deletes anything from ImgBB.
+//
+// SAFETY, in order of importance:
+//   • Cloudinary FETCHES each image by URL — no image data travels through the phone.
+//   • A record is rewritten only AFTER its new URL comes back. A failure leaves the piece
+//     pointing at its working ImgBB link, so no item can be left with a broken photo.
+//   • The write is a PATCH of just the photo fields, so it cannot clobber an edit made on
+//     another device (the whole-record model this app deliberately moved away from).
+//   • Resumable: anything already on res.cloudinary.com is skipped, so re-running is free.
+//
+// THE TRAP THIS AVOIDS: changing photoUrl makes `aiDescPhoto !== photoUrl`, which is the
+// app's "this photo changed, re-describe it" signal — migrating ~700 pieces would have
+// silently queued ~700 AI calls for descriptions that are already correct. So a piece
+// whose description matches its OLD photo has aiDescPhoto carried over to the new URL.
+const PHOTO_MIG_WORKERS = 3;
+let _photoMigRunning = false, _photoMigStop = false, _photoMigFailures = [];
+
+function _isCloudinaryUrl(u) { return /^https?:\/\/res\.cloudinary\.com\//i.test(u || ''); }
+function _photoNeedsMig(it) {
+  return !!it && ((it.photoUrl && !_isCloudinaryUrl(it.photoUrl)) ||
+                  (it.photoUrlHi && !_isCloudinaryUrl(it.photoUrlHi)));
+}
+
+// Returns the pieces still to move, or NULL when the inventory could not be read — never
+// an empty list on a failed load, which would read as "all done" (the v11.61/v11.74 lesson).
+async function _photoMigPending() {
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
+    const inv = await loadInventory();
+    if (_invLoadFailed) return null;
+    _inventoryCache = inv;
+  }
+  return Object.entries(_inventoryCache).filter(([, it]) => _photoNeedsMig(it));
+}
+
+// Hand Cloudinary the existing URL and let IT do the downloading.
+async function _migrateOneUrl(srcUrl, tag) {
+  const fd = new FormData();
+  fd.append('file', srcUrl);
+  fd.append('upload_preset', _cldPreset());
+  if (tag) fd.append('tags', String(tag).replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 100));
+  const r = await fetch('https://api.cloudinary.com/v1_1/' + encodeURIComponent(_cldName()) + '/image/upload',
+                        { method: 'POST', body: fd });
+  let j = null;
+  try { j = JSON.parse(await r.text()); } catch (e) {}
+  if (j && j.secure_url) return j.secure_url;
+  throw new Error((j && j.error && j.error.message) || ('HTTP ' + r.status));
+}
+
+async function _migrateItemPhotos(id, it) {
+  const tag = it.seqId ? itemRefCode(it) : (it.qrCode || it.code || '');
+  const patch = {};
+  // When the source was too small for a distinct hi-res, both fields hold the SAME url —
+  // move it once and point both at the copy rather than uploading the same bytes twice.
+  const sameBoth = it.photoUrlHi && it.photoUrlHi === it.photoUrl;
+  if (it.photoUrl && !_isCloudinaryUrl(it.photoUrl)) {
+    patch.photoUrl = await _migrateOneUrl(it.photoUrl, tag);
+  }
+  if (it.photoUrlHi && !_isCloudinaryUrl(it.photoUrlHi)) {
+    patch.photoUrlHi = (sameBoth && patch.photoUrl) ? patch.photoUrl
+                                                    : await _migrateOneUrl(it.photoUrlHi, tag ? tag + '_hi' : '');
+  }
+  if (!Object.keys(patch).length) return false;
+  // Keep the photo-search description valid across the move (see the note above).
+  if (patch.photoUrl && it.aiDesc && it.aiDescPhoto === it.photoUrl) patch.aiDescPhoto = patch.photoUrl;
+  const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
+  });
+  if (!res.ok) throw new Error('save-failed-' + res.status);
+  Object.assign(it, patch);
+  _inventoryCache[id] = it;
+  syncPublicItem(id, it);   // the showroom must point at the new URL too
+  return true;
+}
+
+async function migratePhotos(onProgress, shouldStop) {
+  if (!_cldReady()) throw new Error('cloudinary-not-set-up');
+  const pend = await _photoMigPending();
+  if (pend === null) throw new Error('inventory-unreadable');
+  const total = pend.length;
+  let done = 0, failed = 0, next = 0;
+  _photoMigFailures = [];
+  await _keepAwake(true);
+  const worker = async () => {
+    for (;;) {
+      if (shouldStop && shouldStop()) return;
+      const i = next++;                       // claimed with no await in between
+      if (i >= total) return;
+      const [id, it] = pend[i];
+      try { await _migrateItemPhotos(id, it); done++; }
+      catch (e) {
+        failed++;
+        _photoMigFailures.push({ ref: it.seqId ? itemRefCode(it) : id, why: e.message });
+      }
+      if (onProgress) onProgress(done + failed, total, failed);
+    }
+  };
+  try { await Promise.all(Array.from({ length: PHOTO_MIG_WORKERS }, worker)); }
+  finally { await _keepAwake(false); }
+  return { done, failed, total };
+}
+
+async function _photoMigRefreshBox() {
+  const box = document.getElementById('pmigBox');
+  if (!box) return;
+  if (_photoMigRunning) return;
+  const isEl = lang === 'el';
+  if (!_cldReady()) {
+    box.innerHTML = `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center">${
+      isEl ? '⚠️ Ρύθμισε πρώτα το Cloudinary στον Συγχρονισμό' : '⚠️ Set up Cloudinary in Sync first'}</div>`;
+    return;
+  }
+  const pend = await _photoMigPending();
+  if (pend === null) {
+    box.innerHTML = `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center">${
+      isEl ? '⚠️ Δεν διαβάστηκε το απόθεμα — δοκίμασε ξανά' : '⚠️ Could not read the stock — try again'}</div>`;
+    return;
+  }
+  let failHtml = '';
+  if (_photoMigFailures.length) {
+    const why = {};
+    _photoMigFailures.forEach(f => { why[f.why] = (why[f.why] || 0) + 1; });
+    const top = Object.entries(why).sort((a, b) => b[1] - a[1]).map(([w, n]) => n + '× ' + w).join(', ');
+    const refs = _photoMigFailures.slice(0, 8).map(f => f.ref).join(', ');
+    failHtml = `<div style="font-family:var(--font-mono);font-size:10px;color:#e0a86c;text-align:center;margin-top:7px;line-height:1.6">
+        ⚠️ ${_photoMigFailures.length} ${isEl ? 'απέτυχαν' : 'failed'} — ${_resEsc(top)}<br>${_resEsc(refs)}${_photoMigFailures.length > 8 ? '…' : ''}
+        <br>${isEl ? 'Κρατάνε τη φωτογραφία τους στο ImgBB — ξανατρέξε το.' : 'They keep their ImgBB photo — just run it again.'}</div>`;
+  }
+  box.innerHTML = (pend.length
+    ? `<button onclick="_photoMigRun()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase">
+         🚚 ${isEl ? 'Μεταφορά' : 'Move photos'} <span style="opacity:.7">(${pend.length})</span></button>`
+    : `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center">✓ ${
+         isEl ? 'Όλες οι φωτογραφίες είναι στο Cloudinary' : 'Every photo is on Cloudinary'}</div>`) + failHtml;
+}
+
+async function _photoMigRun() {
+  if (_photoMigRunning) { _photoMigStop = true; return; }
+  _photoMigRunning = true; _photoMigStop = false;
+  const isEl = lang === 'el';
+  const box = document.getElementById('pmigBox');
+  const draw = (d, n, f) => {
+    if (!box) return;
+    const pct = n ? Math.round(d / n * 100) : 100;
+    box.innerHTML = `<div style="height:5px;background:var(--wa08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#6fb6e8"></div></div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-align:center;margin-top:5px">${d}/${n}${f ? ' · ' + f + ' ✕' : ''}</div>
+      <div style="font-family:var(--font-body);font-size:10px;color:var(--text-dim);text-align:center;margin-top:3px">${isEl ? 'Άφησε την εφαρμογή ανοιχτή' : 'Keep the app open'}</div>
+      <button onclick="_photoMigRun()" style="width:100%;margin-top:6px;padding:8px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">${isEl ? 'Διακοπή' : 'Stop'}</button>`;
+  };
+  try {
+    draw(0, 1, 0);
+    const r = await migratePhotos(draw, () => _photoMigStop);
+    showToast((r.failed ? '⚠️ ' : '✅ ') + r.done + '/' + r.total + ' ' +
+      (isEl ? 'φωτογραφίες μεταφέρθηκαν' : 'photos moved') + (r.failed ? ' · ' + r.failed + ' ✕' : ''));
+    if (r.done) renderInvList();
+  } catch (e) {
+    showToast('⚠️ ' + (isEl ? 'Η μεταφορά σταμάτησε: ' : 'Migration stopped: ') + e.message);
+  } finally {
+    _photoMigRunning = false;
+    await _photoMigRefreshBox();
+  }
+}
+
 // Hand the current narrowing over to the Stock tab's own filters.
 function _findOpenStock() {
   if (typeof _invFilters !== 'undefined') {
@@ -29402,7 +29578,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.10';
+const APP_VERSION = '12.11';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
