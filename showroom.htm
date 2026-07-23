@@ -589,6 +589,15 @@
     line-height: 1.3;
     margin-bottom: 8px;
   }
+  .card-stone-line {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic; font-weight: 400;
+    color: var(--gold-light);
+    line-height: 1.25;
+    margin-bottom: 9px;
+    overflow-wrap: break-word;
+  }
+  .card-stone-line .sd { opacity: 0.45; }
   .card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
   .card-tag {
     font-family: 'DM Mono', monospace;
@@ -1531,11 +1540,64 @@ function stonesDescDisplay(desc) {
 }
 
 // Extract stone type names from a stonesDesc string (e.g. "Diamond 0.30ct · Ruby 0.50ct")
+// Plural stone names for the card line — shown when a stone is melee or 2+. English is mostly
+// +s (Ruby→Rubies, Topaz→Topazes); Greek needs explicit forms, so both are spelled out.
+const STONE_PLURAL_EN = {
+  'Diamond':'Diamonds','Emerald':'Emeralds','Ruby':'Rubies','Sapphire':'Sapphires','Pearl':'Pearls',
+  'Agate':'Agates','Alexandrite':'Alexandrites','Amazonite':'Amazonites','Amethyst':'Amethysts','Ametrine':'Ametrines',
+  'Apatite':'Apatites','Aquamarine':'Aquamarines','Akoya Pearl':'Akoya Pearls','Baroque Pearl':'Baroque Pearls',
+  'Black Pearl':'Black Pearls','Carnelian':'Carnelians','Citrine':'Citrines','Cobalt Calcite':'Cobalt Calcites',
+  'Coral':'Corals','Crystal':'Crystals','Freshwater Pearl':'Freshwater Pearls','Garnet':'Garnets','Hematite':'Hematites',
+  'Jade':'Jade','Keshi Pearl':'Keshi Pearls','Labradorite':'Labradorites','Lapis Lazuli':'Lapis Lazuli','Malachite':'Malachites',
+  'Moonstone':'Moonstones','Morganite':'Morganites','Onyx':'Onyxes','Opal':'Opals','Peridot':'Peridots','Quartz':'Quartz',
+  'South Sea Pearl':'South Sea Pearls','Spinel':'Spinels','Tahitian Pearl':'Tahitian Pearls','Tanzanite':'Tanzanites',
+  'Topaz':'Topazes','Tourmaline':'Tourmalines','Turquoise':'Turquoise','Zircon':'Zircons'
+};
+const STONE_PLURAL_EL = {
+  'Diamond':'Διαμάντια','Emerald':'Σμαράγδια','Ruby':'Ρουμπίνια','Sapphire':'Ζαφείρια','Pearl':'Μαργαριτάρια',
+  'Agate':'Αχάτες','Alexandrite':'Αλεξανδρίτες','Amazonite':'Αμαζονίτες','Amethyst':'Αμέθυστοι','Ametrine':'Αμετρίνες',
+  'Apatite':'Απατίτες','Aquamarine':'Ακουαμαρίνες','Akoya Pearl':'Ακόγια Μαργαριτάρια','Baroque Pearl':'Μπαρόκ Μαργαριτάρια',
+  'Black Pearl':'Μαύρα Μαργαριτάρια','Carnelian':'Καρνεόλες','Citrine':'Κιτρίνες','Cobalt Calcite':'Κοβαλτίτες Ασβεστίτες',
+  'Coral':'Κοράλλια','Crystal':'Κρύσταλλοι','Freshwater Pearl':'Γλυκόνερου Μαργαριτάρια','Garnet':'Γρανάτες','Hematite':'Αιματίτες',
+  'Jade':'Νεφρίτες','Keshi Pearl':'Κέσι Μαργαριτάρια','Labradorite':'Λαμπραδορίτες','Lapis Lazuli':'Λαπίς Λάζουλι','Malachite':'Μαλαχίτες',
+  'Moonstone':'Φεγγαρόλιθοι','Morganite':'Μοργκανίτες','Onyx':'Όνυχες','Opal':'Οπάλια','Peridot':'Περιδότες','Quartz':'Χαλαζίες',
+  'South Sea Pearl':'Μαργαριτάρια Νότιας Θάλασσας','Spinel':'Σπινέλιοι','Tahitian Pearl':'Ταϊτιανά Μαργαριτάρια','Tanzanite':'Τανζανίτες',
+  'Topaz':'Τοπάζια','Tourmaline':'Τουρμαλίνες','Turquoise':'Τυρκουάζ','Zircon':'Ζιρκόνια'
+};
+// Singular or plural stone name in the current language.
+function stoneLabelN(type, plural) {
+  if (!plural) return stoneLabel(type);
+  return lang === 'el' ? (STONE_PLURAL_EL[type] || stoneLabel(type)) : (STONE_PLURAL_EN[type] || (type + 's'));
+}
+// Distinct stones on a piece, each flagged plural if it is melee or totals 2+. Aggregates by
+// type (5 diamonds → "Diamonds" once) across ' · ' OR comma separators, with qty/melee prefixes.
+function cardStones(desc) {
+  if (!desc) return [];
+  const sorted = [...STONE_TYPES].sort((a, b) => b.length - a.length);
+  const agg = new Map();
+  desc.split(/ · |,\s*/).forEach(raw => {
+    let seg = raw.trim(); if (!seg) return;
+    let qty = 1, melee = false;
+    const mq = seg.match(/^(\d+)\s*[×x]\s*/i);   // "2× " / "40x "
+    if (mq) { qty = parseInt(mq[1]) || 1; seg = seg.slice(mq[0].length); }
+    if (/^melee\s+/i.test(seg)) { melee = true; seg = seg.replace(/^melee\s+/i, ''); }
+    seg = seg.replace(/^\d*\.?\d+ct\s*/i, '').trim();
+    for (const st of sorted) {
+      if (seg.toLowerCase().startsWith(st.toLowerCase())) {
+        const cur = agg.get(st) || { count: 0, melee: false };
+        cur.count += qty; if (melee) cur.melee = true; agg.set(st, cur);
+        break;
+      }
+    }
+  });
+  return [...agg.entries()].map(([type, v]) => ({ type, plural: v.melee || v.count >= 2 }));
+}
+
 function parseStonesFromDesc(desc) {
   if (!desc) return [];
   const sorted = [...STONE_TYPES].sort((a, b) => b.length - a.length);
   const results = [];
-  desc.split(' · ').forEach(seg => {
+  desc.split(/ · |,\s*/).forEach(seg => {
     seg = seg.trim();
     // Strip qty prefix: "2× " or "melee "
     seg = seg.replace(/^\d+[\u00d7x]\s*/i, '').replace(/^melee\s+/i, '').trim();
@@ -2413,6 +2475,19 @@ function renderGrid() {
     if (_colLbl) tags.push(`<span class="card-tag">${_colLbl}</span>`);
     if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
 
+    // Elegant stone line under the name — every distinct stone, NAME only (the full
+    // carat/clarity stays inside, on the detail page). Plural when a stone is melee or 2+.
+    // The font shrinks as the line grows so cards stay visually balanced ("symmetrical").
+    let stoneLineHtml = '';
+    const _cs = cardStones(item.stonesDesc);
+    if (_cs.length) {
+      const _txt  = _cs.map(s => stoneLabelN(s.type, s.plural));
+      const _line = _txt.join(' <span class="sd">·</span> ');   // spaces = wrap points between stones
+      const _len  = _txt.join(' · ').length;
+      const _fs   = _len <= 16 ? 16 : _len <= 24 ? 15 : _len <= 32 ? 14 : _len <= 40 ? 13 : 12;
+      stoneLineHtml = `<div class="card-stone-line" style="font-size:${_fs}px">${_line}</div>`;
+    }
+
     const stockCount = count > 1
       ? `<div class="card-stock-count">${count} ${lang==='el'?'σε απόθεμα':'in stock'}</div>`
       : '';
@@ -2427,6 +2502,7 @@ function renderGrid() {
       <div class="card-body">
         <div class="card-type">${typeLabel(item.jewelryType)}</div>
         <div class="card-name">${name}</div>
+        ${stoneLineHtml}
         <div class="card-tags">${tags.join('')}</div>
         <div class="card-foot">
           ${item.seqId ? `<div class="card-ref">${itemRefCode(item)}</div>` : '<span></span>'}
