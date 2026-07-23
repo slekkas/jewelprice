@@ -1035,15 +1035,15 @@
     font-family:var(--font-body); font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; }
   .theme-seg.active { background:var(--glow-gold); border-color:var(--gold); color:var(--gold-light); }
   .inv-summary {
-    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:16px;
   }
   .inv-stat {
     background:linear-gradient(135deg,rgba(212,175,55,0.08),rgba(212,175,55,0.02));
     border:1px solid rgba(212,175,55,0.2); border-radius:var(--radius);
-    padding:12px 10px; text-align:center;
+    padding:12px 6px; text-align:center;
   }
   .inv-stat-val { font-family:var(--font-heading); font-size:22px; color:var(--gold-light); font-weight:700; line-height:1.1; }
-  .inv-stat-val.small { font-size:17px; }
+  .inv-stat-val.small { font-size:16px; }
   .inv-stat-gain { font-family:var(--font-mono); font-size:12px; font-weight:600; margin-top:3px; line-height:1; min-height:12px; }
   .inv-stat-lbl { font-family:var(--font-body); font-size:11px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
   .inv-stat { cursor:pointer; transition:border-color 0.2s, background 0.2s; }
@@ -2788,6 +2788,15 @@
           <div class="inv-stat-row"><span>🥈</span><span id="invStatMetalSilver">—</span></div>
         </div>
       </div>
+      <div class="inv-stat" id="invStatCard3" onclick="toggleInvStat(3)">
+        <div class="inv-stat-val small" id="invStatCost">—</div>
+        <div class="inv-stat-lbl" data-i18n="invTotalCost">Κόστος</div>
+        <div class="inv-stat-expand" id="invStatExpand3">
+          <div class="inv-stat-row"><span>🥇</span><span id="invStatCostGold">—</span></div>
+          <div class="inv-stat-row"><span>🥈</span><span id="invStatCostSilver">—</span></div>
+          <div class="inv-stat-row"><span>💎</span><span id="invStatCostOther">—</span></div>
+        </div>
+      </div>
     </div>
 
     <!-- Search + Filter (both narrow results, so they sit together) -->
@@ -3682,6 +3691,7 @@ const T = {
     invTotalPieces:'Τεμάχια',
     invTotalRetail:'Συνολική Αξία (Λιανική)',
     invTotalMetal:'Αξία Μετάλλου',
+    invTotalCost:'Κόστος',
     invFilterAll:'Όλα', invFilterGold:'Χρυσός', invFilterSilver:'Ασήμι', invFilterSold:'Πουλήθηκαν',
     invTypeLabel:'Τύπος Κοσμήματος', invTypePh:'Επιλέξτε τύπο...',
     invTypeRing:'Δαχτυλίδι', invTypeBracelet:'Βραχιόλι', invTypeNecklace:'Κολιέ',
@@ -4203,6 +4213,7 @@ const T = {
     invTotalPieces:'Pieces',
     invTotalRetail:'Total Retail Value',
     invTotalMetal:'Metal Value',
+    invTotalCost:'Total Cost',
     invFilterAll:'All', invFilterGold:'Gold', invFilterSilver:'Silver', invFilterSold:'Sold',
     invTypeLabel:'Jewelry Type', invTypePh:'Select type...',
     invTypeRing:'Ring', invTypeBracelet:'Bracelet', invTypeNecklace:'Necklace',
@@ -19855,6 +19866,11 @@ function renderInvSummary(filteredItems) {
   let piecesGold = 0, piecesSilver = 0, piecesOther = 0;
   let retailGold = 0, retailSilver = 0, retailOther = 0;
   let metalGold = 0, metalSilver = 0;
+  // Total cost (what the pieces cost to acquire/make) — for reconciling a batch against
+  // the vendor's invoice. Same per-item rule as the CSV export: purchaseCost if stored,
+  // else the computed production cost (metal + labour + stones), and the discounted
+  // gross for "other"-type items.
+  let totalCost = 0, costGold = 0, costSilver = 0, costOther = 0;
   // Appreciation baselines (owner-only header gain %). Count-independent: each piece's
   // live value AND its baseline enter/leave the sums together, so adding or selling stock
   // never moves the %, only real metal-price movement does.
@@ -19862,6 +19878,11 @@ function renderInvSummary(filteredItems) {
   inStock.forEach(item => {
     const p = calcInvItemPrice(item);
     if (p) { totalRetail += p.retail; totalMetal += p.metalValue; }
+    // Per-item cost (mirrors the CSV export / select-bar cost logic).
+    const _c = (item.metal === 'other')
+      ? _invOtherCost(item)
+      : ((parseFloat(item.purchaseCost) > 0) ? parseFloat(item.purchaseCost) : (p ? (p.baseCost || 0) : 0));
+    totalCost += _c;
     // Retail gain baseline — the add-date "initial price" each item already stores.
     if (p) { const _ir = parseFloat(item.initialRetail); if (_ir > 0) { retailBase += _ir; retailCur += p.retail; } }
     // Coins & raw-metal lots aren't counted as pieces unless they're being shown (their
@@ -19871,6 +19892,7 @@ function renderInvSummary(filteredItems) {
     if (item.metal === 'gold') {
       if (!_skipPiece) piecesGold++;
       if (p) { retailGold += p.retail; metalGold += p.metalValue; }
+      costGold += _c;
       let _pureG = 0;
       if (item.isCoin) {
         // Coins carry their exact pure-gold content — use it directly (a coin's
@@ -19888,6 +19910,7 @@ function renderInvSummary(filteredItems) {
     } else if (item.metal === 'silver') {
       if (!_skipPiece) piecesSilver++;
       if (p) { retailSilver += p.retail; metalSilver += p.metalValue; }
+      costSilver += _c;
       let _pureS = 0;
       if (item.isCoin) {
         // Silver coins carry their exact pure-silver content — use it directly.
@@ -19903,6 +19926,7 @@ function renderInvSummary(filteredItems) {
     } else {
       piecesOther++;
       if (p) retailOther += p.retail;
+      costOther += _c;
     }
   });
   document.getElementById('invStatPieces').textContent = totalFiltered;
@@ -19935,7 +19959,11 @@ function renderInvSummary(filteredItems) {
     _setTxt('invStatRetailOther', retailOther > 0 ? cur + Math.round(retailOther).toLocaleString() : '—');
     _setTxt('invStatMetalGold', metalGold > 0 ? cur + Math.round(metalGold).toLocaleString() : '—');
     _setTxt('invStatMetalSilver', metalSilver > 0 ? cur + Math.round(metalSilver).toLocaleString() : '—');
+    _setTxt('invStatCostGold', costGold > 0 ? cur + Math.round(costGold).toLocaleString() : '—');
+    _setTxt('invStatCostSilver', costSilver > 0 ? cur + Math.round(costSilver).toLocaleString() : '—');
+    _setTxt('invStatCostOther', costOther > 0 ? cur + Math.round(costOther).toLocaleString() : '—');
   }
+  _setTxt('invStatCost', _isEmpSummary ? '—' : (totalCost > 0 ? cur + Math.round(totalCost).toLocaleString() : '—'));
   const _pureGoldEl = document.getElementById('invStatPureGold');
   if (_pureGoldEl) {
     if (!_isEmpSummary && (totalPureGoldGrams > 0 || totalPureSilverGrams > 0)) {
@@ -19951,8 +19979,10 @@ function renderInvSummary(filteredItems) {
   // Hide the stat cards themselves for employees
   const _statRetailCard = document.getElementById('invStatRetail')?.closest('.inv-stat');
   const _statMetalCard = document.getElementById('invStatMetal')?.closest('.inv-stat');
+  const _statCostCard = document.getElementById('invStatCost')?.closest('.inv-stat');
   if (_statRetailCard) _statRetailCard.style.display = _isEmpSummary ? 'none' : '';
   if (_statMetalCard) _statMetalCard.style.display = _isEmpSummary ? 'none' : '';
+  if (_statCostCard) _statCostCard.style.display = _isEmpSummary ? 'none' : '';
 }
 
 function toggleInvStat(idx) {
@@ -19960,7 +19990,7 @@ function toggleInvStat(idx) {
   if (!card) return;
   const wasExpanded = card.classList.contains('expanded');
   // Collapse all first
-  [0,1,2].forEach(i => {
+  [0,1,2,3].forEach(i => {
     const c = document.getElementById('invStatCard' + i);
     if (c) c.classList.remove('expanded');
   });
@@ -25447,9 +25477,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.21', date: 'Ιούλιος 2026', items: [
-        "🧱 Στην οθόνη τελικής τιμής (μεγεθυσμένη), τα είδη «Άλλο» δείχνουν πλέον το ΥΛΙΚΟ (Ασήμι, Επιχρυσωμένος Ορείχαλκος…) αντί για το άσχημο «Άλλο».",
-        "⚖️ Και δεν εμφανίζεται πια η γραμμή «Βάρος 0,00γρ.» για είδη «Άλλο».",
+      { version: 'v12.22', date: 'Ιούλιος 2026', items: [
+        "💰 Νέα κάρτα «Κόστος» στη σύνοψη του Αποθέματος — δείχνει το συνολικό κόστος των ειδών που βλέπετε (με τα φίλτρα). Φιλτράρετε π.χ. προμηθευτή + σημερινή ημερομηνία και συγκρίνετε το σύνολο με το τιμολόγιο του προμηθευτή. Πατήστε την κάρτα για ανάλυση σε χρυσό / ασήμι / άλλο.",
       ]},
       ]
   },
@@ -25480,9 +25509,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.21', date: 'Jul 2026', items: [
-        "🧱 On the enlarged final-price screen, \"Other\" items now show the MATERIAL (Silver, Gold Plated Brass…) instead of the ugly \"Other\".",
-        "⚖️ And the \"Weight 0.00g\" line no longer shows for \"Other\" items.",
+      { version: 'v12.22', date: 'Jul 2026', items: [
+        "💰 New \"Total Cost\" card in the Stock summary — shows the total cost of the items you're viewing (with filters applied). Filter e.g. by vendor + today's date and compare the total against the vendor's invoice. Tap the card for a gold / silver / other breakdown.",
       ]},
           ]
   }
@@ -30032,7 +30060,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.21';
+const APP_VERSION = '12.22';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
