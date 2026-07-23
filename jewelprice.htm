@@ -30983,10 +30983,14 @@ function openInvGroup(gid) {
   const _piecesCollapsed = members.length > 8;
   const typeStr = rep.jewelryType ? invTypeLabel(rep.jewelryType) : '';
   const title = [typeStr, (rep.isCoin ? coinItemLabel(rep) : _itemDesc(rep))].filter(Boolean).join(' · ') || (rep.qrCode || '—');
-  // One thumbnail per DISTINCT photo. Pieces that actually differ (a red and a light blue)
-  // each show their own picture; a batch of identical pieces shares one photo, so it appears
-  // once — on the first row — rather than repeating the same image down the whole list.
-  const _seenPhotos = new Set();
+  // One thumbnail per DISTINCT piece. Pieces that actually differ (a red and a light blue)
+  // each show their own picture; a batch of identical pieces shows it once — on the first
+  // row — rather than repeating the same image down the whole list. Keyed on
+  // _refVariantKey (colour + gold colour + plating + descriptive code) — the app's own
+  // "are these interchangeable?" test — NOT on the photo URL: identical pieces added
+  // separately each got their own ImgBB upload (same picture, different URL), so a URL
+  // check would show every one.
+  const _seenVariants = new Set();
   const rowsHtml = members.map(([id, it]) => {
     const p = calcInvItemPrice(it);
     // Coins: value row (live melt + suggested) + Sell/Delete only — Calc/Share/Tag/Edit
@@ -31048,9 +31052,12 @@ function openInvGroup(gid) {
     // code sits underneath, quieter, since it no longer identifies anything on its own.
     const _pieceRef = it.seqId ? itemRefCode(it) : '';
     let _thumb = '';
-    if (it.photoUrl && !_seenPhotos.has(it.photoUrl)) {
-      _seenPhotos.add(it.photoUrl);
-      _thumb = _findThumb(it, 56);   // tap to enlarge (photoUrlHi), same as the Find results
+    if (it.photoUrl) {
+      const _vk = _refVariantKey(it);
+      if (!_seenVariants.has(_vk)) {
+        _seenVariants.add(_vk);
+        _thumb = _findThumb(it, 56);   // tap to enlarge (photoUrlHi), same as the Find results
+      }
     }
     return `<div style="padding:11px 2px 12px;border-bottom:1px solid var(--wa06)">
       <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px">
