@@ -11529,6 +11529,11 @@ async function showSaleDetail(id, forceSingle) {
       + ' · ' + _refundMethodLabel(_retRec.refundMethod)
       + (_retRec.creditCardNo ? ' · ' + _gcNoStr(_retRec.creditCardNo) : ''));
   }
+  // A giveaway: no money changed hands; its cost was booked as a goodwill expense.
+  if (s.giveaway) {
+    mkMeta('🎁', lang === 'el' ? 'Δώρο' : 'Gift',
+      lang === 'el' ? 'Δόθηκε ως δώρο σε πελάτη — καμία είσπραξη' : 'Given away as a gift — no payment taken');
+  }
   if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
   if (s.email) mkMeta('✉️', 'Email', s.email);
   // Spell out a split payment rather than showing one misleading cash badge.
@@ -13266,7 +13271,7 @@ function _groupSalesForDisplay(salesArr) {
         isGroup: false, sale: s, id: s.id, date: s.date, ts: s.ts, amount: s.amount,
         bonusAmt: s.bonusAmt, vendor: s.vendor, note: s.note, customer: s.customer,
         employee: s.employee, employeeName: s.employeeName,
-        isReturn: !!s.isReturn
+        isReturn: !!s.isReturn, giveaway: !!s.giveaway
       });
     }
   });
@@ -13313,12 +13318,16 @@ function _spRenderSalesList(elId, salesArr) {
     const retTag = e.isReturn
       ? `<span style="margin-left:6px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#ff8a80">↩️ ${lang==='el'?'ΕΠΙΣΤΡΟΦΗ':'RETURN'}</span>`
       : '';
+    // A giveaway reads as a goodwill gesture, not a sale: €0 in, gold-tagged.
+    const giveTag = e.giveaway
+      ? `<span style="margin-left:6px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--gold)">🎁 ${lang==='el'?'ΔΩΡΟ':'GIFT'}</span>`
+      : '';
     const amtStyle = e.isReturn ? ' style="color:#ff8a80"' : '';
     // A group opens the combined detail; inline edit is hidden (edit items from inside it).
     // Delete on a group removes the whole transaction.
     const delAttrs = e.isGroup ? ('data-group-id="' + e.groupId + '"') : ('data-sale-id="' + safeId + '"');
     return '<div class="sp-sale-row" style="cursor:pointer" onclick="showSaleDetail(' + safeId + ')">' +
-      '<div class="sp-sale-info"><div class="sp-sale-amt"' + amtStyle + '>' + fmtAmt(e.amount) + retTag + groupTag + bonusTag + '</div>' +
+      '<div class="sp-sale-info"><div class="sp-sale-amt"' + amtStyle + '>' + fmtAmt(e.amount) + retTag + giveTag + groupTag + bonusTag + '</div>' +
       '<div class="sp-sale-meta">' + meta + '</div></div>' +
       '<div style="display:flex;gap:6px;flex-shrink:0">' +
       (canEdit && !e.isGroup ? '<button class="sp-sale-edit btn-icon" data-sale-id="' + safeId + '" title="' + (lang==='el'?'Επεξεργασία':'Edit') + '" style="width:30px;height:30px;font-size:14px" onclick="event.stopPropagation()">✏️</button>' : '') +
@@ -20366,6 +20375,7 @@ function renderInvList() {
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
             ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'var(--wa20)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
+            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invGiveaway('${id}')" class="inv-share-btn" title="${lang==='el'?'Δώρο':'Give as gift'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">🎁</button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
@@ -23077,6 +23087,121 @@ function openSaleModalFromInventory(id) {
   openSaleModalWithBonus();
 }
 
+// ── Inventory: Give away as a gift ──────────────────────────────────────────
+// A small piece handed to a good customer's child and similar goodwill gestures —
+// often slow-moving stock. It is NOT a sale (no money in) and NOT shrinkage: it is
+// a marketing/goodwill expense. So it removes the piece from stock (keeping counts
+// and the end-of-season stocktake honest) and books its COST as a loss — a €0 sale
+// record, cost = the piece's cost, profit = −cost, flagged giveaway:true — so the
+// dashboard shows €0 added to revenue while the period profit reflects what the
+// gift cost. All roles (an employee can hand a small gift over at the counter).
+// Deleting the record restores the piece, exactly like an ordinary sale (v12.16).
+function _invGiveawayCost(item) {
+  if (item.purchaseCost != null && item.purchaseCost !== '' && !isNaN(parseFloat(item.purchaseCost)))
+    return parseFloat(item.purchaseCost);
+  const p = calcInvItemPrice(item);
+  return (p && p.baseCost != null) ? (parseFloat(p.baseCost) || 0) : 0;
+}
+
+function invGiveaway(id) {
+  const item = _inventoryCache[id];
+  if (!item) return;
+  const isEl = lang === 'el';
+  // Reserved / coin / metal / bulk pieces are not everyday counter gifts.
+  if (item.reservationId) {
+    showToast('⚠️ ' + (isEl ? 'Το κομμάτι είναι κρατημένο — δεν μπορεί να δοθεί ως δώρο' : 'This piece is reserved — it cannot be given away'));
+    return;
+  }
+  const cur = state.currency || '€';
+  const cost = _invGiveawayCost(item);
+  const typeStr = item.jewelryType ? invTypeLabel(item.jewelryType) : '';
+  const nameStr = [typeStr, _itemDesc(item)].filter(Boolean).join(' · ') || (item.seqId ? itemRefCode(item) : (item.qrCode || item.code || ''));
+  const refStr = item.seqId ? itemRefCode(item) : (item.qrCode || '');
+  const existing = document.getElementById('invGiveawayOverlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'invGiveawayOverlay';
+  // Top-anchored: the note is a typing field, so it must stay above the keyboard.
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99997;display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:420px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 18px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:17px;color:var(--gold-light);font-weight:700">🎁 ${isEl ? 'Δώρο σε πελάτη' : 'Give as a gift'}</div>
+        <button onclick="document.getElementById('invGiveawayOverlay').remove()" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:13px;color:var(--text)">${nameStr}</div>
+      <div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin:2px 0 14px">${refStr}</div>
+      <label style="display:block;font-size:11px;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px">${isEl ? 'Σημείωση (προαιρετικά)' : 'Note (optional)'}</label>
+      <input id="invGiveawayNote" type="text" placeholder="${isEl ? 'π.χ. κόρη της Μαρίας' : "e.g. Maria's daughter"}" style="width:100%;padding:11px 12px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:9px;font-size:14px;box-sizing:border-box;margin-bottom:14px">
+      <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.22);border-radius:10px;padding:11px 13px;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Κόστος (χρεώνεται ως έξοδο καλής θέλησης)' : 'Cost (booked as a goodwill expense)'}</div>
+        <div style="font-size:18px;color:var(--gold-light);font-weight:700;font-family:'DM Mono',monospace;margin-top:2px">${cur}${cost.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px">${isEl ? 'Καμία εγγραφή εσόδου. Αφαιρείται από το απόθεμα.' : 'No revenue recorded. Removed from stock.'}</div>
+      </div>
+      <button onclick="_invGiveawayConfirm('${id}')" style="width:100%;padding:14px;background:linear-gradient(135deg,#c9a84c,#b8973c);border:none;border-radius:11px;color:var(--ink);font-family:var(--font-body);font-size:15px;font-weight:800;cursor:pointer">🎁 ${isEl ? 'Δώσε το δώρο' : 'Give the gift'}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => { const n = document.getElementById('invGiveawayNote'); if (n) n.focus(); }, 50);
+}
+
+async function _invGiveawayConfirm(id) {
+  const item = _inventoryCache[id];
+  if (!item) return;
+  const isEl = lang === 'el';
+  const noteEl = document.getElementById('invGiveawayNote');
+  const userNote = noteEl ? noteEl.value.trim() : '';
+  const ov = document.getElementById('invGiveawayOverlay');
+  if (ov) ov.remove();
+  const cost = _invGiveawayCost(item);
+  const typeStr = item.jewelryType ? invTypeLabel(item.jewelryType) : '';
+  const nameStr = [typeStr, _itemDesc(item)].filter(Boolean).join(' · ') || (item.seqId ? itemRefCode(item) : (item.qrCode || item.code || ''));
+  const note = `🎁 ${isEl ? 'Δώρο' : 'Gift'} — ${nameStr}` + (userNote ? ` (${userNote})` : '');
+
+  // 1) Take the piece out of stock. Check the write LANDED before booking the
+  //    record — a fire-and-forget status flip is how a piece stays "in stock" in
+  //    the cloud while looking gone locally (v11.62).
+  const _prevStatus = item.status;
+  item.status = 'sold';
+  item.dateSold = Date.now();
+  item.giveaway = true;
+  const _ok = await saveInventoryItem(id, item);
+  if (!_ok) {
+    item.status = _prevStatus; delete item.dateSold; delete item.giveaway;
+    _inventoryCache[id] = item;
+    showToast('⚠️ ' + (isEl ? 'Δεν αποθηκεύτηκε — δοκιμάστε ξανά με σύνδεση' : 'Could not save — try again with a connection'));
+    return;
+  }
+  _inventoryCache[id] = item;
+
+  // 2) Book the cost as a loss: a €0 record, cost = the piece's cost, profit =
+  //    −cost, linked to the piece by invId so deleting it restores the exact
+  //    record (v10.59). Built the robust way (unique id + outbox) so an offline
+  //    gift is never lost (v11.65).
+  const _cost = cost > 0 ? parseFloat(cost.toFixed(2)) : null;
+  const sales = await getSales();
+  const rec = {
+    id: _nextSaleId(sales),
+    amount: 0, note, date: todayStr(), ts: Date.now(),
+    vendor: '', customer: '', email: '',
+    employee: creds.userName || '', employeeName: creds.displayName || '',
+    bonusAmt: 0, bonusPct: 0,
+    invQr: item.qrCode || item.code || '', invId: id,
+    seqRef: item.seqId ? itemRefCode(item) : '',
+    cost: _cost, profit: _cost !== null ? parseFloat((-_cost).toFixed(2)) : null,
+    cashSale: true, salePhotoUrl: '', salePhotoName: '', giveaway: true
+  };
+  sales.push(rec);
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  _outboxAdd('/jewelprice_sales', rec.id, 'put', JSON.stringify(rec));
+  const _sent = await pushSalesToCloud(sales);
+  showToast('🎁 ' + (isEl
+    ? (_sent ? 'Το δώρο καταχωρήθηκε' : 'Το δώρο καταχωρήθηκε — θα συγχρονιστεί μόλις υπάρξει σύνδεση')
+    : (_sent ? 'Gift recorded' : 'Gift recorded — it will sync when there is a connection')));
+  renderInvList();
+}
+
 async function invDelete(id) {
   showConfirm(
     lang === 'el' ? 'Διαγραφή από το απόθεμα;' : 'Delete from inventory?',
@@ -25175,9 +25300,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.15', date: 'Ιούλιος 2026', items: [
-        "🖼️ Φωτογραφία σε κάθε κομμάτι μέσα στην ομάδα — πατήστε την για μεγέθυνση.",
-        "🔁 Αν τα κομμάτια είναι ίδια, η φωτογραφία εμφανίζεται μία φορά, στο πρώτο· αν διαφέρουν (π.χ. κόκκινο και γαλάζιο), το καθένα δείχνει τη δική του.",
+      { version: 'v12.16', date: 'Ιούλιος 2026', items: [
+        "🎁 Δώρο σε πελάτη — δώστε ένα μικρό κομμάτι (συνήθως στάσιμο) χωρίς πώληση. Πατήστε το 🎁 στην κάρτα του κομματιού.",
+        "📦 Αφαιρείται από το απόθεμα (σωστές μετρήσεις & απογραφή) και το κόστος του καταγράφεται ως έξοδο καλής θέλησης — μηδέν έσοδο, αλλά το κέρδος της περιόδου δείχνει πόσο κόστισε το δώρο.",
+        "↩️ Αν το διαγράψετε από τις Πωλήσεις, το κομμάτι επιστρέφει στο απόθεμα. Το κάνουν και οι υπάλληλοι.",
       ]},
       ]
   },
@@ -25208,9 +25334,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.15', date: 'Jul 2026', items: [
-        "🖼️ A photo on every piece inside a group — tap it to enlarge.",
-        "🔁 Identical pieces show the photo once, on the first one; pieces that differ (a red and a light blue) each show their own.",
+      { version: 'v12.16', date: 'Jul 2026', items: [
+        "🎁 Give as a gift — hand a small (usually slow-moving) piece to a customer with no sale. Tap the 🎁 on the item's card.",
+        "📦 It leaves stock (so counts & the stocktake stay right) and its cost is booked as a goodwill expense — zero revenue, but the period's profit shows what the gift cost.",
+        "↩️ Deleting it from Sales puts the piece back in stock. Employees can do it too.",
       ]},
           ]
   }
@@ -29752,7 +29879,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.15';
+const APP_VERSION = '12.16';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -31075,6 +31202,7 @@ function openInvGroup(gid) {
         <button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invPrintTagFromCard('${id}')">🏷️ ${lang==='el'?'Ετικέτα':'Tag'}</button>
         <button class="inv-action-btn inv-action-sell" style="${_bStyle}" onclick="closeInvGroup();invMarkSold('${id}')">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
         ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${it.reservationId?'rgba(212,175,55,0.22)':'var(--wa06)'};border:1px solid ${it.reservationId?'var(--gold)':'var(--wa18)'};color:${it.reservationId?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${it.reservationId?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
+        ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invGiveaway('${id}')">🎁 ${lang==='el'?'Δώρο':'Gift'}</button>` : ''}
         ${isEmp ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="_invEditFromGroup('${gid}','${id}')">✏️ ${lang==='el'?'Επεξ.':'Edit'}</button>`}
         ${isEmp ? '' : `<button class="inv-action-btn inv-action-del" style="${_bStyle}" onclick="closeInvGroup();invDelete('${id}')">🗑</button>`}
       </div>
