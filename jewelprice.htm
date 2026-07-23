@@ -1626,6 +1626,7 @@
         <button id="vfTypeMetal" onclick="setVendorFormType('metal')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink)" data-i18n="vendorTypeMetal">Μέταλλο</button>
         <button id="vfTypeOther" onclick="setVendorFormType('other')" style="flex:1;padding:10px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;background:transparent;color:var(--text-muted)" data-i18n="vendorTypeOther">Άλλο</button>
       </div>
+      <div style="font-size:10px;color:var(--text-muted);margin:-8px 0 14px;line-height:1.45" data-i18n="vendorTypeHint">Ένας προμηθευτής μπορεί να έχει ΚΑΙ μεταλλικές ΚΑΙ «άλλες» κατηγορίες. Εναλλαχθείτε για να προσθέσετε κάθε είδος — αποθηκεύονται και τα δύο.</div>
       <!-- Metal vendor fields -->
       <div id="vfMetalFields">
       <div class="labor-header">
@@ -3290,6 +3291,7 @@ const T = {
     categoryName:'Όνομα Κατηγορίας', euroPerGram:'€/γρ.', categoryPh:'π.χ. Αλυσίδες',
     addCategory:'+ Προσθήκη Κατηγορίας', saveVendor:'Αποθήκευση Προμηθευτή',
     vendorTypeMetal:'Μέταλλο', vendorTypeOther:'Άλλο',
+    vendorTypeHint:'Ένας προμηθευτής μπορεί να έχει ΚΑΙ μεταλλικές ΚΑΙ «άλλες» κατηγορίες. Εναλλαχθείτε για να προσθέσετε κάθε είδος — αποθηκεύονται και τα δύο.',
     otherVendorDiscount:'Έκπτωση Προμηθευτή (%)', otherVendorMultiplier:'Πολλαπλασιαστής',
     otherCatName:'Κατηγορία', otherCostInput:'Τιμή Αγοράς (€)',
     otherRetailCalc:'Υπολογισμός Λιανικής', otherRetailFinal:'Τελική Λιανική (€)',
@@ -3780,6 +3782,7 @@ const T = {
     categoryName:'Category Name', euroPerGram:'€/gram', categoryPh:'e.g. Chains',
     addCategory:'+ Add Category', saveVendor:'Save Vendor',
     vendorTypeMetal:'Metal', vendorTypeOther:'Other',
+    vendorTypeHint:'A vendor can have BOTH metal AND "other" categories. Switch to add each kind — both are saved.',
     otherVendorDiscount:'Supplier Discount (%)', otherVendorMultiplier:'Multiplier',
     otherCatName:'Category', otherCostInput:'Purchase Price (€)',
     otherRetailCalc:'Calculate Retail', otherRetailFinal:'Final Retail (€)',
@@ -8443,6 +8446,11 @@ function setMetal(m) {
   if (weightField) weightField.style.display = m==='other' ? 'none' : '';
   document.getElementById('resultCard').classList.remove('show');
   if (m==='other') updateOtherCalcPanel();
+  // A MIXED vendor shows metal categories in gold/silver mode and other categories in Other
+  // mode, so switching the metal button must refilter the dropdown. Harmless for pure vendors
+  // (no filtering) and when no vendor is selected. updateWorkTypeOptions preserves a still-
+  // visible selection, so it never drops a valid category.
+  updateWorkTypeOptions();
   _showSecMetalBtn();
 }
 
@@ -8453,7 +8461,11 @@ function updateOtherCalcPanel() {
 
 function calcOtherRetail() {
   const vendorIdx = parseInt(document.getElementById('vendorSelect')?.value);
-  const v = (vendorIdx >= 0 && state.vendors[vendorIdx] && state.vendors[vendorIdx].vendorType==='other') ? state.vendors[vendorIdx] : null;
+  // Any vendor may be selected here — a mixed vendor prices its OTHER categories the same way
+  // a pure other-type vendor does. The multiplier comes from the selected category (below) and
+  // the supplier discount from the vendor; both are absent/1 for a metal category, so a stray
+  // metal selection just yields cost×1 (harmless).
+  const v = (vendorIdx >= 0 && state.vendors[vendorIdx]) ? state.vendors[vendorIdx] : null;
   const disc = v ? (parseFloat(v.discount)||0) : 0;
   // catIdx from workType (same select as normal flow)
   const catIdx = parseInt(document.getElementById('workType')?.value) || 0;
@@ -8838,7 +8850,7 @@ function buildLabelStrings() {
   const cAbbr = catAbbrs(cats)[catIdx] || '';
   const k = cat && cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
   const greekCode = vAbbr + k + cAbbr;
-  const isOtherVendor = vendor.vendorType === 'other';
+  const isOtherVendor = catIsOther(cat);   // the SELECTED category decides, not the vendor
   const uniqueId = isOtherVendor ? ('-' + String(Date.now()).slice(-4)) : '';
   // For Other items: encode purchase cost in QR (e.g. BUTR-5594-30)
   // Cost read from otherCostInput or lastCalcResult
@@ -14444,7 +14456,7 @@ function renderVendors() {
         ? ` <span style="font-size:9px;color:var(--text-muted)">(${c.margin}%)</span>` : '';
       const handmadeBadge = (c.handmade ? ' ✋' : '')
         + (c.deleted ? ` <span style="font-size:9px;color:var(--text-muted)">(${lang==='el'?'αποσύρθηκε':'retired'})</span>` : '');
-      const rateHtml = isEmployee ? '' : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${_fmtRate(c.rate)}${c.rateType==='flat'?' flat':'/g'}</span>`;
+      const rateHtml = isEmployee ? '' : catIsOther(c) ? `<span class="code-rate">×${_fmtRate(c.multiplier)}</span>` : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${_fmtRate(c.rate)}${c.rateType==='flat'?' flat':'/g'}</span>`;
       return `<div class="vendor-code-row">
         <span class="code-badge">${codePattern}</span>
         <span class="code-badge" style="background:rgba(176,184,200,0.1);border-color:rgba(176,184,200,0.3);color:var(--silver-light);font-size:11px">${latinCode}</span>
@@ -14622,26 +14634,31 @@ function editVendor(i) {
   _editVendorAbbrLatin = vendorAbbr(v, state.vendors, true);
   document.getElementById('v_name').value = v.name;
   document.getElementById('vendorFormTitle').textContent = t('editVendor');
+  document.getElementById('v_discount').value = v.discount || '';
+  document.getElementById('laborList').innerHTML = '';
+  document.getElementById('vfOtherCatList').innerHTML = '';
 
-  if (v.vendorType === 'other') {
-    setVendorFormType('other');
-    document.getElementById('v_discount').value = v.discount || '';
-    document.getElementById('vfOtherCatList').innerHTML = '';
-    const _oCats = v.laborCategories || [];
-    const _oAbbrs = catAbbrs(_oCats);
-    const _oAbbrsLatin = catAbbrs(_oCats, true);
-    _oCats.forEach((c, ci) => addVfOtherCatRow(c.name, c.multiplier || '', _oAbbrs[ci], _oAbbrsLatin[ci]));
-  } else {
-    setVendorFormType('metal');
-    document.getElementById('laborList').innerHTML = '';
-    // Freeze each category's code letters NOW, from the names as they stand before the
-    // owner touches anything — a legacy vendor has none stored yet, and once the form is
-    // saved the codes are pinned to what its printed tags already say.
-    const _vCats = getVendorCategories(v);
-    const _vAbbrs = catAbbrs(_vCats);
-    const _vAbbrsLatin = catAbbrs(_vCats, true);
-    _vCats.forEach((c, ci) => addLaborRow(c.name, c.karat || '18', c.rate, c.margin !== undefined ? c.margin : '', c.handmade || false, c.rateType || 'pergram', _vAbbrs[ci], _vAbbrsLatin[ci]));
-  }
+  // A vendor can hold BOTH kinds. Load metal categories into the metal section and other
+  // (multiplier) categories into the other section, each tagged with its ORIGINAL index in
+  // the combined laborCategories array so save can put every existing category back at its
+  // own position (items reference categories by index). Freeze each category's code letters
+  // now, from the names as they stand before the owner touches anything.
+  const _cats = getVendorCategories(v);
+  const _abbrs = catAbbrs(_cats);
+  const _abbrsLatin = catAbbrs(_cats, true);
+  _cats.forEach((c, ci) => {
+    if (catIsOther(c)) {
+      addVfOtherCatRow(c.name, c.multiplier || '', _abbrs[ci], _abbrsLatin[ci], ci);
+      if (c.deleted) { const r = document.getElementById('vfOtherCatList').lastElementChild; if (r) { r.dataset.deleted = '1'; r.style.display = 'none'; } }
+    } else {
+      addLaborRow(c.name, c.karat || '18', c.rate, c.margin !== undefined ? c.margin : '', c.handmade || false, c.rateType || 'pergram', _abbrs[ci], _abbrsLatin[ci], ci);
+      if (c.deleted) { const r = document.getElementById('laborList').lastElementChild; if (r) { r.dataset.deleted = '1'; r.style.display = 'none'; } }
+    }
+  });
+
+  // Show the section that has content (metal by default). The Metal/Other buttons just switch
+  // which section is visible; BOTH are saved regardless of which one is showing.
+  setVendorFormType((vendorHasMetal(v) || !vendorHasOther(v)) ? 'metal' : 'other');
 
   const form = document.getElementById('addVendorForm');
   form.style.display = '';
@@ -14655,6 +14672,7 @@ function cancelEditVendor() {
   setVendorFormType('metal');
   document.getElementById('vfOtherCatList').innerHTML = '';
   document.getElementById('laborList').innerHTML = '';
+  document.getElementById('v_discount').value = '';
 }
 
 // Retire a category row rather than dropping it. Items point at their category by its
@@ -14759,7 +14777,7 @@ async function confirmDeleteLaborRow(btn) {
   );
 }
 
-function addLaborRow(name='', karat='18', rate='', margin='', handmade=false, rateType='pergram', abbr='', abbrLatin='') {
+function addLaborRow(name='', karat='18', rate='', margin='', handmade=false, rateType='pergram', abbr='', abbrLatin='', origIdx=null) {
   const list = document.getElementById('laborList');
   const row = document.createElement('div');
   row.className = 'labor-row';
@@ -14767,6 +14785,10 @@ function addLaborRow(name='', karat='18', rate='', margin='', handmade=false, ra
   // move them. A row added by hand has none and gets fresh ones on save.
   if (abbr) row.dataset.abbr = abbr;
   if (abbrLatin) row.dataset.abbrLatin = abbrLatin;
+  // Its ORIGINAL position in laborCategories, so save can rebuild the array with every
+  // existing category still at its own index (items reference categories by index). A hand-
+  // added row has none and is appended at the end.
+  if (origIdx !== null) row.dataset.origIdx = origIdx;
   const karatOptions = ['9','10','14','18','21','22','24','925s','950s','800s','—'].map(k => {
     const isSilver = k.endsWith('s');
     const val = isSilver ? k.slice(0,-1) : k;
@@ -14955,47 +14977,61 @@ function activeVendors() { return state.vendors.filter(v => !v.deleted); }
 function saveVendor() {
   const name = document.getElementById('v_name').value.trim();
   if (!name) { showStatus('vendorStatus', t('vendorRequired'), 'error'); return; }
-  const vendorType = document.getElementById('v_vendorType')?.value || 'metal';
-  let vendor;
-
-  if (vendorType === 'other') {
-    const discount = parseFloat(document.getElementById('v_discount').value) || 0;
-    const catRows = document.querySelectorAll('#vfOtherCatList .other-cat-row');
-    const laborCategories = [];
-    catRows.forEach(row => {
-      const inputs = row.querySelectorAll('input');
-      const catName = inputs[0].value.trim();
-      const multiplier = parseFloat(inputs[1].value) || 1;
-      if (catName) laborCategories.push({ name: catName, multiplier, karat: '—', rate: 0,
-        ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
-        ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }) });
-    });
-    if (laborCategories.length === 0) { showStatus('vendorStatus', lang==='el'?'⚠️ Προσθέστε τουλάχιστον μία κατηγορία':'⚠️ Add at least one category', 'error'); return; }
-    _freezeCatAbbrs(laborCategories);
-    vendor = { name, vendorType: 'other', discount, laborCategories };
-  } else {
-    const rows = document.querySelectorAll('#laborList .labor-row');
-    if (rows.length === 0) { showStatus('vendorStatus', t('laborRequired'), 'error'); return; }
-    const laborCategories = [];
-    for (const row of rows) {
-      const catName = row.querySelector('.labor-name').value.trim();
-      const karat = row.querySelector('.karat-select')?.value || '—';
-      const marginVal = row.querySelector('.margin-input').value.trim();
-      const catMargin = marginVal !== '' ? parseFloat(marginVal) : undefined;
-      const handmade = row.querySelector('.handmade-toggle')?.classList.contains('active') || false;
-      const rateType = row.querySelector('.rate-type-toggle')?.classList.contains('flat') ? 'flat' : row.querySelector('.rate-type-toggle')?.classList.contains('peritem') ? 'peritem' : 'pergram';
-      const rate = rateType === 'peritem' ? 0 : parseFloat(row.querySelector('.rate-input').value);
-      if (!catName || (rateType !== 'peritem' && isNaN(rate))) { showStatus('vendorStatus', t('laborFillAll'), 'error'); return; }
-      laborCategories.push({ name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType,
-        ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
-        ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }),
-        ...(row.dataset.deleted && { deleted: true }),
-        ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
-    }
-    if (!laborCategories.some(c => !c.deleted)) { showStatus('vendorStatus', t('laborRequired'), 'error'); return; }
-    _freezeCatAbbrs(laborCategories);
-    vendor = { name, laborCategories };
+  // Read BOTH category sections — a vendor may hold metal categories (per gram / flat / per
+  // item) AND other categories (×multiplier) at the same time. Each EXISTING row carries its
+  // original index (dataset.origIdx), so the combined array is rebuilt with every existing
+  // category still at its own position; new rows are appended. Items reference categories by
+  // index, so a position must never shift (this is what keeps every existing item correct).
+  const _metalRows = [...document.querySelectorAll('#laborList .labor-row')];
+  const _otherRows = [...document.querySelectorAll('#vfOtherCatList .other-cat-row')];
+  const _slots = []; const _appended = [];
+  const _placeCat = (row, cat) => {
+    const oi = row.dataset.origIdx;
+    if (oi !== undefined && oi !== '') _slots[parseInt(oi)] = cat; else _appended.push(cat);
+  };
+  for (const row of _metalRows) {
+    const catName = row.querySelector('.labor-name').value.trim();
+    const karat = row.querySelector('.karat-select')?.value || '—';
+    const marginVal = row.querySelector('.margin-input').value.trim();
+    const catMargin = marginVal !== '' ? parseFloat(marginVal) : undefined;
+    const handmade = row.querySelector('.handmade-toggle')?.classList.contains('active') || false;
+    const rateType = row.querySelector('.rate-type-toggle')?.classList.contains('flat') ? 'flat' : row.querySelector('.rate-type-toggle')?.classList.contains('peritem') ? 'peritem' : 'pergram';
+    const rate = rateType === 'peritem' ? 0 : parseFloat(row.querySelector('.rate-input').value);
+    if (!catName || (rateType !== 'peritem' && isNaN(rate))) { showStatus('vendorStatus', t('laborFillAll'), 'error'); return; }
+    _placeCat(row, { name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType,
+      ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
+      ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }),
+      ...(row.dataset.deleted && { deleted: true }),
+      ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
   }
+  const discount = parseFloat(document.getElementById('v_discount').value) || 0;
+  for (const row of _otherRows) {
+    const inputs = row.querySelectorAll('input');
+    const catName = inputs[0].value.trim();
+    if (!catName) continue;   // a blank other row is ignored (matches the previous behaviour)
+    const multiplier = parseFloat(inputs[1].value) || 1;
+    _placeCat(row, { name: catName, multiplier, karat: '—', rate: 0,
+      ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
+      ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }),
+      ...(row.dataset.deleted && { deleted: true }) });
+  }
+  // Assemble in index order. A slot is only ever empty in the impossible case of an existing
+  // row having vanished from the form — fall back to the stored category so its index (and
+  // every item pointing at it) is preserved regardless.
+  const _origCats = (editingVendorIndex !== null) ? getVendorCategories(state.vendors[editingVendorIndex]) : [];
+  const laborCategories = [];
+  for (let _i = 0; _i < _slots.length; _i++) { if (_slots[_i]) laborCategories.push(_slots[_i]); else if (_origCats[_i]) laborCategories.push(_origCats[_i]); }
+  for (const c of _appended) laborCategories.push(c);
+  const _hasMetal = laborCategories.some(c => !c.deleted && !catIsOther(c));
+  const _hasOther = laborCategories.some(c => !c.deleted && catIsOther(c));
+  if (!_hasMetal && !_hasOther) { showStatus('vendorStatus', t('laborRequired'), 'error'); return; }
+  _freezeCatAbbrs(laborCategories);
+  let vendor = { name, laborCategories };
+  if (_hasOther) vendor.discount = discount;
+  // `vendorType:'other'` marks a PURE other vendor (no metal categories), exactly as before,
+  // so legacy pure-other vendors round-trip byte-identically. A metal or MIXED vendor carries
+  // no vendorType — every kind decision is made per-category via catIsOther().
+  if (_hasOther && !_hasMetal) vendor.vendorType = 'other';
   // Pin the vendor's OWN abbreviation. `vendor` is rebuilt from scratch above, so this has
   // to be carried over explicitly or it would be dropped on every save.
   if (editingVendorIndex !== null) {
@@ -15014,7 +15050,7 @@ function saveVendor() {
   // just be frozen. Changing it rewrites the code, and every tag already printed for that
   // category stops scanning. The owner has to be told, with the old and new code shown.
   let karatChanges = [];
-  if (editingVendorIndex !== null && vendorType !== 'other') {
+  if (editingVendorIndex !== null && _hasMetal) {
     const oldVendor = state.vendors[editingVendorIndex];
     // Pair each saved row with the row it came from BY POSITION. The form is built from
     // this list in order, retired rows keep their slot and new rows are appended, so
@@ -15069,6 +15105,8 @@ function saveVendor() {
     setTimeout(() => { const c = document.getElementById('vcard-' + savedIdx); if(c) c.classList.add('expanded'); }, 80);
     document.getElementById('addVendorForm').style.display = 'none';
     document.getElementById('laborList').innerHTML = '';
+    document.getElementById('vfOtherCatList').innerHTML = '';
+    document.getElementById('v_discount').value = '';
     showStatus('vendorStatus', t('vendorSaved'), 'ok');
     if (isMistakeFix && recalCatKeys && recalCatKeys.length > 0) {
       recalibrateCategoryItems(savedIdx, recalCatKeys);
@@ -15103,6 +15141,7 @@ function saveVendor() {
 
   // The karat warning comes first: it breaks physical tags, which is worse than a price
   // drift, and the owner may want to back out of the whole save.
+  function _dispatchVendorSave() {
   if (karatChanges.length > 0) {
     const isEl = lang === 'el';
     const list = karatChanges.map(c => `${c.name}:  ${c.oldCode} → ${c.newCode}`).join('\n');
@@ -15115,6 +15154,12 @@ function saveVendor() {
   }
 
   _afterKarat();
+  }
+
+  // The destructive Metal↔Other type switch (v12.17 guard) is gone: saveVendor now persists
+  // BOTH sections, so switching which one is visible never discards categories. A vendor can
+  // hold metal and other categories at once, so there is nothing to warn about here.
+  _dispatchVendorSave();
 }
 
 // Bulk-recalibrate initialRetail for all in-stock items in the given categories of a vendor,
@@ -15183,17 +15228,22 @@ function updateWorkTypeOptions() {
     return;
   }
   const cats = getVendorCategories(vendor);
-  const _isOther = vendor.vendorType === 'other';
   const placeholder = lang === 'el' ? 'Επιλέξτε κατηγορία...' : 'Select category...';
-  // Retired categories keep their slot (items reference it by index) but must not be
-  // offered for new pricing — filter on the value, never reindex.
+  // A MIXED vendor holds both metal and other categories; the calc metal button decides which
+  // set is offered (other categories iff metal==='other'). A pure vendor shows all its
+  // categories exactly as before. Retired categories keep their slot (items reference it by
+  // index) but are never offered. The ORIGINAL index is always the option value, so an item's
+  // stored catIdx stays correct even when the list is filtered.
+  const _mixed = vendorIsMixed(vendor);
+  const _wantOther = (metal === 'other');
   wt.innerHTML = `<option value="" disabled>${placeholder}</option>` +
-    cats.map((c,i) => c.deleted ? '' : `<option value="${i}">${catOptionLabel(c, _isOther)}</option>`).join('');
-  if (prevVal !== '' && parseInt(prevVal) < cats.length) {
-    wt.value = prevVal;
-  } else {
-    wt.value = '';
-  }
+    cats.map((c,i) => {
+      if (c.deleted) return '';
+      if (_mixed && (catIsOther(c) !== _wantOther)) return '';
+      return `<option value="${i}">${catOptionLabel(c, catIsOther(c))}</option>`;
+    }).join('');
+  // Keep the current selection only if it still points at a visible option.
+  wt.value = (prevVal !== '' && wt.querySelector('option[value="' + prevVal + '"]')) ? prevVal : '';
 }
 
 function getVendorCategories(vendor) {
@@ -15204,6 +15254,18 @@ function getVendorCategories(vendor) {
     { name: 'Custom / Bespoke', rate: vendor.custom || 0 }
   ];
 }
+
+// ── Unified vendors: one vendor can hold BOTH metal categories (karat + rate, priced per
+// gram/flat/per-item) AND "other" categories (bronze, steel… priced by a ×multiplier). ──
+// A single category's kind is read from the category itself, NEVER from the vendor, so a
+// mixed vendor works everywhere. The discriminator: an OTHER category always carries a
+// `multiplier`; a metal one never does (verified 0 exceptions across the whole live backup),
+// so for every EXISTING vendor `catIsOther(cat)` === the old `vendor.vendorType==='other'`.
+function catIsOther(c){ return !!(c && (c.multiplier !== undefined || c.type === 'other')); }
+// Metal-capable = has a live metal category; other-capable = has a live other category.
+function vendorHasMetal(v){ return !!v && getVendorCategories(v).some(c => !c.deleted && !catIsOther(c)); }
+function vendorHasOther(v){ return !!v && getVendorCategories(v).some(c => !c.deleted && catIsOther(c)); }
+function vendorIsMixed(v){ return vendorHasMetal(v) && vendorHasOther(v); }
 
 // Identity of one labor-category ROW, used to match an ITEM's category to a row.
 // Frozen letters first (they survive a rename), but letters alone are NOT unique: the
@@ -15252,7 +15314,10 @@ function catOptionLabel(cat, isOtherType) {
   const k = catKaratLabel(cat);
   if (k) bits.push(k);
   const cur = state.currency || '€';
-  if (isOtherType) {
+  // Kind follows the category itself (a mixed vendor holds both), so a caller passing a
+  // vendor-level flag still labels each row correctly. Identical to the old flag for pure
+  // vendors, since there catIsOther(cat) === (vendor.vendorType==='other').
+  if (isOtherType || catIsOther(cat)) {
     const m = parseFloat(cat.multiplier) || 0;
     if (m) bits.push('×' + m);
   } else if (cat.rateType === 'peritem') {
@@ -15592,7 +15657,7 @@ function buildCodeMap() {
       const cAbbr = _abbrs[ci];
       const cAbbrLatin = _abbrsLatin[ci];
       const k = cat.karat && cat.karat !== '—' ? karatCode(cat.karat) : '';
-      const isOtherType = vendor.vendorType === 'other';
+      const isOtherType = catIsOther(cat);   // per-category, so a mixed vendor maps both kinds
       // Greek code
       const code = vAbbr + k + cAbbr;
       const entry = { vendorIdx: vi, catIdx: ci, vendorName: vendor.name, catName: cat.name, karat: k, rawKarat: cat.karat || '', rate: cat.rate, isOtherType };
@@ -16279,6 +16344,13 @@ function lookupCode(raw, opts) {
     }
     // Auto-fill vendor
     document.getElementById('vendorSelect').value = match.vendorIdx;
+    // Put the calc into the right metal MODE *before* building the category list, so a mixed
+    // vendor's dropdown already shows the matching set (metal vs other) when we auto-select
+    // the category — otherwise the target category would be filtered out at assignment time.
+    // For an other item → Other mode; for a metal item the karat sets gold/silver (repeated
+    // idempotently below). Pure vendors don't filter, so this changes nothing for them.
+    if (match.isOtherType) { if (metal !== 'other') setMetal('other'); }
+    else { syncKaratToCat(match.rawKarat); }
     updateWorkTypeOptions();
     // Auto-fill category
     document.getElementById('workType').value = match.catIdx;
@@ -21382,8 +21454,10 @@ function _rebuildItemQR(item) {
 // excluded — they price by a multiplier and their categories carry no karat, so a gold
 // piece moved there would lose the karat its price and code are built from.
 function _invEditVendorOptions(curIdx) {
+  // A gold/silver piece can move to any vendor that has METAL categories — that now includes
+  // a mixed vendor (metal + other). A pure other-type vendor is still excluded (no karat).
   return state.vendors.map((v, i) => ({ i, v }))
-    .filter(({ i, v }) => i === curIdx || (!v.deleted && v.vendorType !== 'other'));
+    .filter(({ i, v }) => i === curIdx || (!v.deleted && vendorHasMetal(v)));
 }
 
 // Categories the owner can move a piece to, within one vendor. Restricted to the SAME rate
@@ -21394,8 +21468,10 @@ function _invEditVendorOptions(curIdx) {
 function _invEditCatOptions(vendor, curIdx, rateType) {
   const cats = vendor ? getVendorCategories(vendor) : [];
   const _rt = c => c.rateType || 'pergram';
+  // This form only ever moves a METAL piece, so never offer a mixed vendor's other categories
+  // (they price by multiplier and carry no karat/rateType).
   return cats.map((c, i) => ({ i, c }))
-    .filter(({ i, c }) => i === curIdx || (!c.deleted && _rt(c) === rateType));
+    .filter(({ i, c }) => i === curIdx || (!c.deleted && !catIsOther(c) && _rt(c) === rateType));
 }
 
 function _invEditPopulateCats(vendorIdx, selectIdx) {
@@ -22503,7 +22579,7 @@ function openAddBulkSheet() {
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Προμηθευτής':'Vendor'}</label>
       <select id="bulkVendorSelect" onchange="updateBulkCatSelect()" style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none;margin-bottom:16px">
         <option value="">${lang==='el'?'Επιλέξτε προμηθευτή...':'Select vendor...'}</option>
-        ${(state.vendors||[]).filter(v=>v.vendorType!=='other').map((v,i)=>`<option value="${i}">${v.name}</option>`).join('')}
+        ${(state.vendors||[]).map((v,i)=>({v,i})).filter(o=>!o.v.deleted&&vendorHasMetal(o.v)).map(o=>`<option value="${o.i}">${o.v.name}</option>`).join('')}
       </select>
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Κατηγορία Εργασίας':'Labor Category'}</label>
@@ -22527,8 +22603,8 @@ function openAddBulkSheet() {
     </div>`;
   document.body.appendChild(overlay);
   window._bulkMetal = 'gold';
-  // Auto-select first vendor if only one metal vendor
-  const metalVendors = (state.vendors||[]).filter(v=>v.vendorType!=='other');
+  // Auto-select first vendor if only one metal-capable vendor
+  const metalVendors = (state.vendors||[]).filter(v=>!v.deleted&&vendorHasMetal(v));
   if (metalVendors.length === 1) {
     document.getElementById('bulkVendorSelect').value = (state.vendors||[]).indexOf(metalVendors[0]);
     updateBulkCatSelect();
@@ -22567,7 +22643,9 @@ function updateBulkCatSelect() {
   const vendor = state.vendors[vIdx];
   if (!vendor) return;
   const cats = getVendorCategories(vendor);
-  catSel.innerHTML = cats.map((c,i) => c.deleted ? '' : `<option value="${i}">${catOptionLabel(c, vendor.vendorType === 'other')}</option>`).join('');
+  // Bulk-by-the-gram is metal only; never offer a mixed vendor's other (multiplier) categories.
+  // Keep the ORIGINAL index as the option value so the stored catIdx is correct.
+  catSel.innerHTML = cats.map((c,i) => (c.deleted || catIsOther(c)) ? '' : `<option value="${i}">${catOptionLabel(c, false)}</option>`).join('');
 }
 
 async function confirmAddBulk() {
@@ -25300,10 +25378,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.16', date: 'Ιούλιος 2026', items: [
-        "🎁 Δώρο σε πελάτη — δώστε ένα μικρό κομμάτι (συνήθως στάσιμο) χωρίς πώληση. Πατήστε το 🎁 στην κάρτα του κομματιού.",
-        "📦 Αφαιρείται από το απόθεμα (σωστές μετρήσεις & απογραφή) και το κόστος του καταγράφεται ως έξοδο καλής θέλησης — μηδέν έσοδο, αλλά το κέρδος της περιόδου δείχνει πόσο κόστισε το δώρο.",
-        "↩️ Αν το διαγράψετε από τις Πωλήσεις, το κομμάτι επιστρέφει στο απόθεμα. Το κάνουν και οι υπάλληλοι.",
+      { version: 'v12.18', date: 'Ιούλιος 2026', items: [
+        "🔀 Ένας προμηθευτής μπορεί πλέον να έχει ΚΑΙ μεταλλικές (χρυσό/ασήμι) ΚΑΙ «άλλες» κατηγορίες (μπρούτζο, ατσάλι…) μαζί — δεν χρειάζεται ξεχωριστός προμηθευτής.",
+        "⚙️ Επεξεργασία προμηθευτή → εναλλαγή «Μέταλλο»/«Άλλο» για να προσθέσετε κάθε είδος· αποθηκεύονται και τα δύο (δεν σβήνει πια τίποτα).",
+        "🧮 Στον υπολογισμό, το κουμπί μετάλλου δείχνει τις σωστές κατηγορίες: Χρυσός/Ασήμι → μεταλλικές, Άλλο → «άλλες».",
+        "🔒 Οι υπάρχουσες τιμές, κωδικοί και ετικέτες όλων των κομματιών μένουν ακριβώς ίδιες (ελεγμένο σε όλο το πραγματικό απόθεμα).",
       ]},
       ]
   },
@@ -25334,10 +25413,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.16', date: 'Jul 2026', items: [
-        "🎁 Give as a gift — hand a small (usually slow-moving) piece to a customer with no sale. Tap the 🎁 on the item's card.",
-        "📦 It leaves stock (so counts & the stocktake stay right) and its cost is booked as a goodwill expense — zero revenue, but the period's profit shows what the gift cost.",
-        "↩️ Deleting it from Sales puts the piece back in stock. Employees can do it too.",
+      { version: 'v12.18', date: 'Jul 2026', items: [
+        "🔀 A vendor can now hold BOTH metal (gold/silver) AND \"other\" categories (bronze, steel…) at once — no need for a separate vendor.",
+        "⚙️ Edit vendor → switch Metal/Other to add each kind; both are saved (nothing gets wiped anymore).",
+        "🧮 In Calc, the metal button shows the right set: Gold/Silver → metal categories, Other → \"other\" categories.",
+        "🔒 Every existing item's price, code and tag stays exactly the same (verified across the whole real inventory).",
       ]},
           ]
   }
@@ -29879,7 +29959,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.16';
+const APP_VERSION = '12.18';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -30160,11 +30240,12 @@ document.getElementById('vendorSelect').addEventListener('change', () => { updat
 document.getElementById('workType').addEventListener('change', () => {
   if (metal === 'other') { calcOtherRetail(); return; }
   // Picking a category sets the karat it is for, so the price and the printed tag agree.
-  // Other-type vendors carry no karat and drive the calc themselves — leave them alone.
+  // An OTHER category carries no karat and drives the calc itself — leave it alone (this is
+  // per-category now, so a mixed vendor's metal categories still sync while its others don't).
   const v = state.vendors[parseInt(document.getElementById('vendorSelect').value)];
-  if (!v || v.vendorType === 'other') return;
+  if (!v) return;
   const cat = getVendorCategories(v)[parseInt(document.getElementById('workType').value)];
-  if (cat && cat.karat && cat.karat !== '—') syncKaratToCat(cat.karat);
+  if (cat && !catIsOther(cat) && cat.karat && cat.karat !== '—') syncKaratToCat(cat.karat);
 });
 _loadSpotPrices();            // restore last good price so a startup blip never blanks it
 fetchSpotPrices();
@@ -32693,11 +32774,13 @@ function calculateOtherPrice() {
   const vendorIdx = parseInt(document.getElementById('vendorSelect').value);
   if (isNaN(vendorIdx) || !state.vendors[vendorIdx]) { showToast(lang==='el'?'⚠️ Επιλέξτε προμηθευτή':'⚠️ Select a vendor'); return; }
   const v = state.vendors[vendorIdx];
-  if (v.vendorType !== 'other') { showToast(lang==='el'?'⚠️ Μη έγκυρος τύπος προμηθευτή':'⚠️ Invalid vendor type'); return; }
-
   const catIdx = parseInt(document.getElementById('workType').value) || 0;
   const cats = v.laborCategories || [];
   const cat = cats[catIdx];
+  // The SELECTED category must be an "other" (×multiplier) category. A mixed vendor also holds
+  // metal categories, which this calculator doesn't handle — so check the category, not the
+  // vendor (a pure other-type vendor's categories are all other, so this is unchanged for it).
+  if (!cat || !catIsOther(cat)) { showToast(lang==='el'?'⚠️ Επιλέξτε κατηγορία «Άλλο»':'⚠️ Select an "Other" category'); return; }
   const catName = cat ? cat.name : (lang==='el' ? 'Άλλο' : 'Other');
   const mult = cat ? (parseFloat(cat.multiplier) || 1) : 1;
   const discPct = parseFloat(v.discount) || 0;
@@ -32864,7 +32947,7 @@ function setVendorFormType(type) {
   document.getElementById('v_vendorType').value = type;
 }
 
-function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='') {
+function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='', origIdx=null) {
   const list = document.getElementById('vfOtherCatList');
   const row = document.createElement('div');
   row.className = 'other-cat-row';
@@ -32872,6 +32955,8 @@ function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='') {
   // frozen on the row exactly like the metal-vendor rows above.
   if (abbr) row.dataset.abbr = abbr;
   if (abbrLatin) row.dataset.abbrLatin = abbrLatin;
+  // Original position in the vendor's combined laborCategories array (see addLaborRow).
+  if (origIdx !== null) row.dataset.origIdx = origIdx;
   row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px';
   row.innerHTML = `
     <input type="text" placeholder="${lang==='el'?'π.χ. Σκουλαρίκια':'e.g. Earrings'}" value="${name}" style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:9px 10px;outline:none">
