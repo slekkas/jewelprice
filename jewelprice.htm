@@ -1035,15 +1035,21 @@
     font-family:var(--font-body); font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; }
   .theme-seg.active { background:var(--glow-gold); border-color:var(--gold); color:var(--gold-light); }
   .inv-summary {
-    display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:16px;
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
   }
+  /* Cost card is opt-in (a toggle in the Filter sheet). When on, a 4th card appears and
+     the whole row tightens a touch to keep everything on one line. */
+  .inv-summary.show-cost { grid-template-columns:repeat(4,1fr); gap:7px; }
   .inv-stat {
     background:linear-gradient(135deg,rgba(212,175,55,0.08),rgba(212,175,55,0.02));
     border:1px solid rgba(212,175,55,0.2); border-radius:var(--radius);
-    padding:12px 6px; text-align:center;
+    padding:12px 10px; text-align:center;
   }
+  .inv-summary.show-cost .inv-stat { padding:12px 6px; }
   .inv-stat-val { font-family:var(--font-heading); font-size:22px; color:var(--gold-light); font-weight:700; line-height:1.1; }
-  .inv-stat-val.small { font-size:16px; }
+  .inv-stat-val.small { font-size:17px; }
+  .inv-summary.show-cost .inv-stat-val { font-size:20px; }
+  .inv-summary.show-cost .inv-stat-val.small { font-size:16px; }
   .inv-stat-gain { font-family:var(--font-mono); font-size:12px; font-weight:600; margin-top:3px; line-height:1; min-height:12px; }
   .inv-stat-lbl { font-family:var(--font-body); font-size:11px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
   .inv-stat { cursor:pointer; transition:border-color 0.2s, background 0.2s; }
@@ -2788,7 +2794,7 @@
           <div class="inv-stat-row"><span>🥈</span><span id="invStatMetalSilver">—</span></div>
         </div>
       </div>
-      <div class="inv-stat" id="invStatCard3" onclick="toggleInvStat(3)">
+      <div class="inv-stat" id="invStatCard3" onclick="toggleInvStat(3)" style="display:none">
         <div class="inv-stat-val small" id="invStatCost">—</div>
         <div class="inv-stat-lbl" data-i18n="invTotalCost">Κόστος</div>
         <div class="inv-stat-expand" id="invStatExpand3">
@@ -3747,6 +3753,7 @@ const T = {
     invFilterInStock:'Σε Απόθεμα', invFilterSold2:'Πουλήθηκε', invFilterReserved:'🔒 Κρατημένα', invFilterGrouped:'🔗 Ομαδοποιημένα', invFilterHidden:'🙈 Κρυφά', invFilterNoPhoto:'📷 Χωρίς φωτό',
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
+    invShowCostLbl:'Σύνολο κόστους', invShowCostPill:'💰 Εμφάνιση κόστους',
     invFilterAge:'Χρόνος στο απόθεμα', invSeasonWord:'σεζόν',
     staleReportBtn:'Στάσιμο', staleTitle:'🕰️ Στάσιμο απόθεμα',
     staleHint:'Κομμάτια που κάθονται καιρό — δείτε το περιθώριο έκπτωσης.', staleThreshold:'Ελάχιστες σεζόν',
@@ -4269,6 +4276,7 @@ const T = {
     invFilterInStock:'In Stock', invFilterSold2:'Sold', invFilterReserved:'🔒 Reserved', invFilterGrouped:'🔗 Grouped', invFilterHidden:'🙈 Hidden', invFilterNoPhoto:'📷 No photo',
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
+    invShowCostLbl:'Total Cost', invShowCostPill:'💰 Show cost',
     invFilterAge:'Time in Stock', invSeasonWord:'seasons',
     staleReportBtn:'Stale', staleTitle:'🕰️ Stale Stock',
     staleHint:'Pieces sitting a long time — see the room you have to discount.', staleThreshold:'Min. seasons',
@@ -19114,6 +19122,10 @@ function calcInvItemPrice(item) {
 }
 
 let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+// Show the "Total Cost" summary card? Off by default (keeps the comfortable 3-card layout);
+// the owner flips it on via a toggle in the Filter sheet. A view preference, not a filter,
+// so it persists across renders and is unaffected by "Clear filters".
+let _showCostCard = (function(){ try { return localStorage.getItem('jpro_showCost') === '1'; } catch(e){ return false; } })();
 
 // Label for one Status-group pill. 'in_stock'/'sold' are real statuses; the rest are
 // cross-cutting flags (reserved / grouped / hidden / no-photo) that narrow within them.
@@ -19533,6 +19545,12 @@ function openInvFilterSheet() {
     [3, 5, 10].map(v => `<button class="inv-fs-pill${_invFilters.gainMin===v?' sel':''}" data-group="gain" data-val="${v}">&gt; +${v}%</button>`).join('') +
     `</div></div>`;
 
+  // Show-cost toggle (owner/manager only) — reveals the "Total Cost" summary card so a
+  // filtered batch can be reconciled against the vendor's invoice. A view preference, not
+  // a filter of the items.
+  const showCostGroup = (!can('see_cost')) ? '' :
+    `<div class="inv-fs-group"><div class="inv-fs-label">${t('invShowCostLbl')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_showCostCard?' sel':''}" data-group="showCost" data-val="1">${t('invShowCostPill')}</button></div></div>`;
+
   // Time in stock (owner/manager only) — spot long-sitting pieces to discount.
   const seasonGroup = (!can('see_cost')) ? '' :
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterAge')}</div><div class="inv-fs-pills">` +
@@ -19617,6 +19635,7 @@ function openInvFilterSheet() {
     mixedMetalGroup +
     gainGroup +
     seasonGroup +
+    showCostGroup +
     dateSection;
 
   // Pills — click toggling
@@ -19641,6 +19660,19 @@ function openInvFilterSheet() {
       _invFilters.seasonMin = wasActive ? 0 : v;
       content.querySelectorAll('.inv-fs-pill[data-group="season"]').forEach(p => p.classList.remove('sel'));
       if (!wasActive) btn.classList.add('sel');
+      return;
+    }
+    if (grp === 'showCost') {
+      // View preference, not a filter. The cost totals are already computed on every
+      // summary render, so just reveal/hide the card directly — instant, and without
+      // prematurely applying the sheet's other (not-yet-Applied) pill/date changes.
+      _showCostCard = !_showCostCard;
+      try { localStorage.setItem('jpro_showCost', _showCostCard ? '1' : '0'); } catch (e) {}
+      btn.classList.toggle('sel', _showCostCard);
+      const _cc = document.getElementById('invStatCard3');
+      if (_cc) _cc.style.display = _showCostCard ? '' : 'none';
+      const _sum = document.querySelector('.inv-summary');
+      if (_sum) _sum.classList.toggle('show-cost', _showCostCard);
       return;
     }
     if (grp === 'mixedMetal') {
@@ -19982,7 +20014,11 @@ function renderInvSummary(filteredItems) {
   const _statCostCard = document.getElementById('invStatCost')?.closest('.inv-stat');
   if (_statRetailCard) _statRetailCard.style.display = _isEmpSummary ? 'none' : '';
   if (_statMetalCard) _statMetalCard.style.display = _isEmpSummary ? 'none' : '';
-  if (_statCostCard) _statCostCard.style.display = _isEmpSummary ? 'none' : '';
+  // Cost card is shown only when the owner has toggled it on (and never to employees).
+  const _showCost = _showCostCard && !_isEmpSummary;
+  if (_statCostCard) _statCostCard.style.display = _showCost ? '' : 'none';
+  const _summaryEl = _statCostCard?.closest('.inv-summary') || document.querySelector('.inv-summary');
+  if (_summaryEl) _summaryEl.classList.toggle('show-cost', !!_showCost);
 }
 
 function toggleInvStat(idx) {
@@ -25477,8 +25513,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.22', date: 'Ιούλιος 2026', items: [
-        "💰 Νέα κάρτα «Κόστος» στη σύνοψη του Αποθέματος — δείχνει το συνολικό κόστος των ειδών που βλέπετε (με τα φίλτρα). Φιλτράρετε π.χ. προμηθευτή + σημερινή ημερομηνία και συγκρίνετε το σύνολο με το τιμολόγιο του προμηθευτή. Πατήστε την κάρτα για ανάλυση σε χρυσό / ασήμι / άλλο.",
+      { version: 'v12.23', date: 'Ιούλιος 2026', items: [
+        "💰 Η κάρτα «Κόστος» κρύβεται πλέον από προεπιλογή, ώστε η σύνοψη να παραμένει καθαρή με 3 κάρτες. Για να τη δείτε, ανοίξτε τα Φίλτρα και πατήστε τον διακόπτη «💰 Εμφάνιση κόστους». Η επιλογή θυμάται την προτίμησή σας.",
       ]},
       ]
   },
@@ -25509,8 +25545,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.22', date: 'Jul 2026', items: [
-        "💰 New \"Total Cost\" card in the Stock summary — shows the total cost of the items you're viewing (with filters applied). Filter e.g. by vendor + today's date and compare the total against the vendor's invoice. Tap the card for a gold / silver / other breakdown.",
+      { version: 'v12.23', date: 'Jul 2026', items: [
+        "💰 The \"Total Cost\" card is now hidden by default, so the summary stays clean with 3 cards. To see it, open Filters and tap the \"💰 Show cost\" switch. It remembers your choice.",
       ]},
           ]
   }
@@ -30060,7 +30096,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.22';
+const APP_VERSION = '12.23';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
