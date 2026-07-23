@@ -2388,6 +2388,10 @@
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="platingLabel">Επιχρύσωση</label>
       <select id="labelPlatingSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
     </div>
+    <div id="labelMaterialWrap" style="margin-bottom:16px;display:none">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="materialLabel">Υλικό</label>
+      <select id="labelMaterialSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
+    </div>
     <div style="margin-bottom:16px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:8px" data-i18n="photoLabel">Φωτογραφία Κοσμήματος</label>
       <div id="labelPhotoPickerWrap"></div>
@@ -3762,7 +3766,7 @@ const T = {
     ok:'OK',
     genderLabel:'Κοινό Αγοραστικό',
     goldColorLabel:'Χρώμα Χρυσού',
-    platingLabel:'Επιχρύσωση',
+    platingLabel:'Επιχρύσωση', materialLabel:'Υλικό',
     invFilterGender:'Φύλο',
     genderWomen:'♀️ Γυναικεία',
     genderMen:'♂️ Ανδρικά',
@@ -4287,7 +4291,7 @@ const T = {
     genderChildren:'👶 Children',
     genderUnisex:'✨ Unisex',
     goldColorLabel:'Gold Color',
-    platingLabel:'Plating',
+    platingLabel:'Plating', materialLabel:'Material',
     colorLabel:'Color (enamel/stone)',
     invFilterGender:'Gender',
     invFilterMixed:'Mixed Metal',
@@ -9411,6 +9415,14 @@ function _openLabelModalInner(data, modal, content) {
   if (_lblPlSel) {
     _lblPlSel.innerHTML = silverPlatingOptionsHtml('');
     _lblPlSel.value = ''; // always reset to plain on a new item
+  }
+  // Material selector — only for "other" items (brass/steel/plated…); reset on each open
+  const _lblMatWrap = document.getElementById('labelMaterialWrap');
+  const _lblMatSel = document.getElementById('labelMaterialSelect');
+  if (_lblMatWrap) _lblMatWrap.style.display = (metal === 'other') ? 'block' : 'none';
+  if (_lblMatSel) {
+    _lblMatSel.innerHTML = otherMaterialOptionsHtml('');
+    _lblMatSel.value = '';
   }
   // Populate the decorative color selector (blank = plain) — reset on each open
   const _lblColorSel = document.getElementById('labelColorSelect');
@@ -18670,6 +18682,7 @@ async function _saveToInventoryFromLabel(labelData) {
     color: (document.getElementById('labelColorSelect')?.value) || null,
     goldColor: (metal === 'gold') ? (document.getElementById('labelGoldColorSelect')?.value || 'gold') : null,
     silverPlating: (metal === 'silver') ? (document.getElementById('labelPlatingSelect')?.value || null) : null,
+    otherMaterial: (metal === 'other') ? (document.getElementById('labelMaterialSelect')?.value || null) : null,
     secondaryMetal: r ? (r.secondaryMetal || null) : null,
     secondaryKarat: r ? (r.secondaryKarat || null) : null,
     secondaryWeight: r ? (r.secondaryWeight || null) : null,
@@ -18753,7 +18766,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','silverPlating','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded'];
+  'metal','karat','goldColor','silverPlating','otherMaterial','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -20367,7 +20380,7 @@ function renderInvList() {
     const metaLine = item.isCoin
       ? `${item.metal==='silver'?(lang==='el'?'Καθαρός άργυρος':'Pure silver'):(lang==='el'?'Καθαρός χρυσός':'Pure gold')}: ${(parseFloat(item.coinPure)||0).toFixed(2)}g · ${(parseFloat(item.coinGross)||parseFloat(item.weight)||0).toFixed(2)}g ${lang==='el'?'μικτό':'gross'}${item.coinFineness?` · ${Math.round(parseFloat(item.coinFineness)*1000)}‰`:''}`
       : item.metal === 'other'
-      ? ''  // Other items have no metal/weight — skip this line entirely
+      ? otherMaterialLabel(item.otherMaterial)  // material (brass/steel/plated…) if set, else blank
       : item.isBulk
         ? `${metalLabel} · ${karatLabel} · <strong style="color:var(--gold-light)">${parseFloat(item.weight).toFixed(1)}g ${t('bulkRemaining')}</strong>`
         : `${metalLabel} · ${karatLabel} · ${parseFloat(item.weight).toFixed(2)}g${item.secondaryMetal && item.secondaryWeight ? ` · ${item.secondaryMetal==='gold'?t('gold'):t('silver')} ${(item.secondaryKarat||'')}${item.secondaryMetal==='gold'?'K':''} · ${parseFloat(item.secondaryWeight).toFixed(2)}g` : ''}`;
@@ -21597,6 +21610,11 @@ function invEdit(id) {
     '</label><input type="number" id="invEditFixedRetailInput" inputmode="decimal" step="0.01" min="0" value="' +
     (item.fixedRetail ? parseFloat(item.fixedRetail).toFixed(2) : '') +
     '" placeholder="0.00" style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(201,168,76,0.45);border-radius:8px;color:var(--gold-light);font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;box-sizing:border-box;outline:none"></div>' +
+    '<div style="margin-bottom:18px"><label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">🧱 ' +
+    (lang==='el'?'Υλικό':'Material') +
+    '</label><select id="invEditMaterialSelect" style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none">' +
+    otherMaterialOptionsHtml(item.otherMaterial) +
+    '</select></div>' +
     '<div style="margin-bottom:18px"><label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:8px">💎 ' +
     (lang==='el'?'Πέτρες (Προαιρετικό)':'Stone (Optional)') +
     '</label><div id="invEditStoneChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div><div style="display:flex;gap:6px"><select id="invEditStonePicker" style="flex:1;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.35);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;outline:none"><option value="">' +
@@ -22366,6 +22384,9 @@ RETAIL: \u20ac[integer]`;
     if (_fixedSave && item.metal === 'other') {
       const _fv = parseFloat(_fixedSave.value);
       if (_fv > 0) item.fixedRetail = _fv;
+      // Material (brass / steel / plated…) — blank clears it.
+      const _matSave = document.getElementById('invEditMaterialSelect');
+      if (_matSave) item.otherMaterial = _matSave.value || null;
       // Save stones from chip editor — read from data-stone attributes
       const _editStonesEl = document.getElementById('invEditStoneChips');
       if (_editStonesEl) {
@@ -25378,11 +25399,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.18', date: 'Ιούλιος 2026', items: [
-        "🔀 Ένας προμηθευτής μπορεί πλέον να έχει ΚΑΙ μεταλλικές (χρυσό/ασήμι) ΚΑΙ «άλλες» κατηγορίες (μπρούτζο, ατσάλι…) μαζί — δεν χρειάζεται ξεχωριστός προμηθευτής.",
-        "⚙️ Επεξεργασία προμηθευτή → εναλλαγή «Μέταλλο»/«Άλλο» για να προσθέσετε κάθε είδος· αποθηκεύονται και τα δύο (δεν σβήνει πια τίποτα).",
-        "🧮 Στον υπολογισμό, το κουμπί μετάλλου δείχνει τις σωστές κατηγορίες: Χρυσός/Ασήμι → μεταλλικές, Άλλο → «άλλες».",
-        "🔒 Οι υπάρχουσες τιμές, κωδικοί και ετικέτες όλων των κομματιών μένουν ακριβώς ίδιες (ελεγμένο σε όλο το πραγματικό απόθεμα).",
+      { version: 'v12.19', date: 'Ιούλιος 2026', items: [
+        "🧱 Υλικό για είδη «Άλλο»: νέο πεδίο — επιλέξτε υλικό (Επιχρυσωμένος Ορείχαλκος, Ανοξείδωτο Ατσάλι, Μπρούτζος…) αντί να το γράφετε στην περιγραφή. Στη δημιουργία ετικέτας και στην Επεξεργασία.",
+        "💎 Πέτρες με ένα άγγιγμα (χωρίς καράτια/σχήμα) για είδη «Άλλο» — στην Επεξεργασία του κομματιού.",
+        "🛍️ Το υλικό και οι πέτρες εμφανίζονται πλέον καθαρά στο online showroom και στη σελίδα κομματιού, σε Ελληνικά & Αγγλικά αυτόματα.",
       ]},
       ]
   },
@@ -25413,11 +25433,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.18', date: 'Jul 2026', items: [
-        "🔀 A vendor can now hold BOTH metal (gold/silver) AND \"other\" categories (bronze, steel…) at once — no need for a separate vendor.",
-        "⚙️ Edit vendor → switch Metal/Other to add each kind; both are saved (nothing gets wiped anymore).",
-        "🧮 In Calc, the metal button shows the right set: Gold/Silver → metal categories, Other → \"other\" categories.",
-        "🔒 Every existing item's price, code and tag stays exactly the same (verified across the whole real inventory).",
+      { version: 'v12.19', date: 'Jul 2026', items: [
+        "🧱 Material for \"Other\" items: a new field — pick the material (Gold Plated Brass, Stainless Steel, Bronze…) instead of typing it into the description. On the label screen and in Edit.",
+        "💎 One-tap stones (no carat/shape) for \"Other\" items — in Edit Item.",
+        "🛍️ Material and stones now show cleanly in the online showroom and the item page, in Greek & English automatically.",
       ]},
           ]
   }
@@ -29959,7 +29978,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.18';
+const APP_VERSION = '12.19';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -30077,6 +30096,36 @@ function itemColorSwatchCss(value) {
 function itemColorOptionsHtml(selected) {
   const sel = selected || '';
   return ITEM_COLORS.map(c => `<option value="${c.value}"${sel === c.value ? ' selected' : ''}>${lang === 'el' ? c.el : c.en}</option>`).join('');
+}
+
+// Material for "other"-type items (fashion pieces priced by ×multiplier, no karat) — brass /
+// plated brass / steel, or silver-based fashion pieces. "Other" items carry no metal+karat, so
+// without this their only material info lived in the free-text description (not shown as a field
+// and not filterable). Stored language-neutral in item.otherMaterial ('' = unspecified) so it
+// flips EL/EN. List seeded from the shop's real usage. Mirrors ITEM_COLORS / SILVER_PLATING.
+const OTHER_MATERIALS = [
+  { value: '',                       el: '— (χωρίς υλικό)',              en: '— (unspecified)' },
+  { value: 'gold_plated_brass',      el: 'Επιχρυσωμένος Ορείχαλκος',      en: 'Gold Plated Brass' },
+  { value: 'silver_plated_brass',    el: 'Επαργυρωμένος Ορείχαλκος',      en: 'Silver Plated Brass' },
+  { value: 'rose_gold_plated_brass', el: 'Ροζ Επιχρυσωμένος Ορείχαλκος',  en: 'Rose Gold Plated Brass' },
+  { value: 'plated_brass',           el: 'Επιμεταλλωμένος Ορείχαλκος',    en: 'Plated Brass' },
+  { value: 'brass',                  el: 'Ορείχαλκος',                    en: 'Brass' },
+  { value: 'stainless_steel',        el: 'Ανοξείδωτο Ατσάλι',             en: 'Stainless Steel' },
+  { value: 'silver',                 el: 'Ασήμι',                         en: 'Silver' },
+  { value: 'gold_plated_silver',     el: 'Επιχρυσωμένο Ασήμι',            en: 'Gold Plated Silver' },
+  { value: 'bronze',                 el: 'Μπρούτζος',                     en: 'Bronze' },
+  { value: 'copper',                 el: 'Χαλκός',                        en: 'Copper' },
+];
+// Sentinel for the "no material" filter pill (the shared pill handler ignores an empty value).
+const MATERIAL_NONE = '__nomat__';
+function otherMaterialLabel(value, isEl) {
+  const _el = (isEl === undefined) ? (lang === 'el') : isEl;
+  const e = OTHER_MATERIALS.find(m => m.value === (value || ''));
+  return (e && e.value) ? (_el ? e.el : e.en) : '';
+}
+function otherMaterialOptionsHtml(selected) {
+  const sel = selected || '';
+  return OTHER_MATERIALS.map(m => `<option value="${m.value}"${sel === m.value ? ' selected' : ''}>${lang === 'el' ? m.el : m.en}</option>`).join('');
 }
 
 // The green "new version" banner draws its contents straight from the About-page

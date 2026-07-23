@@ -313,6 +313,8 @@ const T = {
   }
 };
 const METAL_L = { el:{gold:'Χρυσός',silver:'Ασήμι',other:'Άλλο'}, en:{gold:'Gold',silver:'Silver',other:'Other'} };
+// Material for "other" items — mirrors OTHER_MATERIALS in jewelprice.htm.
+const OTHER_MATERIALS_L = { el:{gold_plated_brass:'Επιχρυσωμένος Ορείχαλκος',silver_plated_brass:'Επαργυρωμένος Ορείχαλκος',rose_gold_plated_brass:'Ροζ Επιχρυσωμένος Ορείχαλκος',plated_brass:'Επιμεταλλωμένος Ορείχαλκος',brass:'Ορείχαλκος',stainless_steel:'Ανοξείδωτο Ατσάλι',silver:'Ασήμι',gold_plated_silver:'Επιχρυσωμένο Ασήμι',bronze:'Μπρούτζος',copper:'Χαλκός'}, en:{gold_plated_brass:'Gold Plated Brass',silver_plated_brass:'Silver Plated Brass',rose_gold_plated_brass:'Rose Gold Plated Brass',plated_brass:'Plated Brass',brass:'Brass',stainless_steel:'Stainless Steel',silver:'Silver',gold_plated_silver:'Gold Plated Silver',bronze:'Bronze',copper:'Copper'} };
 const GENDER_L = { el:{women:'Γυναίκες',men:'Άνδρες',children:'Παιδιά',unisex:'Unisex'}, en:{women:'Women',men:'Men',children:'Children',unisex:'Unisex'} };
 const TYPE_L = {
   el:{ring:'Δαχτυλίδι',bracelet:'Βραχιόλι',necklace:'Κολιέ',earrings:'Σκουλαρίκια',cross:'Σταυρός',pendant:'Μενταγιόν',brooch:'Καρφίτσα',chain:'Αλυσίδα',watch:'Ρολόι',cufflinks:'Μανικετόκουμπα',coin:'Νόμισμα',metal:'Μέταλλο',other:'Άλλο'},
@@ -437,6 +439,10 @@ function render(item, qr) {
   let rows = '';
   if (typeLbl)         rows += row(tr('kType'), typeLbl + handmade);
   if (metalStr)        rows += row(tr('kMetal'), metalStr);
+  else if (item.metal === 'other' && item.otherMaterial) {
+    const _m = (OTHER_MATERIALS_L[LANG] || OTHER_MATERIALS_L.en)[item.otherMaterial];
+    if (_m) rows += row(LANG==='el'?'Υλικό':'Material', _m);
+  }
   if (item.gender)     rows += row(tr('kFor'), genderLabelFor(item.gender));
   // Hide the internal "melee" prefix from public visitors — show plain stone names
   const stonesPublic = item.stonesDesc

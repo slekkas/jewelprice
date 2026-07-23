@@ -1460,6 +1460,25 @@ function metalWithPlating(item) {
                           : base + ' ' + (isEl ? e.post_el : e.post_en);
 }
 
+// Material for "other"-type items — mirror of OTHER_MATERIALS in jewelprice.htm. Stored
+// language-neutral on item.otherMaterial; blank/absent = unspecified.
+const OTHER_MATERIALS = [
+  { value: 'gold_plated_brass',      el: 'Επιχρυσωμένος Ορείχαλκος',      en: 'Gold Plated Brass' },
+  { value: 'silver_plated_brass',    el: 'Επαργυρωμένος Ορείχαλκος',      en: 'Silver Plated Brass' },
+  { value: 'rose_gold_plated_brass', el: 'Ροζ Επιχρυσωμένος Ορείχαλκος',  en: 'Rose Gold Plated Brass' },
+  { value: 'plated_brass',           el: 'Επιμεταλλωμένος Ορείχαλκος',    en: 'Plated Brass' },
+  { value: 'brass',                  el: 'Ορείχαλκος',                    en: 'Brass' },
+  { value: 'stainless_steel',        el: 'Ανοξείδωτο Ατσάλι',             en: 'Stainless Steel' },
+  { value: 'silver',                 el: 'Ασήμι',                         en: 'Silver' },
+  { value: 'gold_plated_silver',     el: 'Επιχρυσωμένο Ασήμι',            en: 'Gold Plated Silver' },
+  { value: 'bronze',                 el: 'Μπρούτζος',                     en: 'Bronze' },
+  { value: 'copper',                 el: 'Χαλκός',                        en: 'Copper' },
+];
+function otherMaterialLabel(value) {
+  const e = OTHER_MATERIALS.find(m => m.value === (value || ''));
+  return e ? (lang === 'el' ? e.el : e.en) : '';
+}
+
 // Decorative item colours (enamel/stone) — mirror of ITEM_COLORS in jewelprice.htm.
 // Stored language-neutral on item.color; blank = plain (shown by the metal instead).
 const ITEM_COLORS = [
@@ -2371,6 +2390,10 @@ function renderGrid() {
       if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
         tags.push(`<span class="card-tag">${goldColorLabel(item.goldColor)}</span>`);
       }
+    } else if (item.metal === 'other') {
+      // "Other" pieces carry no metal+karat; show the material (brass/steel/plated…) instead.
+      const _matLbl = otherMaterialLabel(item.otherMaterial);
+      if (_matLbl) tags.push(`<span class="card-tag">${_matLbl}</span>`);
     }
     const _colLbl = itemColorLabel(item.color);
     if (_colLbl) tags.push(`<span class="card-tag">${_colLbl}</span>`);
@@ -2479,6 +2502,9 @@ function openLightbox(key) {
     }
     rows += row(lang==='el'?'Μέταλλο':'Metal', metalStr);
     if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g');
+  } else if (item.metal === 'other') {
+    const _matLbl = otherMaterialLabel(item.otherMaterial);
+    if (_matLbl) rows += row(lang==='el'?'Υλικό':'Material', _matLbl);
   }
   if (item.gender) rows += row(lang==='el'?'Φύλο':'For', genderLabel[item.gender]||item.gender);
   if (item.handmade) rows += row(lang==='el'?'Χειροποίητο':'Handmade', '✦');
