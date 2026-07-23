@@ -2392,6 +2392,14 @@
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="materialLabel">Υλικό</label>
       <select id="labelMaterialSelect" style="width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
     </div>
+    <div id="labelStonesWrap" style="margin-bottom:16px;display:none">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">💎 <span data-i18n="stonesOptional">Πέτρες (προαιρετικό)</span></label>
+      <div id="labelStoneChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px">
+        <select id="labelStonePicker" style="flex:1;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.35);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px"></select>
+        <button id="labelStoneAddBtn" type="button" style="flex:0 0 42px;height:40px;background:rgba(100,160,255,0.15);border:1px solid rgba(100,160,255,0.4);border-radius:6px;font-size:20px;cursor:pointer;color:var(--text)">+</button>
+      </div>
+    </div>
     <div style="margin-bottom:16px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:8px" data-i18n="photoLabel">Φωτογραφία Κοσμήματος</label>
       <div id="labelPhotoPickerWrap"></div>
@@ -3766,7 +3774,7 @@ const T = {
     ok:'OK',
     genderLabel:'Κοινό Αγοραστικό',
     goldColorLabel:'Χρώμα Χρυσού',
-    platingLabel:'Επιχρύσωση', materialLabel:'Υλικό',
+    platingLabel:'Επιχρύσωση', materialLabel:'Υλικό', stonesOptional:'Πέτρες (προαιρετικό)',
     invFilterGender:'Φύλο',
     genderWomen:'♀️ Γυναικεία',
     genderMen:'♂️ Ανδρικά',
@@ -4291,7 +4299,7 @@ const T = {
     genderChildren:'👶 Children',
     genderUnisex:'✨ Unisex',
     goldColorLabel:'Gold Color',
-    platingLabel:'Plating', materialLabel:'Material',
+    platingLabel:'Plating', materialLabel:'Material', stonesOptional:'Stones (optional)',
     colorLabel:'Color (enamel/stone)',
     invFilterGender:'Gender',
     invFilterMixed:'Mixed Metal',
@@ -9423,6 +9431,41 @@ function _openLabelModalInner(data, modal, content) {
   if (_lblMatSel) {
     _lblMatSel.innerHTML = otherMaterialOptionsHtml('');
     _lblMatSel.value = '';
+  }
+  // Simple stone chip picker — only for "other" items (type only, no carat/shape). Mirrors
+  // the Edit-Item chip picker; the chosen stones are written to stonesDesc on save.
+  const _lblStWrap = document.getElementById('labelStonesWrap');
+  if (_lblStWrap) _lblStWrap.style.display = (metal === 'other') ? 'block' : 'none';
+  if (metal === 'other') {
+    const _lblStPicker = document.getElementById('labelStonePicker');
+    const _lblStChips  = document.getElementById('labelStoneChips');
+    const _lblStAdd    = document.getElementById('labelStoneAddBtn');
+    if (_lblStPicker && _lblStChips && _lblStAdd) {
+      window._labelStones = [];   // fresh per new item
+      _lblStPicker.innerHTML = '<option value="">' + (lang==='el'?'— Επιλέξτε πέτρα —':'— Pick a stone —') + '</option>' +
+        STONE_TYPES.map(s => '<option value="'+s+'">'+(lang==='el'?(STONE_TRANSLATIONS[s]||s):s)+'</option>').join('');
+      _lblStPicker.value = '';
+      const _lblRenderStChips = () => {
+        _lblStChips.innerHTML = '';
+        window._labelStones.forEach((stone, idx) => {
+          const chip = document.createElement('div');
+          chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:rgba(100,160,255,0.15);border:1px solid rgba(100,160,255,0.4);border-radius:20px;font-size:12px;color:var(--text)';
+          chip.dataset.stone = stone;
+          chip.innerHTML = '◈ ' + (lang==='el'?(STONE_TRANSLATIONS[stone]||stone):stone) + ' <span style="cursor:pointer;font-size:14px;color:var(--text-muted);line-height:1">×</span>';
+          chip.querySelector('span').addEventListener('click', () => { window._labelStones.splice(idx,1); _lblRenderStChips(); });
+          _lblStChips.appendChild(chip);
+        });
+      };
+      _lblRenderStChips();
+      // Assignment (not addEventListener) so re-opening the modal never stacks handlers.
+      _lblStAdd.onclick = () => {
+        const v = _lblStPicker.value;
+        if (!v) return;
+        window._labelStones.push(v);
+        _lblStPicker.value = '';
+        _lblRenderStChips();
+      };
+    }
   }
   // Populate the decorative color selector (blank = plain) — reset on each open
   const _lblColorSel = document.getElementById('labelColorSelect');
@@ -18642,7 +18685,11 @@ async function _saveToInventoryFromLabel(labelData) {
       carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: '', price: 0
     }));
   }
-  const stonesDesc = buildStoneDescription(stoneRows);
+  // "Other" items pick stones via the label modal's simple chip picker (type only, no
+  // carat/shape) — use those; metal items keep the calc's carat-based stone rows.
+  const stonesDesc = (metal === 'other' && Array.isArray(window._labelStones))
+    ? window._labelStones.join(', ')
+    : buildStoneDescription(stoneRows);
   const stoneCost = parseFloat(document.getElementById('stoneCostInput')?.value) || 0;
 
   const item = {
@@ -25399,10 +25446,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.19', date: 'Ιούλιος 2026', items: [
-        "🧱 Υλικό για είδη «Άλλο»: νέο πεδίο — επιλέξτε υλικό (Επιχρυσωμένος Ορείχαλκος, Ανοξείδωτο Ατσάλι, Μπρούτζος…) αντί να το γράφετε στην περιγραφή. Στη δημιουργία ετικέτας και στην Επεξεργασία.",
-        "💎 Πέτρες με ένα άγγιγμα (χωρίς καράτια/σχήμα) για είδη «Άλλο» — στην Επεξεργασία του κομματιού.",
-        "🛍️ Το υλικό και οι πέτρες εμφανίζονται πλέον καθαρά στο online showroom και στη σελίδα κομματιού, σε Ελληνικά & Αγγλικά αυτόματα.",
+      { version: 'v12.20', date: 'Ιούλιος 2026', items: [
+        "🔎 Φίλτρο «Υλικό» στο online showroom — οι πελάτες βρίσκουν π.χ. Ορείχαλκο ή Ανοξείδωτο Ατσάλι με ένα άγγιγμα.",
+        "💎 Πέτρες κατά τη δημιουργία: επιλέξτε πέτρες (χωρίς καράτια/σχήμα) απευθείας στην οθόνη ετικέτας ενός είδους «Άλλο» — όχι μόνο στην Επεξεργασία.",
+        "🧱 Ολοκληρώνει το πεδίο «Υλικό» (v12.19): εμφανίζεται σε κάρτα, showroom και σελίδα κομματιού, σε Ελληνικά & Αγγλικά.",
       ]},
       ]
   },
@@ -25433,10 +25480,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.19', date: 'Jul 2026', items: [
-        "🧱 Material for \"Other\" items: a new field — pick the material (Gold Plated Brass, Stainless Steel, Bronze…) instead of typing it into the description. On the label screen and in Edit.",
-        "💎 One-tap stones (no carat/shape) for \"Other\" items — in Edit Item.",
-        "🛍️ Material and stones now show cleanly in the online showroom and the item page, in Greek & English automatically.",
+      { version: 'v12.20', date: 'Jul 2026', items: [
+        "🔎 \"Material\" filter in the online showroom — customers find e.g. Brass or Stainless Steel in one tap.",
+        "💎 Stones at creation: pick stones (no carat/shape) right on the label screen for an \"Other\" item — not just in Edit.",
+        "🧱 Completes the \"Material\" field (v12.19): shows on the card, the showroom and the item page, in Greek & English.",
       ]},
           ]
   }
@@ -29978,7 +30025,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.19';
+const APP_VERSION = '12.20';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [

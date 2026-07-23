@@ -1353,9 +1353,9 @@ let allItems   = [];
 let filtered   = [];
 let selected   = new Set();   // firebase keys
 // Multi-select filters — each is an array of active values (empty = all)
-let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
+let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
 // Draft filters inside the drawer (applied on tap Apply)
-let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
+let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
 let lightboxKey = null;
 let searchQuery = ''; // current search string
 
@@ -1703,6 +1703,10 @@ function getFilterOptions() {
   const _plats     = [...new Set(allItems.filter(i => i.metal==='silver').map(i => i.silverPlating||''))];
   const platSorted = (_plats.includes('') ? [''] : [])
     .concat(SILVER_PLATING.filter(c => _plats.includes(c.value)).map(c => c.value));
+  // Materials present on "other" items, in OTHER_MATERIALS order (blank not offered — a
+  // material-less piece just isn't matched by a material filter).
+  const _mats = new Set(allItems.filter(i => i.metal==='other').map(i => i.otherMaterial||'').filter(Boolean));
+  const materials = OTHER_MATERIALS.filter(m => _mats.has(m.value)).map(m => m.value);
   const hasHandmade = allItems.some(i => i.handmade);
   // Vendors
   const vendors = [...new Set(allItems.map(i => i.vendorName).filter(Boolean))].sort();
@@ -1715,13 +1719,13 @@ function getFilterOptions() {
     ...STONE_PRIORITY.filter(s => allStones.includes(s)),
     ...allStones.filter(s => !STONE_PRIORITY.includes(s)).sort()
   ];
-  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, stones: stonesSorted, hasHandmade };
+  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, materials, stones: stonesSorted, hasHandmade };
 }
 
 function countActiveFilters() {
   return activeFilters.types.length + activeFilters.vendors.length + activeFilters.genders.length +
     activeFilters.metals.length + activeFilters.karats.length +
-    activeFilters.goldColors.length + (activeFilters.platings||[]).length +
+    activeFilters.goldColors.length + (activeFilters.platings||[]).length + (activeFilters.materials||[]).length +
     activeFilters.stones.length + (activeFilters.handmade ? 1 : 0);
 }
 
@@ -1752,6 +1756,7 @@ function updateFilterBar() {
     if (activeFilters.karats.length)     parts.push(activeFilters.karats.map(k=>k+'K').join(', '));
     if (activeFilters.goldColors.length) parts.push(activeFilters.goldColors.map(goldColorLabel).join(', '));
     if ((activeFilters.platings||[]).length) parts.push(activeFilters.platings.map(_platFilterLabel).join(', '));
+    if ((activeFilters.materials||[]).length) parts.push(activeFilters.materials.map(otherMaterialLabel).join(', '));
     if (activeFilters.stones.length)     parts.push('💎 ' + activeFilters.stones.map(s=>stoneLabel(s)).join(', '));
     if (activeFilters.handmade)          parts.push(lang==='el'?'Χειροποίητα':'Handmade');
     summary.textContent = parts.join(' · ');
@@ -1922,7 +1927,7 @@ function _navFacetResultCount(typeKey) {
 function navApplyFacets(typeKey) {
   activeFilters = {
     types: typeKey ? [typeKey] : [],
-    vendors: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false,
+    vendors: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false,
     metals:  [..._navDraftMetals],
     genders: [..._navDraftGenders]
   };
@@ -1944,6 +1949,7 @@ function openFilterDrawer() {
     karats:     [...activeFilters.karats],
     goldColors: [...activeFilters.goldColors],
     platings: [...(activeFilters.platings||[])],
+    materials: [...(activeFilters.materials||[])],
     stones:     [...activeFilters.stones],
     handmade:   activeFilters.handmade
   };
@@ -2012,6 +2018,9 @@ function renderDrawer() {
   }
   if (opts.platings.length > 1) {
     html += pillGroup(isEl?'Επιχρύσωση':'Plating', opts.platings, 'platings', _platFilterLabel);
+  }
+  if (opts.materials.length > 1) {
+    html += pillGroup(isEl?'Υλικό':'Material', opts.materials, 'materials', otherMaterialLabel);
   }
     if (opts.stones.length > 0) {
       // Build pearl-subcategory aware stone group
@@ -2133,7 +2142,7 @@ function toggleDraftPickerItem(el) {
 }
 
 function clearDraftFilters() {
-  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
+  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
   renderDrawer();
 }
 
@@ -2201,6 +2210,7 @@ function applyDrawerFilters() {
     karats:     [...draftFilters.karats],
     goldColors: [...draftFilters.goldColors],
     platings: [...(draftFilters.platings||[])],
+    materials: [...(draftFilters.materials||[])],
     stones:     [...draftFilters.stones],
     handmade:   draftFilters.handmade
   };
@@ -2209,7 +2219,7 @@ function applyDrawerFilters() {
 }
 
 function clearAllFilters() {
-  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], stones: [], handmade: false };
+  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
   // "Clear" means clear everything, including any leftover search text
   clearSearchInputOnly();
   applyFilters();
@@ -2322,6 +2332,10 @@ function applyFilters() {
     if ((activeFilters.platings||[]).length) {
       if (item.metal !== 'silver') return false;
       if (!activeFilters.platings.includes(item.silverPlating || '')) return false;
+    }
+    if ((activeFilters.materials||[]).length) {
+      if (item.metal !== 'other') return false;
+      if (!activeFilters.materials.includes(item.otherMaterial || '')) return false;
     }
     if (activeFilters.goldColors.length) {
       if (item.metal !== 'gold') return false;
