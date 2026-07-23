@@ -20054,6 +20054,12 @@ function openStatFullscreen(idx) {
   const card = document.getElementById('invStatCard' + idx);
   const ov = document.getElementById('statFullscreenOverlay');
   if (!card || !ov) return;
+  // The Stock panel is position:fixed; z-index:100 and lives OUTSIDE `.app` (which is
+  // position:relative; z-index:1), so an overlay nested in `.app` is trapped in that
+  // stacking context and paints BEHIND the panel however high its z-index. Re-parent the
+  // overlay to <body> so its z-index applies at the root and it covers everything
+  // (same fix as the ☰ More menu, v11.06). Idempotent.
+  if (ov.parentElement !== document.body) document.body.appendChild(ov);
   const lbl = card.querySelector('.inv-stat-lbl');
   const val = card.querySelector('.inv-stat-val');
   const gain = card.querySelector('.inv-stat-gain');
@@ -25568,8 +25574,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.24', date: 'Ιούλιος 2026', items: [
-        "🔎 Οι κάρτες σύνοψης του Αποθέματος ανοίγουν πλέον σε πλήρη οθόνη με μεγάλα, ευανάγνωστα νούμερα. 1ο πάτημα = ανάλυση (όπως πριν), 2ο πάτημα = πλήρης οθόνη, πάτημα ξανά = επιστροφή στο κανονικό μέγεθος.",
+      { version: 'v12.25', date: 'Ιούλιος 2026', items: [
+        "🔎 Διόρθωση: η πλήρης οθόνη των καρτών σύνοψης εμφανιζόταν πίσω από τη λίστα. Τώρα ανοίγει σωστά πάνω από όλα. (1ο πάτημα = ανάλυση, 2ο = πλήρης οθόνη, πάτημα ξανά = κανονικό μέγεθος.)",
       ]},
       ]
   },
@@ -25600,8 +25606,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.24', date: 'Jul 2026', items: [
-        "🔎 The Stock summary cards now open full-screen with big, easy-to-read numbers. 1st tap = breakdown (as before), 2nd tap = full screen, tap again = back to normal size.",
+      { version: 'v12.25', date: 'Jul 2026', items: [
+        "🔎 Fix: the full-screen summary-card view was appearing behind the list. It now opens correctly on top of everything. (1st tap = breakdown, 2nd = full screen, tap again = normal size.)",
       ]},
           ]
   }
@@ -30151,7 +30157,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.24';
+const APP_VERSION = '12.25';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
