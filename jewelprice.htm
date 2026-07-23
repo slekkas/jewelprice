@@ -1605,6 +1605,16 @@
     <div style="position:absolute;bottom:40px;font-family:var(--font-mono);font-size:11px;color:var(--wa20);letter-spacing:0.1em">TAP TO CLOSE</div>
   </div>
 
+  <!-- INVENTORY STAT FULLSCREEN (big readable view of one summary card) -->
+  <div id="statFullscreenOverlay" onclick="closeStatFullscreen()" style="display:none;position:fixed;inset:0;background:#0a0800;z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;overflow:hidden;padding:44px 24px 58px">
+    <div id="sfsLbl" style="font-family:var(--font-body);font-size:clamp(14px,4.5vw,22px);letter-spacing:0.15em;color:rgba(240,208,96,0.65);text-transform:uppercase;text-align:center"></div>
+    <div id="sfsVal" style="font-family:var(--font-heading);font-size:clamp(52px,17vw,120px);font-weight:800;color:#FFEBB0;text-shadow:0 0 34px rgba(240,208,96,0.5);line-height:1;text-align:center"></div>
+    <div id="sfsGain" style="font-family:var(--font-mono);font-size:clamp(22px,6.5vw,40px);font-weight:700;letter-spacing:0.04em"></div>
+    <div id="sfsPure" style="font-family:var(--font-mono);font-size:clamp(16px,4.8vw,24px);color:var(--gold);letter-spacing:0.04em;text-align:center"></div>
+    <div id="sfsRows" style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:360px;margin-top:18px"></div>
+    <div style="position:absolute;bottom:40px;font-family:var(--font-mono);font-size:11px;color:var(--wa20);letter-spacing:0.1em">TAP TO CLOSE</div>
+  </div>
+
   <!-- VENDORS -->
   <div id="panel-vendors" class="panel">
     <!-- Vendors header -->
@@ -5379,6 +5389,8 @@ function showPanel(name) {
   // bleed/creep behind another tab's content.
   const _pfsOv = document.getElementById('priceFullscreenOverlay');
   if (_pfsOv && _pfsOv.style.display !== 'none') _pfsOv.style.display = 'none';
+  const _sfsOv = document.getElementById('statFullscreenOverlay');
+  if (_sfsOv && _sfsOv.style.display !== 'none') closeStatFullscreen();
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -20024,14 +20036,57 @@ function renderInvSummary(filteredItems) {
 function toggleInvStat(idx) {
   const card = document.getElementById('invStatCard' + idx);
   if (!card) return;
+  // Three-state cycle per card: 1st tap = expand (breakdown), 2nd tap = fullscreen
+  // (big readable view), tap the fullscreen = back to original size.
   const wasExpanded = card.classList.contains('expanded');
-  // Collapse all first
+  if (wasExpanded) { openStatFullscreen(idx); return; }
+  // Collapse all first, then expand this one.
   [0,1,2,3].forEach(i => {
     const c = document.getElementById('invStatCard' + i);
     if (c) c.classList.remove('expanded');
   });
-  // Toggle this one
-  if (!wasExpanded) card.classList.add('expanded');
+  card.classList.add('expanded');
+}
+
+// Big, readable fullscreen view of one summary card. Reads the values straight from the
+// already-rendered card DOM (no recompute), so it always matches what the card shows.
+function openStatFullscreen(idx) {
+  const card = document.getElementById('invStatCard' + idx);
+  const ov = document.getElementById('statFullscreenOverlay');
+  if (!card || !ov) return;
+  const lbl = card.querySelector('.inv-stat-lbl');
+  const val = card.querySelector('.inv-stat-val');
+  const gain = card.querySelector('.inv-stat-gain');
+  const pure = card.querySelector('#invStatPureGold');
+  document.getElementById('sfsLbl').textContent = lbl ? lbl.textContent : '';
+  document.getElementById('sfsVal').textContent = val ? val.textContent : '';
+  const gEl = document.getElementById('sfsGain');
+  gEl.innerHTML = gain ? gain.innerHTML : '';
+  gEl.style.display = (gain && gain.textContent.trim()) ? '' : 'none';
+  const pEl = document.getElementById('sfsPure');
+  const pShow = pure && pure.style.display !== 'none' && pure.textContent.trim();
+  pEl.textContent = pShow ? pure.textContent : '';
+  pEl.style.display = pShow ? '' : 'none';
+  const rows = [...card.querySelectorAll('.inv-stat-expand .inv-stat-row')].map(r => {
+    const sp = r.querySelectorAll('span');
+    return { icon: sp[0] ? sp[0].textContent : '', v: sp[1] ? sp[1].textContent : '' };
+  }).filter(r => r.v && r.v !== '—');
+  document.getElementById('sfsRows').innerHTML = rows.map(r =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(240,208,96,0.15);padding-top:12px">
+      <span style="font-size:clamp(26px,8vw,40px)">${r.icon}</span>
+      <span style="font-family:var(--font-mono);font-size:clamp(24px,7vw,40px);color:#FFEBB0;font-weight:700">${r.v}</span>
+    </div>`).join('');
+  ov.style.display = 'flex';
+}
+
+function closeStatFullscreen() {
+  const ov = document.getElementById('statFullscreenOverlay');
+  if (ov) ov.style.display = 'none';
+  // Return the cards to their original (collapsed) size.
+  [0,1,2,3].forEach(i => {
+    const c = document.getElementById('invStatCard' + i);
+    if (c) c.classList.remove('expanded');
+  });
 }
 
 function renderInvList() {
@@ -25513,8 +25568,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.23', date: 'Ιούλιος 2026', items: [
-        "💰 Η κάρτα «Κόστος» κρύβεται πλέον από προεπιλογή, ώστε η σύνοψη να παραμένει καθαρή με 3 κάρτες. Για να τη δείτε, ανοίξτε τα Φίλτρα και πατήστε τον διακόπτη «💰 Εμφάνιση κόστους». Η επιλογή θυμάται την προτίμησή σας.",
+      { version: 'v12.24', date: 'Ιούλιος 2026', items: [
+        "🔎 Οι κάρτες σύνοψης του Αποθέματος ανοίγουν πλέον σε πλήρη οθόνη με μεγάλα, ευανάγνωστα νούμερα. 1ο πάτημα = ανάλυση (όπως πριν), 2ο πάτημα = πλήρης οθόνη, πάτημα ξανά = επιστροφή στο κανονικό μέγεθος.",
       ]},
       ]
   },
@@ -25545,8 +25600,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.23', date: 'Jul 2026', items: [
-        "💰 The \"Total Cost\" card is now hidden by default, so the summary stays clean with 3 cards. To see it, open Filters and tap the \"💰 Show cost\" switch. It remembers your choice.",
+      { version: 'v12.24', date: 'Jul 2026', items: [
+        "🔎 The Stock summary cards now open full-screen with big, easy-to-read numbers. 1st tap = breakdown (as before), 2nd tap = full screen, tap again = back to normal size.",
       ]},
           ]
   }
@@ -30096,7 +30151,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.23';
+const APP_VERSION = '12.24';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
