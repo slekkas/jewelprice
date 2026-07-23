@@ -16484,6 +16484,7 @@ function lookupCode(raw, opts) {
             vendorIdx: match.vendorIdx,
             catIdx: match.catIdx,
             isOtherType: true,
+            otherMaterial: _invEntry.otherMaterial || null,
             stones: _invEditParseStoredStones(_invEntry.stonesDesc || ''),
             stonesDesc: _invEntry.stonesDesc || '',
             cur: cur,
@@ -25446,10 +25447,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.20', date: 'Ιούλιος 2026', items: [
-        "🔎 Φίλτρο «Υλικό» στο online showroom — οι πελάτες βρίσκουν π.χ. Ορείχαλκο ή Ανοξείδωτο Ατσάλι με ένα άγγιγμα.",
-        "💎 Πέτρες κατά τη δημιουργία: επιλέξτε πέτρες (χωρίς καράτια/σχήμα) απευθείας στην οθόνη ετικέτας ενός είδους «Άλλο» — όχι μόνο στην Επεξεργασία.",
-        "🧱 Ολοκληρώνει το πεδίο «Υλικό» (v12.19): εμφανίζεται σε κάρτα, showroom και σελίδα κομματιού, σε Ελληνικά & Αγγλικά.",
+      { version: 'v12.21', date: 'Ιούλιος 2026', items: [
+        "🧱 Στην οθόνη τελικής τιμής (μεγεθυσμένη), τα είδη «Άλλο» δείχνουν πλέον το ΥΛΙΚΟ (Ασήμι, Επιχρυσωμένος Ορείχαλκος…) αντί για το άσχημο «Άλλο».",
+        "⚖️ Και δεν εμφανίζεται πια η γραμμή «Βάρος 0,00γρ.» για είδη «Άλλο».",
       ]},
       ]
   },
@@ -25480,10 +25480,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.20', date: 'Jul 2026', items: [
-        "🔎 \"Material\" filter in the online showroom — customers find e.g. Brass or Stainless Steel in one tap.",
-        "💎 Stones at creation: pick stones (no carat/shape) right on the label screen for an \"Other\" item — not just in Edit.",
-        "🧱 Completes the \"Material\" field (v12.19): shows on the card, the showroom and the item page, in Greek & English.",
+      { version: 'v12.21', date: 'Jul 2026', items: [
+        "🧱 On the enlarged final-price screen, \"Other\" items now show the MATERIAL (Silver, Gold Plated Brass…) instead of the ugly \"Other\".",
+        "⚖️ And the \"Weight 0.00g\" line no longer shows for \"Other\" items.",
       ]},
           ]
   }
@@ -25767,8 +25766,16 @@ function togglePriceFullscreen() {
   const valueStyle = 'font-family:var(--font-mono);font-size:17px;font-weight:600;color:#FFEBB0;text-align:right';
   const rows = [];
 
-  // Metal + karat (gold color if known, percentage detail stripped, e.g. "White Gold · 18K")
-  if (lastCalcResult.metalLabel) {
+  // Metal + karat, OR — for "other" pieces — the MATERIAL (they carry no metal/karat).
+  const _isOtherPfs = (lastCalcResult.metal === 'other' || lastCalcResult.isOtherType);
+  const _pfsMaterial = lastCalcResult.otherMaterial ||
+    ((_lastScannedInvEntry && _lastScannedInvEntry.metal === 'other') ? _lastScannedInvEntry.otherMaterial : null);
+  if (_isOtherPfs) {
+    // Show the material (Silver, Gold Plated Brass…) rather than the ugly "Other". If none is
+    // set, show no row at all — never a meaningless label.
+    const _matLbl = otherMaterialLabel(_pfsMaterial);
+    if (_matLbl) rows.push([t('materialLabel'), _matLbl]);
+  } else if (lastCalcResult.metalLabel) {
     const parts = lastCalcResult.metalLabel.split(' · ');
     let metalType = parts[0] || '';
     const purityPart = (parts[1] || '').split('(')[0].trim();
@@ -25783,8 +25790,8 @@ function togglePriceFullscreen() {
     }
     rows.push([t('pfsMetal'), (metalType + (purityPart ? ' · ' + purityPart : '')).trim()]);
   }
-  // Weight — always exactly 2 decimals (strips the extra duplicate-avoidance digits from view)
-  if (lastCalcResult.weight) {
+  // Weight — 2 decimals. Skipped entirely for "other" pieces (they carry no weight; 0.00g is ugly).
+  if (!_isOtherPfs && lastCalcResult.weight && parseFloat(lastCalcResult.weight) > 0) {
     rows.push([t('pfsWeight'), parseFloat(lastCalcResult.weight).toFixed(2) + 'g']);
   }
   // Stones — one per line: name + carat + clarity + color + shape, whichever are present. No price, ever.
@@ -30025,7 +30032,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.20';
+const APP_VERSION = '12.21';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
