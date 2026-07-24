@@ -609,6 +609,12 @@
     text-transform: uppercase;
   }
   .card-tag.handmade { color: #3F7A34; border-color: rgba(63,122,52,0.35); }
+  .card-tag.set-tag {
+    color: var(--gold); border-color: var(--gold-dim);
+    background: rgba(139,111,47,0.08);
+    cursor: pointer; text-transform: none; letter-spacing: 0.06em;
+  }
+  .card-tag.set-tag:hover { background: rgba(139,111,47,0.16); border-color: var(--gold); }
   .card-select-badge {
     position: absolute; top: 10px; right: 10px;
     width: 28px; height: 28px;
@@ -757,6 +763,37 @@
     transition: all 0.18s;
   }
   .lb-close:hover { border-color: var(--gold-dim); color: var(--text); }
+  /* Matching-set carousel */
+  .lb-set-nav {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    margin-bottom: 12px;
+  }
+  .lb-set-arrow {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--card-bg, #fff); border: 1px solid var(--border);
+    color: var(--gold); font-size: 22px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12); transition: all 0.18s;
+  }
+  .lb-set-arrow:hover { border-color: var(--gold); background: rgba(139,111,47,0.08); }
+  .lb-set-counter {
+    font-family: 'DM Mono', monospace; font-size: 13px; letter-spacing: 0.14em;
+    color: var(--text-dim); min-width: 54px; text-align: center;
+  }
+  .lb-set-banner {
+    font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em;
+    color: var(--gold); background: rgba(139,111,47,0.08);
+    border: 1px solid var(--gold-dim); border-radius: 2px;
+    padding: 8px 12px; margin: 0 0 12px;
+  }
+  .lb-set-btn {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.04em;
+    color: var(--gold); background: rgba(139,111,47,0.08);
+    border: 1px solid var(--gold-dim); border-radius: 2px;
+    padding: 10px 12px; margin: 0 0 14px; transition: all 0.18s;
+  }
+  .lb-set-btn:hover { background: rgba(139,111,47,0.18); border-color: var(--gold); }
   .lb-title {
     font-family: 'Cormorant Garamond', Georgia, serif;
     font-size: 18px; font-weight: 400;
@@ -1298,6 +1335,11 @@
   </div>
   <div class="lightbox-body" id="lightboxBody"></div>
   <div class="lb-close-bar">
+    <div class="lb-set-nav" id="lbSetNav" style="display:none">
+      <button class="lb-set-arrow" onclick="lbSetStep(-1)" aria-label="Previous">‹</button>
+      <span class="lb-set-counter" id="lbSetCounter"></span>
+      <button class="lb-set-arrow" onclick="lbSetStep(1)" aria-label="Next">›</button>
+    </div>
     <button class="lb-close" id="lbCloseBtn" onclick="closeLightbox()">Close</button>
   </div>
 </div>
@@ -1362,11 +1404,14 @@ let allItems   = [];
 let filtered   = [];
 let selected   = new Set();   // firebase keys
 // Multi-select filters — each is an array of active values (empty = all)
-let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
+let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
 // Draft filters inside the drawer (applied on tap Apply)
-let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
+let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
 let lightboxKey = null;
 let searchQuery = ''; // current search string
+// Matching-set carousel: when the lightbox is browsing a set, these hold the ordered
+// member keys and the current index, so the ‹ › arrows step through the set's pieces.
+let lbSetIds = null, lbSetIdx = 0, lbSetId = null;
 
 // ─── JEWELRY TYPE PREFIXES ──────────────────────────────────────────────────────
 const JEWELRY_TYPE_PREFIX = {
@@ -1788,6 +1833,7 @@ function getFilterOptions() {
   const _mats = new Set(allItems.filter(i => i.metal==='other').map(i => i.otherMaterial||'').filter(Boolean));
   const materials = OTHER_MATERIALS.filter(m => _mats.has(m.value)).map(m => m.value);
   const hasHandmade = allItems.some(i => i.handmade);
+  const hasSets = allItems.some(i => i.setId);
   // Vendors
   const vendors = [...new Set(allItems.map(i => i.vendorName).filter(Boolean))].sort();
   // Stones — collect distinct stone types from all items that have stonesDesc
@@ -1799,14 +1845,14 @@ function getFilterOptions() {
     ...STONE_PRIORITY.filter(s => allStones.includes(s)),
     ...allStones.filter(s => !STONE_PRIORITY.includes(s)).sort()
   ];
-  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, materials, stones: stonesSorted, hasHandmade };
+  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, materials, stones: stonesSorted, hasHandmade, hasSets };
 }
 
 function countActiveFilters() {
   return activeFilters.types.length + activeFilters.vendors.length + activeFilters.genders.length +
     activeFilters.metals.length + activeFilters.karats.length +
     activeFilters.goldColors.length + (activeFilters.platings||[]).length + (activeFilters.materials||[]).length +
-    activeFilters.stones.length + (activeFilters.handmade ? 1 : 0);
+    activeFilters.stones.length + (activeFilters.handmade ? 1 : 0) + (activeFilters.setsOnly ? 1 : 0);
 }
 
 function updateFilterBar() {
@@ -1839,6 +1885,7 @@ function updateFilterBar() {
     if ((activeFilters.materials||[]).length) parts.push(activeFilters.materials.map(otherMaterialLabel).join(', '));
     if (activeFilters.stones.length)     parts.push('💎 ' + activeFilters.stones.map(s=>stoneLabel(s)).join(', '));
     if (activeFilters.handmade)          parts.push(lang==='el'?'Χειροποίητα':'Handmade');
+    if (activeFilters.setsOnly)          parts.push('🎀 ' + (lang==='el'?'Σετ':'Sets'));
     summary.textContent = parts.join(' · ');
   } else {
     badge.style.display = 'none';
@@ -1995,7 +2042,7 @@ function _navFacetResultCount(typeKey) {
   let count = 0;
   matched.forEach(i => {
     if (i.groupId) {
-      const key = i.groupId + '|' + (i.color || '') + '|' + (i.goldColor || '') + '|' + (i.silverPlating || '');
+      const key = i.groupId + '|' + (i.color || '') + '|' + (i.goldColor || '') + '|' + (i.silverPlating || '') + '|' + _stoneSig(i);
       if (seen.has(key)) return;
       seen.add(key);
     }
@@ -2007,7 +2054,7 @@ function _navFacetResultCount(typeKey) {
 function navApplyFacets(typeKey) {
   activeFilters = {
     types: typeKey ? [typeKey] : [],
-    vendors: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false,
+    vendors: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false,
     metals:  [..._navDraftMetals],
     genders: [..._navDraftGenders]
   };
@@ -2031,7 +2078,8 @@ function openFilterDrawer() {
     platings: [...(activeFilters.platings||[])],
     materials: [...(activeFilters.materials||[])],
     stones:     [...activeFilters.stones],
-    handmade:   activeFilters.handmade
+    handmade:   activeFilters.handmade,
+    setsOnly:   activeFilters.setsOnly
   };
   renderDrawer();
   document.getElementById('filterDrawerOverlay').classList.add('open');
@@ -2166,6 +2214,10 @@ function renderDrawer() {
     const sel = draftFilters.handmade ? ' sel' : '';
     html += `<div class="drawer-section"><div class="drawer-section-label">${isEl?'Χειροποίητα':'Handmade'}</div><div class="drawer-pills"><button class="drawer-pill${sel}" onclick="toggleDraftHandmade(this)">✦ ${isEl?'Χειροποίητα':'Handmade only'}</button></div></div><div class="drawer-divider"></div>`;
   }
+  if (opts.hasSets) {
+    const sel = draftFilters.setsOnly ? ' sel' : '';
+    html += `<div class="drawer-section"><div class="drawer-section-label">${isEl?'Σετ':'Sets'}</div><div class="drawer-pills"><button class="drawer-pill${sel}" onclick="toggleDraftSets(this)">🎀 ${isEl?'Μόνο σετ':'Matching sets'}</button></div></div><div class="drawer-divider"></div>`;
+  }
 
   document.getElementById('drawerBody').innerHTML = html || `<div style="padding:32px 20px;text-align:center;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:12px">${isEl?'Δεν υπάρχουν φίλτρα':'No filters available'}</div>`;
   document.getElementById('drawerTitle').textContent = isEl ? 'Φίλτρα' : 'Filters';
@@ -2222,7 +2274,7 @@ function toggleDraftPickerItem(el) {
 }
 
 function clearDraftFilters() {
-  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
+  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
   renderDrawer();
 }
 
@@ -2232,6 +2284,11 @@ function toggleDraftPill(btn, key, encodedVal) {
   const idx = arr.indexOf(val);
   if (idx === -1) { arr.push(val); btn.classList.add('sel'); }
   else { arr.splice(idx, 1); btn.classList.remove('sel'); }
+}
+
+function toggleDraftSets(btn) {
+  draftFilters.setsOnly = !draftFilters.setsOnly;
+  btn.classList.toggle('sel', draftFilters.setsOnly);
 }
 
 function toggleDraftHandmade(btn) {
@@ -2292,14 +2349,15 @@ function applyDrawerFilters() {
     platings: [...(draftFilters.platings||[])],
     materials: [...(draftFilters.materials||[])],
     stones:     [...draftFilters.stones],
-    handmade:   draftFilters.handmade
+    handmade:   draftFilters.handmade,
+    setsOnly:   draftFilters.setsOnly
   };
   closeFilterDrawer();
   applyFilters();
 }
 
 function clearAllFilters() {
-  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false };
+  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
   // "Clear" means clear everything, including any leftover search text
   clearSearchInputOnly();
   applyFilters();
@@ -2428,6 +2486,7 @@ function applyFilters() {
       if (!hasMatch) return false;
     }
     if (activeFilters.handmade && !item.handmade) return false;
+    if (activeFilters.setsOnly && !item.setId) return false;
     // Search filter
     if (searchQuery) {
       const refCode = item.seqId ? itemRefCode(item).toLowerCase() : '';
@@ -2448,6 +2507,47 @@ function applyFilters() {
   updateSharedBanner();
 }
 
+// ─── MATCHING SETS ──────────────────────────────────────────────────────────────
+function setNameOf(item) {
+  if (!item) return '';
+  return lang === 'el' ? (item.setNameEl || item.setNameEn || '') : (item.setNameEn || item.setNameEl || '');
+}
+// Distinct stone TYPES as a stable signature — splits a group's stone variants
+// (amethyst vs moonstone) into separate showroom cards, but keeps identical-stone
+// twins together. Combined with colour/gold-colour/plating in the grid's collapse key.
+function _stoneSig(item) {
+  return cardStones(item.stonesDesc).map(s => s.type).sort().join(',');
+}
+// The visual key the grid collapses on — group + colour + gold colour + plating + stone.
+function _visualKey(item) {
+  return (item.groupId || item._key) + '|' + (item.color||'') + '|' + (item.goldColor||'') + '|' + (item.silverPlating||'') + '|' + _stoneSig(item);
+}
+// In-stock members of a set, deduped to one per distinct look (so grouped twins show once).
+function _setMembers(setId) {
+  const out = [], seen = new Set();
+  for (const i of allItems) {
+    if (i.setId !== setId) continue;
+    const vk = _visualKey(i);
+    if (seen.has(vk)) continue;
+    seen.add(vk); out.push(i);
+  }
+  return out;
+}
+// Enter the set carousel focused on a given piece (from a card tag or the lightbox button).
+function enterSetMode(setId, focusKey) {
+  const members = _setMembers(setId);
+  if (members.length < 2) { openLightbox(focusKey); return; }  // a lone piece isn't a set
+  lbSetIds = members.map(m => m._key);
+  lbSetId = setId;
+  lbSetIdx = Math.max(0, lbSetIds.indexOf(focusKey));
+  openLightbox(lbSetIds[lbSetIdx], true);
+}
+function lbSetStep(d) {
+  if (!lbSetIds || !lbSetIds.length) return;
+  lbSetIdx = (lbSetIdx + d + lbSetIds.length) % lbSetIds.length;
+  openLightbox(lbSetIds[lbSetIdx], true);
+}
+
 // ─── GRID ──────────────────────────────────────────────────────────────────────
 function renderGrid() {
   const grid = document.getElementById('itemGrid');
@@ -2466,9 +2566,10 @@ function renderGrid() {
   for (const item of filtered) {
     const gid = item.groupId;
     if (!gid) { rows.push({ item, count: 1 }); continue; }
-    // Split a group by BOTH decorative colour and gold colour, so e.g. a yellow-gold
-    // and a white-gold version of the same cross show as two separate cards.
-    const key = gid + '|' + (item.color || '') + '|' + (item.goldColor || '') + '|' + (item.silverPlating || '');
+    // Split a group by decorative colour, gold colour, plating AND stone, so e.g. a
+    // yellow-gold vs white-gold cross, or an amethyst vs moonstone pendant of the same
+    // design, each show as their own card (and so each can be part of its own set).
+    const key = gid + '|' + (item.color || '') + '|' + (item.goldColor || '') + '|' + (item.silverPlating || '') + '|' + _stoneSig(item);
     if (_rowMap.has(key)) { rows[_rowMap.get(key)].count++; }
     else { _rowMap.set(key, rows.length); rows.push({ item, count: 1 }); }
   }
@@ -2495,6 +2596,8 @@ function renderGrid() {
     const _colLbl = itemColorLabel(item.color);
     if (_colLbl) tags.push(`<span class="card-tag">${_colLbl}</span>`);
     if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
+    // "Part of a set" tag — tappable, opens the set carousel focused on this piece.
+    if (item.setId) tags.push(`<span class="card-tag set-tag" onclick="event.stopPropagation();enterSetMode('${item.setId}','${item._key}')" title="${lang==='el'?'Μέλος σετ · δείτε όλο το σετ':'Part of a set · view the whole set'}">🎀 ${setNameOf(item) || (lang==='el'?'Σετ':'Set')}</span>`);
 
     // Elegant stone line under the name — every distinct stone, NAME only (the full
     // carat/clarity stays inside, on the detail page). Plural when a stone is melee or 2+.
@@ -2575,10 +2678,13 @@ function updateSelBar() {
 }
 
 // ─── LIGHTBOX ──────────────────────────────────────────────────────────────────
-function openLightbox(key) {
+function openLightbox(key, keepSet) {
   const item = allItems.find(i => i._key === key);
   if (!item) return;
   lightboxKey = key;
+  // A normal open (from a grid card) leaves any set carousel; only the ‹ › arrows and
+  // the "View the set" button keep it (keepSet).
+  if (!keepSet) { lbSetIds = null; lbSetId = null; }
 
   const name = getLabel(item);
   // Name now shown as a large heading atop the detail column (below); the small
@@ -2601,7 +2707,7 @@ function openLightbox(key) {
   if (item.groupId) {
     const stockN = (filtered || allItems).filter(i =>
       i.groupId === item.groupId && (i.color || '') === (item.color || '') && (i.goldColor || '') === (item.goldColor || '')
-      && (i.silverPlating || '') === (item.silverPlating || '')).length;
+      && (i.silverPlating || '') === (item.silverPlating || '') && _stoneSig(i) === _stoneSig(item)).length;
     if (stockN > 1) rows += row(lang==='el'?'Απόθεμα':'In stock', stockN + (lang==='el'?' διαθέσιμα':' available'));
   }
   const _colLbl = itemColorLabel(item.color);
@@ -2631,6 +2737,20 @@ function openLightbox(key) {
     </div>`;
   }
 
+  // Matching-set banner: in the carousel show "Piece 2/4 · Name"; otherwise, if this
+  // piece belongs to a set, a button to open the whole set.
+  let setBannerHtml = '';
+  if (lbSetIds && lbSetId) {
+    const sName = setNameOf(item) || (lang==='el'?'Σετ':'Set');
+    setBannerHtml = `<div class="lb-set-banner">🎀 ${lang==='el'?'Κομμάτι':'Piece'} ${lbSetIdx+1}/${lbSetIds.length} · ${sName}</div>`;
+  } else if (item.setId) {
+    const n = _setMembers(item.setId).length;
+    if (n >= 2) {
+      const sName = setNameOf(item) || (lang==='el'?'Σετ':'Set');
+      setBannerHtml = `<button class="lb-set-btn" onclick="enterSetMode('${item.setId}','${key}')">🎀 ${lang==='el'?'Μέλος σετ':'Part of a set'} «${sName}» · ${lang==='el'?'Δείτε όλο το σετ':'View the whole set'} (${n})</button>`;
+    }
+  }
+
   document.getElementById('lightboxBody').innerHTML = `
     <div class="lb-img-col">
       <div class="lb-zoom" id="lbZoom">
@@ -2641,11 +2761,24 @@ function openLightbox(key) {
     </div>
     <div class="lb-detail-col">
       <h2 class="lb-name">${name}</h2>
+      ${setBannerHtml}
       ${rows}
       ${stonesHtml}
       ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${itemRefCode(item)}</span></div>` : ''}
     </div>
   `;
+
+  // Show the set carousel ‹ › arrows only while browsing a set.
+  const _nav = document.getElementById('lbSetNav');
+  if (_nav) {
+    if (lbSetIds && lbSetIds.length > 1) {
+      _nav.style.display = 'flex';
+      const _c = document.getElementById('lbSetCounter');
+      if (_c) _c.textContent = (lbSetIdx + 1) + ' / ' + lbSetIds.length;
+    } else {
+      _nav.style.display = 'none';
+    }
+  }
 
   document.getElementById('lightbox').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -2711,6 +2844,9 @@ function closeLightbox() {
   document.getElementById('lightbox').classList.remove('open');
   document.body.style.overflow = '';
   lightboxKey = null;
+  lbSetIds = null; lbSetId = null;
+  const _nav = document.getElementById('lbSetNav');
+  if (_nav) _nav.style.display = 'none';
 }
 
 function toggleFromLightbox() {
