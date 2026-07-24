@@ -534,9 +534,11 @@
   #addVendorModal .labor-row .handmade-toggle { flex:0 0 30px; }
   #addVendorModal .labor-row .del-labor-btn { flex:0 0 28px; }
   /* Category name edit overlay */
-  #catNameOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center; padding:20px; }
+  /* Top-anchored, not centred: the name field autofocuses, so the keyboard is up the moment
+     this opens, and a centred box put the wastage field and the OK button behind it. */
+  #catNameOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100000; align-items:flex-start; justify-content:center; padding:20px; padding-top:calc(20px + env(safe-area-inset-top)); }
   #catNameOverlay.visible { display:flex; }
-  #catNameOverlay .overlay-box { background:var(--surface); border:1px solid var(--gold); border-radius:10px; padding:20px; width:100%; max-width:420px; }
+  #catNameOverlay .overlay-box { background:var(--surface); border:1px solid var(--gold); border-radius:10px; padding:20px; width:100%; max-width:420px; max-height:92vh; max-height:92dvh; overflow-y:auto; }
   #catNameOverlay .overlay-label { font-size:11px; letter-spacing:1px; color:var(--gold); text-transform:uppercase; margin-bottom:10px; }
   #catNameOverlay input { width:100%; font-size:20px; padding:14px 16px; background:var(--bg); border:1px solid var(--gold); border-radius:6px; color:#fff; box-sizing:border-box; }
   #catNameOverlay .overlay-btns { display:flex; gap:10px; margin-top:14px; }
@@ -1650,6 +1652,11 @@
       <div style="font-size:10px;color:var(--text-muted);margin:-8px 0 14px;line-height:1.45" data-i18n="vendorTypeHint">Ένας προμηθευτής μπορεί να έχει ΚΑΙ μεταλλικές ΚΑΙ «άλλες» κατηγορίες. Εναλλαχθείτε για να προσθέσετε κάθε είδος — αποθηκεύονται και τα δύο.</div>
       <!-- Metal vendor fields -->
       <div id="vfMetalFields">
+      <div class="field">
+        <label data-i18n="vendorWastage">Φύρα Μετάλλου (%)</label>
+        <input type="number" id="v_wastage" placeholder="0" step="0.1" min="0" max="50" inputmode="decimal">
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin:-8px 0 14px;line-height:1.45" data-i18n="vendorWastageHint">Αφήστε το κενό αν ο προμηθευτής χρεώνει το μέταλλο στην τιμή αγοράς. Συμπληρώστε το μόνο αν το χρεώνει ακριβότερα για την απώλεια κατασκευής (π.χ. 10 = χρυσός στην τιμή +10%). Δεν επηρεάζει τις κατηγορίες «ανά τεμάχιο».</div>
       <div class="labor-header">
         <span class="lh-name" data-i18n="categoryName">Όνομα Κατηγορίας</span>
         <span class="lh-karat">K</span>
@@ -3335,6 +3342,8 @@ const T = {
     vendorTypeMetal:'Μέταλλο', vendorTypeOther:'Άλλο',
     vendorTypeHint:'Ένας προμηθευτής μπορεί να έχει ΚΑΙ μεταλλικές ΚΑΙ «άλλες» κατηγορίες. Εναλλαχθείτε για να προσθέσετε κάθε είδος — αποθηκεύονται και τα δύο.',
     otherVendorDiscount:'Έκπτωση Προμηθευτή (%)', otherVendorMultiplier:'Πολλαπλασιαστής',
+    vendorWastage:'Φύρα Μετάλλου (%)',
+    vendorWastageHint:'Αφήστε το κενό αν ο προμηθευτής χρεώνει το μέταλλο στην τιμή αγοράς. Συμπληρώστε το μόνο αν το χρεώνει ακριβότερα για την απώλεια κατασκευής (π.χ. 10 = χρυσός στην τιμή +10%). Δεν επηρεάζει τις κατηγορίες «ανά τεμάχιο».',
     otherCatName:'Κατηγορία', otherCostInput:'Τιμή Αγοράς (€)',
     otherRetailCalc:'Υπολογισμός Λιανικής', otherRetailFinal:'Τελική Λιανική (€)',
     otherMetalBtn:'Άλλο',
@@ -3508,7 +3517,7 @@ const T = {
     refCardCategory:'Κατηγορία', refCardCode:'Κωδικός', refCardRate:'Τιμή/γρ.',
     // calc result labels
     rMetal:'Μέταλλο', rWeight:'Βάρος', rSpot:'Τιμή Spot',
-    rMetalCost:'Κόστος Μετάλλου', rLabor:'Εργασία',
+    rMetalCost:'Κόστος Μετάλλου', rLabor:'Εργασία', rWastage:'Φύρα',
     rSubtotal:'Υποσύνολο', rMargin:'Περιθώριο',
     rPreVat:'Τιμή πριν ΦΠΑ', rVat:'ΦΠΑ',
     rListPrice:'Τιμή Καταλόγου', rDiscount:'Έκπτωση', rProfitAfterDiscount:'Κέρδος μετά έκπτωση',
@@ -3828,6 +3837,8 @@ const T = {
     vendorTypeMetal:'Metal', vendorTypeOther:'Other',
     vendorTypeHint:'A vendor can have BOTH metal AND "other" categories. Switch to add each kind — both are saved.',
     otherVendorDiscount:'Supplier Discount (%)', otherVendorMultiplier:'Multiplier',
+    vendorWastage:'Metal Wastage (%)',
+    vendorWastageHint:'Leave blank if the supplier charges the metal at the market price. Fill it in only if he charges more for manufacturing wastage (e.g. 10 = gold at market +10%). Does not affect per-item categories.',
     otherCatName:'Category', otherCostInput:'Purchase Price (€)',
     otherRetailCalc:'Calculate Retail', otherRetailFinal:'Final Retail (€)',
     otherMetalBtn:'Other',
@@ -3985,7 +3996,7 @@ const T = {
     refCardVendor:'Vendor', refCardKarat:'Karat',
     refCardCategory:'Category', refCardCode:'Code', refCardRate:'Rate/g',
     rMetal:'Metal', rWeight:'Weight', rSpot:'Spot Price',
-    rMetalCost:'Metal Cost', rLabor:'Labor',
+    rMetalCost:'Metal Cost', rLabor:'Labor', rWastage:'Wastage',
     rSubtotal:'Subtotal', rMargin:'Margin',
     rPreVat:'Price before VAT', rVat:'VAT',
     rListPrice:'List Price', rDiscount:'Discount', rProfitAfterDiscount:'Profit after discount',
@@ -14373,14 +14384,21 @@ function calculate() {
   const laborRateType = cats[workIdx]?.rateType || 'pergram';
   const workTypeName = cats[workIdx]?.name || t('rLabor');
   const pricePerGram = (spotPriceOz / TROY_OZ_TO_GRAM) * purity;
-  const metalCost = pricePerGram * weight;
+  // Manufacturing wastage: this vendor may bill the metal above spot (see wastageFactor).
+  // Per-item categories return 1 — their cost is typed from the invoice already.
+  const _wFactor = wastageFactor(vendor, cats[workIdx]);
+  const metalCostRaw = pricePerGram * weight;
+  const metalCost = metalCostRaw * _wFactor;
   // For peritem: use stored laborCost from last scanned inventory item; margin=0 (baked into target retail)
   const laborCost = laborRateType === 'peritem'
     ? (parseFloat(_lastScannedInvEntry?.laborCost) || 0)
     : laborRateType === 'flat' ? laborPerGram : laborPerGram * weight;
   if (laborRateType === 'peritem') margin = parseFloat(_lastScannedInvEntry?.itemMargin) || 0;
-  // Secondary metal cost
-  const secMetalCost = getSecMetalCost();
+  // Secondary metal cost — the second metal comes from the same supplier, so it carries the
+  // same wastage. (getSecMetalCost itself stays raw: the per-item save path also calls it.)
+  const secMetalCostRaw = getSecMetalCost();
+  const secMetalCost = secMetalCostRaw * _wFactor;
+  const wastageAmt = (metalCostRaw + secMetalCostRaw) * (_wFactor - 1);
   // Stone cost
   const stoneSectionOpen = document.getElementById('stoneSectionBody')?.style.display !== 'none';
   const stoneCost = stoneSectionOpen ? (parseFloat(document.getElementById('stoneCostInput')?.value) || 0) : 0;
@@ -14421,7 +14439,9 @@ function calculate() {
     [t('rMetal'), metalLabel],
     [t('rWeight'), weight.toFixed(2)+' g'],
     [t('rSpot'), cur+spotPriceOz.toFixed(2)+'/oz · '+cur+(spotPriceOz/TROY_OZ_TO_GRAM).toFixed(2)+'/g'],
-    [t('rMetalCost'), cur+metalCost.toFixed(2)],
+    // Metal at SPOT — any wastage the vendor adds on top gets its own line below, so the
+    // rows still add up to the subtotal (identical to before when there is no wastage).
+    [t('rMetalCost'), cur+metalCostRaw.toFixed(2)],
   ];
   if (secMetalCost > 0 && _secMetal) {
     const _skLabel = _secMetal === 'gold'
@@ -14430,8 +14450,12 @@ function calculate() {
     const _sw = parseFloat(document.getElementById('secMetalWeight')?.value)||0;
     rows.push([
       (lang==='el'?'Δευτ. μέταλλο':'Sec. metal') + ' · ' + (_secMetal==='gold'?t('gold'):t('silver')) + ' ' + _skLabel,
-      cur + secMetalCost.toFixed(2) + ' (' + _sw.toFixed(2) + 'g)'
+      cur + secMetalCostRaw.toFixed(2) + ' (' + _sw.toFixed(2) + 'g)'
     ]);
+  }
+  // Spelt out as its own line so the breakdown can be read straight off the supplier's invoice.
+  if (wastageAmt > 0.005) {
+    rows.push([t('rWastage')+' '+_fmtRate(catWastagePct(vendor, cats[workIdx]))+'%', cur+wastageAmt.toFixed(2)]);
   }
   rows.push(
     [t('rLabor')+' ('+workTypeName+')', laborRateType === 'flat'
@@ -14834,7 +14858,11 @@ function renderVendors() {
       const latinCode = vAbbrLatin + k + cAbbrLatin;
       const marginBadge = (!isEmployee && c.margin !== undefined && c.margin !== null)
         ? ` <span style="font-size:9px;color:var(--text-muted)">(${c.margin}%)</span>` : '';
-      const handmadeBadge = (c.handmade ? ' ✋' : '')
+      // Only an OVERRIDE is worth showing per row — otherwise every row would repeat the
+      // vendor's figure, which is already on the summary line above.
+      const wastageBadge = (!isEmployee && catHasWastageOverride(c) && !catIsOther(c) && c.rateType !== 'peritem')
+        ? ` <span style="font-size:9px;color:var(--gold)">φ${_fmtRate(c.wastage)}%</span>` : '';
+      const handmadeBadge = wastageBadge + (c.handmade ? ' ✋' : '')
         + (c.deleted ? ` <span style="font-size:9px;color:var(--text-muted)">(${lang==='el'?'αποσύρθηκε':'retired'})</span>` : '');
       const rateHtml = isEmployee ? '' : catIsOther(c) ? `<span class="code-rate">×${_fmtRate(c.multiplier)}</span>` : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${_fmtRate(c.rate)}${c.rateType==='flat'?' flat':'/g'}</span>`;
       // Pieces on this exact category — two same-name rows show their own counts,
@@ -14889,6 +14917,7 @@ function renderVendors() {
         <div class="vendor-summary-left">
           <div style="margin-bottom:3px">${summaryType}</div>
           ${summaryFrom ? `<div style="font-size:10px;color:var(--text-dim)">${summaryFrom}</div>` : ''}
+          ${(!isEmployee && vendorWastagePct(v) > 0) ? `<div style="font-size:10px;color:var(--gold)">${t('rWastage')} +${_fmtRate(v.wastage)}%</div>` : ''}
         </div>
         <div class="vendor-count-badge">${cats.length}</div>
       </div>
@@ -15019,6 +15048,7 @@ function editVendor(i) {
   document.getElementById('v_name').value = v.name;
   document.getElementById('vendorFormTitle').textContent = t('editVendor');
   document.getElementById('v_discount').value = v.discount || '';
+  document.getElementById('v_wastage').value = v.wastage || '';
   document.getElementById('laborList').innerHTML = '';
   document.getElementById('vfOtherCatList').innerHTML = '';
 
@@ -15036,7 +15066,9 @@ function editVendor(i) {
       if (c.deleted) { const r = document.getElementById('vfOtherCatList').lastElementChild; if (r) { r.dataset.deleted = '1'; r.style.display = 'none'; } }
     } else {
       addLaborRow(c.name, c.karat || '18', c.rate, c.margin !== undefined ? c.margin : '', c.handmade || false, c.rateType || 'pergram', _abbrs[ci], _abbrsLatin[ci], ci);
-      if (c.deleted) { const r = document.getElementById('laborList').lastElementChild; if (r) { r.dataset.deleted = '1'; r.style.display = 'none'; } }
+      const r = document.getElementById('laborList').lastElementChild;
+      if (r && catHasWastageOverride(c)) { r.dataset.wastage = String(parseFloat(c.wastage)); _markCatWastageRow(r); }
+      if (c.deleted) { if (r) { r.dataset.deleted = '1'; r.style.display = 'none'; } }
     }
   });
 
@@ -15068,6 +15100,7 @@ function cancelEditVendor() {
   document.getElementById('vfOtherCatList').innerHTML = '';
   document.getElementById('laborList').innerHTML = '';
   document.getElementById('v_discount').value = '';
+  document.getElementById('v_wastage').value = '';
 }
 
 // Retire a category row rather than dropping it. Items point at their category by its
@@ -15296,8 +15329,42 @@ function openCatNameOverlay(input) {
   const overlayInput = document.getElementById('catNameOverlayInput');
   overlayInput.value = input.value;
   overlayInput._target = input;
+
+  // The per-category wastage override rides along in this overlay (the row itself has no
+  // room for another input). Kept on the row's dataset until the vendor is saved.
+  const row = input.closest('.labor-row');
+  overlayInput._row = row || null;
+  const wWrap = document.getElementById('catWastageWrap');
+  const wIn = document.getElementById('catWastageInput');
+  const isEl = lang === 'el';
+  // A per-item category never uses wastage (its cost is typed from the invoice), so don't
+  // offer a control that would do nothing.
+  const isPerItem = !!row && !!row.querySelector('.rate-type-toggle')?.classList.contains('peritem');
+  wWrap.style.display = isPerItem ? 'none' : '';
+  if (!isPerItem) {
+    const vPct = parseFloat(document.getElementById('v_wastage')?.value) || 0;
+    wIn.value = (row && row.dataset.wastage !== undefined) ? row.dataset.wastage : '';
+    wIn.placeholder = isEl ? `κενό = ${_fmtRate(vPct)}% (του προμηθευτή)` : `blank = ${_fmtRate(vPct)}% (vendor's)`;
+    document.getElementById('catWastageLabel').textContent = isEl ? 'Φύρα κατηγορίας (%)' : 'Category wastage (%)';
+    document.getElementById('catWastageHint').textContent = isEl
+      ? `Αφήστε το κενό για να ακολουθεί τον προμηθευτή (${_fmtRate(vPct)}%). Γράψτε 0 αν αυτή η κατηγορία δεν έχει φύρα.`
+      : `Leave blank to follow the vendor (${_fmtRate(vPct)}%). Enter 0 if this category has no wastage.`;
+  }
+
   overlay.classList.add('visible');
   setTimeout(() => { overlayInput.focus(); overlayInput.select(); }, 80);
+}
+
+// Mark a row whose category carries its own wastage, so an override is visible in the form
+// without adding a column. The authoritative view is the vendor card's code list.
+function _markCatWastageRow(row) {
+  const nameEl = row && row.querySelector('.labor-name');
+  if (!nameEl) return;
+  const has = row.dataset.wastage !== undefined && row.dataset.wastage !== '';
+  nameEl.style.boxShadow = has ? 'inset 3px 0 0 var(--gold)' : '';
+  nameEl.title = has
+    ? (lang === 'el' ? `Φύρα κατηγορίας: ${_fmtRate(row.dataset.wastage)}%` : `Category wastage: ${_fmtRate(row.dataset.wastage)}%`)
+    : '';
 }
 
 function closeCatNameOverlay(save) {
@@ -15305,9 +15372,19 @@ function closeCatNameOverlay(save) {
   const overlayInput = document.getElementById('catNameOverlayInput');
   if (save && overlayInput._target) {
     overlayInput._target.value = overlayInput.value;
+    const row = overlayInput._row;
+    if (row) {
+      const raw = (document.getElementById('catWastageInput').value || '').trim();
+      const n = parseFloat(raw);
+      // Blank clears the override (inherit the vendor). 0 is a real value — "no wastage here".
+      if (raw !== '' && isFinite(n) && n >= 0) row.dataset.wastage = String(n);
+      else delete row.dataset.wastage;
+      _markCatWastageRow(row);
+    }
   }
   overlay.classList.remove('visible');
   overlayInput._target = null;
+  overlayInput._row = null;
 }
 
 // Close overlay on backdrop tap
@@ -15476,10 +15553,16 @@ function saveVendor() {
     const rateType = row.querySelector('.rate-type-toggle')?.classList.contains('flat') ? 'flat' : row.querySelector('.rate-type-toggle')?.classList.contains('peritem') ? 'peritem' : 'pergram';
     const rate = rateType === 'peritem' ? 0 : parseFloat(row.querySelector('.rate-input').value);
     if (!catName || (rateType !== 'peritem' && isNaN(rate))) { showStatus('vendorStatus', t('laborFillAll'), 'error'); return; }
+    // Per-category wastage override — kept only for a category that can use one, and stored
+    // even when it is 0 (an explicit "no wastage here", which is not the same as blank).
+    const _rowW = row.dataset.wastage;
+    const _catW = (rateType !== 'peritem' && _rowW !== undefined && _rowW !== '' && isFinite(parseFloat(_rowW)))
+      ? parseFloat(_rowW) : undefined;
     _placeCat(row, { name: catName, karat, rate: rateType === 'peritem' ? 0 : rate, rateType,
       ...(row.dataset.abbr && { abbr: row.dataset.abbr }),
       ...(row.dataset.abbrLatin && { abbrLatin: row.dataset.abbrLatin }),
       ...(row.dataset.deleted && { deleted: true }),
+      ...(_catW !== undefined && { wastage: _catW }),
       ...(catMargin !== undefined && { margin: catMargin }), ...(handmade && { handmade: true }) });
   }
   const discount = parseFloat(document.getElementById('v_discount').value) || 0;
@@ -15506,6 +15589,10 @@ function saveVendor() {
   _freezeCatAbbrs(laborCategories);
   let vendor = { name, laborCategories };
   if (_hasOther) vendor.discount = discount;
+  // Manufacturing wastage (φύρα). Only written when there actually is one, so a vendor that
+  // charges the metal at spot round-trips byte-identically to how it has always been stored.
+  const _wastage = parseFloat(document.getElementById('v_wastage').value) || 0;
+  if (_hasMetal && _wastage > 0) vendor.wastage = _wastage;
   // `vendorType:'other'` marks a PURE other vendor (no metal categories), exactly as before,
   // so legacy pure-other vendors round-trip byte-identically. A metal or MIXED vendor carries
   // no vendorType — every kind decision is made per-category via catIsOther().
@@ -15528,6 +15615,9 @@ function saveVendor() {
   // just be frozen. Changing it rewrites the code, and every tag already printed for that
   // category stops scanning. The owner has to be told, with the old and new code shown.
   let karatChanges = [];
+  // Changing the wastage moves the metal cost of EVERY per-gram piece this vendor supplied,
+  // so it drifts their live price exactly like a rate change does — same question, same prompt.
+  let wastageLines = [];
   if (editingVendorIndex !== null && _hasMetal) {
     const oldVendor = state.vendors[editingVendorIndex];
     // Pair each saved row with the row it came from BY POSITION. The form is built from
@@ -15565,6 +15655,26 @@ function saveVendor() {
         changedCats.push({ name: newCat.name, karat: newCat.karat, key: _catKey(newCat), oldRate, newRate });
       }
     });
+    // Wastage, at either level. Compared as the EFFECTIVE figure per category, so raising the
+    // vendor's 0→10% while a category holds its own 0% correctly reports no change for that
+    // category. Same consequence as a rate change (every per-gram piece drifts), same prompt.
+    const _isEl = lang === 'el';
+    const _oldVW = vendorWastagePct(oldVendor), _newVW = vendorWastagePct(vendor);
+    if (Math.abs(_oldVW - _newVW) > 0.001) {
+      wastageLines.push(`${_isEl ? 'Φύρα (προμηθευτής)' : 'Wastage (vendor)'}: ${_fmtRate(_oldVW)}% → ${_fmtRate(_newVW)}%`);
+    }
+    (vendor.laborCategories || []).forEach((newCat, i) => {
+      const oldCat = oldCats[i];
+      if (!oldCat || newCat.rateType === 'peritem' || catIsOther(newCat)) return;
+      // A category that simply inherits is already covered by the vendor line above — listing
+      // all 14 of them would bury the one row that actually carries its own figure.
+      if (!catHasWastageOverride(oldCat) && !catHasWastageOverride(newCat)) return;
+      const a = catWastagePct(oldVendor, oldCat), b = catWastagePct(vendor, newCat);
+      if (Math.abs(a - b) > 0.001) {
+        const k = catKaratLabel(newCat);
+        wastageLines.push(`${_isEl ? 'Φύρα' : 'Wastage'} · ${newCat.name}${k ? ' ' + k : ''}: ${_fmtRate(a)}% → ${_fmtRate(b)}%`);
+      }
+    });
   }
 
   function finishVendorSave(isMistakeFix, recalCatKeys) {
@@ -15585,23 +15695,35 @@ function saveVendor() {
     document.getElementById('laborList').innerHTML = '';
     document.getElementById('vfOtherCatList').innerHTML = '';
     document.getElementById('v_discount').value = '';
+    document.getElementById('v_wastage').value = '';
     showStatus('vendorStatus', t('vendorSaved'), 'ok');
-    if (isMistakeFix && recalCatKeys && recalCatKeys.length > 0) {
+    // null = every per-gram category of this vendor (a wastage change touches them all).
+    if (isMistakeFix && (recalCatKeys === null || (recalCatKeys && recalCatKeys.length > 0))) {
       recalibrateCategoryItems(savedIdx, recalCatKeys);
     }
   }
 
   function _promptRateChange() {
     const cur = state.currency || '€';
-    const list = changedCats.map(c => {
+    const isEl = lang === 'el';
+    const lines = changedCats.map(c => {
       const k = catKaratLabel(c);
       return `${c.name}${k ? ' ' + k : ''}: ${cur}${c.oldRate.toFixed(2)} → ${cur}${c.newRate.toFixed(2)}`;
-    }).join('\n');
-    const msg = lang === 'el'
-      ? `Άλλαξες την τιμή σε ${changedCats.length === 1 ? 'αυτή την κατηγορία' : 'αυτές τις κατηγορίες'}:\n${list}\n\nΕίναι αύξηση τιμής (η τιμή των υπαρχόντων αντικειμένων θα ακολουθήσει κανονικά) ή διόρθωση λάθους (η αρχική τιμή θα επαναφερθεί ώστε να μη φανεί ψεύτικη μεταβολή %);`
-      : `You changed the rate on ${changedCats.length === 1 ? 'this category' : 'these categories'}:\n${list}\n\nIs this a price increase (existing items' % will move normally) or a mistake fix (their initial price will be recalibrated so the % doesn't show a fake jump)?`;
+    });
+    wastageLines.forEach(l => lines.push(l));
+    const list = lines.join('\n');
+    const _wOnly = wastageLines.length > 0 && changedCats.length === 0;
+    // Setting the wastage for the first time is nearly always a correction — the supplier was
+    // always charging it, the app just didn't know — so the answer matters and is asked plainly.
+    const _what = _wOnly
+      ? (isEl ? 'Άλλαξες τη φύρα' : 'You changed the wastage')
+      : (isEl ? `Άλλαξες την τιμολόγηση σε ${changedCats.length === 1 && !wastageLines.length ? 'αυτή την κατηγορία' : 'αυτόν τον προμηθευτή'}`
+              : `You changed the pricing on ${changedCats.length === 1 && !wastageLines.length ? 'this category' : 'this vendor'}`);
+    const msg = isEl
+      ? `${_what}:\n${list}\n\nΕίναι αύξηση τιμής (η τιμή των υπαρχόντων αντικειμένων θα ακολουθήσει κανονικά) ή διόρθωση λάθους (η αρχική τιμή θα επαναφερθεί ώστε να μη φανεί ψεύτικη μεταβολή %);`
+      : `${_what}:\n${list}\n\nIs this a price increase (existing items' % will move normally) or a mistake fix (their initial price will be recalibrated so the % doesn't show a fake jump)?`;
     showConfirm(msg, () => {
-      finishVendorSave(true, changedCats.map(c => c.key));
+      finishVendorSave(true, wastageLines.length ? null : changedCats.map(c => c.key));
     }, () => {
       finishVendorSave(false, []);
     }, {
@@ -15613,7 +15735,7 @@ function saveVendor() {
 
   // Two independent things can need confirming; ask in order of severity and only then save.
   const _afterKarat = () => {
-    if (changedCats.length > 0) { _promptRateChange(); return; }
+    if (changedCats.length > 0 || wastageLines.length > 0) { _promptRateChange(); return; }
     finishVendorSave(false, []);
   };
 
@@ -15643,13 +15765,19 @@ function saveVendor() {
 // Bulk-recalibrate initialRetail for all in-stock items in the given categories of a vendor,
 // so a corrected labor rate / margin doesn't show up as a fake price-change %.
 // Categories are matched by name+karat (_catKey), so correcting the rate on e.g. Earrings 14K
-// leaves the same vendor's Earrings 18K items alone.
+// leaves the same vendor's Earrings 18K items alone. Pass catKeys = null for a change that
+// touches the whole vendor (its manufacturing wastage) — every per-gram/flat piece it supplied.
 async function recalibrateCategoryItems(vendorIdx, catKeys) {
   const inv = _inventoryCache || await loadInventory();
+  const _vendor = state.vendors[vendorIdx];
   const targets = Object.entries(inv).filter(([, item]) => {
-    if (item.vendorIdx !== vendorIdx || item.metal === 'other' || item.status === 'sold') return false;
+    if (item.metal === 'other' || item.status === 'sold') return false;
+    // Match the vendor the way the pricing does (name wins over a stale index — v11.14).
+    if (_itemVendor(item) !== _vendor) return false;
     const cat = getItemCat(item);
-    return cat && catKeys.includes(_catKey(cat));
+    if (!cat) return false;
+    return catKeys ? catKeys.includes(_catKey(cat))
+                   : (!catIsOther(cat) && cat.rateType !== 'peritem');
   });
   if (targets.length === 0) return;
 
@@ -15744,6 +15872,46 @@ function catIsOther(c){ return !!(c && (c.multiplier !== undefined || c.type ===
 function vendorHasMetal(v){ return !!v && getVendorCategories(v).some(c => !c.deleted && !catIsOther(c)); }
 function vendorHasOther(v){ return !!v && getVendorCategories(v).some(c => !c.deleted && catIsOther(c)); }
 function vendorIsMixed(v){ return vendorHasMetal(v) && vendorHasOther(v); }
+
+// ── Manufacturing wastage / «φύρα» ────────────────────────────────────────────────
+// Not every supplier sells the metal at spot. Some bill it at spot + a fixed % to cover
+// what is lost in casting, filing and polishing: Καλλίνικος charges 14K gold at +10%, so
+// a €66.90/g spot became €73.59/g on the invoice and a 1.4g pendant cost €127.40 where
+// the app said €117. Others fold exactly the same money into a higher labour rate
+// instead — which is why this is a property of the VENDOR, never a global setting.
+//
+// It multiplies the METAL only. Confirmed against the real invoice: at 10% on metal the
+// arithmetic lands on €127.40 (labour is charged on the true weight); charging wastage on
+// the labour as well would have given €129.78, and on the whole price €129.20.
+//
+// It does NOT apply to a per-item category: there the owner types the supplier's invoice
+// total, which already contains the wastage — applying it again would double-count it and
+// push a piece he deliberately priced at €300 up to €309.
+//
+// Absent or 0 → factor exactly 1, so every existing vendor prices byte-identically.
+//
+// A CATEGORY may override the vendor's figure (a supplier can charge wastage on cast pieces
+// but not on chains). Blank on the category = inherit the vendor's; an explicit **0** means
+// "this category has none" even when the vendor does — which is why the check below is
+// `>= 0` and not a truthiness test, and why 0 has to be stored rather than dropped.
+function vendorWastagePct(v) {
+  const w = parseFloat(v && v.wastage);
+  return (isFinite(w) && w > 0) ? w : 0;
+}
+function catWastagePct(v, cat) {
+  if (cat && (catIsOther(cat) || cat.rateType === 'peritem')) return 0;
+  const cw = cat ? parseFloat(cat.wastage) : NaN;
+  return (isFinite(cw) && cw >= 0) ? cw : vendorWastagePct(v);
+}
+// True when this category carries its own figure rather than inheriting the vendor's.
+function catHasWastageOverride(cat) {
+  const cw = cat ? parseFloat(cat.wastage) : NaN;
+  return isFinite(cw) && cw >= 0;
+}
+function wastageFactor(v, cat) {
+  const pct = catWastagePct(v, cat);
+  return 1 + (pct > 0 ? pct : 0) / 100;
+}
 
 // Identity of one labor-category ROW, used to match an ITEM's category to a row.
 // Frozen letters first (they survive a rename), but letters alone are NOT unique: the
@@ -19455,19 +19623,21 @@ function calcInvItemPrice(item) {
   if (!spotPriceOz || !purity || !item.weight) return null;
 
   const pricePerGram = (spotPriceOz / TROY_OZ_TO_GRAM) * purity;
-  const metalCost = pricePerGram * parseFloat(item.weight);
-  const metalValue = metalCost; // pure metal value (no margin/labor)
+  const metalCostRaw = pricePerGram * parseFloat(item.weight);
+  const metalValue = metalCostRaw; // pure metal value (no margin/labor/wastage)
 
   // Find vendor + category to get labor rate & margin
   let laborCost = 0;
   let margin = globalMargin;
   let isPerItemLabor = false;
+  let _wFactor = 1;   // manufacturing wastage — see wastageFactor()
   if (item.vendorIdx !== undefined && item.catIdx !== undefined) {
     const vendor = _itemVendor(item);
     if (vendor) {
       const cats = getVendorCategories(vendor);
       const cat = getItemCat(item);
       if (cat) {
+        _wFactor = wastageFactor(vendor, cat);
         const rateType = cat.rateType || 'pergram';
         if (rateType === 'peritem') {
           // Use stored per-item labor cost and margin from when item was added
@@ -19522,12 +19692,18 @@ function calcInvItemPrice(item) {
     }
   }
 
-  const baseCost = metalCost + secMetalCostInv + laborCost + stoneCost;
+  // The vendor's wastage applies to both metals; metalValue above stays raw, because that
+  // is the real worth of the gold in the piece, not what the supplier charged for it.
+  const metalCost = metalCostRaw * _wFactor;
+  const secMetalCost = secMetalCostInv * _wFactor;
+  const wastageAmt = (metalCostRaw + secMetalCostInv) * (_wFactor - 1);
+
+  const baseCost = metalCost + secMetalCost + laborCost + stoneCost;
   const preVat = baseCost * (1 + margin / 100);
   // Round to 2dp to avoid floating point drift between Stock card and Calc tab
   const retail = Math.round(preVat * (1 + vat / 100) * 100) / 100;
 
-  return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost: secMetalCostInv };
+  return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost, wastageAmt };
 }
 
 let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
@@ -23469,7 +23645,10 @@ function _bulkSoldCost(item, soldWeight) {
     const _bSpotOz = item.metal === 'gold' ? getGoldPrice() : getSilverPrice();
     const _bPurity = item.metal === 'gold' ? (karatPurity[parseInt(item.karat)] || 0) : (silverPurityMap[parseInt(item.karat)] || 0);
     if (_bSpotOz && _bPurity) {
-      const _bMetalCost = (_bSpotOz / TROY_OZ_TO_GRAM) * _bPurity * soldWeight;
+      // Same wastage the vendor charged on the batch, or the profit on a cut of chain
+      // would read high by whatever the metal was marked up on the invoice.
+      const _bMetalCost = (_bSpotOz / TROY_OZ_TO_GRAM) * _bPurity * soldWeight
+                          * wastageFactor(_itemVendor(item), _bCat);
       return parseFloat((_bMetalCost + _bLaborCost).toFixed(2));
     }
   } catch(e) {}
@@ -25971,9 +26150,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.31', date: 'Ιούλιος 2026', items: [
-        "🧾 Το ✕ στις κατηγορίες «άλλου» τύπου (×πολλαπλασιαστής, π.χ. στη Butterflyfish) δούλευε μόνο φαινομενικά: η γραμμή εξαφανιζόταν αλλά επέστρεφε μετά την αποθήκευση. Τώρα συμπεριφέρεται όπως οι κατηγορίες μετάλλου — σας λέει πόσα κομμάτια έχει μέσα, σας αφήνει να τα μεταφέρετε και μετά την αποσύρει κανονικά.",
-        "🔒 Η μεταφορά προσφέρει μόνο κατηγορίες του ΙΔΙΟΥ τύπου (μέταλλο → μέταλλο, ×πολλαπλασιαστής → ×πολλαπλασιαστής), γιατί τιμολογούνται με διαφορετικό τρόπο.",
+      { version: 'v12.32', date: 'Ιούλιος 2026', items: [
+        "⚖️ Φύρα ανά προμηθευτή. Κάποιοι προμηθευτές δεν χρεώνουν τον χρυσό στην τιμή αγοράς — τον χρεώνουν ακριβότερα για την απώλεια κατασκευής (ο Καλλίνικος +10%: 66,90 €/γρ. έγιναν 73,59 €/γρ., γι' αυτό το μενταγιόν κόστισε 127,40 € ενώ η εφαρμογή έλεγε 117 €). Στην καρτέλα του προμηθευτή υπάρχει τώρα πεδίο «Φύρα Μετάλλου (%)».",
+        "🧾 Στην ανάλυση τιμής η φύρα εμφανίζεται σε δική της γραμμή («Φύρα 10%»), ώστε να διαβάζεται δίπλα στο τιμολόγιο του προμηθευτή.",
+        "🎯 Και ανά κατηγορία, αν ο προμηθευτής χρεώνει φύρα π.χ. στα χυτά αλλά όχι στις αλυσίδες: πατήστε το όνομα της κατηγορίας και βάλτε δικό της ποσοστό. Κενό = ακολουθεί τον προμηθευτή, 0 = αυτή η κατηγορία δεν έχει φύρα. Όποια κατηγορία έχει δικό της ποσοστό φαίνεται με χρυσό «φ%» στην καρτέλα του προμηθευτή.",
+        "✅ Αφορά ΜΟΝΟ τον προμηθευτή που θα συμπληρώσετε — όλοι οι υπόλοιποι μένουν ακριβώς όπως ήταν. Δεν επηρεάζει τις κατηγορίες «ανά τεμάχιο», όπου το κόστος το γράφετε ήδη εσείς από το τιμολόγιο.",
+        "📈 Μόλις τη συμπληρώσετε, η εφαρμογή ρωτάει αν πρόκειται για διόρθωση (οπότε επαναφέρει τις αρχικές τιμές των υπαρχόντων κομματιών, για να μη δείξουν ψεύτικη αύξηση %) ή για πραγματική αύξηση τιμής.",
       ]},
       ]
   },
@@ -26004,9 +26186,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.31', date: 'Jul 2026', items: [
-        "🧾 The ✕ on “other”-type categories (×multiplier, e.g. on Butterflyfish) only appeared to work: the row vanished but came back after saving. It now behaves like the metal categories — it tells you how many pieces are inside, lets you move them, and then retires the row properly.",
-        "🔒 The move only offers categories of the SAME kind (metal → metal, ×multiplier → ×multiplier), because they are priced in different ways.",
+      { version: 'v12.32', date: 'Jul 2026', items: [
+        "⚖️ Per-vendor manufacturing wastage. Some suppliers don't charge the gold at the market price — they charge more to cover what is lost in making the piece (Καλλίνικος adds 10%: €66.90/g became €73.59/g, which is why a pendant cost €127.40 while the app said €117). The vendor form now has a “Metal Wastage (%)” field.",
+        "🧾 The price breakdown shows the wastage on its own line (“Wastage 10%”), so it reads straight against the supplier's invoice.",
+        "🎯 Per category too, if a supplier charges wastage on cast pieces but not on chains: tap the category name and give it its own percentage. Blank = follow the vendor, 0 = this category has no wastage. A category with its own figure shows a gold “φ%” on the vendor card.",
+        "✅ It affects ONLY the vendor you fill it in for — every other vendor stays exactly as it was. It does not touch per-item categories, where you already type the cost from the invoice.",
+        "📈 When you set it, the app asks whether this is a correction (it then re-baselines existing pieces so they don't show a fake price jump) or a real price increase.",
       ]},
           ]
   }
@@ -30603,7 +30788,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.31';
+const APP_VERSION = '12.32';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -33647,6 +33832,14 @@ function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='', origIdx
   <div class="overlay-box">
     <div class="overlay-label" id="catNameOverlayLabel">Όνομα κατηγορίας / Category name</div>
     <input type="text" id="catNameOverlayInput" autocomplete="off" autocorrect="off" spellcheck="false">
+    <!-- Per-category wastage override. Lives here rather than in the row: the row already
+         carries 8 controls and ~330px of fixed columns, so another input would squeeze the
+         name to nothing on a phone. Hidden for a per-item category, which never uses it. -->
+    <div id="catWastageWrap" style="margin-top:16px">
+      <div class="overlay-label" id="catWastageLabel">Φύρα κατηγορίας (%)</div>
+      <input type="number" id="catWastageInput" step="0.1" min="0" max="50" inputmode="decimal" autocomplete="off">
+      <div id="catWastageHint" style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.45"></div>
+    </div>
     <div class="overlay-btns">
       <button class="overlay-cancel" onclick="closeCatNameOverlay(false)">✕ Ακύρωση</button>
       <button class="overlay-ok" onclick="closeCatNameOverlay(true)">✓ ΟΚ</button>
