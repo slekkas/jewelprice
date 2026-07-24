@@ -7132,11 +7132,17 @@ function renderReservations() {
 const _resInp = 'width:100%;box-sizing:border-box;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:10px';
 const _resLbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px';
 let _resDlgItems = [];
+let _resDlgSource = '';   // where the items came from ('cart' must empty the cart on save)
 function _resDlgStatus(msg) { const el = document.getElementById('resDlgStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
 
-// Resolve a calc/cart result (lastCalcResult or a quoteCart entry) to a reservation
+// Turn a calc/cart result (lastCalcResult or a quoteCart entry) into a reservation
 // item. The AGREED price (result.finalPrice, incl. discounts/rounding) is locked in.
-function _resItemFromResult(name, result) {
+//
+// `entry` is the [id, item] the CALLER already resolved (via _cartLineInv /
+// _resolveCart / _calcScanInvId). This function deliberately does NO lookup of
+// its own: it used to prefer the global _scanChosenInvId, which is the piece the
+// calc resolved LAST — so every line of a cart came back as the same record.
+function _resItemFromResult(name, result, entry) {
   const r = result || {};
   const price = parseFloat(r.finalPrice || 0) || 0;
   if (r.isBulkChain && r.bulkInvId) {
@@ -7147,16 +7153,8 @@ function _resItemFromResult(name, result) {
       photoUrl: (batch && batch.photoUrl) || '', price,
       listPrice: parseFloat((parseFloat(r.retail) > 0 ? parseFloat(r.retail) : (price + (parseFloat(r.discountAmt) || 0))).toFixed(2)) };
   }
-  const qr = (r.labelCode || '').trim().toUpperCase();
-  let invId = null, item = null;
-  if (qr && _inventoryCache) {
-    // Twins share a tag; hold the exact piece the owner picked in the scan chooser.
-    const chosen = _scanChosenInvId && _inventoryCache[_scanChosenInvId];
-    const found = (chosen && chosen.status === 'in_stock') ? [_scanChosenInvId, chosen]
-      : Object.entries(_inventoryCache).find(([, it]) => it.status === 'in_stock' && !it.isBulk && (
-          ((it.qrCode || it.code || '').trim().toUpperCase() === qr) || (r.seqRef && it.seqId && itemRefCode(it) === r.seqRef)));
-    if (found) { invId = found[0]; item = found[1]; }
-  }
+  const invId = (entry && entry[0]) || null;
+  const item = (entry && entry[1]) || null;
   return { invId, isBulk: false, qr: item ? (item.qrCode || '') : (r.labelCode || ''), ref: item ? itemRefCode(item) : (r.seqRef || ''),
     desc: name || (item ? _resItemName(item) : ''), photoUrl: (item && item.photoUrl) || '', price,
     listPrice: parseFloat((parseFloat(r.retail) > 0 ? parseFloat(r.retail) : (price + (parseFloat(r.discountAmt) || 0))).toFixed(2)),
@@ -7175,11 +7173,17 @@ function _resItemFromInv(id) {
 function openReserveDialog(items, source) {
   if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
   items = (items || []).filter(Boolean);
+  // Last line of defence: one record can only be held once. Callers already
+  // guarantee this, but a duplicate here would print the same piece twice on the
+  // form while flagging it once — the exact failure this whole path had.
+  const _seenIds = new Set();
+  items = items.filter(i => !i.invId || (!_seenIds.has(i.invId) && _seenIds.add(i.invId)));
   if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock'); return; }
   if (items.some(i => i.invId && (_inventoryCache || {})[i.invId] && _inventoryCache[i.invId].reservationId)) {
     showToast(lang === 'el' ? '⚠️ Κάποιο είδος είναι ήδη κρατημένο' : '⚠️ An item is already reserved'); return;
   }
   _resDlgItems = items;
+  _resDlgSource = source || '';
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const sum = items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
   const dflt = dateStrInDays(14); // default hold ~2 weeks
@@ -7248,6 +7252,11 @@ async function _resDialogSave() {
   await _resMarkItems(res.itemIds, res.id);
   upsertClientFromSale(name, phone, email); // also save the customer to the Clients list
   document.getElementById('reserveDialogOverlay')?.remove();
+  // The cart became this hold — empty it. Leaving it full let the very next tap
+  // ("Sell all") sell pieces that are now on hold for someone, with the
+  // reservation left dangling behind the sale.
+  if (_resDlgSource === 'cart' && typeof clearQuoteCart === 'function') clearQuoteCart();
+  _resDlgSource = '';
   showToast(lang === 'el' ? '✓ Η κράτηση δημιουργήθηκε' : '✓ Reservation created');
   if (typeof renderReservations === 'function') renderReservations();
   if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
@@ -7276,15 +7285,20 @@ function _resHideClientSug() { const b = document.getElementById('resClientSug')
 function reserveSingleFromCalc() {
   if (!lastCalcResult) { showToast(lang === 'el' ? 'Υπολογίστε πρώτα' : 'Calculate first'); return; }
   const name = (lang === 'el' ? (lastCalcResult.descEl || lastCalcResult.descEn) : (lastCalcResult.descEn || lastCalcResult.descEl)) || lastCalcResult.metalLabel || (lang === 'el' ? 'Κόσμημα' : 'Item');
-  const item = _resItemFromResult(name, lastCalcResult);
+  // The calc's own piece — the same guarded id the sale uses, not a code match.
+  const item = _resItemFromResult(name, lastCalcResult, _cartLineInv({ result: lastCalcResult, invId: _calcScanInvId() }, null));
   if (!item.invId && !item.isBulk) { showToast(lang === 'el' ? '⚠️ Το είδος δεν είναι στο απόθεμα' : '⚠️ Item is not in stock'); return; }
   openReserveDialog([item], 'calc');
 }
 async function reserveCartItems() {
   if (!quoteCart.length) return;
   showToast(lang === 'el' ? '⏳ Φόρτωση...' : '⏳ Loading...');
-  _inventoryCache = await loadInventory();
-  const items = quoteCart.map(ci => _resItemFromResult(ci.name, ci.result)).filter(it => it && (it.invId || it.isBulk));
+  const _fresh = await loadInventory();
+  if (_fresh && Object.keys(_fresh).length) _inventoryCache = _fresh; // never blank the cache on a failed load
+  // Each line keeps its OWN record; a line that can't be placed is named, not dropped in silence.
+  const { lines, missing } = _resolveCart(quoteCart);
+  if (!await _cartMissingOk(missing, quoteCart.length, 'reserve')) return;
+  const items = lines.map(L => _resItemFromResult(L.ci.name, L.ci.result, L.isBulk ? null : [L.id, L.item]));
   if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock'); return; }
   const cp = document.getElementById('cartPanel'); if (cp) cp.style.display = 'none';
   openReserveDialog(items, 'cart');
@@ -7631,8 +7645,14 @@ function shareReservationForm(id) {
 
 // ═══ REPAIRS & CUSTOM ORDERS ═════════════════════════════════════════════════
 // Open a ticket for a customer's item (repair) or a custom piece to make. Repairs
-// carry a required estimate (no deposit — the jewel is the deposit); custom orders
-// require a deposit too. Status: in_progress → ready → collected. Private node
+// carry a required estimate (no deposit — the jewel is the deposit).
+//
+// A custom order usually starts as a QUOTE: the customer asks, you check the
+// price with the workshop, you send it, and only when they accept and pay a
+// deposit does the order actually start. So a custom ticket saved with no
+// deposit gets status 'quote' — you fill in the price when you know it, send it
+// by WhatsApp/SMS/email, and recording the deposit turns it into the order.
+// Status: quote → in_progress → ready → collected. Private node
 // /jewelprice_repairs (never published). Photo + branded claim form + WhatsApp
 // "ready" notify. Cancel/delete = owner/manager only.
 let _repairs = null;
@@ -7680,6 +7700,20 @@ function repEstText(r) {
   return cur + (lo || hi).toFixed(2);
 }
 function repTypeLabel(r) { return r.type === 'custom' ? (lang === 'el' ? 'Παραγγελία' : 'Custom order') : (lang === 'el' ? 'Επισκευή' : 'Repair'); }
+// A quote is a ticket that hasn't been paid for yet — no deposit, no work started.
+function _repIsQuote(r) { return !!r && r.status === 'quote'; }
+function repStatusLabel(r) {
+  const isEl = lang === 'el';
+  return r.status === 'quote' ? (isEl ? 'Προσφορά' : 'Quote')
+    : r.status === 'in_progress' ? (isEl ? 'Σε εξέλιξη' : 'In progress')
+    : r.status === 'ready' ? (isEl ? 'Έτοιμο' : 'Ready')
+    : r.status === 'collected' ? (isEl ? 'Παραλήφθηκε' : 'Collected')
+    : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
+}
+function repStatusColor(r) {
+  return r.status === 'quote' ? '#c9a0e0' : r.status === 'in_progress' ? '#e0a85a'
+    : r.status === 'ready' ? '#7fd6b0' : 'var(--text-dim)';
+}
 // Contact for notifying: the ticket's own phone/email, else the matching client's
 // (by name) — so a number added later in the Clients tab enables WhatsApp/SMS here.
 function _repContact(r) {
@@ -7696,7 +7730,7 @@ function renderRepairs() {
   const isEl = lang === 'el';
   const q = (document.getElementById('repSearchInput')?.value || '').toLowerCase().trim();
   let list = getRepairs().slice();
-  const rank = s => s === 'in_progress' ? 0 : (s === 'ready' ? 1 : (s === 'collected' ? 2 : 3));
+  const rank = s => s === 'quote' ? 0 : (s === 'in_progress' ? 1 : (s === 'ready' ? 2 : (s === 'collected' ? 3 : 4)));
   list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || repNoFmt(r).toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q));
   // Collected/cancelled tickets are hidden unless asked for; a search still finds them.
@@ -7705,14 +7739,13 @@ function renderRepairs() {
   const _repToggle = q ? '' : _deskFinishedToggleHtml('repairs', _repFinished.length);
   if (!list.length) { box.innerHTML = _repToggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Κανένα δελτίο ακόμη' : 'No tickets yet'}</div>`; return; }
   box.innerHTML = _repToggle + list.map(r => {
-    const statusChip = r.status === 'in_progress' ? `<span style="color:#e0a85a">${isEl ? 'Σε εξέλιξη' : 'In progress'}</span>`
-      : r.status === 'ready' ? `<span style="color:#7fd6b0">${isEl ? 'Έτοιμο' : 'Ready'}</span>`
-      : r.status === 'collected' ? `<span style="color:var(--text-dim)">${isEl ? 'Παραλήφθηκε' : 'Collected'}</span>`
-      : `<span style="color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</span>`;
+    const statusChip = `<span style="color:${repStatusColor(r)}">${repStatusLabel(r)}</span>`;
     const thumb = r.photoUrl
       ? `<img src="${r.photoUrl}" style="width:52px;height:52px;border-radius:8px;object-fit:contain;background:#fff;flex-shrink:0">`
-      : `<div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.type === 'custom' ? '✨' : '🔧'}</div>`;
-    const typeChip = r.type === 'custom'
+      : `<div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${_repIsQuote(r) ? '📝' : r.type === 'custom' ? '✨' : '🔧'}</div>`;
+    const typeChip = _repIsQuote(r)
+      ? `<span style="background:rgba(201,160,224,0.15);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">📝 ${isEl ? 'Προσφορά' : 'Quote'}</span>`
+      : r.type === 'custom'
       ? `<span style="background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">✨ ${isEl ? 'Παραγγελία' : 'Custom order'}</span>`
       : `<span style="background:rgba(90,150,210,0.15);border:1px solid rgba(90,150,210,0.45);color:#7fb3e0;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">🔧 ${isEl ? 'Επισκευή' : 'Repair'}</span>`;
     return `<div onclick="openRepairDetail('${r.id}')" style="display:flex;gap:11px;align-items:center;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:11px 13px;margin-bottom:9px;cursor:pointer">
@@ -7759,18 +7792,19 @@ function openRepairModal() {
     <div id="repPhotoPicker" style="margin-bottom:10px"></div>
     <div style="${_resLbl}">${isEl ? 'Περιγραφή' : 'Description'}</div>
     <textarea id="repDesc" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. Συγκόλληση αλυσίδας, αλλαγή κουμπώματος…' : 'e.g. Solder chain, replace clasp…'}"></textarea>
-    <div style="${_resLbl}">${isEl ? 'Εκτίμηση κόστους (απαιτείται)' : 'Estimate (required)'}</div>
+    <div id="repEstLbl" style="${_resLbl}">${isEl ? 'Εκτίμηση κόστους (απαιτείται)' : 'Estimate (required)'}</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
       <input id="repEstLow" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
       <span style="color:var(--text-muted);flex:0 0 auto">–</span>
       <input id="repEstHigh" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'έως € (προαιρ.)' : 'to € (opt.)'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
     </div>
     <div id="repDepositBlock" style="display:none">
-      <div style="${_resLbl}">${isEl ? 'Προκαταβολή (απαιτείται για παραγγελία)' : 'Deposit (required for custom)'}</div>
-      <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="${_resLbl}">${isEl ? 'Προκαταβολή (προαιρετικό)' : 'Deposit (optional)'}</div>
+      <div style="display:flex;gap:8px;margin-bottom:5px">
         <input id="repDeposit" type="number" step="0.01" inputmode="decimal" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
-        <select id="repDepositMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
+        <select id="repDepositMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option><option value="bank">${isEl ? 'Τράπεζα' : 'Bank'}</option></select>
       </div>
+      <div style="font-size:11px;color:#c9a0e0;line-height:1.45;margin-bottom:10px">📝 ${isEl ? 'Κενή προκαταβολή = αποθηκεύεται ως <b>προσφορά</b>. Στέλνετε την τιμή, και μόλις δοθεί προκαταβολή γίνεται παραγγελία.' : 'Blank deposit = saved as a <b>quote</b>. Send the price, and once a deposit is paid it becomes the order.'}</div>
     </div>
     <div style="${_resLbl}">${isEl ? 'Έτοιμο έως (προαιρετικό)' : 'Ready by (optional)'}</div>
     <div style="position:relative;margin-bottom:10px">
@@ -7791,6 +7825,12 @@ function _repairSetType(type) {
   document.getElementById('repTypeRepair')?.classList.toggle('active', type === 'repair');
   document.getElementById('repTypeCustom')?.classList.toggle('active', type === 'custom');
   const dep = document.getElementById('repDepositBlock'); if (dep) dep.style.display = type === 'custom' ? '' : 'none';
+  // A repair is priced with the item in your hand, so the estimate stays required.
+  // A custom order is often quoted later — the estimate can wait.
+  const el = document.getElementById('repEstLbl');
+  if (el) el.textContent = lang === 'el'
+    ? (type === 'custom' ? 'Εκτίμηση κόστους (προαιρετικό)' : 'Εκτίμηση κόστους (απαιτείται)')
+    : (type === 'custom' ? 'Estimate (optional)' : 'Estimate (required)');
 }
 function _repairDlgStatus(msg) { const el = document.getElementById('repDlgStatus'); if (el) el.textContent = msg || ''; }
 
@@ -7821,9 +7861,11 @@ async function _repairSave() {
   if (!name) { _repairDlgStatus(isEl ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
   const estLow = parseFloat(document.getElementById('repEstLow').value) || 0;
   const estHigh = parseFloat(document.getElementById('repEstHigh').value) || 0;
-  if (estLow <= 0 && estHigh <= 0) { _repairDlgStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
+  // Custom orders may be quoted later, so their estimate can be blank.
+  if (type !== 'custom' && estLow <= 0 && estHigh <= 0) { _repairDlgStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
   const dep = parseFloat(document.getElementById('repDeposit')?.value) || 0;
-  if (type === 'custom' && dep <= 0) { _repairDlgStatus(isEl ? '⚠️ Απαιτείται προκαταβολή για παραγγελία' : '⚠️ A deposit is required for a custom order'); return; }
+  // No deposit on a custom order = nothing has been paid, so it's a quote.
+  const isQuote = type === 'custom' && dep <= 0;
   const phone = _readPhoneField('repCustPhoneCode', 'repCustPhone');
   const email = (document.getElementById('repCustEmail').value || '').trim();
   const desc = (document.getElementById('repDesc').value || '').trim();
@@ -7843,18 +7885,20 @@ async function _repairSave() {
     clientName: name, clientPhone: phone, clientEmail: email,
     photoUrl, photoUrlHi, description: desc,
     estLow: parseFloat((estLow || estHigh).toFixed(2)), estHigh: estHigh > estLow ? parseFloat(estHigh.toFixed(2)) : 0,
-    deposit: type === 'custom' ? parseFloat(dep.toFixed(2)) : (dep > 0 ? parseFloat(dep.toFixed(2)) : null),
+    deposit: dep > 0 ? parseFloat(dep.toFixed(2)) : null,
     depositMethod: dep > 0 ? (document.getElementById('repDepositMethod')?.value || 'cash') : null,
+    depositAsked: null, quoteSentAt: null, dateDeposit: dep > 0 ? now : null,
     datePromised: promised || null,
-    status: 'in_progress', notifiedAt: null, finalPrice: null,
+    status: isQuote ? 'quote' : 'in_progress', notifiedAt: null, finalPrice: null,
     dateCreated: now, dateReady: null, dateCollected: null, notes: '',
     createdBy: creds.displayName || creds.userName || ''
   };
   const list = getRepairs(); list.push(rec); saveRepairsLocal(list); pushRepairsToCloud(list);
   upsertClientFromSale(name, phone, email);
   ov?.remove();
-  showToast(isEl ? '✓ Το δελτίο δημιουργήθηκε' : '✓ Ticket created');
+  showToast(isQuote ? (isEl ? '✓ Η προσφορά αποθηκεύτηκε' : '✓ Quote saved') : (isEl ? '✓ Το δελτίο δημιουργήθηκε' : '✓ Ticket created'));
   renderRepairs();
+  if (isQuote) setTimeout(() => openRepairDetail(rec.id), 150); // straight to sending it
 }
 
 // ── Detail ──
@@ -7866,14 +7910,17 @@ function openRepairDetail(id) {
   const ov = document.createElement('div');
   ov.id = 'repairDetailOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
-  const statusLabel = r.status === 'in_progress' ? (isEl ? 'Σε εξέλιξη' : 'In progress') : r.status === 'ready' ? (isEl ? 'Έτοιμο' : 'Ready') : r.status === 'collected' ? (isEl ? 'Παραλήφθηκε' : 'Collected') : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
+  const statusLabel = repStatusLabel(r);
+  const _isQ = _repIsQuote(r);
   const _rc = _repContact(r);
   const phoneBtn = _rc.phone ? `<button onclick="_callPhone('${_repEsc(_rc.phone)}')" style="background:none;border:none;color:#4bd07f;font-family:'DM Mono',monospace;font-size:13px;cursor:pointer;padding:0">📞 ${_repEsc(_rc.phone)}</button>` : '';
-  // Notify buttons (ready or in-progress): WhatsApp / SMS / Email — uses the ticket's
-  // contact or the linked client's (so a number added later in Clients works here too).
+  // Notify buttons: the same three channels send either the quote (while it's a
+  // quote) or the "ready for pickup" message. Uses the ticket's contact or the
+  // linked client's (so a number added later in Clients works here too).
   const waNum = (_rc.phone || '').replace(/[^0-9]/g, '');
-  const notifyRow = (r.status === 'in_progress' || r.status === 'ready') && (_rc.phone || _rc.email) ? `
-    <div style="${_resLbl};margin-top:6px">${isEl ? 'Ειδοποίηση πελάτη' : 'Notify customer'}${r.notifiedAt ? ` · <span style="color:#7fd6b0;text-transform:none;letter-spacing:0">${isEl ? 'στάλθηκε' : 'sent'} ${fmtDate(new Date(r.notifiedAt))}</span>` : ''}</div>
+  const _sentAt = _isQ ? r.quoteSentAt : r.notifiedAt;
+  const notifyRow = (_isQ || r.status === 'in_progress' || r.status === 'ready') && (_rc.phone || _rc.email) ? `
+    <div style="${_resLbl};margin-top:6px">${_isQ ? (isEl ? 'Αποστολή προσφοράς' : 'Send the quote') : (isEl ? 'Ειδοποίηση πελάτη' : 'Notify customer')}${_sentAt ? ` · <span style="color:#7fd6b0;text-transform:none;letter-spacing:0">${isEl ? 'στάλθηκε' : 'sent'} ${fmtDate(new Date(_sentAt))}</span>` : ''}</div>
     <div style="display:flex;gap:7px;margin-bottom:10px">
       ${waNum ? `<button onclick="_repairNotify('${r.id}','whatsapp')" style="flex:1;padding:9px;background:rgba(37,211,102,0.14);border:1px solid rgba(37,211,102,0.4);color:#25d366;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">WhatsApp</button>` : ''}
       ${_rc.phone ? `<button onclick="_repairNotify('${r.id}','sms')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">SMS</button>` : ''}
@@ -7888,15 +7935,18 @@ function openRepairDetail(id) {
     ${r.photoUrl ? `<img src="${r.photoUrl}" style="width:100%;max-height:220px;object-fit:contain;background:#fff;border-radius:10px;margin-bottom:10px">` : ''}
     ${r.description ? `<div style="font-size:14px;color:var(--text);margin-bottom:10px;line-height:1.5">${_repEsc(r.description)}</div>` : ''}
     <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Εκτίμηση' : 'Estimate'}</span><span style="color:var(--text)">${repEstText(r)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${_isQ ? (isEl ? 'Τιμή προσφοράς' : 'Quoted price') : (isEl ? 'Εκτίμηση' : 'Estimate')}</span><span style="color:${_isQ && repEstText(r) === '—' ? '#e0a85a' : 'var(--text)'}">${repEstText(r)}</span></div>
+      ${(_isQ && parseFloat(r.depositAsked) > 0) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Ζητούμενη προκαταβολή' : 'Deposit asked'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.depositAsked) || 0).toFixed(2)}</span></div>` : ''}
       ${r.deposit ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Προκαταβολή' : 'Deposit'}</span><span style="color:#7fd6b0">${cur}${(parseFloat(r.deposit) || 0).toFixed(2)}</span></div>` : ''}
       ${r.datePromised ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Έτοιμο έως' : 'Ready by'}</span><span style="color:var(--text)">${fmtDate(r.datePromised)}</span></div>` : ''}
       ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)} ${r.cashSale ? '💵' : '🧾'}</span></div>` : ''}
       ${r.finalCost != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κόστος' : 'Cost'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.finalCost) || 0).toFixed(2)}</span></div>` : ''}
       ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${((r.cashSale ? (parseFloat(r.finalPrice) || 0) : (parseFloat(r.finalPrice) || 0) / (1 + (parseFloat(state.vat) || 0) / 100)) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
+    ${_isQ ? `<button onclick="_repairQuoteOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:12px;background:rgba(201,160,224,0.12);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✏️ ${isEl ? 'Τιμή & στοιχεία προσφοράς' : 'Edit the quote'}</button>` : ''}
     ${notifyRow}
-    <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)'}</button>
+    <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${_isQ ? (isEl ? 'Προσφορά (εκτύπωση / αποστολή)' : 'Quote (print / share)') : (isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)')}</button>
+    ${_isQ ? `<button onclick="_repairDepositOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💶 ${isEl ? 'Προκαταβολή → παραγγελία' : 'Deposit paid → start order'}</button>` : ''}
     ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">✓ ${isEl ? 'Έτοιμο' : 'Mark ready'}</button>` : ''}
     ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="_repairCollectOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${isEl ? 'Παραλαβή' : 'Collect'}</button>` : ''}
     ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
@@ -7913,14 +7963,20 @@ function _repairSetStatus(id, status) {
   openRepairDetail(id); renderRepairs();
 }
 
-// Pre-filled "ready for pickup" message via WhatsApp / SMS / Email.
+// Pre-filled message via WhatsApp / SMS / Email — the quote while the ticket is a
+// quote, otherwise "ready for pickup". Same three channels either way.
 function _repairNotify(id, channel) {
   const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el';
+  const _isQ = _repIsQuote(r);
+  if (_isQ && repEstText(r) === '—') {
+    showToast(isEl ? '⚠️ Συμπληρώστε πρώτα την τιμή' : '⚠️ Fill in the price first');
+    _repairQuoteOpen(id); return;
+  }
   const what = r.type === 'custom' ? (isEl ? 'η παραγγελία σας' : 'your custom order') : (isEl ? 'η επισκευή σας' : 'your repair');
-  const msg = isEl
-    ? `Γεια σας ${r.clientName || ''}! Στο Lekkas Jewelry, ${what} (${repNoFmt(r)}) είναι έτοιμη για παραλαβή. 💍`
-    : `Hello ${r.clientName || ''}! At Lekkas Jewelry, ${what} (${repNoFmt(r)}) is ready for pickup. 💍`;
+  const msg = _isQ ? _repQuoteMessage(r) : (isEl
+    ? `Γεια σας ${_grVocative(r.clientName)}! Στο Lekkas Jewelry, ${what} (${repNoFmt(r)}) είναι έτοιμη για παραλαβή. 💍`
+    : `Hello ${r.clientName || ''}! At Lekkas Jewelry, ${what} (${repNoFmt(r)}) is ready for pickup. 💍`);
   const enc = encodeURIComponent(msg);
   const _rc = _repContact(r); // ticket's own contact, else the linked client's
   if (channel === 'whatsapp') {
@@ -7933,10 +7989,139 @@ function _repairNotify(id, channel) {
     window.location.href = 'sms:' + num + '?&body=' + enc;
   } else if (channel === 'email') {
     if (!_rc.email) { showToast(isEl ? 'Χωρίς email' : 'No email'); return; }
-    const subj = encodeURIComponent(isEl ? 'Lekkas Jewelry — έτοιμο για παραλαβή' : 'Lekkas Jewelry — ready for pickup');
+    const subj = encodeURIComponent(_isQ
+      ? (isEl ? 'Lekkas Jewelry — προσφορά ' + repNoFmt(r) : 'Lekkas Jewelry — quote ' + repNoFmt(r))
+      : (isEl ? 'Lekkas Jewelry — έτοιμο για παραλαβή' : 'Lekkas Jewelry — ready for pickup'));
     window.location.href = 'mailto:' + _rc.email + '?subject=' + subj + '&body=' + enc;
   }
-  if (!r.notifiedAt) { r.notifiedAt = Date.now(); saveRepairsLocal(list); pushRepairsToCloud(list); setTimeout(() => { if (document.getElementById('repairDetailOverlay')) openRepairDetail(id); }, 400); }
+  const _stampKey = _isQ ? 'quoteSentAt' : 'notifiedAt';
+  if (!r[_stampKey]) { r[_stampKey] = Date.now(); saveRepairsLocal(list); pushRepairsToCloud(list); setTimeout(() => { if (document.getElementById('repairDetailOverlay')) openRepairDetail(id); }, 400); }
+}
+
+// Greek addresses a person in the vocative — «Γεια σας Μανώλη», not «Μανώλης».
+// Only touches a single all-Greek first word with a known ending; a foreign or
+// unrecognised name is left exactly as typed.
+function _grVocative(name) {
+  const n = String(name || '').trim();
+  if (!n || lang !== 'el') return n;
+  const first = n.split(/\s+/)[0];
+  if (!/^[Α-Ωα-ωΆ-Ώά-ώϊϋΐΰς]+$/.test(first)) return n;
+  if (/ης$/.test(first)) return first.slice(0, -1);        // Μανώλης → Μανώλη
+  if (/ας$/.test(first)) return first.slice(0, -1);        // Κώστας → Κώστα
+  if (/ος$/.test(first)) return first.slice(0, -2) + 'ο';  // Γιώργος → Γιώργο
+  return first;
+}
+
+// The quote message, written the way the owner writes it by hand: what it is,
+// what it costs, what deposit starts it, and when it will be ready.
+function _repQuoteMessage(r) {
+  const isEl = lang === 'el';
+  const dep = parseFloat(r.depositAsked) || 0;
+  const cur = state.currency || '€';
+  const L = [];
+  L.push(isEl
+    ? `Γεια σας ${_grVocative(r.clientName)}! Από το Lekkas Jewelry — η προσφορά σας (${repNoFmt(r)}):`
+    : `Hello ${r.clientName || ''}! From Lekkas Jewelry — your quote (${repNoFmt(r)}):`);
+  if (r.description) L.push('', r.description);
+  L.push('', (isEl ? 'Κόστος: ' : 'Price: ') + repEstText(r));
+  if (dep > 0) L.push((isEl ? 'Προκαταβολή για να ξεκινήσουμε: ' : 'Deposit to get started: ') + cur + dep.toFixed(2));
+  if (r.datePromised) L.push((isEl ? 'Έτοιμο έως: ' : 'Ready by: ') + fmtDate(r.datePromised));
+  L.push('', isEl ? 'Στη διάθεσή σας για ό,τι χρειαστείτε.' : 'We are at your disposal for anything you need.');
+  return L.join('\n');
+}
+
+// Fill in / correct the quote before sending it: price, the deposit you ask for,
+// what it is, and when it will be ready.
+function _repairQuoteOpen(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el';
+  document.getElementById('repQuoteOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repQuoteOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px;padding-top:max(16px,env(safe-area-inset-top))';
+  const _pd = r.datePromised || '';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:400px;margin:auto;max-height:92dvh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:#c9a0e0">📝 ${isEl ? 'Προσφορά' : 'Quote'} · ${repNoFmt(r)}</div>
+      <button onclick="document.getElementById('repQuoteOverlay').remove()" class="modal-x">✕</button>
+    </div>
+    <div style="${_resLbl}">${isEl ? 'Περιγραφή' : 'Description'}</div>
+    <textarea id="repQDesc" rows="3" style="${_resInp};resize:vertical">${_repEsc(r.description || '')}</textarea>
+    <div style="${_resLbl}">${isEl ? 'Τιμή προσφοράς' : 'Quoted price'}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <input id="repQLow" type="number" step="0.01" inputmode="decimal" value="${parseFloat(r.estLow) > 0 ? parseFloat(r.estLow).toFixed(2) : ''}" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
+      <span style="color:var(--text-muted);flex:0 0 auto">–</span>
+      <input id="repQHigh" type="number" step="0.01" inputmode="decimal" value="${parseFloat(r.estHigh) > 0 ? parseFloat(r.estHigh).toFixed(2) : ''}" placeholder="${isEl ? 'έως € (προαιρ.)' : 'to € (opt.)'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
+    </div>
+    <div style="${_resLbl}">${isEl ? 'Ζητούμενη προκαταβολή (προαιρετικό)' : 'Deposit you ask for (optional)'}</div>
+    <input id="repQDepAsk" type="number" step="0.01" inputmode="decimal" value="${parseFloat(r.depositAsked) > 0 ? parseFloat(r.depositAsked).toFixed(2) : ''}" placeholder="€" style="${_resInp}">
+    <div style="${_resLbl}">${isEl ? 'Έτοιμο έως (προαιρετικό)' : 'Ready by (optional)'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="repQPromisedDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${_pd ? fmtDate(_pd) : '—'}</div>
+      <input id="repQPromised" type="date" value="${_pd}" onchange="var _d=document.getElementById('repQPromisedDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
+    <div id="repQStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:#e0a85a"></div>
+    <button onclick="_repairQuoteSave('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💾 ${isEl ? 'Αποθήκευση' : 'Save'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _repairQuoteSave(id) {
+  const isEl = lang === 'el';
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  const lo = parseFloat(document.getElementById('repQLow')?.value) || 0;
+  const hi = parseFloat(document.getElementById('repQHigh')?.value) || 0;
+  if (lo <= 0 && hi <= 0) { const s = document.getElementById('repQStatus'); if (s) s.textContent = isEl ? '⚠️ Βάλτε τιμή' : '⚠️ Enter a price'; return; }
+  r.description = (document.getElementById('repQDesc')?.value || '').trim();
+  r.estLow = parseFloat((lo || hi).toFixed(2));
+  r.estHigh = hi > lo ? parseFloat(hi.toFixed(2)) : 0;
+  const dep = parseFloat(document.getElementById('repQDepAsk')?.value) || 0;
+  r.depositAsked = dep > 0 ? parseFloat(dep.toFixed(2)) : null;
+  r.datePromised = document.getElementById('repQPromised')?.value || null;
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  document.getElementById('repQuoteOverlay')?.remove();
+  openRepairDetail(id); renderRepairs();
+  showToast(isEl ? '✓ Αποθηκεύτηκε' : '✓ Saved');
+}
+
+// The customer accepted and paid: the quote becomes a real custom order. No income
+// is booked here — the whole price is booked when the piece is collected.
+function _repairDepositOpen(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el';
+  const asked = parseFloat(r.depositAsked) || 0;
+  document.getElementById('repDepOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repDepOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:360px">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">💶 ${isEl ? 'Προκαταβολή' : 'Deposit'} · ${repNoFmt(r)}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.45">${isEl ? 'Η προσφορά γίνεται παραγγελία και ξεκινά η κατασκευή.' : 'The quote becomes a custom order and work starts.'}</div>
+    <div style="${_resLbl}">${isEl ? 'Ποσό' : 'Amount'} (€)</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="repDepAmt" type="number" step="0.01" inputmode="decimal" value="${asked > 0 ? asked.toFixed(2) : ''}" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+      <select id="repDepMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option><option value="bank">${isEl ? 'Τράπεζα' : 'Bank'}</option></select>
+    </div>
+    <div id="repDepStatus" style="font-size:12px;min-height:16px;text-align:center;margin-bottom:6px;color:#e0a85a"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('repDepOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+      <button onclick="_repairDepositConfirm('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Ξεκίνα' : 'Start order'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _repairDepositConfirm(id) {
+  const isEl = lang === 'el';
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  const amt = parseFloat(document.getElementById('repDepAmt')?.value) || 0;
+  if (amt <= 0) { const s = document.getElementById('repDepStatus'); if (s) s.textContent = isEl ? '⚠️ Βάλτε ποσό' : '⚠️ Enter an amount'; return; }
+  r.deposit = parseFloat(amt.toFixed(2));
+  r.depositMethod = document.getElementById('repDepMethod')?.value || 'cash';
+  r.dateDeposit = Date.now();
+  r.status = 'in_progress';
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  document.getElementById('repDepOverlay')?.remove();
+  openRepairDetail(id); renderRepairs();
+  showToast(isEl ? '✓ Η παραγγελία ξεκίνησε' : '✓ Order started');
 }
 
 // Collect: enter final price + the cost it took you, choose receipt/cash (affects
@@ -8135,7 +8320,8 @@ async function buildRepairPDF(r) {
 
   // Title + ticket no/date
   doc.setFont('NotoSans', 'bold'); doc.setFontSize(8); doc.setTextColor(150, 130, 80); doc.setCharSpace(1.4);
-  const title = r.type === 'custom' ? (isEl ? 'ΠΑΡΑΓΓΕΛΙΑ' : 'CUSTOM ORDER') : (isEl ? 'ΔΕΛΤΙΟ ΕΠΙΣΚΕΥΗΣ' : 'REPAIR TICKET');
+  const title = _repIsQuote(r) ? (isEl ? 'ΠΡΟΣΦΟΡΑ' : 'QUOTE')
+    : r.type === 'custom' ? (isEl ? 'ΠΑΡΑΓΓΕΛΙΑ' : 'CUSTOM ORDER') : (isEl ? 'ΔΕΛΤΙΟ ΕΠΙΣΚΕΥΗΣ' : 'REPAIR TICKET');
   doc.text(title, MARGIN, HEADER_H_MM + 5); doc.setCharSpace(0);
   setReg(9, 90, 90, 90); doc.text(repNoFmt(r) + '  ·  ' + fmtDate(new Date(r.dateCreated || Date.now())), pageW - MARGIN, HEADER_H_MM + 5, { align: 'right' });
 
@@ -8169,14 +8355,19 @@ async function buildRepairPDF(r) {
   // Estimate / deposit / ready-by
   doc.setDrawColor(201, 168, 76); doc.setLineWidth(0.3); doc.line(MARGIN, y, pageW - MARGIN, y); y += 6;
   const infoRow = (label, val, bold) => { (bold ? setBold : setReg)(bold ? 11 : 10, bold ? 30 : 90, bold ? 20 : 90, bold ? 10 : 90); doc.text(label, MARGIN, y); doc.text(val, pageW - MARGIN, y, { align: 'right' }); y += 6.5; };
-  infoRow(isEl ? 'Εκτίμηση κόστους' : 'Estimate', repEstText(r), false);
+  infoRow(_repIsQuote(r) ? (isEl ? 'Τιμή προσφοράς' : 'Quoted price') : (isEl ? 'Εκτίμηση κόστους' : 'Estimate'), repEstText(r), _repIsQuote(r));
+  if (_repIsQuote(r) && parseFloat(r.depositAsked) > 0) infoRow(isEl ? 'Προκαταβολή' : 'Deposit required', cur + (parseFloat(r.depositAsked) || 0).toFixed(2), false);
   if (r.deposit) infoRow(isEl ? 'Προκαταβολή' : 'Deposit received', cur + (parseFloat(r.deposit) || 0).toFixed(2), false);
   if (r.datePromised) infoRow(isEl ? 'Έτοιμο έως' : 'Ready by', fmtDate(r.datePromised), false);
   y += 3;
 
   // Terms
   setReg(7.5, 130, 130, 130);
-  const terms = isEl
+  const terms = _repIsQuote(r)
+    ? (isEl
+      ? 'Η παρούσα προσφορά είναι κατά προσέγγιση και η τελική τιμή επιβεβαιώνεται κατά την παράδοση. Η παραγγελία ξεκινά με την καταβολή της προκαταβολής, η οποία δεν επιστρέφεται σε περίπτωση ακύρωσης.'
+      : 'This quote is approximate; the final price is confirmed on delivery. The order starts once the deposit is paid, and that deposit is non-refundable if the order is cancelled.')
+    : isEl
     ? (r.type === 'custom'
       ? 'Η προκαταβολή δεν επιστρέφεται σε περίπτωση ακύρωσης της παραγγελίας. Η εκτίμηση είναι κατά προσέγγιση· η τελική τιμή επιβεβαιώνεται κατά την παράδοση.'
       : 'Η εκτίμηση είναι κατά προσέγγιση· η τελική τιμή επιβεβαιώνεται κατά την παράδοση. Το κόσμημα παραδίδεται με την επίδειξη αυτού του δελτίου.')
@@ -8202,7 +8393,7 @@ async function shareRepairForm(id) {
   showToast(lang === 'el' ? '⏳ Δημιουργία δελτίου…' : '⏳ Generating form…');
   try {
     const blob = await buildRepairPDF(r);
-    const fname = 'repair-' + repNoFmt(r) + '.pdf';
+    const fname = (_repIsQuote(r) ? 'quote-' : 'repair-') + repNoFmt(r) + '.pdf';
     const file = new File([blob], fname, { type: 'application/pdf' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file] });
@@ -9651,6 +9842,103 @@ function _calcScanInvId() {
   const it = (id && _inventoryCache) ? _inventoryCache[id] : null;
   if (!it || it.isBulk || it.status !== 'in_stock') return null;
   return id;
+}
+
+// ── Cart identity ────────────────────────────────────────────────────────────
+// THE RULE: a cart line remembers the RECORD it is about — captured by
+// confirmAddToCart the moment it was added, while the calc still holds that
+// piece. Reserve, sell and the quote photo all resolve through here and never
+// re-derive the piece from a code string.
+//
+// Why this exists: the reserve path used to prefer the GLOBAL _scanChosenInvId,
+// which holds whatever the calc resolved LAST. Mapped over a cart, it handed
+// EVERY line the same record — a 2-item hold printed one ref code and one photo
+// twice, and flagged only that one piece as reserved, leaving the other on the
+// public showroom while the customer thought it was held.
+//
+// The code-string fallback is not safe on its own either: since v11.32 two
+// pieces may legitimately share a descriptive code, so a plain `.find()` can
+// return a twin — or the same record for two different lines.
+//
+// `used` = record ids already claimed by earlier lines of the same cart. A line
+// that can only resolve to one of those is deliberately left UNRESOLVED rather
+// than silently pointed at a piece another line already took; the caller then
+// tells the owner instead of quietly holding/selling one piece twice.
+function _cartLineInv(ci, used) {
+  const r = (ci && ci.result) || {};
+  const cache = _inventoryCache || {};
+  const free = (id, it) => it && it.status === 'in_stock' && !it.isBulk && !(used && used.has(id));
+  const pinned = ci && ci.invId;
+  if (pinned && free(pinned, cache[pinned])) return [pinned, cache[pinned]];
+  // Fallback for a line with no pinned id (typed by hand, or added before v12.26).
+  const qr = _qrKey(r.labelCode || '');
+  const ref = String(r.seqRef || '').trim().toUpperCase();
+  if (!qr && !ref) return null;
+  return Object.entries(cache).find(([id, it]) => free(id, it) && (
+    (qr && _qrKey(it.qrCode || it.code || '') === qr) ||
+    (ref && it.seqId && String(itemRefCode(it)).toUpperCase() === ref)
+  )) || null;
+}
+
+// Resolve a whole cart in one pass. Returns { lines, missing } where `lines` are
+// the resolvable ones (each with its own record, never shared) and `missing` are
+// the names that could not be placed — the caller must SAY so, never proceed in
+// silence. A bulk-chain line sells grams off a batch, so it is not deduped: two
+// cuts of the same chain in one cart are legitimate.
+function _resolveCart(cart) {
+  const used = new Set();
+  const lines = [], missing = [];
+  (cart || []).forEach((ci, idx) => {
+    const r = (ci && ci.result) || {};
+    if (r.isBulkChain && r.bulkInvId) {
+      const batch = (_inventoryCache || {})[r.bulkInvId];
+      if (batch && batch.isBulk) { lines.push({ ci, idx, id: r.bulkInvId, item: batch, isBulk: true }); return; }
+      missing.push(ci.name || ('#' + (idx + 1))); return;
+    }
+    const hit = _cartLineInv(ci, used);
+    if (!hit) { missing.push(ci.name || ('#' + (idx + 1))); return; }
+    used.add(hit[0]);
+    lines.push({ ci, idx, id: hit[0], item: hit[1], isBulk: false });
+  });
+  return { lines, missing };
+}
+
+// One wording for "these cart lines could not be matched to a piece in stock",
+// used by both the sell and the reserve paths. Returns a promise: true = go on
+// with what WAS found, false = the owner wants to fix the cart first.
+function _cartMissingOk(missing, total, action) {
+  if (!missing.length) return Promise.resolve(true);
+  const isEl = lang === 'el';
+  const list = missing.join(', ');
+  const kept = total - missing.length;
+  if (!kept) {
+    showToast(isEl ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock');
+    return Promise.resolve(false);
+  }
+  // One flowing line: the confirm box renders with textContent, so a \n would
+  // collapse to a space anyway.
+  const msg = isEl
+    ? `Δεν βρέθηκαν στο απόθεμα: ${list}. Συνέχεια μόνο με τα υπόλοιπα ${kept};`
+    : `Not found in stock: ${list}. Continue with the other ${kept} only?`;
+  return new Promise(resolve => showConfirm(msg,
+    () => resolve(true), () => resolve(false),
+    { okLabel: isEl ? `Συνέχεια (${kept})` : `Continue (${kept})`, cancelLabel: isEl ? 'Άκυρο' : 'Cancel', danger: false }));
+}
+
+// A cart line whose piece is on hold for a customer. Selling it here is sometimes
+// right (they came in and paid), but it must never happen silently — the proper
+// path is Desk → the reservation → "Complete & sell", which closes the hold too.
+function _cartReservedOk(lines) {
+  const held = (lines || []).filter(L => !L.isBulk && L.item && L.item.reservationId);
+  if (!held.length) return Promise.resolve(true);
+  const isEl = lang === 'el';
+  const names = held.map(L => L.ci.name || itemRefCode(L.item)).join(', ');
+  const msg = isEl
+    ? `Κρατημένο για πελάτη: ${names}. Η κράτηση ΔΕΝ θα κλείσει αυτόματα — καλύτερα από τον Πάγκο → Κράτηση → «Ολοκλήρωση & πώληση». Πώληση ούτως ή άλλως;`
+    : `On hold for a customer: ${names}. The reservation will NOT be closed automatically — better done from Desk → the reservation → "Complete & sell". Sell anyway?`;
+  return new Promise(resolve => showConfirm(msg,
+    () => resolve(true), () => resolve(false),
+    { okLabel: isEl ? 'Πώληση' : 'Sell anyway', cancelLabel: isEl ? 'Άκυρο' : 'Cancel' }));
 }
 let _lastChipRaw = null;            // raw QR string last shown in invStatusChip (any state)
 // The in-flight _checkInvStatusForCalc(), so the calc can WAIT for the piece's own record.
@@ -25574,8 +25862,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.25', date: 'Ιούλιος 2026', items: [
-        "🔎 Διόρθωση: η πλήρης οθόνη των καρτών σύνοψης εμφανιζόταν πίσω από τη λίστα. Τώρα ανοίγει σωστά πάνω από όλα. (1ο πάτημα = ανάλυση, 2ο = πλήρης οθόνη, πάτημα ξανά = κανονικό μέγεθος.)",
+      { version: 'v12.26', date: 'Ιούλιος 2026', items: [
+        "📝 Προσφορές για παραγγελίες: ανοίγετε δελτίο παραγγελίας ΧΩΡΙΣ προκαταβολή και αποθηκεύεται ως «Προσφορά». Όταν μάθετε την τιμή, τη συμπληρώνετε και τη στέλνετε με WhatsApp / SMS / Email με έτοιμο μήνυμα (περιγραφή, τιμή, ζητούμενη προκαταβολή, πότε θα είναι έτοιμο).",
+        "💶 Μόλις ο πελάτης δεχτεί και δώσει προκαταβολή, πατάτε «Προκαταβολή → παραγγελία» και η προσφορά γίνεται κανονική παραγγελία, όπως πριν.",
+        "📄 Η προσφορά εκτυπώνεται/στέλνεται και σε PDF με τίτλο «ΠΡΟΣΦΟΡΑ» και τους σωστούς όρους.",
+        "🛒 ΣΟΒΑΡΗ ΔΙΟΡΘΩΣΗ στο καλάθι: σε κράτηση με 2+ είδη, ΟΛΑ έπαιρναν τον κωδικό και τη φωτογραφία του τελευταίου είδους που είχατε σκανάρει — και κρατιόταν/κρυβόταν από το showroom μόνο εκείνο. Τώρα κάθε είδος του καλαθιού κρατάει το ΔΙΚΟ του κομμάτι, από τη στιγμή που μπαίνει στο καλάθι.",
+        "🛒 Αν κάποιο είδος του καλαθιού δεν βρεθεί στο απόθεμα (πουλήθηκε στο μεταξύ, ή μπήκε δύο φορές), το λέει με το όνομά του και ρωτάει πριν συνεχίσει — δεν το παραλείπει σιωπηλά.",
+        "🔒 Μετά από κράτηση, το καλάθι αδειάζει (ώστε να μην πουληθούν κατά λάθος τα ίδια κομμάτια), και η «Πώληση Όλων» προειδοποιεί αν κάποιο κομμάτι είναι κρατημένο για πελάτη.",
       ]},
       ]
   },
@@ -25606,8 +25899,13 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.25', date: 'Jul 2026', items: [
-        "🔎 Fix: the full-screen summary-card view was appearing behind the list. It now opens correctly on top of everything. (1st tap = breakdown, 2nd = full screen, tap again = normal size.)",
+      { version: 'v12.26', date: 'Jul 2026', items: [
+        "📝 Quotes for custom orders: open a custom-order ticket with NO deposit and it is saved as a “Quote”. When you know the price you fill it in and send it by WhatsApp / SMS / Email with a ready-made message (description, price, deposit asked, ready-by date).",
+        "💶 Once the customer accepts and pays a deposit, tap “Deposit → start order” and the quote becomes a normal custom order, exactly as before.",
+        "📄 A quote can also be printed/shared as a PDF titled “QUOTE”, with the right terms.",
+        "🛒 SERIOUS CART FIX: on a hold with 2+ items, EVERY line took the ref code and photo of the last piece you had scanned — and only that one piece was actually reserved and hidden from the showroom. Each cart line now keeps its OWN piece, pinned the moment it goes into the cart.",
+        "🛒 If a cart line can't be found in stock (sold meanwhile, or added twice) it is named and you are asked before anything proceeds — never skipped in silence.",
+        "🔒 After a hold, the cart is emptied (so the same pieces can't be sold by mistake), and “Sell all” warns if a piece is on hold for a customer.",
       ]},
           ]
   }
@@ -25712,7 +26010,10 @@ function confirmAddToCart() {
     (lang === 'el' ? 'Κόσμημα' : 'Jewelry Item');
   const savedPrice = parseFloat(lastCalcResult.finalPrice).toFixed(2);
   closeItemNamePopup();
-  quoteCart.push({ name, result: Object.assign({}, lastCalcResult) });
+  // Pin the piece NOW, while the calc is still about it — read before the code
+  // box is cleared below. This id is the line's identity for the rest of its
+  // life (reserve, sell, quote photo); see _cartLineInv.
+  quoteCart.push({ name, result: Object.assign({}, lastCalcResult), invId: _calcScanInvId() });
   updateCartUI();
   // Toast
   const cur = state.currency || '€';
@@ -25773,39 +26074,30 @@ async function markCartAsSold() {
   if (quoteCart.length === 0) return;
   // Always reload fresh from Firebase — sessionStorage cart may have stale data
   showToast(lang==='el' ? '⏳ Φόρτωση αποθέματος...' : '⏳ Loading inventory...');
-  _inventoryCache = await loadInventory();
-  const items = quoteCart.map(ci => {
-    const r = ci.result || {};
-    // Bulk chain entries sell part of a batch by weight — keep the batch reference plus
-    // the sold weight/cost so the sale deducts grams (never marks the whole batch sold).
-    if (r.isBulkChain && r.bulkInvId) {
-      const batch = _inventoryCache[r.bulkInvId];
-      if (!batch || !batch.isBulk) return null;
-      return {
-        id: r.bulkInvId, item: batch, price: parseFloat(r.finalPrice || 0),
-        isBulk: true,
+  const _fresh = await loadInventory();
+  if (_fresh && Object.keys(_fresh).length) _inventoryCache = _fresh; // never blank the cache on a failed load
+  // Same identity rule as the hold: every line keeps its own record (_resolveCart),
+  // and a line that can't be placed is named rather than quietly skipped.
+  const { lines, missing } = _resolveCart(quoteCart);
+  if (!await _cartMissingOk(missing, quoteCart.length, 'sell')) return;
+  // A piece held for someone else must not leave on a cart sale without a word —
+  // the single-item sale has warned about this since v10.80; the cart never did.
+  if (!await _cartReservedOk(lines)) return;
+  const items = lines.map(L => {
+    const r = L.ci.result || {};
+    const price = parseFloat(r.finalPrice || 0);
+    // A bulk-chain line sells part of a batch by weight — keep the batch reference
+    // plus the sold weight/cost so the sale deducts grams (never marks it all sold).
+    if (L.isBulk) {
+      return { id: L.id, item: L.item, price, isBulk: true,
         soldWeight: parseFloat(r.bulkSoldWeight) || 0,
-        cost: (r.baseCost != null ? parseFloat(r.baseCost) : null)
-      };
+        cost: (r.baseCost != null ? parseFloat(r.baseCost) : null) };
     }
-    const qr = r.labelCode;
-    if (!qr) return null;
-    const qrNorm = qr.trim().toUpperCase();
-    // Also try matching by seqId in case QR changed
-    const found = Object.entries(_inventoryCache).find(([, it]) =>
-      it.status === 'in_stock' && !it.isBulk && (
-        (it.qrCode||it.code||'').trim().toUpperCase() === qrNorm ||
-        (r.seqRef && it.seqId && itemRefCode(it) === r.seqRef)
-      )
-    );
-    return found ? { id: found[0], item: found[1], price: parseFloat(r.finalPrice || 0) } : null;
-  }).filter(Boolean);
+    return { id: L.id, item: L.item, price };
+  });
   if (items.length === 0) {
     showToast(lang==='el' ? '⚠️ Δεν βρέθηκαν αντικείμενα στο απόθεμα' : '⚠️ No inventory items found in cart');
     return;
-  }
-  if (items.length < quoteCart.length) {
-    showToast((lang==='el' ? '⚠️ Βρέθηκαν ' : '⚠️ Found ') + items.length + '/' + quoteCart.length + (lang==='el' ? ' αντικείμενα στο απόθεμα' : ' items in stock'));
   }
   window._cartSaleItems = items;
   openMultiSaleModal(items);
@@ -26339,12 +26631,11 @@ function openQuoteModal() {
         if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
           _inventoryCache = await loadInventory();
         }
-        const invVals = Object.values(_inventoryCache);
-        quoteCart.forEach((ci, idx) => {
-          if (!ci.result.labelCode) return;
-          const qrNorm = ci.result.labelCode.trim().toUpperCase();
-          const match = invVals.find(it => it.qrCode && it.qrCode.trim().toUpperCase() === qrNorm);
-          if (match && match.photoUrl) window.quotePhotoInventoryUrls[idx] = match.photoUrl;
+        // Same identity rule as reserve/sell: each line's OWN record, no two
+        // lines sharing one (a shared descriptive code would otherwise print the
+        // same photo twice).
+        _resolveCart(quoteCart).lines.forEach(L => {
+          if (L.item && L.item.photoUrl) window.quotePhotoInventoryUrls[L.idx] = L.item.photoUrl;
         });
       } catch(e) { /* silent */ }
     })();
@@ -30157,7 +30448,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.25';
+const APP_VERSION = '12.26';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
