@@ -26492,10 +26492,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.40', date: 'Ιούλιος 2026', items: [
-        "🎀 Σετ κοσμημάτων! Συνδέστε ασορτί κομμάτια (κολιέ, βραχιόλι, δαχτυλίδι, σκουλαρίκια) σε ένα σετ. Στο Απόθεμα: επιλέξτε τα κομμάτια και πατήστε «🎀 Σετ», δώστε όνομα (Ελληνικά & Αγγλικά). Κάθε κομμάτι κρατά τον δικό του κωδικό και πωλείται ξεχωριστά — το σετ είναι απλώς ένας σύνδεσμος.",
-        "🏷️ Νέο σήμα «🎀 Σετ» στην κάρτα (πατήστε το για το σετ) και νέο φίλτρο «🎀 Σετ» στο Απόθεμα.",
-        "🌐 Στη βιτρίνα: κάθε κομμάτι σετ έχει σήμα «Σετ» — ο πελάτης πατά και βλέπει ΟΛΟ το σετ με βελάκια ‹ › (καρουζέλ). Νέο φίλτρο «Σετ» για να δει όλα τα διαθέσιμα σετ.",
+      { version: 'v12.41', date: 'Ιούλιος 2026', items: [
+        "🎀 Σετ κοσμημάτων! Συνδέστε ασορτί κομμάτια (κολιέ, βραχιόλι, δαχτυλίδι, σκουλαρίκια) σε ένα σετ που πωλείται και ξεχωριστά. Στο Απόθεμα επιλέξτε κομμάτια και πατήστε «🎀 Σετ», δώστε όνομα (Ελληνικά & Αγγλικά).",
+        "🔗 Για κομμάτια που είναι ήδη σε ομάδα (π.χ. τα μενταγιόν μαζί, τα σκουλαρίκια μαζί): ανοίξτε την ομάδα, πατήστε «🎀 Σετ» πάνω στο κομμάτι και φτιάξτε νέο σετ ή προσθέστε σε υπάρχον — έτσι ζευγαρώνετε π.χ. το μενταγιόν με τα σκουλαρίκια αμέθυστου, χωρίς να διαλύσετε τις ομάδες.",
+        "🌐 Στη βιτρίνα κάθε κομμάτι σετ έχει σήμα «Σετ» — ο πελάτης πατά και βλέπει ΟΛΟ το σετ με βελάκια ‹ ›. Νέο φίλτρο «Σετ» για όλα τα διαθέσιμα σετ.",
         "💎 Στη βιτρίνα, ομαδοποιημένα κομμάτια με διαφορετική πέτρα (π.χ. αμέθυστος & φεγγαρόπετρα) εμφανίζονται πλέον ως ξεχωριστές κάρτες.",
       ]},
       ]
@@ -26527,10 +26527,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.40', date: 'Jul 2026', items: [
-        "🎀 Jewelry sets! Link matching pieces (necklace, bracelet, ring, earrings) into one set. In Stock: select the pieces and tap “🎀 Set”, give it a name (Greek & English). Each piece keeps its own code and is still sold separately — the set is just a link.",
-        "🏷️ New “🎀 Set” badge on the card (tap it for the set) and a new “🎀 Sets” filter in Stock.",
-        "🌐 In the showroom: each set piece is marked “Set” — a customer taps it and sees the WHOLE set with ‹ › arrows (a carousel). New “Sets” filter to browse every set available.",
+      { version: 'v12.41', date: 'Jul 2026', items: [
+        "🎀 Jewelry sets! Link matching pieces (necklace, bracelet, ring, earrings) into one set that's still sold separately. In Stock, select pieces and tap “🎀 Set”, give it a name (Greek & English).",
+        "🔗 For pieces already in a group (e.g. the pendants together, the earrings together): open the group, tap “🎀 Set” on the piece, and start a new set or add to an existing one — so you can pair the amethyst pendant with the amethyst earrings without breaking up the groups.",
+        "🌐 In the showroom each set piece is marked “Set” — a customer taps it and sees the WHOLE set with ‹ › arrows. New “Sets” filter to browse every set available.",
         "💎 In the showroom, grouped pieces with a different stone (e.g. amethyst & moonstone) now show as separate cards.",
       ]},
           ]
@@ -31148,7 +31148,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.40';
+const APP_VERSION = '12.41';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -32461,7 +32461,8 @@ function openInvGroup(gid) {
     const w = it.metal === 'other' ? '' : (parseFloat(it.weight).toFixed(2) + 'g');
     const colorLbl = it.color ? itemColorLabel(it.color) : '';
     const dot = it.color ? `<span style="width:9px;height:9px;border-radius:50%;${itemColorSwatchCss(it.color)||'background:#888'};display:inline-block;margin-right:5px;vertical-align:-1px;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>` : '';
-    const sub = [w, colorLbl ? (dot + colorLbl) : '', isEmp ? '' : price].filter(Boolean).join(' · ');
+    const _stoneLbl = it.stonesDesc ? stonesDescDisplay(it.stonesDesc) : '';   // tells amethyst vs moonstone apart
+    const sub = [w, colorLbl ? (dot + colorLbl) : '', _stoneLbl, isEmp ? '' : price].filter(Boolean).join(' · ');
     // Owner/manager appreciation line — same as the single card: initial price + date
     // added + gain %. Placed between the piece info and its action buttons.
     let apprecHtml = '';
@@ -32514,6 +32515,7 @@ function openInvGroup(gid) {
         <button class="inv-action-btn inv-action-sell" style="${_bStyle}" onclick="closeInvGroup();invMarkSold('${id}')">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
         ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${_gHeld?'rgba(212,175,55,0.22)':'var(--wa06)'};border:1px solid ${_gHeld?'var(--gold)':'var(--wa18)'};color:${_gHeld?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${_gHeld?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
         ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invGiveaway('${id}')">🎁 ${lang==='el'?'Δώρο':'Gift'}</button>` : ''}
+        ${(isEmp || it.isCoin || it.isMetal) ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light)" onclick="closeInvGroup();openSetPicker('${id}')">🎀 ${lang==='el'?'Σετ':'Set'}</button>`}
         ${isEmp ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="_invEditFromGroup('${gid}','${id}')">✏️ ${lang==='el'?'Επεξ.':'Edit'}</button>`}
         ${isEmp ? '' : `<button class="inv-action-btn inv-action-del" style="${_bStyle}" onclick="closeInvGroup();invDelete('${id}')">🗑</button>`}
       </div>
@@ -32757,6 +32759,114 @@ function _invSetDisband(setId) {
       renderInvList();
     }
   );
+}
+
+// ── SET PICKER ─────────────────────────────────────────────────────────────────
+// Reached from a group's per-piece row — the only place an individual member of a
+// COLLAPSED group is addressable. Lets a piece start a new set or join an existing one,
+// so matching pieces that live inside different groups (e.g. the amethyst pendant and the
+// amethyst earrings, each grouped with their moonstone twin) can be paired without ungrouping.
+function _allSets() {
+  const map = new Map();
+  Object.values(_inventoryCache || {}).forEach(it => {
+    if (!it || !it.setId || it.status === 'sold' || it.isBulk) return;
+    const e = map.get(it.setId) || { setId: it.setId, setNameEl: it.setNameEl, setNameEn: it.setNameEn, count: 0 };
+    e.count++;
+    if (!e.setNameEl && it.setNameEl) e.setNameEl = it.setNameEl;
+    if (!e.setNameEn && it.setNameEn) e.setNameEn = it.setNameEn;
+    map.set(it.setId, e);
+  });
+  return [...map.values()].sort((a, b) => (_setDisplayName(a) || '').localeCompare(_setDisplayName(b) || '', 'el'));
+}
+
+function closeSetPicker() {
+  const ov = document.getElementById('setPickerOverlay');
+  if (ov) ov.remove();
+}
+
+function openSetPicker(itemId) {
+  if (!can('manage_stock')) return;
+  closeSetPicker();
+  const it = (_inventoryCache || {})[itemId];
+  if (!it) return;
+  const _e = s => String(s || '').replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]));
+  const ref = it.seqId ? itemRefCode(it) : (it.qrCode || '');
+  const stone = it.stonesDesc ? stonesDescDisplay(it.stonesDesc) : '';
+  const desc = [it.jewelryType ? invTypeLabel(it.jewelryType) : '', _itemDesc(it), stone].filter(Boolean).join(' · ');
+  const sets = _allSets().filter(s => s.setId !== it.setId);   // don't offer the one it's already in
+  const listHtml = sets.length
+    ? sets.map(s => `<button onclick="_setPickExisting('${itemId}','${s.setId}')" style="width:100%;text-align:left;display:flex;align-items:center;gap:8px;background:var(--wa04);border:1px solid var(--wa12);border-radius:10px;padding:12px 13px;margin-bottom:8px;color:var(--text-light);font-family:var(--font-body);font-size:14px;cursor:pointer">🎀 <span style="flex:1">${_e(_setDisplayName(s))}</span><span style="color:var(--text-dim);font-size:12px">${s.count}</span></button>`).join('')
+    : `<div style="color:var(--text-dim);font-size:12px;text-align:center;padding:8px 0">${lang==='el'?'Δεν υπάρχουν ακόμη σετ':'No sets yet'}</div>`;
+  const curHtml = it.setId
+    ? `<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+         <span style="flex:1;font-size:13px;color:var(--gold-light)">🎀 ${lang==='el'?'Σε σετ':'In set'}: ${_e(_setDisplayName(it))}</span>
+         <button onclick="_setDetach('${itemId}')" style="background:rgba(229,115,115,0.14);border:1px solid rgba(229,115,115,0.4);color:#e57373;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">✕ ${lang==='el'?'Αφαίρεση':'Remove'}</button>
+       </div>`
+    : '';
+  const ov = document.createElement('div');
+  ov.id = 'setPickerOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  ov.onclick = (e) => { if (e.target === ov) closeSetPicker(); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:440px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">🎀 ${lang==='el'?'Προσθήκη σε σετ':'Add to set'}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:2px">${_e(ref)}${desc ? ' · ' + _e(desc) : ''}</div>
+        </div>
+        <button onclick="closeSetPicker()" class="modal-x">✕</button>
+      </div>
+      <div style="margin-top:14px">${curHtml}
+        <button onclick="_setPickNew('${itemId}')" style="width:100%;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:12px;color:#0E0C08;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px">➕ ${lang==='el'?'Νέο σετ':'New set'}</button>
+        ${sets.length ? `<div style="font-size:11px;color:var(--text-muted);letter-spacing:0.06em;margin-bottom:8px">${lang==='el'?'Ή προσθήκη σε υπάρχον:':'Or add to an existing set:'}</div>` : ''}
+        ${listHtml}
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+async function _setPickExisting(itemId, setId) {
+  const it = (_inventoryCache || {})[itemId]; if (!it) return;
+  const src = Object.values(_inventoryCache).find(x => x && x.setId === setId);
+  const nameEl = src ? (src.setNameEl || '') : '', nameEn = src ? (src.setNameEn || '') : '';
+  const snap = { setId: it.setId, el: it.setNameEl, en: it.setNameEn };
+  it.setId = setId; it.setNameEl = nameEl; it.setNameEn = nameEn; _inventoryCache[itemId] = it;
+  const ok = await saveInventoryItem(itemId, it);
+  if (!ok) { it.setId = snap.setId; it.setNameEl = snap.el; it.setNameEn = snap.en; _inventoryCache[itemId] = it; showToast(lang==='el'?'⚠️ Αποτυχία':'⚠️ Failed'); return; }
+  closeSetPicker();
+  showToast(`🎀 → ${_setDisplayName(it)}`);
+  renderInvList();
+  openInvSet(setId);
+}
+
+function _setPickNew(itemId) {
+  const it = (_inventoryCache || {})[itemId]; if (!it) return;
+  _openSetNameDialog(lang==='el' ? 'Νέο σετ' : 'New set', it.setNameEl || '', it.setNameEn || '', async (nameEl, nameEn) => {
+    const sid = 'set_' + _stampId();
+    const snap = { setId: it.setId, el: it.setNameEl, en: it.setNameEn };
+    it.setId = sid; it.setNameEl = nameEl; it.setNameEn = nameEn; _inventoryCache[itemId] = it;
+    const ok = await saveInventoryItem(itemId, it);
+    if (!ok) { it.setId = snap.setId; it.setNameEl = snap.el; it.setNameEn = snap.en; _inventoryCache[itemId] = it; showToast(lang==='el'?'⚠️ Αποτυχία':'⚠️ Failed'); return; }
+    closeSetPicker();
+    showToast(`🎀 ${nameEn || nameEl}`);
+    renderInvList();
+    openInvSet(sid);
+  });
+}
+
+async function _setDetach(itemId) {
+  const it = (_inventoryCache || {})[itemId]; if (!it || !it.setId) return;
+  const oldSet = it.setId;
+  const snap = { setId: it.setId, el: it.setNameEl, en: it.setNameEn };
+  delete it.setId; delete it.setNameEl; delete it.setNameEn; _inventoryCache[itemId] = it;
+  const ok = await saveInventoryItem(itemId, it);
+  if (!ok) { it.setId = snap.setId; it.setNameEl = snap.el; it.setNameEn = snap.en; _inventoryCache[itemId] = it; showToast(lang==='el'?'⚠️ Αποτυχία':'⚠️ Failed'); return; }
+  // A set of one is nothing — release the lone survivor too.
+  const rest = Object.entries(_inventoryCache).filter(([, x]) => x && x.setId === oldSet && x.status !== 'sold' && !x.isBulk);
+  if (rest.length === 1) { const [lid, lit] = rest[0]; delete lit.setId; delete lit.setNameEl; delete lit.setNameEn; _inventoryCache[lid] = lit; await saveInventoryItem(lid, lit); }
+  closeSetPicker();
+  showToast(lang==='el' ? 'Αφαιρέθηκε από το σετ' : 'Removed from set');
+  renderInvList();
 }
 
 // ── EDIT ALL IN GROUP ─────────────────────────────────────────────────────────
