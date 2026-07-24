@@ -615,6 +615,17 @@
     cursor: pointer; text-transform: none; letter-spacing: 0.06em;
   }
   .card-tag.set-tag:hover { background: rgba(139,111,47,0.16); border-color: var(--gold); }
+  /* Set box (Sets filter view) */
+  .set-card { border-color: rgba(139,111,47,0.4); }
+  .card-set-pieces {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic; font-size: 15px; line-height: 1.3;
+    color: var(--gold-dim); margin: 2px 0 4px;
+  }
+  .card-set-count {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.12em; color: var(--text-dim);
+  }
   .card-select-badge {
     position: absolute; top: 10px; right: 10px;
     width: 28px; height: 28px;
@@ -1885,7 +1896,7 @@ function updateFilterBar() {
     if ((activeFilters.materials||[]).length) parts.push(activeFilters.materials.map(otherMaterialLabel).join(', '));
     if (activeFilters.stones.length)     parts.push('💎 ' + activeFilters.stones.map(s=>stoneLabel(s)).join(', '));
     if (activeFilters.handmade)          parts.push(lang==='el'?'Χειροποίητα':'Handmade');
-    if (activeFilters.setsOnly)          parts.push('🎀 ' + (lang==='el'?'Σετ':'Sets'));
+    if (activeFilters.setsOnly)          parts.push(lang==='el'?'Σετ':'Sets');
     summary.textContent = parts.join(' · ');
   } else {
     badge.style.display = 'none';
@@ -2216,7 +2227,7 @@ function renderDrawer() {
   }
   if (opts.hasSets) {
     const sel = draftFilters.setsOnly ? ' sel' : '';
-    html += `<div class="drawer-section"><div class="drawer-section-label">${isEl?'Σετ':'Sets'}</div><div class="drawer-pills"><button class="drawer-pill${sel}" onclick="toggleDraftSets(this)">🎀 ${isEl?'Μόνο σετ':'Matching sets'}</button></div></div><div class="drawer-divider"></div>`;
+    html += `<div class="drawer-section"><div class="drawer-section-label">${isEl?'Σετ':'Sets'}</div><div class="drawer-pills"><button class="drawer-pill${sel}" onclick="toggleDraftSets(this)">${isEl?'Μόνο σετ':'Matching sets'}</button></div></div><div class="drawer-divider"></div>`;
   }
 
   document.getElementById('drawerBody').innerHTML = html || `<div style="padding:32px 20px;text-align:center;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:12px">${isEl?'Δεν υπάρχουν φίλτρα':'No filters available'}</div>`;
@@ -2558,6 +2569,48 @@ function renderGrid() {
 
   const metalLabel = { gold: lang==='el'?'Χρυσός':'Gold', silver: lang==='el'?'Ασήμι':'Silver', other: lang==='el'?'Άλλο':'Other' };
 
+  // Sets view — with the "Sets" filter on, show ONE box per set: the set photo (or the
+  // first piece added), the set name, and the pieces it holds (Necklace · Earrings).
+  // Tapping opens the set carousel. Individual pieces are collapsed away in this view.
+  if (activeFilters.setsOnly) {
+    const setMap = new Map();
+    for (const item of filtered) {
+      if (!item.setId) continue;
+      let e = setMap.get(item.setId);
+      if (!e) { e = { setId: item.setId, name: setNameOf(item), members: [] }; setMap.set(item.setId, e); }
+      e.members.push(item);
+    }
+    grid.innerHTML = [...setMap.values()].map(s => {
+      // Distinct pieces (dedupe any grouped twins), earliest-added first.
+      const seen = new Set(), pieces = [];
+      s.members.slice().sort((a, b) => (a.dateAdded||0) - (b.dateAdded||0)).forEach(m => {
+        const vk = _visualKey(m); if (seen.has(vk)) return; seen.add(vk); pieces.push(m);
+      });
+      const rep = pieces[0];
+      // Set photo if the owner added one, else the first piece's own photo.
+      const setPhoto = (s.members.find(m => m.setPhotoUrl) || {}).setPhotoUrl || (rep ? rep.photoUrl : '') || '';
+      const types = [...new Set(pieces.map(m => m.jewelryType).filter(Boolean))].map(t => typeLabel(t)).join(' · ');
+      const nm = s.name || (lang==='el' ? 'Σετ' : 'Set');
+      const n = pieces.length;
+      const cnt = n + ' ' + (lang==='el' ? (n===1?'κομμάτι':'κομμάτια') : (n===1?'piece':'pieces'));
+      return `
+      <div class="item-card set-card" onclick="enterSetMode('${s.setId}','${rep ? rep._key : ''}')">
+        <div class="card-img-wrap">
+          <img class="card-img" src="${setPhoto}" alt="${nm}" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="card-img-placeholder" style="display:none">💎</div>
+        </div>
+        <div class="card-body">
+          <div class="card-type">${lang==='el' ? 'Σετ' : 'Set'}</div>
+          <div class="card-name">${nm}</div>
+          ${types ? `<div class="card-set-pieces">${types}</div>` : ''}
+          <div class="card-foot"><span></span><span class="card-set-count">${cnt}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
   // Collapse "similar items": pieces sharing a groupId AND the same colour show as ONE
   // card with a live in-stock count. Different colours of the same group split into
   // separate cards (so a customer sees each colour). Ungrouped pieces stay individual.
@@ -2597,7 +2650,7 @@ function renderGrid() {
     if (_colLbl) tags.push(`<span class="card-tag">${_colLbl}</span>`);
     if (item.handmade) tags.push(`<span class="card-tag handmade">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`);
     // "Part of a set" tag — tappable, opens the set carousel focused on this piece.
-    if (item.setId) tags.push(`<span class="card-tag set-tag" onclick="event.stopPropagation();enterSetMode('${item.setId}','${item._key}')" title="${lang==='el'?'Μέλος σετ · δείτε όλο το σετ':'Part of a set · view the whole set'}">🎀 ${setNameOf(item) || (lang==='el'?'Σετ':'Set')}</span>`);
+    if (item.setId) tags.push(`<span class="card-tag set-tag" onclick="event.stopPropagation();enterSetMode('${item.setId}','${item._key}')" title="${lang==='el'?'Μέλος σετ · δείτε όλο το σετ':'Part of a set · view the whole set'}">${lang==='el'?'Σετ':'Set'}${setNameOf(item) ? ' ' + setNameOf(item) : ''}</span>`);
 
     // Elegant stone line under the name — every distinct stone, NAME only (the full
     // carat/clarity stays inside, on the detail page). Plural when a stone is melee or 2+.
@@ -2742,12 +2795,12 @@ function openLightbox(key, keepSet) {
   let setBannerHtml = '';
   if (lbSetIds && lbSetId) {
     const sName = setNameOf(item) || (lang==='el'?'Σετ':'Set');
-    setBannerHtml = `<div class="lb-set-banner">🎀 ${lang==='el'?'Κομμάτι':'Piece'} ${lbSetIdx+1}/${lbSetIds.length} · ${sName}</div>`;
+    setBannerHtml = `<div class="lb-set-banner">${lang==='el'?'Σετ':'Set'} ${sName} · ${lang==='el'?'κομμάτι':'piece'} ${lbSetIdx+1}/${lbSetIds.length}</div>`;
   } else if (item.setId) {
     const n = _setMembers(item.setId).length;
     if (n >= 2) {
       const sName = setNameOf(item) || (lang==='el'?'Σετ':'Set');
-      setBannerHtml = `<button class="lb-set-btn" onclick="enterSetMode('${item.setId}','${key}')">🎀 ${lang==='el'?'Μέλος σετ':'Part of a set'} «${sName}» · ${lang==='el'?'Δείτε όλο το σετ':'View the whole set'} (${n})</button>`;
+      setBannerHtml = `<button class="lb-set-btn" onclick="enterSetMode('${item.setId}','${key}')">${lang==='el'?'Μέλος σετ':'Part of a set'} «${sName}» · ${lang==='el'?'Δείτε όλο το σετ':'View the whole set'} (${n})</button>`;
     }
   }
 

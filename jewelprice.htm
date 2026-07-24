@@ -19673,7 +19673,7 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','silverPlating','otherMaterial','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','setId','setNameEl','setNameEn','photoUrl','photoUrlHi','status','dateAdded',
+  'metal','karat','goldColor','silverPlating','otherMaterial','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','setId','setNameEl','setNameEn','setPhotoUrl','setPhotoUrlHi','photoUrl','photoUrlHi','status','dateAdded',
   // A two-metal piece (e.g. a 925 ring with a 14K gold face) reads as plain silver
   // without these — the gold is half of what the customer is looking at. Weights
   // are already public for the primary metal; these are the same kind of fact and
@@ -26492,11 +26492,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.41', date: 'Ιούλιος 2026', items: [
-        "🎀 Σετ κοσμημάτων! Συνδέστε ασορτί κομμάτια (κολιέ, βραχιόλι, δαχτυλίδι, σκουλαρίκια) σε ένα σετ που πωλείται και ξεχωριστά. Στο Απόθεμα επιλέξτε κομμάτια και πατήστε «🎀 Σετ», δώστε όνομα (Ελληνικά & Αγγλικά).",
-        "🔗 Για κομμάτια που είναι ήδη σε ομάδα (π.χ. τα μενταγιόν μαζί, τα σκουλαρίκια μαζί): ανοίξτε την ομάδα, πατήστε «🎀 Σετ» πάνω στο κομμάτι και φτιάξτε νέο σετ ή προσθέστε σε υπάρχον — έτσι ζευγαρώνετε π.χ. το μενταγιόν με τα σκουλαρίκια αμέθυστου, χωρίς να διαλύσετε τις ομάδες.",
-        "🌐 Στη βιτρίνα κάθε κομμάτι σετ έχει σήμα «Σετ» — ο πελάτης πατά και βλέπει ΟΛΟ το σετ με βελάκια ‹ ›. Νέο φίλτρο «Σετ» για όλα τα διαθέσιμα σετ.",
-        "💎 Στη βιτρίνα, ομαδοποιημένα κομμάτια με διαφορετική πέτρα (π.χ. αμέθυστος & φεγγαρόπετρα) εμφανίζονται πλέον ως ξεχωριστές κάρτες.",
+      { version: 'v12.42', date: 'Ιούλιος 2026', items: [
+        "📷 Φωτογραφία σετ: στο σετ (Απόθεμα → σήμα «🎀 Σετ») μπορείτε τώρα να ανεβάσετε μία φωτογραφία με όλα τα κομμάτια μαζί (π.χ. κολιέ + σκουλαρίκια). Αν δεν βάλετε, στη βιτρίνα χρησιμοποιείται η φωτο του πρώτου κομματιού.",
+        "🌐 Βιτρίνα: όταν ο πελάτης φιλτράρει «Σετ», βλέπει τώρα ΕΝΑ κουτί για κάθε σετ (με τη φωτο του σετ και τα κομμάτια που περιέχει — π.χ. «Κολιέ · Σκουλαρίκια»), αντί για ξεχωριστές κάρτες.",
+        "🏷️ Στη βιτρίνα το σήμα του σετ δείχνει πλέον τη λέξη «Σετ» μαζί με το όνομα (π.χ. «Σετ Πεταλίδα»), χωρίς εικονίδιο.",
       ]},
       ]
   },
@@ -26527,11 +26526,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.41', date: 'Jul 2026', items: [
-        "🎀 Jewelry sets! Link matching pieces (necklace, bracelet, ring, earrings) into one set that's still sold separately. In Stock, select pieces and tap “🎀 Set”, give it a name (Greek & English).",
-        "🔗 For pieces already in a group (e.g. the pendants together, the earrings together): open the group, tap “🎀 Set” on the piece, and start a new set or add to an existing one — so you can pair the amethyst pendant with the amethyst earrings without breaking up the groups.",
-        "🌐 In the showroom each set piece is marked “Set” — a customer taps it and sees the WHOLE set with ‹ › arrows. New “Sets” filter to browse every set available.",
-        "💎 In the showroom, grouped pieces with a different stone (e.g. amethyst & moonstone) now show as separate cards.",
+      { version: 'v12.42', date: 'Jul 2026', items: [
+        "📷 Set photo: on a set (Stock → the “🎀 Set” badge) you can now upload one photo of all the pieces together (e.g. necklace + earrings). If you don't, the showroom uses the first piece's photo.",
+        "🌐 Showroom: when a customer filters “Sets”, they now see ONE box per set (with the set photo and the pieces it holds — e.g. “Necklace · Earrings”), instead of separate cards.",
+        "🏷️ In the showroom the set badge now shows the word “Set” with the name (e.g. “Set Limpet shell”), with no icon.",
       ]},
           ]
   }
@@ -31148,7 +31146,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.41';
+const APP_VERSION = '12.42';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -32649,6 +32647,7 @@ function openInvSet(setId) {
   const isEmp = !can('see_cost');
   const cur = state.currency || '€';
   const name = _setDisplayName(members[0][1]) || (lang==='el' ? 'Σετ' : 'Set');
+  const setPhoto = members[0][1].setPhotoUrl || '';
   const _bStyle = 'flex:1 1 62px;padding:7px 6px;font-size:10px;letter-spacing:0.04em';
   const rowsHtml = members.map(([id, it]) => {
     const p = calcInvItemPrice(it);
@@ -32690,6 +32689,11 @@ function openInvSet(setId) {
         <button onclick="closeInvSet()" class="modal-x">✕</button>
       </div>
       ${isOwner ? `<button onclick="_invSetRename('${setId}')" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✏️ ${lang==='el'?'Μετονομασία σετ':'Rename set'}</button>` : ''}
+      ${isOwner ? `<div style="display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--wa03);border:1px solid var(--wa10);border-radius:10px;padding:10px">
+        <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:center">${setPhoto ? `<img src="${setPhoto}" style="width:100%;height:100%;object-fit:contain">` : '<span style="font-size:22px;opacity:0.5">📷</span>'}</div>
+        <div style="flex:1;min-width:0;font-size:11px;color:var(--text-dim);line-height:1.4">${setPhoto ? (lang==='el'?'Φωτογραφία σετ (βιτρίνα)':'Set photo (showroom)') : (lang==='el'?'Χωρίς φωτο σετ — στη βιτρίνα χρησιμοποιείται το 1ο κομμάτι':'No set photo — the showroom uses the first piece')}</div>
+        <button onclick="openSetPhotoDialog('${setId}')" style="flex-shrink:0;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:8px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer">📷 ${setPhoto ? (lang==='el'?'Αλλαγή':'Change') : (lang==='el'?'Προσθήκη':'Add')}</button>
+      </div>` : ''}
       <div style="margin-top:12px">${rowsHtml}</div>
       ${isOwner ? `<div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.5">${lang==='el'?'Για προσθήκη κομματιού: επιλέξτε το στο Απόθεμα μαζί με ένα κομμάτι του σετ και πατήστε 🎀 Σετ.':'To add a piece: select it in Stock together with a set piece, then tap 🎀 Set.'}</div>` : ''}
       ${isOwner ? `<button onclick="_invSetDisband('${setId}')" class="modal-danger">🎀 ${lang==='el'?'Διάλυση σετ':'Disband set'}</button>` : ''}
@@ -32867,6 +32871,71 @@ async function _setDetach(itemId) {
   closeSetPicker();
   showToast(lang==='el' ? 'Αφαιρέθηκε από το σετ' : 'Removed from set');
   renderInvList();
+}
+
+// ── SET PHOTO ──────────────────────────────────────────────────────────────────
+// One photo for the whole set (e.g. the necklace + earrings together), used by the
+// showroom set box. Stored on every member (denormalized like the name). If none is set,
+// the showroom falls back to the first piece's own photo.
+let _setPhotoPending = null;  // {url, hiUrl} captured from the picker, uploaded on Save
+function _setMembersOf(setId) {
+  return Object.entries(_inventoryCache || {}).filter(([, it]) => it && it.setId === setId && it.status !== 'sold' && !it.isBulk);
+}
+function openSetPhotoDialog(setId) {
+  if (!can('manage_stock')) return;
+  const members = _setMembersOf(setId);
+  if (!members.length) return;
+  const cur = members[0][1].setPhotoUrl || '';
+  _setPhotoPending = null;
+  const old = document.getElementById('setPhotoOverlay'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'setPhotoOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding-top:env(safe-area-inset-top,0px)';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:420px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;padding:18px 18px 22px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">📷 ${lang==='el'?'Φωτογραφία σετ':'Set photo'}</div>
+        <button onclick="document.getElementById('setPhotoOverlay').remove()" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:14px">${lang==='el'?'Μία φωτογραφία με όλα τα κομμάτια του σετ μαζί (π.χ. κολιέ + σκουλαρίκια). Χωρίς φωτο, στη βιτρίνα φαίνεται το 1ο κομμάτι.':'One photo of the whole set together (e.g. necklace + earrings). With none, the showroom shows the first piece.'}</div>
+      <div id="setPhotoPicker"></div>
+      <button id="setPhotoSaveBtn" style="width:100%;margin-top:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:11px;padding:13px;color:#0E0C08;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${lang==='el'?'Αποθήκευση':'Save'}</button>
+      ${cur ? `<button onclick="_setPhotoRemove('${setId}')" style="width:100%;margin-top:8px;background:rgba(229,115,115,0.12);border:1px solid rgba(229,115,115,0.4);color:#e57373;border-radius:11px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">🗑 ${lang==='el'?'Αφαίρεση φωτο σετ':'Remove set photo'}</button>` : ''}
+    </div>`;
+  document.body.appendChild(ov);
+  renderPhotoPicker(document.getElementById('setPhotoPicker'), { previewId: 'setPhoto', existingUrl: cur, onCapture: (url, hi) => { _setPhotoPending = { url, hiUrl: hi }; } });
+  document.getElementById('setPhotoSaveBtn').onclick = () => _setPhotoSave(setId);
+}
+async function _setPhotoSave(setId) {
+  const ov = document.getElementById('setPhotoOverlay');
+  if (!_setPhotoPending) { if (ov) ov.remove(); return; }   // nothing captured — just close
+  const btn = document.getElementById('setPhotoSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = lang==='el' ? 'Αποστολή…' : 'Uploading…'; }
+  const up = await uploadInventoryPhoto(_setPhotoPending.url, _setPhotoPending.hiUrl, 'set_' + setId);
+  if (!up) { showToast(lang==='el' ? '⚠️ Αποτυχία αποστολής φωτο' : '⚠️ Photo upload failed'); if (btn) { btn.disabled = false; btn.textContent = lang==='el'?'Αποθήκευση':'Save'; } return; }
+  for (const [id, it] of _setMembersOf(setId)) {
+    const snap = { u: it.setPhotoUrl, h: it.setPhotoUrlHi };
+    it.setPhotoUrl = up.url; it.setPhotoUrlHi = up.hiUrl; _inventoryCache[id] = it;
+    const ok = await saveInventoryItem(id, it);
+    if (!ok) { it.setPhotoUrl = snap.u; it.setPhotoUrlHi = snap.h; _inventoryCache[id] = it; }
+  }
+  if (ov) ov.remove();
+  showToast(lang==='el' ? '🎀 Φωτο σετ αποθηκεύτηκε' : '🎀 Set photo saved');
+  renderInvList();
+  openInvSet(setId);
+}
+async function _setPhotoRemove(setId) {
+  for (const [id, it] of _setMembersOf(setId)) {
+    const snap = { u: it.setPhotoUrl, h: it.setPhotoUrlHi };
+    delete it.setPhotoUrl; delete it.setPhotoUrlHi; _inventoryCache[id] = it;
+    const ok = await saveInventoryItem(id, it);
+    if (!ok) { it.setPhotoUrl = snap.u; it.setPhotoUrlHi = snap.h; _inventoryCache[id] = it; }
+  }
+  const ov = document.getElementById('setPhotoOverlay'); if (ov) ov.remove();
+  showToast(lang==='el' ? 'Η φωτο σετ αφαιρέθηκε' : 'Set photo removed');
+  renderInvList();
+  openInvSet(setId);
 }
 
 // ── EDIT ALL IN GROUP ─────────────────────────────────────────────────────────
