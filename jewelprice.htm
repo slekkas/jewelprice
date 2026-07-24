@@ -15218,7 +15218,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   checkDeepLinkHash();
   initThemeToggle(); // sync theme + toggle buttons to the saved choice
-  // Restore cart UI if items were persisted in sessionStorage
+  // Bring back a cart left open by a reload / the OS killing the app (same day only)
+  _restoreQuoteCart();
   if (quoteCart.length > 0) updateCartUI();
   _jpInitBackGuard();
   _requestPersistentStorage();
@@ -25862,13 +25863,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.26', date: 'Ιούλιος 2026', items: [
-        "📝 Προσφορές για παραγγελίες: ανοίγετε δελτίο παραγγελίας ΧΩΡΙΣ προκαταβολή και αποθηκεύεται ως «Προσφορά». Όταν μάθετε την τιμή, τη συμπληρώνετε και τη στέλνετε με WhatsApp / SMS / Email με έτοιμο μήνυμα (περιγραφή, τιμή, ζητούμενη προκαταβολή, πότε θα είναι έτοιμο).",
-        "💶 Μόλις ο πελάτης δεχτεί και δώσει προκαταβολή, πατάτε «Προκαταβολή → παραγγελία» και η προσφορά γίνεται κανονική παραγγελία, όπως πριν.",
-        "📄 Η προσφορά εκτυπώνεται/στέλνεται και σε PDF με τίτλο «ΠΡΟΣΦΟΡΑ» και τους σωστούς όρους.",
-        "🛒 ΣΟΒΑΡΗ ΔΙΟΡΘΩΣΗ στο καλάθι: σε κράτηση με 2+ είδη, ΟΛΑ έπαιρναν τον κωδικό και τη φωτογραφία του τελευταίου είδους που είχατε σκανάρει — και κρατιόταν/κρυβόταν από το showroom μόνο εκείνο. Τώρα κάθε είδος του καλαθιού κρατάει το ΔΙΚΟ του κομμάτι, από τη στιγμή που μπαίνει στο καλάθι.",
-        "🛒 Αν κάποιο είδος του καλαθιού δεν βρεθεί στο απόθεμα (πουλήθηκε στο μεταξύ, ή μπήκε δύο φορές), το λέει με το όνομά του και ρωτάει πριν συνεχίσει — δεν το παραλείπει σιωπηλά.",
-        "🔒 Μετά από κράτηση, το καλάθι αδειάζει (ώστε να μην πουληθούν κατά λάθος τα ίδια κομμάτια), και η «Πώληση Όλων» προειδοποιεί αν κάποιο κομμάτι είναι κρατημένο για πελάτη.",
+      { version: 'v12.27', date: 'Ιούλιος 2026', items: [
+        "🛒 Το καλάθι δεν χάνεται πια: αν κλείσει η εφαρμογή ή ανανεωθεί η σελίδα (π.χ. το κινητό «σκοτώσει» την εφαρμογή στο παρασκήνιο), το καλάθι επιστρέφει όπως ήταν — με ένα μήνυμα που λέει τι ώρα φτιάχτηκε.",
+        "🕗 Επιστρέφει ΜΟΝΟ καλάθι της ίδιας ημέρας και μέχρι 12 ώρες παλιό — χθεσινό καλάθι δεν ξαναεμφανίζεται (οι τιμές του ήταν με τον τότε χρυσό). Η «Εκκαθάριση Καλαθιού» το σβήνει οριστικά, όπως πάντα.",
       ]},
       ]
   },
@@ -25899,13 +25896,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.26', date: 'Jul 2026', items: [
-        "📝 Quotes for custom orders: open a custom-order ticket with NO deposit and it is saved as a “Quote”. When you know the price you fill it in and send it by WhatsApp / SMS / Email with a ready-made message (description, price, deposit asked, ready-by date).",
-        "💶 Once the customer accepts and pays a deposit, tap “Deposit → start order” and the quote becomes a normal custom order, exactly as before.",
-        "📄 A quote can also be printed/shared as a PDF titled “QUOTE”, with the right terms.",
-        "🛒 SERIOUS CART FIX: on a hold with 2+ items, EVERY line took the ref code and photo of the last piece you had scanned — and only that one piece was actually reserved and hidden from the showroom. Each cart line now keeps its OWN piece, pinned the moment it goes into the cart.",
-        "🛒 If a cart line can't be found in stock (sold meanwhile, or added twice) it is named and you are asked before anything proceeds — never skipped in silence.",
-        "🔒 After a hold, the cart is emptied (so the same pieces can't be sold by mistake), and “Sell all” warns if a piece is on hold for a customer.",
+      { version: 'v12.27', date: 'Jul 2026', items: [
+        "🛒 The cart is no longer lost: if the app closes or the page reloads (e.g. the phone kills it in the background), the cart comes back exactly as it was — with a message telling you what time it was built.",
+        "🕗 Only a cart from the SAME day and under 12 hours old comes back — yesterday's cart never reappears (its prices were at that day's gold). “Clear cart” still wipes it for good.",
       ]},
           ]
   }
@@ -26065,9 +26058,61 @@ function removeFromCart(idx) {
 
 function clearQuoteCart() {
   quoteCart = [];
-  try { sessionStorage.removeItem('jpro_quoteCart'); } catch(e) {}
-  updateCartUI();
+  updateCartUI();   // …which clears the saved copy too (see _saveQuoteCart)
   document.getElementById('cartPanel').style.display = 'none';
+}
+
+// ── Cart persistence ─────────────────────────────────────────────────────────
+// The cart lived only in memory, so a reload — or Android quietly killing a
+// backgrounded PWA while you served a customer — lost a half-built sale with no
+// warning at all. It is now mirrored to localStorage (sessionStorage would die
+// with the very app kill this exists to survive) and restored on open.
+//
+// Bounded on purpose: a cart from an earlier day, or older than CART_MAX_AGE_MS,
+// is dropped rather than resurrected. Its prices were quoted at that moment's
+// gold price, and a stale cart silently reappearing is its own kind of mistake.
+//
+// Written from updateCartUI(), which EVERY cart mutation already calls — so there
+// is one save point that cannot be forgotten by a future caller.
+const CART_KEY = 'jpro_quoteCart';
+const CART_MAX_AGE_MS = 12 * 3600e3;
+
+function _saveQuoteCart() {
+  try {
+    if (!quoteCart.length) { localStorage.removeItem(CART_KEY); return; }
+    const wrap = items => JSON.stringify({ savedAt: Date.now(), day: localDateStr(new Date()), items });
+    try {
+      localStorage.setItem(CART_KEY, wrap(quoteCart));
+    } catch (e) {
+      // Almost certainly the quota: a bulk-chain line can carry the photo taken
+      // at sale time as a data URL. Drop those and keep the cart — losing one
+      // quote photo beats losing the cart, or failing every other write.
+      localStorage.setItem(CART_KEY, wrap(quoteCart.map(ci => {
+        if (!ci.result || !ci.result.photoDataUrl) return ci;
+        const r = Object.assign({}, ci.result); delete r.photoDataUrl;
+        return Object.assign({}, ci, { result: r });
+      })));
+    }
+  } catch (e) { try { localStorage.removeItem(CART_KEY); } catch (e2) {} }
+}
+
+function _restoreQuoteCart() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(CART_KEY) || 'null'); } catch (e) {}
+  const drop = () => { try { localStorage.removeItem(CART_KEY); } catch (e) {} };
+  if (!saved || !Array.isArray(saved.items) || !saved.items.length) return;
+  if ((Date.now() - (saved.savedAt || 0)) > CART_MAX_AGE_MS || saved.day !== localDateStr(new Date())) { drop(); return; }
+  // A line with no price is not a line — never restore something the cart UI
+  // would then throw on.
+  quoteCart = saved.items.filter(ci => ci && ci.result && ci.result.finalPrice != null);
+  if (!quoteCart.length) { drop(); return; }
+  // Say so. A cart that quietly reappears looks like a bug, and its prices are
+  // from when it was built, not from today's gold.
+  const hhmm = new Date(saved.savedAt).toLocaleTimeString(lang === 'el' ? 'el-GR' : 'en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const n = quoteCart.length;
+  setTimeout(() => showToast('🛒 ' + (lang === 'el'
+    ? `Καλάθι από ${hhmm} · ${n} ${n === 1 ? 'είδος' : 'είδη'}`
+    : `Cart from ${hhmm} · ${n} ${n === 1 ? 'item' : 'items'}`)), 1400);
 }
 
 async function markCartAsSold() {
@@ -26459,6 +26504,8 @@ function updateCartUI() {
     const subtotalEl = document.getElementById('cartSubtotalAmt');
     if (subtotalEl) subtotalEl.textContent = cur + subtotal.toFixed(2);
   }
+
+  _saveQuoteCart(); // every mutation lands here, so this is the one save point
 }
 
 function updateQuoteCartTotals() {
@@ -30448,7 +30495,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.26';
+const APP_VERSION = '12.27';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
