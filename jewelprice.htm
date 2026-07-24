@@ -104,6 +104,7 @@
   .more-item svg { flex-shrink:0; opacity:0.85; }
   .desk-seg { flex:1; padding:9px 8px; background:transparent; border:none; border-radius:8px; color:var(--text-muted); font-family:var(--font-body); font-size:13px; font-weight:600; cursor:pointer; }
   .desk-seg.active { background:rgba(212,175,55,0.16); color:var(--gold-light); }
+  .desk-sort { width:100%; box-sizing:border-box; padding:9px 11px; margin-bottom:12px; background:var(--dark-2); border:1px solid var(--card-border); border-radius:8px; color:var(--text); font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; }
 
   /* ── LIVE MARKET CARD (full panel card in calc tab) ─────── */
   .live-market-card {
@@ -3268,14 +3269,26 @@
     <!-- RESERVATIONS VIEW -->
     <div id="deskReservationsView">
       <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:12px;padding:9px 12px;background:rgba(212,175,55,0.05);border:1px solid rgba(212,175,55,0.15);border-radius:8px" data-i18n="resHint">🔒 Για νέα κράτηση: υπολογίστε ή σαρώστε ένα είδος και πατήστε «Κράτηση» (ή από το καλάθι / την κάρτα στο Απόθεμα).</div>
-      <input type="search" id="resSearchInput" oninput="renderReservations()" data-i18n-ph="resSearchPh" placeholder="Αναζήτηση — πελάτης, είδος…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
+      <input type="search" id="resSearchInput" oninput="renderReservations()" data-i18n-ph="resSearchPh" placeholder="Αναζήτηση — πελάτης, είδος…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:8px">
+      <select id="resSortSelect" onchange="_deskSortChanged('reservations', this.value)" class="desk-sort">
+        <option value="newest" data-i18n="deskSortNewest">Νεότερα πρώτα</option>
+        <option value="oldest" data-i18n="deskSortOldest">Παλαιότερα πρώτα</option>
+        <option value="due_soon" data-i18n="deskSortHoldSoon">Λήγει η κράτηση πρώτα</option>
+        <option value="name_asc" data-i18n="deskSortName">Όνομα Α→Ω</option>
+      </select>
       <div id="reservationsList"></div>
     </div>
 
     <!-- REPAIRS VIEW -->
     <div id="deskRepairsView" style="display:none">
       <button onclick="openRepairModal()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="repNewTicket">Νέο δελτίο</span></button>
-      <input type="search" id="repSearchInput" oninput="renderRepairs()" data-i18n-ph="repSearchPh" placeholder="Αναζήτηση — πελάτης, δελτίο…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
+      <input type="search" id="repSearchInput" oninput="renderRepairs()" data-i18n-ph="repSearchPh" placeholder="Αναζήτηση — πελάτης, δελτίο…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:8px">
+      <select id="repSortSelect" onchange="_deskSortChanged('repairs', this.value)" class="desk-sort">
+        <option value="newest" data-i18n="deskSortNewest">Νεότερα πρώτα</option>
+        <option value="oldest" data-i18n="deskSortOldest">Παλαιότερα πρώτα</option>
+        <option value="due_soon" data-i18n="deskSortReadySoon">Παράδοση: πιο κοντινή</option>
+        <option value="name_asc" data-i18n="deskSortName">Όνομα Α→Ω</option>
+      </select>
       <div id="repairsList"></div>
     </div>
 
@@ -3283,7 +3296,13 @@
     <div id="deskGiftView" style="display:none">
       <button onclick="openGiftModal()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="gcNew">Νέα δωροεπιταγή</span></button>
       <div id="gcOutstanding" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:9px 12px;background:rgba(212,175,55,0.05);border:1px solid rgba(212,175,55,0.15);border-radius:8px"></div>
-      <input type="search" id="gcSearchInput" oninput="renderGiftCards()" data-i18n-ph="gcSearchPh" placeholder="Αναζήτηση — πελάτης, αριθμός…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">
+      <input type="search" id="gcSearchInput" oninput="renderGiftCards()" data-i18n-ph="gcSearchPh" placeholder="Αναζήτηση — πελάτης, αριθμός…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:8px">
+      <select id="gcSortSelect" onchange="_deskSortChanged('gift', this.value)" class="desk-sort">
+        <option value="due_soon" data-i18n="deskSortExpirySoon">Λήγει πρώτα</option>
+        <option value="newest" data-i18n="deskSortNewest">Νεότερα πρώτα</option>
+        <option value="oldest" data-i18n="deskSortOldest">Παλαιότερα πρώτα</option>
+        <option value="name_asc" data-i18n="deskSortName">Όνομα Α→Ω</option>
+      </select>
       <div id="giftCardsList"></div>
     </div>
   </div>
@@ -3691,6 +3710,8 @@ const T = {
     deskReservations:'Κρατήσεις',
     deskRepairs:'Επισκευές',
     deskGift:'Επιταγές & Πιστώσεις',
+    deskSortNewest:'Νεότερα πρώτα', deskSortOldest:'Παλαιότερα πρώτα', deskSortName:'Όνομα Α→Ω',
+    deskSortHoldSoon:'Λήγει η κράτηση πρώτα', deskSortReadySoon:'Παράδοση: πιο κοντινή', deskSortExpirySoon:'Λήγει πρώτα',
     gcNew:'Νέα δωροεπιταγή',
     gcSearchPh:'Αναζήτηση — πελάτης, αριθμός…',
     gcUseOnSale:'Δωροεπιταγή ή πίστωση',
@@ -4218,6 +4239,8 @@ const T = {
     deskReservations:'Reservations',
     deskRepairs:'Repairs',
     deskGift:'Gift Cards & Credit',
+    deskSortNewest:'Newest first', deskSortOldest:'Oldest first', deskSortName:'Name A→Z',
+    deskSortHoldSoon:'Hold expires soonest', deskSortReadySoon:'Ready-by soonest', deskSortExpirySoon:'Expires soonest',
     gcNew:'New gift certificate',
     gcSearchPh:'Search — customer, number…',
     gcUseOnSale:'Gift certificate or credit',
@@ -5559,6 +5582,70 @@ function _deskFinishedToggleHtml(kind, hidden) {
   return `<button onclick="_deskToggleFinished('${kind}')" style="width:100%;padding:9px;margin-bottom:10px;background:${on ? 'rgba(201,168,76,0.12)' : 'transparent'};border:1px solid ${on ? 'rgba(201,168,76,0.4)' : 'var(--card-border)'};border-radius:8px;color:${on ? 'var(--gold-light)' : 'var(--text-muted)'};font-size:12px;font-family:var(--font-body);cursor:pointer">${on ? '🙈' : '👁'} ${label}</button>`;
 }
 
+// ── DESK SORTING ─────────────────────────────────────────────────────────────
+// One remembered sort per segment. Four modes, shared by all three lists so there
+// is a single comparator: newest / oldest by the date the record was OPENED, due_soon
+// by the date it comes due (a hold's expiry, a ticket's ready-by, a certificate's
+// expiry), and by customer name. Each segment labels due_soon in its own words.
+//
+// The status rank stays the PRIMARY key in every mode. Finished work is hidden by
+// default (v11.45), so day to day the grouping is invisible; when finished records
+// ARE shown — or a search reaches them — today's active hold must not end up buried
+// under last season's completed ones. It also keeps every default byte-identical to
+// the fixed order these lists had before they were sortable.
+const DESK_SORT_IDS = { reservations: 'resSortSelect', repairs: 'repSortSelect', gift: 'gcSortSelect' };
+const DESK_SORT_DEFAULT = { reservations: 'newest', repairs: 'newest', gift: 'due_soon' };
+function _deskSortChanged(kind, v) {
+  try { localStorage.setItem('jpro_deskSort_' + kind, v); } catch (e) {}
+  if (kind === 'gift') renderGiftCards();
+  else if (kind === 'repairs') renderRepairs();
+  else renderReservations();
+}
+// Restores the saved choice once per page load. The <select>s are static markup, so
+// they keep their value between renders; only a reload resets them (same as Clients).
+function _deskSortValue(kind) {
+  const sel = document.getElementById(DESK_SORT_IDS[kind]);
+  if (sel && !sel.dataset.restored) {
+    sel.dataset.restored = '1';
+    let saved = null;
+    try { saved = localStorage.getItem('jpro_deskSort_' + kind); } catch (e) {}
+    if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+  }
+  return (sel && sel.value) || DESK_SORT_DEFAULT[kind];
+}
+// A YYYY-MM-DD field, soonest first — with "no date" always LAST. A plain string
+// compare would put '' FIRST, so a ticket with no promised date would head the list
+// of what is due next, which is the opposite of the truth.
+function _deskCmpDue(a, b) {
+  const x = String(a || ''), y = String(b || '');
+  if (!x && !y) return 0;
+  if (!x) return 1;
+  if (!y) return -1;
+  return x.localeCompare(y);
+}
+// The comparator body, shared by all three lists. `due` and `name` are the per-segment
+// accessors; ties fall back to newest-created so the order is always fully determined.
+function _deskCmp(mode, a, b, due, name) {
+  const _newest = (b.dateCreated || 0) - (a.dateCreated || 0);
+  switch (mode) {
+    case 'oldest':   return (a.dateCreated || 0) - (b.dateCreated || 0);
+    case 'due_soon': return _deskCmpDue(due(a), due(b)) || _newest;
+    case 'name_asc': return String(name(a) || '').localeCompare(String(name(b) || ''),
+                              lang === 'el' ? 'el' : undefined) || _newest;
+    default:         return _newest;
+  }
+}
+// One compact date line for a Desk card: when the record was opened, plus — while it is
+// still open — the date it comes due. Added together with the sort control: an order you
+// can change by date, on cards that show no date, just looks like the list jumped about.
+function _deskDateLine(created, due, dueWord, isOpen) {
+  const parts = [];
+  if (created) parts.push('📅 ' + fmtDate(new Date(Number(created))));
+  if (due && isOpen) parts.push('⏳ ' + dueWord + ' ' + fmtDate(due));
+  if (!parts.length) return '';
+  return `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);margin-bottom:4px">${parts.join('  ·  ')}</div>`;
+}
+
 // ═══ GIFT CERTIFICATES ═══════════════════════════════════════════════════════
 // A customer pays now; someone redeems for jewelry later. Money model (decided,
 // see GIFT_CERTIFICATES_DESIGN.md §1): NOTHING is logged in Sales when the
@@ -5788,9 +5875,12 @@ function renderGiftCards() {
     } else outBox.style.display = 'none';
   }
 
-  // Active first (soonest expiry first), then everything settled.
+  // Active first, then everything settled. Within that, the chosen sort — which
+  // DEFAULTS to soonest expiry, exactly the fixed order this list always had.
   const rank = g => g.status === 'active' ? 0 : (g.status === 'expired' ? 1 : (g.status === 'redeemed' ? 2 : 3));
-  list.sort((a, b) => rank(a) - rank(b) || String(a.expiresAt || '').localeCompare(String(b.expiresAt || '')) || (b.dateCreated || 0) - (a.dateCreated || 0));
+  const _gcMode = _deskSortValue('gift');
+  list.sort((a, b) => rank(a) - rank(b) ||
+    _deskCmp(_gcMode, a, b, g => g.expiresAt, g => g.buyerName));
   if (q) list = list.filter(g => (g.buyerName || '').toLowerCase().includes(q) || gcNoFmt(g).toLowerCase().includes(q) || (g.toName || '').toLowerCase().includes(q));
 
   // Hide finished certificates unless asked for — but a SEARCH always reaches
@@ -5831,6 +5921,7 @@ function renderGiftCards() {
         </div>
         ${(gcIsCredit(g) && g.buyerName) ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;letter-spacing:0.06em;text-transform:uppercase">↩️ ${isEl ? 'Πίστωση επιστροφής' : 'Return credit'}</div>` : ''}
         ${g.toName ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">${isEl ? 'Προς' : 'To'}: ${_gcEsc(g.toName)}</div>` : ''}
+        ${_deskDateLine(g.dateCreated, g.expiresAt, isEl ? 'λήγει' : 'expires', !_deskIsFinished('gift', g))}
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
           <span style="color:var(--text);font-weight:600">${amtLine}</span>
           <span>${soonDot}${statusChip}</span>
@@ -7211,7 +7302,9 @@ function renderReservations() {
   const q = (document.getElementById('resSearchInput')?.value || '').toLowerCase().trim();
   let list = getReservations().slice();
   const rank = s => s === 'active' ? 0 : (s === 'completed' ? 1 : 2);
-  list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
+  const _rsMode = _deskSortValue('reservations');
+  list.sort((a, b) => rank(a.status) - rank(b.status) ||
+    _deskCmp(_rsMode, a, b, r => r.holdUntil, r => r.clientName));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || resNoFmt(r).toLowerCase().includes(q) ||
     (r.items || r.itemsSnapshot || []).some(it => ((it.ref || '') + ' ' + (it.desc || '')).toLowerCase().includes(q)));
   // Completed/cancelled/expired holds are hidden unless asked for; a search still finds them.
@@ -7235,6 +7328,7 @@ function renderReservations() {
         <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}</span>
       </div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${_resEsc(itemsLine)}</div>
+      ${_deskDateLine(r.dateCreated, r.holdUntil, isEl ? 'έως' : 'until', !_deskIsFinished('reservations', r))}
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">${balLine}<span>${chip}</span></div>
     </div>`;
   }).join('');
@@ -7859,7 +7953,9 @@ function renderRepairs() {
   const q = (document.getElementById('repSearchInput')?.value || '').toLowerCase().trim();
   let list = getRepairs().slice();
   const rank = s => s === 'quote' ? 0 : (s === 'in_progress' ? 1 : (s === 'ready' ? 2 : (s === 'collected' ? 3 : 4)));
-  list.sort((a, b) => rank(a.status) - rank(b.status) || (b.dateCreated || 0) - (a.dateCreated || 0));
+  const _rpMode = _deskSortValue('repairs');
+  list.sort((a, b) => rank(a.status) - rank(b.status) ||
+    _deskCmp(_rpMode, a, b, r => r.datePromised, r => r.clientName));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || repNoFmt(r).toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q));
   // Collected/cancelled tickets are hidden unless asked for; a search still finds them.
   const _repFinished = list.filter(r => _deskIsFinished('repairs', r));
@@ -7884,6 +7980,7 @@ function renderRepairs() {
           <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0">${repNoFmt(r)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${typeChip}<span style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_repEsc(r.description || '')}</span></div>
+        ${_deskDateLine(r.dateCreated, r.datePromised, isEl ? 'έτοιμο' : 'ready', !_deskIsFinished('repairs', r))}
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--text-muted)">${repEstText(r)}</span><span>${statusChip}</span></div>
       </div>
     </div>`;
@@ -26366,9 +26463,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.36', date: 'Ιούλιος 2026', items: [
-        "🔒 Νέα ταξινόμηση «Ημ. κράτησης: Νεότερη → Παλαιότερη» στο Απόθεμα — εμφανίζεται όταν έχετε επιλέξει το φίλτρο «Κρατημένο». Ταξινομεί με την ΩΡΑ που κάνατε την κράτηση, άρα πρώτο βγαίνει το τελευταίο που κρατήσατε σήμερα.",
-        "🕐 Η ταξινόμηση «Νεότερα πρώτα» πιάνει πλέον και τα παλιά κομμάτια που δεν είχαν αποθηκευμένη ημερομηνία προσθήκης (πριν έπεφταν στο τέλος της λίστας).",
+      { version: 'v12.37', date: 'Ιούλιος 2026', items: [
+        "📅 Ταξινόμηση στο Γραφείο. Κρατήσεις, Επισκευές και Επιταγές έχουν πλέον η καθεμιά δικό της μενού ταξινόμησης: Νεότερα / Παλαιότερα, Όνομα Α→Ω και — το πιο χρήσιμο — «τι λήγει πρώτα» (η κράτηση που λήγει, η παράδοση που πλησιάζει, η επιταγή που λήγει). Η επιλογή σας θυμάται ξεχωριστά για κάθε καρτέλα.",
+        "🗓️ Κάθε καρτέλα δείχνει τώρα ημερομηνίες: πότε ανοίχτηκε και μέχρι πότε ισχύει (⏳ έως / έτοιμο / λήγει). Μέχρι τώρα δεν φαινόταν καμία ημερομηνία στη λίστα.",
+        "✅ Οι ενεργές δουλειές μένουν πάντα πάνω από τις ολοκληρωμένες, σε κάθε ταξινόμηση — η προεπιλεγμένη σειρά είναι ακριβώς ίδια με πριν.",
       ]},
       ]
   },
@@ -26399,9 +26497,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.36', date: 'Jul 2026', items: [
-        "🔒 New \"Reserved date: Newest → Oldest\" sort in Stock — it appears when the \"Reserved\" filter is on. It sorts by the TIME you made the hold, so the last piece you reserved today comes first.",
-        "🕐 \"Newest first\" now also places older pieces that had no stored date-added (they used to drop to the bottom of the list).",
+      { version: 'v12.37', date: 'Jul 2026', items: [
+        "📅 Sorting in the Desk. Reservations, Repairs and Gift Cards each get their own sort menu: Newest / Oldest, Name A→Z, and — the most useful one — \"what comes due first\" (the hold about to expire, the job due next, the certificate running out). Your choice is remembered separately per segment.",
+        "🗓️ Every card now shows its dates: when it was opened and how long it holds (⏳ until / ready / expires). Until now the list showed no date at all.",
+        "✅ Open work always stays above finished work, in every sort — and the default order is exactly what it was before.",
       ]},
           ]
   }
@@ -31018,7 +31117,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.36';
+const APP_VERSION = '12.37';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
