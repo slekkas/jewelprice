@@ -5413,8 +5413,13 @@ function showPanel(name) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
+  // The price bar AND its minimized restore pill are Calc-only. Both are position:fixed,
+  // so either one left showing floats over whatever tab you moved to.
+  const _pbOn = name === 'calc' && !!lastCalcResult;
   const pb = document.getElementById('customerPriceBar');
-  if (pb) pb.style.display = name === 'calc' ? (lastCalcResult ? 'block' : 'none') : 'none';
+  if (pb) pb.style.display = (_pbOn && !_priceBarMinimized) ? 'block' : 'none';
+  const _pbPill = document.getElementById('cpbRestorePill');
+  if (_pbPill) _pbPill.style.display = (_pbOn && _priceBarMinimized) ? 'flex' : 'none';
   // Adjust calc panel bottom padding to always clear the price bar
   adjustCalcPadding();
   // Refresh notification badge on every tab switch
@@ -14420,10 +14425,7 @@ function calculate() {
   const finalPrice = retail - discountAmt;
   const profit = preVatBase - baseCost;
 
-  const bar = document.getElementById('customerPriceBar');
-  bar.style.display = 'block';
-  // Recalculate panel padding now that price bar is visible
-  setTimeout(adjustCalcPadding, 50);
+  _showPriceBar();   // only when the Calc tab is actually showing
   document.getElementById('retailPriceDisplay').textContent = cur + finalPrice.toFixed(2);
   const preVatEl = document.getElementById('preVatDisplay');
   preVatEl.style.display = 'block';
@@ -17109,9 +17111,8 @@ function lookupCode(raw, opts) {
             photoUrl: _invEntry.photoUrl || null
           };
 
-          // Show price bar
-          const _bar = document.getElementById('customerPriceBar');
-          if (_bar) { _bar.style.display = 'block'; setTimeout(adjustCalcPadding, 50); }
+          // Show price bar (only when the Calc tab is actually showing)
+          _showPriceBar();
           _otherPriceUnverified = false;   // the record was read — nothing unverified
           document.getElementById('retailPriceDisplay').textContent = cur + _fixedPrice.toFixed(2);
           const _preVatEl = document.getElementById('preVatDisplay');
@@ -26187,8 +26188,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.33', date: 'Ιούλιος 2026', items: [
-        "🔎 Φίλτρο «Χρέωση εργασίας» στο Απόθεμα: δείτε ξεχωριστά τα κομμάτια που χρεώνονται €/γρ., με σταθερή εργασία ή ανά τεμάχιο. Χρήσιμο π.χ. για να βρείτε όλα τα «ανά τεμάχιο» κομμάτια που δεν επηρεάζονται από τη φύρα.",
+      { version: 'v12.34', date: 'Ιούλιος 2026', items: [
+        "🐞 Διόρθωση: η αλλαγή γλώσσας ενώ βρισκόσασταν σε άλλη καρτέλα (π.χ. Επισκευές) εμφάνιζε ξαφνικά την πλωτή τιμή του Υπολογιστή πάνω από τη σελίδα. Πλέον η μπάρα τιμής μένει πάντα στην καρτέλα Υπολογιστής.",
       ]},
       ]
   },
@@ -26219,8 +26220,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.33', date: 'Jul 2026', items: [
-        "🔎 A “Labor charged” filter in Stock: see separately the pieces charged per gram, at a flat fee, or per item. Handy for finding all the per-item pieces, which the wastage does not affect.",
+      { version: 'v12.34', date: 'Jul 2026', items: [
+        "🐞 Fix: switching language while on another tab (e.g. Repairs) suddenly floated the Calculator's price bar over the page. The price bar now stays on the Calculator tab where it belongs.",
       ]},
           ]
   }
@@ -26266,6 +26267,9 @@ function toggleSection(id) {
 
 // ─── PRINT QUOTE ─────────────────────────────────────────────────────────────
 let lastCalcResult = null; // stores last calculation result for quote
+// True while the user has minimized the customer price bar (see togglePriceBar). Sticky
+// across tab changes, so returning to Calc restores the little pill, not the full bar.
+let _priceBarMinimized = false;
 
 // ─── QUOTE CART (multi-item) ──────────────────────────────────────────────────
 let quoteCart = []; // array of { name, result } snapshots
@@ -26627,16 +26631,32 @@ function togglePriceFullscreen() {
   overlay.style.display = 'flex';
 }
 
+// The customer price bar belongs to the Calc tab. A recalculation can fire while the user
+// is on a DIFFERENT tab — a language switch re-runs calculate() (setLang), a spot-price
+// tick, the per-item self-heal — and showing the bar unconditionally floated the Calc
+// price over Repairs/Stock/Sales. showPanel() re-shows it on the way back to Calc (it
+// keys off lastCalcResult), so skipping it while off-tab loses nothing.
+function _showPriceBar() {
+  const bar = document.getElementById('customerPriceBar');
+  if (!bar) return;
+  if (!document.getElementById('panel-calc')?.classList.contains('active')) return;
+  if (_priceBarMinimized) return;   // user minimized it — don't pop it back up
+  bar.style.display = 'block';
+  setTimeout(adjustCalcPadding, 50);
+}
+
 function togglePriceBar() {
   const bar = document.getElementById('customerPriceBar');
   const pill = document.getElementById('cpbRestorePill');
   const isMin = bar.style.display === 'none';
   if (isMin) {
     // restore
+    _priceBarMinimized = false;
     bar.style.display = 'block';
     pill.style.display = 'none';
   } else {
     // hide bar, show restore pill with current price
+    _priceBarMinimized = true;
     const amt = document.getElementById('retailPriceDisplay');
     const pillAmt = document.getElementById('cpbRestorePillAmt');
     if (amt && pillAmt) pillAmt.textContent = amt.textContent || '—';
@@ -26733,6 +26753,7 @@ function clearCalc() {
   const resultRows = document.getElementById('resultRows');
   if (resultRows) resultRows.innerHTML = '';
   stoneEstimatedValue = 0;
+  _priceBarMinimized = false;
   const bar = document.getElementById('customerPriceBar');
   if (bar) {
     bar.style.display = 'none';
@@ -30817,7 +30838,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.33';
+const APP_VERSION = '12.34';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -33735,10 +33756,8 @@ function calculateOtherPrice() {
   }).join('');
   document.getElementById('resultCard').classList.add('show');
 
-  // Price bar
-  const bar = document.getElementById('customerPriceBar');
-  bar.style.display = 'block';
-  setTimeout(adjustCalcPadding, 50);
+  // Price bar (only when the Calc tab is actually showing)
+  _showPriceBar();
   document.getElementById('retailPriceDisplay').textContent = cur + finalPrice.toFixed(2);
   const preVatEl = document.getElementById('preVatDisplay');
   preVatEl.style.display = 'block';
