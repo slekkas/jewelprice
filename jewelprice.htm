@@ -7040,6 +7040,8 @@ function _gcUpdateBadges() {
 // sale conversion and the printed/shared form come in the next step.
 let _reservations = null;
 let _resLoaded = false; // true once reservations have been pulled from cloud this session
+let _resLoadedAt = 0;   // when that list last came FROM THE CLOUD (local edits don't count)
+const RES_STALE_MS = 60000;  // older than this and the list may not be used to REMOVE a hold
 let _resDraftItems = []; // items being added in the create modal
 const _resEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
@@ -7064,6 +7066,7 @@ async function pullReservationsFromCloud() {
     _reservations = _applyOutbox('/jewelprice_reservations', _resCloud, r => r.id);
     saveReservationsLocal(_reservations);
     _resLoaded = true;
+    _resLoadedAt = Date.now();
   } catch (e) {}
 }
 async function getNextReservationNo() {
@@ -7080,41 +7083,121 @@ function resPaid(r) { return Math.round((r.payments || []).reduce((s, p) => s + 
 function resBalance(r) { return Math.round(((parseFloat(r.agreedTotal) || 0) - resPaid(r)) * 100) / 100; }
 function resNoFmt(r) { return 'H-' + String(r.reservationNo || 0).padStart(4, '0'); }
 function _resItemName(it) { return (lang === 'el' ? (it.descEl || it.descEn) : (it.descEn || it.descEl)) || it.description || invTypeLabel(it.jewelryType) || ''; }
+// ── WHICH PIECES ARE HELD: the LIST is the truth, the flag is only a cache ──
+//
+// item.reservationId exists so the Stock card, the showroom projection and the sale
+// guards can answer "is this held?" without walking the reservations. It is a COPY of
+// a fact that lives in the reservation record — and a copy can be lost: a write that
+// silently failed, a stale cache PUT over it from another device, or (until v12.35)
+// the reconcile below deleting it off a reservations list that simply hadn't loaded yet.
+//
+// So nothing that costs money may trust the flag alone. Anything that sells, gifts or
+// re-reserves a piece asks _resHoldFor(), which reads the reservation records; the flag
+// is repaired in the background by _resReconcileReservedFlags.
+function _resHoldFor(id) {
+  if (!id) return null;
+  for (const r of getReservations()) {
+    if (!r || r.status !== 'active') continue;
+    if ((r.itemIds || []).indexOf(id) !== -1) return r;
+    // itemIds is the index; items[] is the belt — a hold saved by an older version, or
+    // one whose itemIds lost an entry, is still honoured.
+    if ((r.items || []).some(it => it && it.invId === id)) return r;
+  }
+  return null;
+}
+// Rebuilt once per renderInvList so the cards can answer "held?" without walking the
+// reservations for each of ~700 pieces. Null outside a render → fall back to the flag.
+let _resHeldMap = null;
+// The one question the Stock list asks. Reservation records win; the flag is the
+// fallback for the moment before the map exists.
+function _isHeld(id, item) {
+  if (!item || item.status !== 'in_stock') return null;   // a sold piece is not held
+  const r = _resHeldMap ? _resHeldMap.get(id) : _resHoldFor(id);
+  if (r) return r;
+  // No active hold names it, but it still carries a flag: show the 🔒 anyway. Over-
+  // protecting costs a stale badge; under-protecting costs the piece. The reconcile
+  // clears it once it can prove the reservations list is current.
+  return item.reservationId ? (getReservations().find(x => x.id === item.reservationId) || { id: item.reservationId, clientName: '' }) : null;
+}
+// invId -> active reservation, for a whole-inventory pass.
+function _resActiveByItem() {
+  const m = new Map();
+  for (const r of getReservations()) {
+    if (!r || r.status !== 'active') continue;
+    for (const id of (r.itemIds || [])) if (id && !m.has(id)) m.set(id, r);
+    for (const it of (r.items || [])) if (it && it.invId && !m.has(it.invId)) m.set(it.invId, r);
+  }
+  return m;
+}
+
 // Flag/unflag inventory items as reserved (removes/restores them from the showroom).
+// Returns { ok, failed:[ids] } — a write that did not land is NEVER reported as success
+// and never leaves a lie in the cache.
 async function _resMarkItems(ids, resId) {
-  if (!ids || !ids.length) return;
+  if (!ids || !ids.length) return { ok: true, failed: [] };
   // Ensure inventory is loaded — otherwise clearing/setting the flag silently no-ops
   // (this was the cause of reserved flags sticking after a reservation was cancelled).
   if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
     try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
+  const failed = [];
   for (const id of ids) {
     const it = _inventoryCache && _inventoryCache[id];
-    if (!it) continue;
+    if (!it) { failed.push(id); continue; }   // was a silent `continue` — a lost hold with no word
+    const before = it.reservationId;
     if (resId) it.reservationId = resId; else delete it.reservationId;
     _inventoryCache[id] = it;
-    try { await saveInventoryItem(id, it); } catch (e) {}
+    let ok = false;
+    try { ok = await saveInventoryItem(id, it); } catch (e) { ok = false; }
+    if (!ok) {
+      if (before) it.reservationId = before; else delete it.reservationId;
+      failed.push(id);
+      continue;
+    }
     try { syncPublicItem(id, it); } catch (e) {}
   }
+  return { ok: !failed.length, failed };
 }
 
-// Self-heal: clear the reserved flag on any inventory item whose reservation is no
-// longer ACTIVE (cancelled, completed, expired, or deleted). Runs from renderInvList
-// once reservations are loaded, so a stuck flag fixes itself the next time Stock opens.
+// Self-heal, BOTH ways: bring every item's reserved flag back in line with the
+// reservation records — set it where an active hold names the piece, clear it where
+// none does. Runs fire-and-forget from renderInvList, so Stock repairs the flag
+// whatever lost it (a failed write, another device, an older version of this app).
+//
+// THE RULE ABOUT CLEARING: an empty or stale reservations list looks exactly like
+// "this piece is not held". Setting a flag can only over-protect, so it is always
+// allowed; REMOVING one is only allowed off a list we know is current — otherwise a
+// phone whose list was ten minutes old would quietly release a live hold, put the
+// piece back on the public showroom, and let it be sold to someone else.
+let _resReconcileAt = 0;
 async function _resReconcileReservedFlags() {
-  if (!_resLoaded || !_inventoryCache) return 0;
-  const activeIds = new Set(getReservations().filter(r => r.status === 'active').map(r => r.id));
-  const orphans = [];
-  // Clear the flag in the cache synchronously (before the first await) so a fire-and-
-  // forget call from renderInvList shows the item un-reserved on this very render.
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) return 0;
+  if (Date.now() - _resReconcileAt < 15000) return 0;
+  _resReconcileAt = Date.now();
+  if (creds.binId && Date.now() - _resLoadedAt > RES_STALE_MS) {
+    try { await pullReservationsFromCloud(); } catch (e) {}
+  }
+  if (!_resLoaded && creds.binId) return 0;   // never seen the list — decide nothing
+  const mayClear = !creds.binId || (Date.now() - _resLoadedAt <= RES_STALE_MS);
+  const byItem = _resActiveByItem();
+  const fixed = [];
   for (const [id, it] of Object.entries(_inventoryCache)) {
-    if (it && it.reservationId && !activeIds.has(it.reservationId)) { delete it.reservationId; orphans.push(id); }
+    if (!it) continue;
+    const r = byItem.get(id);
+    // A piece already sold is not held any more, whatever the reservation still says.
+    const want = (r && it.status === 'in_stock') ? r.id : null;
+    const have = it.reservationId || null;
+    if (want === have) continue;
+    if (!want && !mayClear) continue;
+    if (want) it.reservationId = want; else delete it.reservationId;
+    fixed.push(id);
   }
-  for (const id of orphans) {
-    try { await saveInventoryItem(id, _inventoryCache[id]); } catch (e) {}
-    try { syncPublicItem(id, _inventoryCache[id]); } catch (e) {}
+  for (const id of fixed) {
+    let ok = false;
+    try { ok = await saveInventoryItem(id, _inventoryCache[id]); } catch (e) { ok = false; }
+    if (ok) { try { syncPublicItem(id, _inventoryCache[id]); } catch (e) {} }
   }
-  return orphans.length;
+  return fixed.length;
 }
 
 function renderReservations() {
@@ -7202,7 +7285,8 @@ function openReserveDialog(items, source) {
   const _seenIds = new Set();
   items = items.filter(i => !i.invId || (!_seenIds.has(i.invId) && _seenIds.add(i.invId)));
   if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock'); return; }
-  if (items.some(i => i.invId && (_inventoryCache || {})[i.invId] && _inventoryCache[i.invId].reservationId)) {
+  // Reservation records first — a piece whose flag was lost is still held.
+  if (items.some(i => i.invId && (_resHoldFor(i.invId) || ((_inventoryCache || {})[i.invId] || {}).reservationId))) {
     showToast(lang === 'el' ? '⚠️ Κάποιο είδος είναι ήδη κρατημένο' : '⚠️ An item is already reserved'); return;
   }
   _resDlgItems = items;
@@ -7272,7 +7356,7 @@ async function _resDialogSave() {
     holdUntil, status: 'active', itemGivenEarly: false, notes: '', dateCreated: now, dateCompleted: null, createdBy: creds.displayName || creds.userName || ''
   };
   const list = getReservations(); list.push(res); saveReservationsLocal(list); pushReservationsToCloud(list);
-  await _resMarkItems(res.itemIds, res.id);
+  const _mark = await _resMarkItems(res.itemIds, res.id);
   upsertClientFromSale(name, phone, email); // also save the customer to the Clients list
   document.getElementById('reserveDialogOverlay')?.remove();
   // The cart became this hold — empty it. Leaving it full let the very next tap
@@ -7283,6 +7367,21 @@ async function _resDialogSave() {
   showToast(lang === 'el' ? '✓ Η κράτηση δημιουργήθηκε' : '✓ Reservation created');
   if (typeof renderReservations === 'function') renderReservations();
   if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+  // The hold itself is saved, but a piece whose flag did not reach the cloud is still
+  // showing on the public showroom and carries no 🔒 on its card. Say so — silence here
+  // is exactly how a held piece gets sold to somebody else.
+  if (!_mark.ok) {
+    const _bad = _mark.failed.map(fid => {
+      const it = (_inventoryCache || {})[fid];
+      return it ? (it.seqId ? itemRefCode(it) : (it.qrCode || fid)) : fid;
+    }).join(', ');
+    showConfirm(
+      (lang === 'el'
+        ? `⚠️ Η κράτηση ${resNoFmt(res)} αποθηκεύτηκε, ΑΛΛΑ δεν μπόρεσα να σημειώσω ως κρατημένα: ${_bad}. Ανοίξτε το Απόθεμα με σύνδεση για να διορθωθεί αυτόματα.`
+        : `⚠️ Reservation ${resNoFmt(res)} was saved, BUT these pieces could not be marked reserved: ${_bad}. Open Stock while online and it will be fixed automatically.`),
+      () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false }
+    );
+  }
 }
 
 // Customer name autocomplete in the reserve dialog (fills name + phone + email).
@@ -7329,7 +7428,8 @@ async function reserveCartItems() {
 async function invReserve(id) {
   if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
   const it = _inventoryCache[id]; if (!it) return;
-  if (it.reservationId) { showToast(lang === 'el' ? 'Ήδη κρατημένο' : 'Already reserved'); return; }
+  const _already = _resHoldFor(id) || (it.reservationId ? { id: it.reservationId } : null);
+  if (_already) { showToast(lang === 'el' ? 'Ήδη κρατημένο' : 'Already reserved'); openReservationDetail(_already.id); return; }
   const item = _resItemFromInv(id);
   if (!item) { showToast(lang === 'el' ? '⚠️ Δεν μπορεί να κρατηθεί' : '⚠️ Cannot be reserved'); return; }
   openReserveDialog([item], 'stock');
@@ -9952,7 +10052,7 @@ function _cartMissingOk(missing, total, action) {
 // right (they came in and paid), but it must never happen silently — the proper
 // path is Desk → the reservation → "Complete & sell", which closes the hold too.
 function _cartReservedOk(lines) {
-  const held = (lines || []).filter(L => !L.isBulk && L.item && L.item.reservationId);
+  const held = (lines || []).filter(L => !L.isBulk && L.item && (L.item.reservationId || _resHoldFor(L.id)));
   if (!held.length) return Promise.resolve(true);
   const isEl = lang === 'el';
   const names = held.map(L => L.ci.name || itemRefCode(L.item)).join(', ');
@@ -11417,8 +11517,28 @@ function openSaleModal() {
   _openSingleSaleModal();
 }
 
-function _openSingleSaleModal() {
+function _openSingleSaleModal(skipResGuard) {
   if (!lastCalcResult) return;
+  // Scan → SOLD is the busiest path in the shop and it had NO reservation guard: the
+  // status chip said "In stock" and the piece sold with no word, even when a customer
+  // had paid a deposit on it. The Stock card has warned since v10.80; this is the same
+  // warning at the counter. Asks the reservation records (see _resHoldFor).
+  if (!skipResGuard) {
+    const _sid = (typeof _calcScanInvId === 'function') ? _calcScanInvId() : null;
+    const _r = _sid ? _resHoldFor(_sid) : null;
+    if (_r) {
+      const _who = _r.clientName || '';
+      showConfirm(
+        (lang === 'el'
+          ? `🔒 Αυτό το κομμάτι είναι κρατημένο${_who ? ' για ' + _who : ''} (${resNoFmt(_r)}). Άνοιγμα κράτησης για ολοκλήρωση;`
+          : `🔒 This piece is reserved${_who ? ' for ' + _who : ''} (${resNoFmt(_r)}). Open the reservation to complete it?`),
+        () => openReservationDetail(_r.id),
+        () => _openSingleSaleModal(true),
+        { okLabel: (lang === 'el' ? 'Άνοιγμα κράτησης' : 'Open reservation'), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
+      );
+      return;
+    }
+  }
   window._cartSaleItems = null; // single-item sale must never inherit stale multi-sale state
   const amt = parseFloat(lastCalcResult.finalPrice);
   document.getElementById('saleAmountInput').value = amt ? amt.toFixed(2) : '';
@@ -16806,9 +16926,15 @@ async function _checkInvStatusForCalc(raw) {
     }
 
     chip.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)';
+    // A held piece must SAY so here — this chip is what the person at the counter reads
+    // before pressing SOLD. Reads the reservation records, not the (losable) flag.
+    const _chipHold = item.status === 'in_stock' ? _resHoldFor(fbKey) : null;
     const statusLabel = item.status === 'sold'
       ? (isEl ? '🏷️ Πουλήθηκε' : '🏷️ Sold')
+      : _chipHold
+      ? `🔒 ${isEl ? 'Κρατημένο' : 'Reserved'}${_chipHold.clientName ? ' — ' + _resEsc(_chipHold.clientName) : ''}`
       : (isEl ? '📦 Στο απόθεμα' : '📦 In stock');
+    if (_chipHold) chip.style.cssText += ';background:rgba(212,175,55,0.25);border-color:var(--gold);font-weight:700';
     chip.innerHTML = `<span style="flex:1">${statusLabel}</span><span style="font-size:11px;opacity:.8;white-space:nowrap">${isEl ? 'Δες το →' : 'View →'}</span>`;
     chip.onclick = () => _jumpToInvCard(fbKey);
 
@@ -19438,14 +19564,15 @@ const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryTyp
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
-function publicProjection(item) {
+function publicProjection(item, id) {
   // Gold coins & raw metal stock are inventory-only — they must NEVER reach the public showroom.
   if (!item || item.status !== 'in_stock' || item.isBulk || item.isCoin || item.jewelryType === 'coin'
       || item.isMetal || item.jewelryType === 'metal') return null;
   // Owner opted this specific piece out of the public showroom (any metal/type).
   if (item.hideFromShowroom) return null;
   // Reserved for a customer — hold it out of the public showroom until released.
-  if (item.reservationId) return null;
+  // Reservation records first: a piece whose flag was lost must not reappear online.
+  if (item.reservationId || (id && _resHoldFor(id))) return null;
   const out = {};
   PUBLIC_SAFE_FIELDS.forEach(f => { if (item[f] !== undefined && item[f] !== null) out[f] = item[f]; });
   return out;
@@ -19456,7 +19583,7 @@ function publicProjection(item) {
 function syncPublicItem(id, item) {
   const base = invFbBase();
   if (!base) return;
-  const pub = publicProjection(item);
+  const pub = publicProjection(item, id);
   const opts = pub
     ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pub) }
     : { method: 'DELETE' };
@@ -19483,7 +19610,7 @@ async function republishPublicShowroom() {
   try {
     const desired = {};
     Object.entries(_inventoryCache).forEach(([id, item]) => {
-      const pub = publicProjection(item);
+      const pub = publicProjection(item, id);
       if (pub) desired[id] = pub;
     });
     let current = null;
@@ -20724,9 +20851,15 @@ function renderInvList() {
     return;
   }
 
-  // Self-heal any reserved flag whose reservation is no longer active (the synchronous
-  // part clears the cache before the cards below are built, fire-and-forget persist).
+  // Bring every reserved flag back in line with the reservation records — sets what is
+  // missing as well as clearing what is stale (fire-and-forget persist, throttled).
   _resReconcileReservedFlags();
+
+  // Whether a piece is HELD is decided here from the reservation records, not from
+  // item.reservationId — so a flag that was lost (failed write, another device, an
+  // older app version) still shows its 🔒 and still blocks a sale on THIS render,
+  // without waiting for the repair above to reach the cloud. Built once per render.
+  _resHeldMap = _resActiveByItem();
 
   // Keep the public showroom feed backfilled / self-healed (once per session, no-op if unchanged)
   republishPublicShowroom();
@@ -20849,7 +20982,7 @@ function renderInvList() {
     // pills still apply (so "Rings + Grouped" narrows to in-stock ring groups).
     if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
     if (f.status.includes('grouped') && !(item.groupId && !item.isMetal && (_grpLive.get(item.groupId) || 0) > 1)) return false;
-    if (f.status.includes('reserved') && !item.reservationId) return false;
+    if (f.status.includes('reserved') && !_isHeld(id, item)) return false;
     // 'nophoto' — pieces whose photo was never uploaded, so they can be found and
     // photographed without scrolling the whole stock. Coins/raw metal never carry a
     // photo by design, so they are not "missing" one.
@@ -21101,7 +21234,8 @@ function renderInvList() {
     }
     const handmadeBadge = _isHandmade ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
     const _hiddenBadge = item.hideFromShowroom ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
-    const _reservedBadge = item.reservationId ? `<span class="inv-card-badge" title="${lang==='el'?'Κρατημένο':'Reserved'}" style="background:rgba(212,175,55,0.22);border:1px solid var(--gold);color:var(--gold-light);font-weight:700;letter-spacing:0.02em">🔒 ${lang==='el'?'Κρατημένο':'Reserved'}</span>` : '';
+    const _held = _isHeld(id, item);   // reservation records first, flag as fallback
+    const _reservedBadge = _held ? `<span class="inv-card-badge" title="${lang==='el'?'Κρατημένο':'Reserved'}" style="background:rgba(212,175,55,0.22);border:1px solid var(--gold);color:var(--gold-light);font-weight:700;letter-spacing:0.02em">🔒 ${lang==='el'?'Κρατημένο':'Reserved'}</span>` : '';
     const _genderBadge = (function() {
       const g = item.gender;
       const gMap = { women: '♀️', men: '♂️', children: '👶' };
@@ -21245,7 +21379,7 @@ function renderInvList() {
             <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">${item.qrCode || item.code || '—'}</div>
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
-            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${item.reservationId ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${item.reservationId ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${item.reservationId ? 'var(--gold)' : 'var(--wa20)'};color:${item.reservationId ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
+            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${_held ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${_held ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${_held ? 'var(--gold)' : 'var(--wa20)'};color:${_held ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
             ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invGiveaway('${id}')" class="inv-share-btn" title="${lang==='el'?'Δώρο':'Give as gift'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">🎁</button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -21356,7 +21490,7 @@ function renderInvList() {
       (rep.alsoGenders || []).forEach(x => { if (m[x]) o += `<span class="inv-card-badge" style="background:rgba(100,160,255,0.07);border:1px solid rgba(100,160,255,0.2);color:#6a90c0;font-size:11px">+${m[x]}</span>`; });
       return o;
     })();
-    const _grpAnyReserved = members.some(([, it]) => it && it.reservationId);
+    const _grpAnyReserved = members.some(([mid, it]) => _isHeld(mid, it));
     // Group appreciation line (owner/manager, non-coin): the combined value change vs when
     // the pieces were added. Summed ONLY over the members currently in the group's view, so
     // selling a piece removes its live price AND its baseline together — the % reflects real
@@ -23930,10 +24064,11 @@ async function confirmBulkRestock(id) {
 async function invMarkSold(id) {
   // Guard: if this piece is reserved for a customer, steer to completing the
   // reservation (so the deposit/hold is settled) rather than a stray sale.
-  const _it = (_inventoryCache || {})[id];
-  if (_it && _it.reservationId) {
-    const _r = getReservations().find(x => x.id === _it.reservationId);
-    const _who = _r ? _r.clientName : '';
+  // Asks the reservation RECORDS, not item.reservationId — a flag that was lost
+  // must never turn into a sale of someone else's held piece.
+  const _r = _resHoldFor(id);
+  if (_r) {
+    const _who = _r.clientName || '';
     showConfirm(
       (lang === 'el' ? `Αυτό το είδος είναι κρατημένο${_who ? ' για ' + _who : ''}. Άνοιγμα κράτησης για ολοκλήρωση;` : `This item is reserved${_who ? ' for ' + _who : ''}. Open the reservation to complete it?`),
       () => { if (_r) openReservationDetail(_r.id); },
@@ -23996,7 +24131,7 @@ function invGiveaway(id) {
   if (!item) return;
   const isEl = lang === 'el';
   // Reserved / coin / metal / bulk pieces are not everyday counter gifts.
-  if (item.reservationId) {
+  if (item.reservationId || _resHoldFor(id)) {
     showToast('⚠️ ' + (isEl ? 'Το κομμάτι είναι κρατημένο — δεν μπορεί να δοθεί ως δώρο' : 'This piece is reserved — it cannot be given away'));
     return;
   }
@@ -25620,6 +25755,8 @@ function showConfirm(msg, onOk, onCancel, opts) {
   const okBtn = document.getElementById('customConfirmOkBtn');
   cancelBtn.textContent = opts.cancelLabel || (lang === 'el' ? 'Ακύρωση' : 'Cancel');
   okBtn.textContent = opts.okLabel || 'OK';
+  // hideCancel = a message to acknowledge, not a choice (one button, no "Cancel").
+  cancelBtn.style.display = opts.hideCancel ? 'none' : '';
   // Danger style for destructive actions
   if (opts.danger !== false) {
     okBtn.style.background = 'linear-gradient(135deg,#8b1a1a,#c0392b)';
@@ -26188,8 +26325,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.34', date: 'Ιούλιος 2026', items: [
-        "🐞 Διόρθωση: η αλλαγή γλώσσας ενώ βρισκόσασταν σε άλλη καρτέλα (π.χ. Επισκευές) εμφάνιζε ξαφνικά την πλωτή τιμή του Υπολογιστή πάνω από τη σελίδα. Πλέον η μπάρα τιμής μένει πάντα στην καρτέλα Υπολογιστής.",
+      { version: 'v12.35', date: 'Ιούλιος 2026', items: [
+        "🔒 Οι κρατήσεις διορθώνονται μόνες τους: πλέον η ΛΙΣΤΑ κρατήσεων είναι η αλήθεια — αν χαθεί η σήμανση «Κρατημένο» σε ένα κομμάτι, ξαναμπαίνει μόνη της μόλις ανοίξετε το Απόθεμα.",
+        "🛡️ Το κουμπί ΠΩΛΗΘΗΚΕ στον Υπολογιστή σας προειδοποιεί πλέον αν το κομμάτι είναι κρατημένο — μέχρι τώρα δεν έλεγε τίποτα. Το ίδιο και η ένδειξη μετά το σκανάρισμα: δείχνει «🔒 Κρατημένο — όνομα πελάτη».",
+        "🐞 Διόρθωση σοβαρού σφάλματος: μια συσκευή με παλιά λίστα κρατήσεων μπορούσε να «ελευθερώσει» σιωπηλά μια ζωντανή κράτηση και να επαναφέρει το κομμάτι στη βιτρίνα. Πλέον καμία κράτηση δεν αφαιρείται από μη ενημερωμένη λίστα.",
+        "⚠️ Αν μια σήμανση κράτησης δεν προλάβει να αποθηκευτεί, η εφαρμογή σας το λέει καθαρά αντί να δείχνει επιτυχία.",
       ]},
       ]
   },
@@ -26220,8 +26360,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.34', date: 'Jul 2026', items: [
-        "🐞 Fix: switching language while on another tab (e.g. Repairs) suddenly floated the Calculator's price bar over the page. The price bar now stays on the Calculator tab where it belongs.",
+      { version: 'v12.35', date: 'Jul 2026', items: [
+        "🔒 Reservations now repair themselves: the reservation LIST is the truth, so if a piece loses its \"Reserved\" mark it comes back on its own the next time you open Stock.",
+        "🛡️ The Calculator's SOLD button now warns you when the piece is reserved — until now it said nothing at all. The scan chip says \"🔒 Reserved — customer name\" too.",
+        "🐞 Serious fix: a device holding an out-of-date reservations list could silently release a live hold and put the piece back on the public showroom. A hold is never removed off a list that isn't current.",
+        "⚠️ If a reserved mark fails to save, the app now tells you plainly instead of reporting success.",
       ]},
           ]
   }
@@ -30838,7 +30981,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.34';
+const APP_VERSION = '12.35';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -32089,6 +32232,7 @@ function invGroupSelected() {
 // Edit / Mark-sold, plus an Ungroup action. Read from the live cache so it's current.
 function openInvGroup(gid) {
   closeInvGroup();
+  _resHeldMap = _resActiveByItem();   // this sheet can open long after the last list render
   const members = Object.entries(_inventoryCache || {})
     .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
   if (!members.length) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
@@ -32137,6 +32281,7 @@ function openInvGroup(gid) {
       </div>`;
     }
     const price = p ? cur + p.retail.toFixed(2) : '—';
+    const _gHeld = _isHeld(id, it);   // reservation records first, flag as fallback
     const w = it.metal === 'other' ? '' : (parseFloat(it.weight).toFixed(2) + 'g');
     const colorLbl = it.color ? itemColorLabel(it.color) : '';
     const dot = it.color ? `<span style="width:9px;height:9px;border-radius:50%;${itemColorSwatchCss(it.color)||'background:#888'};display:inline-block;margin-right:5px;vertical-align:-1px;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></span>` : '';
@@ -32191,7 +32336,7 @@ function openInvGroup(gid) {
         <button class="inv-action-btn" style="${_bStyle};background:var(--wa06);border:1px solid var(--wa18);color:var(--text-muted)" onclick="closeInvGroup();invShareSingle('${id}')">${lang==='el'?'Κοινοπ.':'Share'}</button>
         <button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invPrintTagFromCard('${id}')">🏷️ ${lang==='el'?'Ετικέτα':'Tag'}</button>
         <button class="inv-action-btn inv-action-sell" style="${_bStyle}" onclick="closeInvGroup();invMarkSold('${id}')">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
-        ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${it.reservationId?'rgba(212,175,55,0.22)':'var(--wa06)'};border:1px solid ${it.reservationId?'var(--gold)':'var(--wa18)'};color:${it.reservationId?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${it.reservationId?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
+        ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:${_gHeld?'rgba(212,175,55,0.22)':'var(--wa06)'};border:1px solid ${_gHeld?'var(--gold)':'var(--wa18)'};color:${_gHeld?'var(--gold-light)':'var(--text-muted)'}" onclick="closeInvGroup();invReserveOrView('${id}')">🔒 ${_gHeld?(lang==='el'?'Κρατημ.':'Reserved'):(lang==='el'?'Κράτηση':'Reserve')}</button>` : ''}
         ${(!it.isCoin && !it.isMetal) ? `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invGiveaway('${id}')">🎁 ${lang==='el'?'Δώρο':'Gift'}</button>` : ''}
         ${isEmp ? '' : `<button class="inv-action-btn" style="${_bStyle};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="_invEditFromGroup('${gid}','${id}')">✏️ ${lang==='el'?'Επεξ.':'Edit'}</button>`}
         ${isEmp ? '' : `<button class="inv-action-btn inv-action-del" style="${_bStyle}" onclick="closeInvGroup();invDelete('${id}')">🗑</button>`}
