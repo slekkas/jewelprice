@@ -2948,7 +2948,10 @@
 <!-- INVENTORY SORT SHEET -->
 <div id="invSortSheet" style="display:none;position:fixed;inset:0;z-index:99996">
   <div onclick="closeInvSortSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);z-index:0"></div>
-  <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);z-index:1;padding:20px 20px 40px 20px">
+  <!-- max-height + overflow: the option list grows with the filters (sold-date and
+       reserved-date sorts appear on demand), so on a short screen it would otherwise
+       clip with no way to reach the bottom rows. Stays bottom-anchored: no typing here. -->
+  <div style="position:absolute;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);z-index:1;padding:20px 20px 40px 20px;max-height:92vh;max-height:92dvh;overflow-y:auto">
     <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 18px auto"></div>
     <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:16px" data-i18n="invSortTitle">Ταξινόμηση</div>
     <div id="invSortOptions" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -3738,6 +3741,7 @@ const T = {
     invSortGainHigh:'Υπεραξία: Υψηλή → Χαμηλή', invSortGainLow:'Υπεραξία: Χαμηλή → Υψηλή',
     invSortInStockFirst:'Σε απόθεμα πρώτα', invSortSoldFirst:'Πουλήθηκαν πρώτα',
     invSortSoldNewest:'Ημ. πώλησης: Νεότερη → Παλαιότερη', invSortSoldOldest:'Ημ. πώλησης: Παλαιότερη → Νεότερη',
+    invSortResNewest:'Ημ. κράτησης: Νεότερη → Παλαιότερη', invSortResOldest:'Ημ. κράτησης: Παλαιότερη → Νεότερη',
     invFilterBtn:'Φίλτρο', invFilterTitle:'Φίλτρα', invFilterClear:'Καθαρισμός', invFilterApply:'Εφαρμογή',
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
     selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
@@ -4264,6 +4268,7 @@ const T = {
     invSortGainHigh:'Gain: High → Low', invSortGainLow:'Gain: Low → High',
     invSortInStockFirst:'In stock first', invSortSoldFirst:'Sold first',
     invSortSoldNewest:'Sold date: Newest → Oldest', invSortSoldOldest:'Sold date: Oldest → Newest',
+    invSortResNewest:'Reserved date: Newest → Oldest', invSortResOldest:'Reserved date: Oldest → Newest',
     invFilterBtn:'Filter', invFilterTitle:'Filters', invFilterClear:'Clear', invFilterApply:'Apply',
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
     selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
@@ -19930,15 +19935,20 @@ const INV_SORT_OPTIONS = [
   // Only meaningful while the Sold status filter is on — hidden otherwise (see openInvSortSheet)
   { key: 'sold_new',    icon: '💰', i18n: 'invSortSoldNewest', soldOnly: true },
   { key: 'sold_old',    icon: '💰', i18n: 'invSortSoldOldest', soldOnly: true },
+  // Same rule for the reservation date — only meaningful while the Reserved filter is on.
+  { key: 'res_new',     icon: '🔒', i18n: 'invSortResNewest', reservedOnly: true },
+  { key: 'res_old',     icon: '🔒', i18n: 'invSortResOldest', reservedOnly: true },
 ];
 let _invSort = localStorage.getItem('invSort') || 'newest';
-// A sold-date sort only makes sense with the Sold filter active. The sort persists
-// across a reload but the filter does not (it resets to the default in-stock view),
-// so a restored sold-date sort would leave the list sorting in-stock pieces — which
-// have no sold date — by sold date, and the sort sheet still offering it. Fall back
-// to the default when the Sold filter isn't active at load.
-if (INV_SORT_OPTIONS.find(o => o.key === _invSort)?.soldOnly && !_invFilters.status.includes('sold')) {
-  _invSort = 'newest';
+// An event-date sort (sold date, reservation date) only makes sense with its own filter
+// active. The sort persists across a reload but the filters do not (they reset to the
+// default in-stock view), so a restored sold-date sort would leave the list sorting
+// in-stock pieces — which have no sold date — by sold date, and the sort sheet still
+// offering it. Fall back to the default when the matching filter isn't active at load.
+{
+  const _restored = INV_SORT_OPTIONS.find(o => o.key === _invSort);
+  if (_restored?.soldOnly && !_invFilters.status.includes('sold')) _invSort = 'newest';
+  if (_restored?.reservedOnly && !_invFilters.status.includes('reserved')) _invSort = 'newest';
 }
 
 function openInvSortSheet() {
@@ -19949,7 +19959,9 @@ function openInvSortSheet() {
   // Sold-date sorts appear only when the Sold filter is on (they say nothing about
   // in-stock pieces) — but stay listed while one is the active sort, so it can be changed.
   const _soldOn = _invFilters.status.includes('sold') || _invSort === 'sold_new' || _invSort === 'sold_old';
-  opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv) && !(o.soldOnly && !_soldOn)).map(o => {
+  // Reservation-date sorts follow the same rule against the Reserved filter.
+  const _resOn = _invFilters.status.includes('reserved') || _invSort === 'res_new' || _invSort === 'res_old';
+  opts.innerHTML = INV_SORT_OPTIONS.filter(o => !(o.ownerOnly && _empInv) && !(o.soldOnly && !_soldOn) && !(o.reservedOnly && !_resOn)).map(o => {
     const active = _invSort === o.key;
     return `<button onclick="setInvSort('${o.key}')" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:${active ? 'rgba(212,175,55,0.15)' : 'var(--wa03)'};border:1px solid ${active ? 'rgba(212,175,55,0.5)' : 'var(--wa08)'};border-radius:10px;color:${active ? 'var(--gold-light)' : 'var(--text-light)'};font-family:var(--font-body);font-size:13px;cursor:pointer;text-align:left">
       <span style="font-size:15px">${o.icon}</span>
@@ -20875,6 +20887,27 @@ function renderInvList() {
     if (p === undefined) { p = calcInvItemPrice(it); _priceMemo.set(it, p); }
     return p;
   };
+  // Date-added, memoized per render. Uses _invItemDate so a legacy piece with no stored
+  // dateAdded falls back to the timestamp inside its inv_<ms>_… id instead of sorting to
+  // the bottom as date 0. Both are full ms timestamps, so the order includes the TIME —
+  // several pieces added on the same day still sort in the order they were added.
+  const _dateMemo = new Map();
+  const _ad = (id, it) => {
+    let d = _dateMemo.get(it);
+    if (d === undefined) { d = _invItemDate(id, it); _dateMemo.set(it, d); }
+    return d;
+  };
+  // When the hold was made (reservation.dateCreated, a full ms timestamp). 0 = not held.
+  const _resDateMemo = new Map();
+  const _rd = (id, it) => {
+    let d = _resDateMemo.get(it);
+    if (d === undefined) {
+      const r = _isHeld(id, it);
+      d = r ? (Number(r.dateCreated) || 0) : 0;
+      _resDateMemo.set(it, d);
+    }
+    return d;
+  };
   const _gainMemo = new Map();
   const _gn = (it) => {
     let g = _gainMemo.get(it);
@@ -21065,7 +21098,7 @@ function renderInvList() {
   }
 
   // Sort by user preference (default: in-stock first, then newest)
-  filtered.sort(([,a],[,b]) => {
+  filtered.sort(([ida,a],[idb,b]) => {
     // Status grouping for stock_first / sold_first modes
     const aStock = a.status !== 'sold', bStock = b.status !== 'sold';
     if (_invSort === 'stock_first') {
@@ -21074,8 +21107,10 @@ function renderInvList() {
     } else if (_invSort === 'sold_first') {
       if (!aStock && bStock) return -1;
       if (aStock && !bStock) return 1;
-    } else if (_invSort === 'sold_new' || _invSort === 'sold_old') {
-      // Sorting by sale date — no status grouping; a piece with no sale date sorts last.
+    } else if (_invSort === 'sold_new' || _invSort === 'sold_old' ||
+               _invSort === 'res_new'  || _invSort === 'res_old') {
+      // Sorting by an event date (sale / reservation) — no status grouping; a piece
+      // with no such date sorts last.
     } else {
       // All other sorts: in-stock first by default
       if (aStock && !bStock) return -1;
@@ -21086,7 +21121,7 @@ function renderInvList() {
     // each item at most once for the whole sort instead of ~4× per comparison.
     const _name = (it) => (lang==='el' ? (it.descEl||it.descEn||it.description||'') : (it.descEn||it.descEl||it.description||'')).toLowerCase();
     switch (_invSort) {
-      case 'oldest':      return (a.dateAdded||0) - (b.dateAdded||0);
+      case 'oldest':      return _ad(ida,a) - _ad(idb,b);
       case 'price_high':  return ((_px(b)?.retail)||0) - ((_px(a)?.retail)||0);
       case 'price_low':   return ((_px(a)?.retail)||0) - ((_px(b)?.retail)||0);
       case 'weight_high': return (parseFloat(b.weight)||0) - (parseFloat(a.weight)||0);
@@ -21105,9 +21140,15 @@ function renderInvList() {
                           if (!as) return 1;   // unsold pieces last, never first
                           if (!bs) return -1;
                           return as - bs; }
-      case 'stock_first': return (b.dateAdded||0) - (a.dateAdded||0);
-      case 'sold_first':  return (b.dateAdded||0) - (a.dateAdded||0);
-      default:            return (b.dateAdded||0) - (a.dateAdded||0); // newest
+      case 'res_new':     return _rd(idb,b) - _rd(ida,a);
+      case 'res_old': {   const ar = _rd(ida,a), br = _rd(idb,b);
+                          if (!ar && !br) return 0;
+                          if (!ar) return 1;   // pieces with no hold last, never first
+                          if (!br) return -1;
+                          return ar - br; }
+      case 'stock_first': return _ad(idb,b) - _ad(ida,a);
+      case 'sold_first':  return _ad(idb,b) - _ad(ida,a);
+      default:            return _ad(idb,b) - _ad(ida,a); // newest
     }
   });
 
@@ -26325,11 +26366,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.35', date: 'Ιούλιος 2026', items: [
-        "🔒 Οι κρατήσεις διορθώνονται μόνες τους: πλέον η ΛΙΣΤΑ κρατήσεων είναι η αλήθεια — αν χαθεί η σήμανση «Κρατημένο» σε ένα κομμάτι, ξαναμπαίνει μόνη της μόλις ανοίξετε το Απόθεμα.",
-        "🛡️ Το κουμπί ΠΩΛΗΘΗΚΕ στον Υπολογιστή σας προειδοποιεί πλέον αν το κομμάτι είναι κρατημένο — μέχρι τώρα δεν έλεγε τίποτα. Το ίδιο και η ένδειξη μετά το σκανάρισμα: δείχνει «🔒 Κρατημένο — όνομα πελάτη».",
-        "🐞 Διόρθωση σοβαρού σφάλματος: μια συσκευή με παλιά λίστα κρατήσεων μπορούσε να «ελευθερώσει» σιωπηλά μια ζωντανή κράτηση και να επαναφέρει το κομμάτι στη βιτρίνα. Πλέον καμία κράτηση δεν αφαιρείται από μη ενημερωμένη λίστα.",
-        "⚠️ Αν μια σήμανση κράτησης δεν προλάβει να αποθηκευτεί, η εφαρμογή σας το λέει καθαρά αντί να δείχνει επιτυχία.",
+      { version: 'v12.36', date: 'Ιούλιος 2026', items: [
+        "🔒 Νέα ταξινόμηση «Ημ. κράτησης: Νεότερη → Παλαιότερη» στο Απόθεμα — εμφανίζεται όταν έχετε επιλέξει το φίλτρο «Κρατημένο». Ταξινομεί με την ΩΡΑ που κάνατε την κράτηση, άρα πρώτο βγαίνει το τελευταίο που κρατήσατε σήμερα.",
+        "🕐 Η ταξινόμηση «Νεότερα πρώτα» πιάνει πλέον και τα παλιά κομμάτια που δεν είχαν αποθηκευμένη ημερομηνία προσθήκης (πριν έπεφταν στο τέλος της λίστας).",
       ]},
       ]
   },
@@ -26360,11 +26399,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.35', date: 'Jul 2026', items: [
-        "🔒 Reservations now repair themselves: the reservation LIST is the truth, so if a piece loses its \"Reserved\" mark it comes back on its own the next time you open Stock.",
-        "🛡️ The Calculator's SOLD button now warns you when the piece is reserved — until now it said nothing at all. The scan chip says \"🔒 Reserved — customer name\" too.",
-        "🐞 Serious fix: a device holding an out-of-date reservations list could silently release a live hold and put the piece back on the public showroom. A hold is never removed off a list that isn't current.",
-        "⚠️ If a reserved mark fails to save, the app now tells you plainly instead of reporting success.",
+      { version: 'v12.36', date: 'Jul 2026', items: [
+        "🔒 New \"Reserved date: Newest → Oldest\" sort in Stock — it appears when the \"Reserved\" filter is on. It sorts by the TIME you made the hold, so the last piece you reserved today comes first.",
+        "🕐 \"Newest first\" now also places older pieces that had no stored date-added (they used to drop to the bottom of the list).",
       ]},
           ]
   }
@@ -30981,7 +31018,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.35';
+const APP_VERSION = '12.36';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
