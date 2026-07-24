@@ -21640,11 +21640,12 @@ function renderInvList() {
       ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
     const _grpHidden = rep.hideFromShowroom
       ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
-    // Set badge — a grouped piece may also belong to a matching set (its stone variants can
-    // sit in different sets, so take the first member that has one). Tappable to the set sheet.
-    const _grpSetId = ((members.find(([, it]) => it.setId) || [])[1] || {}).setId || rep.setId;
-    const _grpSet = _grpSetId
-      ? `<span class="inv-card-badge" onclick="event.stopPropagation();openInvSet('${_grpSetId}')" title="${lang==='el'?'Μέλος σετ':'Part of a set'}" style="background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);font-weight:700;letter-spacing:0.02em;cursor:pointer">🎀 ${lang==='el'?'Σετ':'Set'}</span>` : '';
+    // Set badge — a grouped piece may also belong to a matching set, and its stone variants
+    // can sit in DIFFERENT sets (amethyst pieces in one, moonstone in another). So the badge
+    // opens a chooser when the group spans >1 set, else the single set directly.
+    const _grpHasSet = members.some(([, it]) => it.setId);
+    const _grpSet = _grpHasSet
+      ? `<span class="inv-card-badge" onclick="event.stopPropagation();_openGroupSets('${rep.groupId}')" title="${lang==='el'?'Μέλος σετ':'Part of a set'}" style="background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);font-weight:700;letter-spacing:0.02em;cursor:pointer">🎀 ${lang==='el'?'Σετ':'Set'}</span>` : '';
     const _grpGoldColor = (rep.metal === 'gold' && rep.goldColor && rep.goldColor !== 'gold')
       ? `<span class="inv-card-badge" style="background:rgba(212,175,55,0.13);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);font-size:10px;letter-spacing:0.03em;line-height:1.4;text-align:right">${badgeWrapLabel(goldColorLabel(rep.goldColor))}</span>` : '';
     const _grpPlating = (rep.metal === 'silver' && rep.silverPlating)
@@ -26492,10 +26493,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.42', date: 'Ιούλιος 2026', items: [
-        "📷 Φωτογραφία σετ: στο σετ (Απόθεμα → σήμα «🎀 Σετ») μπορείτε τώρα να ανεβάσετε μία φωτογραφία με όλα τα κομμάτια μαζί (π.χ. κολιέ + σκουλαρίκια). Αν δεν βάλετε, στη βιτρίνα χρησιμοποιείται η φωτο του πρώτου κομματιού.",
-        "🌐 Βιτρίνα: όταν ο πελάτης φιλτράρει «Σετ», βλέπει τώρα ΕΝΑ κουτί για κάθε σετ (με τη φωτο του σετ και τα κομμάτια που περιέχει — π.χ. «Κολιέ · Σκουλαρίκια»), αντί για ξεχωριστές κάρτες.",
-        "🏷️ Στη βιτρίνα το σήμα του σετ δείχνει πλέον τη λέξη «Σετ» μαζί με το όνομα (π.χ. «Σετ Πεταλίδα»), χωρίς εικονίδιο.",
+      { version: 'v12.43', date: 'Ιούλιος 2026', items: [
+        "🎀 Διόρθωση: όταν μια ομάδα έχει κομμάτια σε δύο σετ (π.χ. αμέθυστος & φεγγαρόπετρα), πατώντας το σήμα «Σετ» στην κάρτα σας ρωτάει πλέον ΠΟΙΟ σετ — πριν άνοιγε μόνο το ένα.",
+        "🌐 Βιτρίνα: μπαίνοντας σε ένα σετ ξεκινά τώρα από το 1ο κομμάτι (πριν έδειχνε 2/2).",
+        "🖼️ Βιτρίνα: μέσα στο σετ υπάρχει τώρα μια σειρά με μικρές φωτο όλων των κομματιών — πατήστε ένα για να δείτε το συγκεκριμένο κομμάτι.",
       ]},
       ]
   },
@@ -26526,10 +26527,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.42', date: 'Jul 2026', items: [
-        "📷 Set photo: on a set (Stock → the “🎀 Set” badge) you can now upload one photo of all the pieces together (e.g. necklace + earrings). If you don't, the showroom uses the first piece's photo.",
-        "🌐 Showroom: when a customer filters “Sets”, they now see ONE box per set (with the set photo and the pieces it holds — e.g. “Necklace · Earrings”), instead of separate cards.",
-        "🏷️ In the showroom the set badge now shows the word “Set” with the name (e.g. “Set Limpet shell”), with no icon.",
+      { version: 'v12.43', date: 'Jul 2026', items: [
+        "🎀 Fix: when a group has pieces in two sets (e.g. amethyst & moonstone), tapping the card's “Set” badge now asks WHICH set — before it only opened one of them.",
+        "🌐 Showroom: opening a set now starts at the 1st piece (it used to show 2/2).",
+        "🖼️ Showroom: inside a set there's now a row of small photos of every piece — tap one to view that specific piece.",
       ]},
           ]
   }
@@ -31146,7 +31147,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.42';
+const APP_VERSION = '12.43';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -32936,6 +32937,43 @@ async function _setPhotoRemove(setId) {
   showToast(lang==='el' ? 'Η φωτο σετ αφαιρέθηκε' : 'Set photo removed');
   renderInvList();
   openInvSet(setId);
+}
+
+// A grouped card's pieces can belong to DIFFERENT sets (amethyst pieces in one set,
+// moonstone in another). Tapping the card's Set badge opens the single set directly, or
+// a chooser when the group spans more than one.
+function _openGroupSets(gid) {
+  const setIds = [...new Set(Object.values(_inventoryCache || {})
+    .filter(it => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk && it.setId)
+    .map(it => it.setId))];
+  if (!setIds.length) return;
+  if (setIds.length === 1) { openInvSet(setIds[0]); return; }
+  openSetChooser(setIds);
+}
+function closeSetChooser() {
+  const o = document.getElementById('setChooserOverlay'); if (o) o.remove();
+}
+function openSetChooser(setIds) {
+  closeSetChooser();
+  const _e = s => String(s || '').replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]));
+  const items = setIds.map(sid => {
+    const members = Object.values(_inventoryCache || {}).filter(it => it && it.setId === sid && it.status !== 'sold' && !it.isBulk);
+    return { sid, nm: members.length ? _setDisplayName(members[0]) : sid, count: members.length };
+  });
+  const ov = document.createElement('div');
+  ov.id = 'setChooserOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  ov.onclick = (e) => { if (e.target === ov) closeSetChooser(); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:420px;width:100%;padding:18px 18px 22px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">🎀 ${lang==='el'?'Ποιο σετ;':'Which set?'}</div>
+        <button onclick="closeSetChooser()" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px">${lang==='el'?'Τα κομμάτια αυτής της ομάδας ανήκουν σε '+items.length+' σετ.':'These grouped pieces belong to '+items.length+' sets.'}</div>
+      ${items.map(i => `<button onclick="closeSetChooser();openInvSet('${i.sid}')" style="width:100%;text-align:left;display:flex;align-items:center;gap:8px;background:var(--wa04);border:1px solid var(--wa12);border-radius:10px;padding:13px;margin-bottom:8px;color:var(--text-light);font-family:var(--font-body);font-size:14px;cursor:pointer">🎀 <span style="flex:1">${_e(i.nm)}</span><span style="color:var(--text-dim);font-size:12px">${i.count}</span></button>`).join('')}
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 // ── EDIT ALL IN GROUP ─────────────────────────────────────────────────────────

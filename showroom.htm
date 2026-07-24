@@ -805,6 +805,26 @@
     padding: 10px 12px; margin: 0 0 14px; transition: all 0.18s;
   }
   .lb-set-btn:hover { background: rgba(139,111,47,0.18); border-color: var(--gold); }
+  .lb-set-strip {
+    display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; margin-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .lb-set-thumb {
+    flex: 0 0 auto; width: 56px; background: none; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; padding: 3px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    transition: all 0.16s;
+  }
+  .lb-set-thumb.active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .lb-set-thumb:hover { border-color: var(--gold-dim); }
+  .lb-set-thumb img {
+    width: 48px; height: 48px; object-fit: cover; border-radius: 5px; background: #fff;
+  }
+  .lb-set-thumb span {
+    font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.03em;
+    color: var(--text-dim); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52px;
+  }
   .lb-title {
     font-family: 'Cormorant Garamond', Georgia, serif;
     font-size: 18px; font-weight: 400;
@@ -2533,30 +2553,37 @@ function _stoneSig(item) {
 function _visualKey(item) {
   return (item.groupId || item._key) + '|' + (item.color||'') + '|' + (item.goldColor||'') + '|' + (item.silverPlating||'') + '|' + _stoneSig(item);
 }
-// In-stock members of a set, deduped to one per distinct look (so grouped twins show once).
+// In-stock members of a set, deduped to one per distinct look (so grouped twins show once),
+// ordered by when they were added — so the carousel runs 1→N in add order (piece 1 first).
 function _setMembers(setId) {
   const out = [], seen = new Set();
-  for (const i of allItems) {
-    if (i.setId !== setId) continue;
+  const src = allItems.filter(i => i.setId === setId).sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
+  for (const i of src) {
     const vk = _visualKey(i);
     if (seen.has(vk)) continue;
     seen.add(vk); out.push(i);
   }
   return out;
 }
-// Enter the set carousel focused on a given piece (from a card tag or the lightbox button).
+// Enter the set carousel. Without a focusKey (e.g. from a set box) it starts at piece 1;
+// from an individual piece's tag it focuses that piece.
 function enterSetMode(setId, focusKey) {
   const members = _setMembers(setId);
-  if (members.length < 2) { openLightbox(focusKey); return; }  // a lone piece isn't a set
+  if (members.length < 2) { openLightbox(focusKey || (members[0] && members[0]._key)); return; }
   lbSetIds = members.map(m => m._key);
   lbSetId = setId;
-  lbSetIdx = Math.max(0, lbSetIds.indexOf(focusKey));
+  lbSetIdx = focusKey ? Math.max(0, lbSetIds.indexOf(focusKey)) : 0;
   openLightbox(lbSetIds[lbSetIdx], true);
 }
 function lbSetStep(d) {
   if (!lbSetIds || !lbSetIds.length) return;
   lbSetIdx = (lbSetIdx + d + lbSetIds.length) % lbSetIds.length;
   openLightbox(lbSetIds[lbSetIdx], true);
+}
+function lbSetJump(i) {
+  if (!lbSetIds || i < 0 || i >= lbSetIds.length) return;
+  lbSetIdx = i;
+  openLightbox(lbSetIds[i], true);
 }
 
 // ─── GRID ──────────────────────────────────────────────────────────────────────
@@ -2594,7 +2621,7 @@ function renderGrid() {
       const n = pieces.length;
       const cnt = n + ' ' + (lang==='el' ? (n===1?'κομμάτι':'κομμάτια') : (n===1?'piece':'pieces'));
       return `
-      <div class="item-card set-card" onclick="enterSetMode('${s.setId}','${rep ? rep._key : ''}')">
+      <div class="item-card set-card" onclick="enterSetMode('${s.setId}')">
         <div class="card-img-wrap">
           <img class="card-img" src="${setPhoto}" alt="${nm}" loading="lazy"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
@@ -2804,6 +2831,21 @@ function openLightbox(key, keepSet) {
     }
   }
 
+  // Set carousel — a strip of every piece in the set, so a customer can jump straight to
+  // the necklace, the earrings, etc. and view it on its own. The current piece is ringed.
+  let setStripHtml = '';
+  if (lbSetIds && lbSetId && lbSetIds.length > 1) {
+    setStripHtml = '<div class="lb-set-strip">' + lbSetIds.map((k, i) => {
+      const m = allItems.find(x => x._key === k);
+      if (!m) return '';
+      const tl = typeLabel(m.jewelryType);
+      return `<button class="lb-set-thumb${i === lbSetIdx ? ' active' : ''}" onclick="lbSetJump(${i})" title="${tl}">
+        <img src="${m.photoUrl || ''}" alt="" onerror="this.style.opacity=0">
+        <span>${tl}</span>
+      </button>`;
+    }).join('') + '</div>';
+  }
+
   document.getElementById('lightboxBody').innerHTML = `
     <div class="lb-img-col">
       <div class="lb-zoom" id="lbZoom">
@@ -2815,6 +2857,7 @@ function openLightbox(key, keepSet) {
     <div class="lb-detail-col">
       <h2 class="lb-name">${name}</h2>
       ${setBannerHtml}
+      ${setStripHtml}
       ${rows}
       ${stonesHtml}
       ${item.seqId ? `<div class="lb-detail-row" style="margin-top:8px;border-top:1px solid var(--border-soft);padding-top:10px"><span class="lb-detail-key" style="opacity:0.5">${lang==='el'?'Κωδ. Αναφοράς':'Ref.'}</span><span class="lb-detail-val" style="font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--text-dim)">${itemRefCode(item)}</span></div>` : ''}
