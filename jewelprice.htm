@@ -15135,6 +15135,13 @@ function _fillCatCounts(vendor) {
 // identified by its POSITION now (`dataset.origIdx`, stamped by editVendor), and
 // membership is decided by `getItemCat` — the very resolver that prices the piece,
 // so this can never disagree with what the piece actually uses.
+//
+// Both kinds of row come here (v12.31). An "other" (×multiplier) row used to be
+// removed from the DOM outright, which is not the retire path: saveVendor then
+// found the slot empty and restored the stored category from `_origCats` — the
+// very fallback that protects the numbering — so the row silently CAME BACK and
+// the ✕ appeared to do nothing. It now warns, offers to move, and retires like
+// any other category.
 async function confirmDeleteLaborRow(btn) {
   // Only check inventory when editing an existing vendor
   if (editingVendorIndex === null) { btn.parentElement.remove(); return; }
@@ -15145,7 +15152,9 @@ async function confirmDeleteLaborRow(btn) {
   const _cats = getVendorCategories(vendor);
   const _myCat = _myIdx >= 0 ? _cats[_myIdx] : null;
   if (!_myCat) { _retireLaborRow(_row); return; }   // a row added in this session — no pieces, no tags
-  const catName = _row.querySelector('.labor-name')?.value?.trim();
+  // Metal rows carry `.labor-name`; an "other" row's name is its first text input.
+  const _nameEl = _row.querySelector('.labor-name') || _row.querySelector('input[type="text"]');
+  const catName = _nameEl?.value?.trim();
   if (!catName) { _retireLaborRow(_row); return; }
 
   // Scan inventory for items using this vendor + category name
@@ -15168,9 +15177,12 @@ async function confirmDeleteLaborRow(btn) {
 
   if (affected.length === 0) { _retireLaborRow(_row); return; }
 
-  // Every OTHER live row is a valid destination — including a same-name twin,
-  // which is usually the right answer when a category was created twice.
-  const otherCats = _cats.map((c, i) => ({ c, i })).filter(({ c, i }) => i !== _myIdx && !c.deleted);
+  // Every other live row OF THE SAME KIND is a valid destination — including a
+  // same-name twin, which is usually the right answer when a category was created
+  // twice. Kind matters: a ×multiplier "other" category and a per-gram metal one
+  // price by different models, so moving a piece across that line is never right.
+  const _sameKind = c => catIsOther(c) === catIsOther(_myCat);
+  const otherCats = _cats.map((c, i) => ({ c, i })).filter(({ c, i }) => i !== _myIdx && !c.deleted && _sameKind(c));
   // Two rows can render the same label (identical name + karat + rate), so number
   // them; picking the wrong one silently reprices pieces.
   const _label = ({ c, i }) => {
@@ -15226,7 +15238,10 @@ async function confirmDeleteLaborRow(btn) {
       // leave the cache saying something the cloud does not (v11.62).
       _snap.forEach(([, item, oldName, oldIdx], n) => { if (!results[n]) { item.catName = oldName; item.catIdx = oldIdx; } });
       const ok = results.filter(Boolean).length;
-      _inventoryCache = null;
+      // The cache holds the very objects just mutated (and rolled back), so it is
+      // already correct — dropping it would only force a re-download and blank the
+      // per-row counts. Repaint them instead.
+      _fillCatCounts(vendor);
       if (ok === 0) { showToast(isEl ? '⚠️ Δεν μεταφέρθηκε κανένα — δοκιμάστε ξανά' : '⚠️ Nothing was moved — try again'); return; }
       _retireLaborRow(_row);
       showToast(ok === _snap.length
@@ -25956,9 +25971,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.30', date: 'Ιούλιος 2026', items: [
-        "🔢 Πόσα κομμάτια έχει κάθε κατηγορία προμηθευτή: μπλε αριθμός δίπλα σε κάθε γραμμή στη φόρμα του προμηθευτή, και «· 3 κομμάτια» στην αναλυτική λίστα κωδικών της κάρτας. Δεν χρειάζεται πια να πατήσετε ✕ για να δείτε τι υπάρχει μέσα — και δύο κατηγορίες με το ίδιο όνομα ξεχωρίζουν αμέσως.",
-        "ℹ️ Μετράει τα κομμάτια σε απόθεμα, με τον ίδιο ακριβώς κανόνα που χρησιμοποιεί η διαγραφή — οπότε ο αριθμός που βλέπετε είναι αυτός που θα μεταφερθεί.",
+      { version: 'v12.31', date: 'Ιούλιος 2026', items: [
+        "🧾 Το ✕ στις κατηγορίες «άλλου» τύπου (×πολλαπλασιαστής, π.χ. στη Butterflyfish) δούλευε μόνο φαινομενικά: η γραμμή εξαφανιζόταν αλλά επέστρεφε μετά την αποθήκευση. Τώρα συμπεριφέρεται όπως οι κατηγορίες μετάλλου — σας λέει πόσα κομμάτια έχει μέσα, σας αφήνει να τα μεταφέρετε και μετά την αποσύρει κανονικά.",
+        "🔒 Η μεταφορά προσφέρει μόνο κατηγορίες του ΙΔΙΟΥ τύπου (μέταλλο → μέταλλο, ×πολλαπλασιαστής → ×πολλαπλασιαστής), γιατί τιμολογούνται με διαφορετικό τρόπο.",
       ]},
       ]
   },
@@ -25989,9 +26004,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.30', date: 'Jul 2026', items: [
-        "🔢 How many pieces each vendor category holds: a blue number beside every row in the vendor form, and «· 3 pieces» in the card's code list. No need to press ✕ to find out what is inside — and two categories with the same name are now told apart at a glance.",
-        "ℹ️ It counts in-stock pieces using exactly the same rule the delete uses, so the number you see is the number that would be moved.",
+      { version: 'v12.31', date: 'Jul 2026', items: [
+        "🧾 The ✕ on “other”-type categories (×multiplier, e.g. on Butterflyfish) only appeared to work: the row vanished but came back after saving. It now behaves like the metal categories — it tells you how many pieces are inside, lets you move them, and then retires the row properly.",
+        "🔒 The move only offers categories of the SAME kind (metal → metal, ×multiplier → ×multiplier), because they are priced in different ways.",
       ]},
           ]
   }
@@ -30588,7 +30603,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.30';
+const APP_VERSION = '12.31';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -33621,7 +33636,7 @@ function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='', origIdx
     <input type="text" placeholder="${lang==='el'?'π.χ. Σκουλαρίκια':'e.g. Earrings'}" value="${name}" style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:9px 10px;outline:none">
     <input type="number" placeholder="×2.5" step="0.1" min="1" value="${multiplier}" style="width:70px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:var(--gold);font-family:var(--font-mono);font-size:13px;padding:9px 8px;outline:none;text-align:center">
     ${origIdx !== null ? '<span class="cat-count" style="visibility:hidden"></span>' : ''}
-    <button onclick="this.parentElement.remove()" style="width:28px;height:36px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.2);border-radius:6px;color:#e06060;cursor:pointer;flex-shrink:0">✕</button>`;
+    <button onclick="confirmDeleteLaborRow(this)" style="width:28px;height:36px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.2);border-radius:6px;color:#e06060;cursor:pointer;flex-shrink:0">✕</button>`;
   list.appendChild(row);
 }
 
