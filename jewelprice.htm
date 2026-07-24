@@ -15061,13 +15061,28 @@ function _retireLaborRow(row) {
   row.style.display = 'none';
 }
 
+// Which pieces are on THIS row, and where can they go?
+//
+// This used to ask by NAME (`item.catName === catName`), which breaks as soon as a
+// vendor legitimately holds the same name twice (v11.10 made that possible, and
+// Kyklos really has two «Μενταγιόν» rows at 925): deleting either one swept up the
+// twin's pieces as well, and the twin was excluded from the destination list — so
+// the only way out was to move pendants into some unrelated category. The row is
+// identified by its POSITION now (`dataset.origIdx`, stamped by editVendor), and
+// membership is decided by `getItemCat` — the very resolver that prices the piece,
+// so this can never disagree with what the piece actually uses.
 async function confirmDeleteLaborRow(btn) {
   // Only check inventory when editing an existing vendor
   if (editingVendorIndex === null) { btn.parentElement.remove(); return; }
   const vendor = state.vendors[editingVendorIndex];
   if (!vendor) { _retireLaborRow(btn.parentElement); return; }
-  const catName = btn.parentElement.querySelector('.labor-name')?.value?.trim();
-  if (!catName) { _retireLaborRow(btn.parentElement); return; }
+  const _row = btn.parentElement;
+  const _myIdx = _row.dataset.origIdx !== undefined ? parseInt(_row.dataset.origIdx) : -1;
+  const _cats = getVendorCategories(vendor);
+  const _myCat = _myIdx >= 0 ? _cats[_myIdx] : null;
+  if (!_myCat) { _retireLaborRow(_row); return; }   // a row added in this session — no pieces, no tags
+  const catName = _row.querySelector('.labor-name')?.value?.trim();
+  if (!catName) { _retireLaborRow(_row); return; }
 
   // Scan inventory for items using this vendor + category name
   const inv = await (async () => {
@@ -15080,16 +15095,25 @@ async function confirmDeleteLaborRow(btn) {
     return [];
   })();
 
+  // Membership decided the same way the price is: by getItemCat, not by name.
   const affected = inv.filter(([, item]) =>
     item.status !== 'sold' &&
-    item.vendorIdx === editingVendorIndex &&
-    item.catName === catName
+    _itemVendor(item) === vendor &&
+    getItemCat(item) === _myCat
   );
 
-  if (affected.length === 0) { _retireLaborRow(btn.parentElement); return; }
+  if (affected.length === 0) { _retireLaborRow(_row); return; }
 
-  // Build list of other categories currently in the form (already saved)
-  const otherCats = getVendorCategories(vendor).filter(c => c.name !== catName && !c.deleted);
+  // Every OTHER live row is a valid destination — including a same-name twin,
+  // which is usually the right answer when a category was created twice.
+  const otherCats = _cats.map((c, i) => ({ c, i })).filter(({ c, i }) => i !== _myIdx && !c.deleted);
+  // Two rows can render the same label (identical name + karat + rate), so number
+  // them; picking the wrong one silently reprices pieces.
+  const _label = ({ c, i }) => {
+    const base = catOptionLabel(c, catIsOther(c));
+    const dup = otherCats.some(o => o.i !== i && catOptionLabel(o.c, catIsOther(o.c)) === base);
+    return dup ? `${base} — #${i + 1}` : base;
+  };
 
   if (otherCats.length === 0) {
     showToast(lang === 'el'
@@ -15099,10 +15123,9 @@ async function confirmDeleteLaborRow(btn) {
   }
 
   const isEl = lang === 'el';
-  const opts = otherCats.map((c, i) => `<option value="${i}">${c.name}</option>`).join('');
   const msg = isEl
-    ? `${affected.length} αντικείμενα χρησιμοποιούν την κατηγορία «${catName}». Επίλεξε κατηγορία για μεταφορά τους:`
-    : `${affected.length} item(s) use category «${catName}». Choose a category to move them to:`;
+    ? `${affected.length} αντικείμενα χρησιμοποιούν την κατηγορία «${catName}» (#${_myIdx + 1}). Επίλεξε κατηγορία για μεταφορά τους:`
+    : `${affected.length} item(s) use category «${catName}» (#${_myIdx + 1}). Choose a category to move them to:`;
 
   // Temporarily inject a select below the confirm message
   const _injectSelect = () => {
@@ -15116,7 +15139,7 @@ async function confirmDeleteLaborRow(btn) {
     const sel = document.createElement('select');
     sel.id = '_moveCatSelect';
     sel.style.cssText = 'width:100%;padding:9px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-size:13px';
-    sel.innerHTML = otherCats.map((c, i) => `<option value="${i}">${c.name}</option>`).join('');
+    sel.innerHTML = otherCats.map(o => `<option value="${o.i}">${_label(o)}</option>`).join('');
     wrap.appendChild(sel);
     msgEl.parentNode.insertBefore(wrap, msgEl.nextSibling);
   };
@@ -15124,27 +15147,27 @@ async function confirmDeleteLaborRow(btn) {
 
   showConfirm(msg, async () => {
       const sel = document.getElementById('_moveCatSelect');
-      const targetCat = otherCats[parseInt(sel?.value || 0)];
+      const targetCatIdx = parseInt(sel?.value);
+      const targetCat = _cats[targetCatIdx];
       document.getElementById('_moveCatSelectWrap')?.remove();
       if (!targetCat) return;
-      const targetCatIdx = getVendorCategories(vendor).indexOf(targetCat);
-      // Reassign all affected items
-      const updates = {};
-      for (const [id, item] of affected) {
-        item.catName = targetCat.name;
-        item.catIdx = targetCatIdx;
-        updates[id] = item;
-      }
-      try {
-        await Promise.all(Object.entries(updates).map(([id, item]) => saveInventoryItem(id, item)));
-        _inventoryCache = null;
-        _retireLaborRow(btn.parentElement);
-        showToast(isEl
-          ? `✅ ${affected.length} αντικείμενα μεταφέρθηκαν στην «${targetCat.name}»`
-          : `✅ ${affected.length} item(s) moved to «${targetCat.name}»`);
-      } catch(e) {
-        showToast(isEl ? '⚠️ Σφάλμα κατά τη μεταφορά' : '⚠️ Error moving items');
-      }
+      // Reassign all affected items — the select carries the real category index,
+      // so a same-name twin is targeted exactly.
+      const _snap = affected.map(([id, item]) => [id, item, item.catName, item.catIdx]);
+      for (const [, item] of affected) { item.catName = targetCat.name; item.catIdx = targetCatIdx; }
+      let results = [];
+      try { results = await Promise.all(affected.map(([id, item]) => saveInventoryItem(id, item))); }
+      catch (e) { results = affected.map(() => false); }
+      // Roll back exactly the ones that did not land — a failed write must never
+      // leave the cache saying something the cloud does not (v11.62).
+      _snap.forEach(([, item, oldName, oldIdx], n) => { if (!results[n]) { item.catName = oldName; item.catIdx = oldIdx; } });
+      const ok = results.filter(Boolean).length;
+      _inventoryCache = null;
+      if (ok === 0) { showToast(isEl ? '⚠️ Δεν μεταφέρθηκε κανένα — δοκιμάστε ξανά' : '⚠️ Nothing was moved — try again'); return; }
+      _retireLaborRow(_row);
+      showToast(ok === _snap.length
+        ? (isEl ? `✅ ${ok} αντικείμενα μεταφέρθηκαν στην «${targetCat.name}»` : `✅ ${ok} item(s) moved to «${targetCat.name}»`)
+        : (isEl ? `⚠️ Μεταφέρθηκαν ${ok}/${_snap.length} — δοκιμάστε ξανά` : `⚠️ Moved ${ok}/${_snap.length} — try again`));
     },
     () => { document.getElementById('_moveCatSelectWrap')?.remove(); },
     { okLabel: isEl ? 'Μεταφορά & Διαγραφή' : 'Move & Delete', cancelLabel: isEl ? 'Άκυρο' : 'Cancel', danger: false }
@@ -25863,9 +25886,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.27', date: 'Ιούλιος 2026', items: [
-        "🛒 Το καλάθι δεν χάνεται πια: αν κλείσει η εφαρμογή ή ανανεωθεί η σελίδα (π.χ. το κινητό «σκοτώσει» την εφαρμογή στο παρασκήνιο), το καλάθι επιστρέφει όπως ήταν — με ένα μήνυμα που λέει τι ώρα φτιάχτηκε.",
-        "🕗 Επιστρέφει ΜΟΝΟ καλάθι της ίδιας ημέρας και μέχρι 12 ώρες παλιό — χθεσινό καλάθι δεν ξαναεμφανίζεται (οι τιμές του ήταν με τον τότε χρυσό). Η «Εκκαθάριση Καλαθιού» το σβήνει οριστικά, όπως πάντα.",
+      { version: 'v12.28', date: 'Ιούλιος 2026', items: [
+        "🏪 Διόρθωση στη διαγραφή κατηγορίας προμηθευτή όταν ο ίδιος προμηθευτής έχει ΔΥΟ κατηγορίες με το ίδιο όνομα (π.χ. δύο «Μενταγιόν» στον Kyklos): πριν, η διαγραφή της μιας μάζευε και τα κομμάτια της ΑΛΛΗΣ, και δεν σας άφηνε να τα μεταφέρετε στη δίδυμη. Τώρα μετράει μόνο τα κομμάτια της συγκεκριμένης γραμμής και σας προσφέρει και τη δίδυμη ως προορισμό.",
+        "✅ Η μεταφορά κομματιών ελέγχει πλέον ότι όντως αποθηκεύτηκε· αν αποτύχει (κακό σήμα) το λέει και δεν σβήνει τη γραμμή.",
       ]},
       ]
   },
@@ -25896,9 +25919,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.27', date: 'Jul 2026', items: [
-        "🛒 The cart is no longer lost: if the app closes or the page reloads (e.g. the phone kills it in the background), the cart comes back exactly as it was — with a message telling you what time it was built.",
-        "🕗 Only a cart from the SAME day and under 12 hours old comes back — yesterday's cart never reappears (its prices were at that day's gold). “Clear cart” still wipes it for good.",
+      { version: 'v12.28', date: 'Jul 2026', items: [
+        "🏪 Fix for deleting a vendor category when the same vendor has TWO categories with the same name (e.g. two «Μενταγιόν» at Kyklos): deleting one used to sweep up the OTHER one's pieces as well, and would not let you move them to the twin. It now counts only that row's own pieces and offers the twin as a destination.",
+        "✅ Moving pieces now checks that the save actually landed; if it fails (bad signal) it says so and does not remove the row.",
       ]},
           ]
   }
@@ -30495,7 +30518,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.27';
+const APP_VERSION = '12.28';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
