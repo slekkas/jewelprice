@@ -1469,6 +1469,24 @@ function metalWithPlating(item) {
                           : base + ' ' + (isEl ? e.post_el : e.post_en);
 }
 
+// A piece can be made of TWO metals — a 925 silver ring with a 14K gold face, say.
+// Without this it reads as plain silver, and half of what the customer is looking
+// at goes unmentioned. Returns '' when there is no second metal.
+function secondMetalLabel(item) {
+  if (!item || !item.secondaryMetal || !(parseFloat(item.secondaryWeight) > 0)) return '';
+  const isEl = lang === 'el';
+  const names = { gold: isEl ? 'Χρυσός' : 'Gold', silver: isEl ? 'Ασήμι' : 'Silver' };
+  const k = item.secondaryKarat ? String(item.secondaryKarat).replace(/s$/, '') : '';
+  let s = names[item.secondaryMetal] || item.secondaryMetal;
+  // Silver purity is a millesimal fineness (925), not karats — no 'K' on silver.
+  if (k) s += ' ' + (item.secondaryMetal === 'silver' ? k : k + 'K');
+  return s;
+}
+function secondMetalWeight(item) {
+  const w = parseFloat(item && item.secondaryWeight);
+  return w > 0 ? (Math.round(w * 100) / 100) + ' g' : '';
+}
+
 // Material for "other"-type items — mirror of OTHER_MATERIALS in jewelprice.htm. Stored
 // language-neutral on item.otherMaterial; blank/absent = unspecified.
 const OTHER_MATERIALS = [
@@ -2463,6 +2481,9 @@ function renderGrid() {
       // Plated silver reads as one phrase — «Επιχρυσωμένο Ασήμι 925» — not two tags:
       // the plating is what the customer sees, the 925 is what it is underneath.
       tags.push(`<span class="card-tag">${metalWithPlating(item)}</span>`);
+      // Two-metal piece: the second metal gets its own tag beside the first.
+      const _sm = secondMetalLabel(item);
+      if (_sm) tags.push(`<span class="card-tag">${_sm}</span>`);
       if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
         tags.push(`<span class="card-tag">${goldColorLabel(item.goldColor)}</span>`);
       }
@@ -2590,8 +2611,11 @@ function openLightbox(key) {
     if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
       metalStr += ' · ' + goldColorLabel(item.goldColor);
     }
+    // Both metals, and both weights in the same order, so the pairing is obvious.
+    const _sm = secondMetalLabel(item), _smw = secondMetalWeight(item);
+    if (_sm) metalStr += ' + ' + _sm;
     rows += row(lang==='el'?'Μέταλλο':'Metal', metalStr);
-    if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g');
+    if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g' + (_sm && _smw ? ' + ' + _smw : ''));
   } else if (item.metal === 'other') {
     const _matLbl = otherMaterialLabel(item.otherMaterial);
     if (_matLbl) rows += row(lang==='el'?'Υλικό':'Material', _matLbl);
@@ -2735,8 +2759,10 @@ function renderCompare(items) {
       if (item.metal === 'gold' && item.goldColor && item.goldColor !== 'gold') {
         metalStr += ' · ' + goldColorLabel(item.goldColor);
       }
+      const _sm2 = secondMetalLabel(item), _sm2w = secondMetalWeight(item);
+      if (_sm2) metalStr += ' + ' + _sm2;
       rows += row(lang==='el'?'Μέταλλο':'Metal', metalStr);
-      if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g');
+      if (item.weight) rows += row(lang==='el'?'Βάρος':'Weight', item.weight + ' g' + (_sm2 && _sm2w ? ' + ' + _sm2w : ''));
     }
     if (item.gender) rows += row(lang==='el'?'Φύλο':'For', genderLabel[item.gender]||item.gender);
     if (item.handmade) rows += row(lang==='el'?'Χειροποίητο':'Handmade', '✦');

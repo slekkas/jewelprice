@@ -423,7 +423,11 @@ function render(item, qr) {
   const desc       = (LANG === 'el' ? (item.descEl || item.descEn) : (item.descEn || item.descEl)) || item.description || '';
   const name       = ((typeLbl + handmade + (desc.trim() ? ' ' + desc.trim() : '')).trim()) || qr;
 
-  const karat      = item.karat ? item.karat.replace(/s$/, '') : '';
+  // Gold is measured in karats and reads with the K (18K); silver's 925 is a
+  // millesimal fineness and takes none. This page used to drop the K on gold,
+  // which the showroom has always shown.
+  const _kSuffix   = m => m === 'gold' ? 'K' : '';
+  const karat      = item.karat ? item.karat.replace(/s$/, '') + _kSuffix(item.metal) : '';
   // Plated silver: the plating goes in front, trade-style («Επιχρυσωμένο Ασήμι» /
   // "Gold Plated Silver"); a two-tone piece takes it as a suffix instead.
   const _plating   = (item.metal === 'silver' && item.silverPlating)
@@ -432,8 +436,15 @@ function render(item, qr) {
     ? (_plating.pre ? _plating[LANG] + ' ' + metalLabelFor(item.metal)
                     : metalLabelFor(item.metal) + ' ' + _plating[LANG])
     : metalLabelFor(item.metal);
+  // A piece can be made of TWO metals (a 925 silver ring with a 14K gold face);
+  // without this it reads as plain silver and half the piece goes unmentioned.
+  const _sk = item.secondaryKarat ? String(item.secondaryKarat).replace(/s$/, '') + _kSuffix(item.secondaryMetal) : '';
+  const _secStr = (item.secondaryMetal && parseFloat(item.secondaryWeight) > 0)
+    ? ' + ' + metalLabelFor(item.secondaryMetal) + (_sk ? ' · ' + _sk : '')
+      + ' · ' + (Math.round(parseFloat(item.secondaryWeight) * 100) / 100) + 'g'
+    : '';
   const metalStr   = item.metal && item.metal !== 'other'
-    ? _metalName + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '')
+    ? _metalName + (karat ? ' · ' + karat : '') + (item.weight ? ' · ' + item.weight + 'g' : '') + _secStr
     : '';
 
   let rows = '';

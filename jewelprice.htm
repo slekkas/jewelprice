@@ -19157,7 +19157,12 @@ async function saveInventoryItem(id, item) {
 // just that node world-readable (read-only); everything else stays locked.
 const PUBLIC_FB_PATH = '/jewelprice_public';
 const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryType','refType',
-  'metal','karat','goldColor','silverPlating','otherMaterial','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded'];
+  'metal','karat','goldColor','silverPlating','otherMaterial','color','weight','gender','alsoGenders','handmade','stonesDesc','seqId','groupId','photoUrl','photoUrlHi','status','dateAdded',
+  // A two-metal piece (e.g. a 925 ring with a 14K gold face) reads as plain silver
+  // without these — the gold is half of what the customer is looking at. Weights
+  // are already public for the primary metal; these are the same kind of fact and
+  // carry no cost/vendor information.
+  'secondaryMetal','secondaryKarat','secondaryWeight'];
 
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
@@ -25886,9 +25891,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.28', date: 'Ιούλιος 2026', items: [
-        "🏪 Διόρθωση στη διαγραφή κατηγορίας προμηθευτή όταν ο ίδιος προμηθευτής έχει ΔΥΟ κατηγορίες με το ίδιο όνομα (π.χ. δύο «Μενταγιόν» στον Kyklos): πριν, η διαγραφή της μιας μάζευε και τα κομμάτια της ΑΛΛΗΣ, και δεν σας άφηνε να τα μεταφέρετε στη δίδυμη. Τώρα μετράει μόνο τα κομμάτια της συγκεκριμένης γραμμής και σας προσφέρει και τη δίδυμη ως προορισμό.",
-        "✅ Η μεταφορά κομματιών ελέγχει πλέον ότι όντως αποθηκεύτηκε· αν αποτύχει (κακό σήμα) το λέει και δεν σβήνει τη γραμμή.",
+      { version: 'v12.29', date: 'Ιούλιος 2026', items: [
+        "💛 Το δεύτερο μέταλλο φαίνεται πλέον στο showroom: ένα ασημένιο δαχτυλίδι με χρυσή κεφαλή δείχνει τώρα «ΑΣΗΜΙ 925» ΚΑΙ «ΧΡΥΣΟΣ 14K» στην κάρτα, και μέσα στη λεπτομέρεια «Ασήμι 925 + Χρυσός 14K» με «9.5 g + 1.3 g». Το ίδιο και στη σελίδα του κομματιού (QR).",
+        "ℹ️ Ισχύει για όλα τα υπάρχοντα κομμάτια — μόλις ανοίξετε την καρτέλα Απόθεμα, το showroom ενημερώνεται μόνο του.",
       ]},
       ]
   },
@@ -25919,9 +25924,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.28', date: 'Jul 2026', items: [
-        "🏪 Fix for deleting a vendor category when the same vendor has TWO categories with the same name (e.g. two «Μενταγιόν» at Kyklos): deleting one used to sweep up the OTHER one's pieces as well, and would not let you move them to the twin. It now counts only that row's own pieces and offers the twin as a destination.",
-        "✅ Moving pieces now checks that the save actually landed; if it fails (bad signal) it says so and does not remove the row.",
+      { version: 'v12.29', date: 'Jul 2026', items: [
+        "💛 The second metal now shows in the showroom: a silver ring with a gold face reads «SILVER 925» AND «GOLD 14K» on the card, and inside the detail «Silver 925 + Gold 14K» with «9.5 g + 1.3 g». Same on the item's own QR page.",
+        "ℹ️ This applies to every existing piece — the showroom updates itself the next time you open the Stock tab.",
       ]},
           ]
   }
@@ -30518,7 +30523,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.28';
+const APP_VERSION = '12.29';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
