@@ -545,6 +545,11 @@
   #catNameOverlay .overlay-cancel { background:var(--wa08); color:#ccc; }
   .labor-row input { flex:1; min-width:0; font-size:14px; padding:9px 10px; }
   .labor-row input.rate-input { flex:0 0 90px; text-align:center; }
+  /* How many pieces sit on this category — so you never have to press ✕ to find out. */
+  .cat-count { flex:0 0 auto; min-width:22px; height:42px; padding:0 5px; display:flex; align-items:center; justify-content:center;
+    background:rgba(100,180,255,0.12); border:1px solid rgba(100,180,255,0.35); border-radius:4px;
+    color:#64b4ff; font-family:'DM Mono',monospace; font-size:12px; }
+  #vfOtherCatList .cat-count { height:36px; }
   .labor-row .remove-btn { flex-shrink:0; width:32px; height:42px; border:1px solid rgba(192,57,43,0.4); color:var(--danger); background:none; border-radius:4px; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
   .rate-type-toggle { flex:0 0 38px; height:42px; background:var(--wa04); border:1px solid var(--wa15); border-radius:4px; color:var(--text-muted); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.05em; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
   .rate-type-toggle.flat { background:rgba(201,168,76,0.15); border-color:rgba(201,168,76,0.5); color:var(--gold); }
@@ -14819,6 +14824,7 @@ function renderVendors() {
     const _abbrsVLatin = catAbbrs(cats, true);
 
     // Codes detail (shown when expanded)
+    const _catCounts = catPieceCounts(v);   // null until the stock is loaded
     const codesHtml = cats.map((c,ci) => {
       const cAbbr = _abbrsV[ci];
       const k = c.karat && c.karat !== '—' ? karatCode(c.karat) : '';
@@ -14831,10 +14837,14 @@ function renderVendors() {
       const handmadeBadge = (c.handmade ? ' ✋' : '')
         + (c.deleted ? ` <span style="font-size:9px;color:var(--text-muted)">(${lang==='el'?'αποσύρθηκε':'retired'})</span>` : '');
       const rateHtml = isEmployee ? '' : catIsOther(c) ? `<span class="code-rate">×${_fmtRate(c.multiplier)}</span>` : c.rateType==='peritem' ? `<span class="code-rate">📦 ${t('perItem')}</span>` : `<span class="code-rate">${cur}${_fmtRate(c.rate)}${c.rateType==='flat'?' flat':'/g'}</span>`;
+      // Pieces on this exact category — two same-name rows show their own counts,
+      // which is what tells them apart at a glance.
+      const _n = _catCounts ? _catCounts[ci] : null;
+      const countBadge = _n ? ` <span style="font-size:9px;color:#64b4ff">· ${_n} ${lang==='el'?(_n===1?'κομμάτι':'κομμάτια'):(_n===1?'piece':'pieces')}</span>` : '';
       return `<div class="vendor-code-row">
         <span class="code-badge">${codePattern}</span>
         <span class="code-badge" style="background:rgba(176,184,200,0.1);border-color:rgba(176,184,200,0.3);color:var(--silver-light);font-size:11px">${latinCode}</span>
-        <span class="code-desc">${c.name}${marginBadge}${handmadeBadge}</span>
+        <span class="code-desc">${c.name}${marginBadge}${handmadeBadge}${countBadge}</span>
         ${rateHtml}
       </div>`;
     }).join('');
@@ -15030,6 +15040,17 @@ function editVendor(i) {
     }
   });
 
+  // Show how many pieces sit on each category, so the owner never has to press ✕
+  // to find out. Fills straight away when the stock is already loaded, otherwise
+  // loads it in the background and fills in when it lands.
+  _fillCatCounts(v);
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
+    loadInventory().then(inv => {
+      if (inv && Object.keys(inv).length) _inventoryCache = inv;  // never blank a good cache
+      if (editingVendorIndex !== null && state.vendors[editingVendorIndex] === v) _fillCatCounts(v);
+    }).catch(() => {});
+  }
+
   // Show the section that has content (metal by default). The Metal/Other buttons just switch
   // which section is visible; BOTH are saved regardless of which one is showing.
   setVendorFormType((vendorHasMetal(v) || !vendorHasOther(v)) ? 'metal' : 'other');
@@ -15059,6 +15080,49 @@ function _retireLaborRow(row) {
   if (!row.dataset.abbr) { row.remove(); return; } // never saved — no items, no tags
   row.dataset.deleted = '1';
   row.style.display = 'none';
+}
+
+// How many pieces sit on each of a vendor's categories?
+//
+// Returns an array of in-stock counts, index-aligned with the vendor's categories.
+// Membership is decided by `getItemCat` — the same resolver that prices a piece and
+// that the delete flow uses — so what is shown and what a delete would act on can
+// never disagree. Sold pieces are excluded for the same reason: they are history,
+// they keep resolving to a retired row, and a delete never touches them.
+//
+// Returns null when the inventory has not been loaded, so a caller can tell "none"
+// from "I don't know yet" and show nothing rather than a confident zero.
+function catPieceCounts(vendor) {
+  if (!vendor || !_inventoryCache || !Object.keys(_inventoryCache).length) return null;
+  const cats = getVendorCategories(vendor);
+  const counts = cats.map(() => 0);
+  Object.values(_inventoryCache).forEach(item => {
+    if (!item || item.status === 'sold') return;
+    if (_itemVendor(item) !== vendor) return;
+    const c = getItemCat(item);
+    const i = c ? cats.indexOf(c) : -1;
+    if (i >= 0) counts[i]++;
+  });
+  return counts;
+}
+
+// Paint the per-row piece counts into an open vendor form. Runs again once the
+// inventory lands, so opening the form before it loads still fills in.
+function _fillCatCounts(vendor) {
+  const counts = catPieceCounts(vendor);
+  if (!counts) return;
+  const isEl = lang === 'el';
+  document.querySelectorAll('#laborList .labor-row, #vfOtherCatList .other-cat-row').forEach(row => {
+    const el = row.querySelector('.cat-count');
+    if (!el) return;
+    const oi = row.dataset.origIdx;
+    const n = (oi !== undefined && oi !== '') ? counts[parseInt(oi)] : 0;
+    el.textContent = n > 0 ? n : '';
+    el.title = n > 0
+      ? (isEl ? `${n} κομμάτια σε απόθεμα σε αυτή την κατηγορία` : `${n} pieces in stock in this category`)
+      : (isEl ? 'Κανένα κομμάτι σε απόθεμα' : 'No pieces in stock');
+    el.style.visibility = n > 0 ? 'visible' : 'hidden';
+  });
 }
 
 // Which pieces are on THIS row, and where can they go?
@@ -15206,6 +15270,7 @@ function addLaborRow(name='', karat='18', rate='', margin='', handmade=false, ra
     <button type="button" class="rate-type-toggle ${btnClass}" onclick="toggleRateType(this)" title="${btnTitle}">${btnText}</button>
     <input type="number" class="margin-input" placeholder="—" step="0.5" inputmode="decimal" value="${isPerItem?'':margin}" style="${marginStyle}">
     <button type="button" class="handmade-toggle ${handmade?'active':''}" onclick="this.classList.toggle('active')">✋</button>
+    ${origIdx !== null ? '<span class="cat-count" style="visibility:hidden"></span>' : ''}
     <button class="remove-btn" onclick="confirmDeleteLaborRow(this)">✕</button>`;
   list.appendChild(row);
   row.querySelector('.labor-name').addEventListener('focus', function() { openCatNameOverlay(this); this.blur(); });
@@ -25891,9 +25956,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.29', date: 'Ιούλιος 2026', items: [
-        "💛 Το δεύτερο μέταλλο φαίνεται πλέον στο showroom: ένα ασημένιο δαχτυλίδι με χρυσή κεφαλή δείχνει τώρα «ΑΣΗΜΙ 925» ΚΑΙ «ΧΡΥΣΟΣ 14K» στην κάρτα, και μέσα στη λεπτομέρεια «Ασήμι 925 + Χρυσός 14K» με «9.5 g + 1.3 g». Το ίδιο και στη σελίδα του κομματιού (QR).",
-        "ℹ️ Ισχύει για όλα τα υπάρχοντα κομμάτια — μόλις ανοίξετε την καρτέλα Απόθεμα, το showroom ενημερώνεται μόνο του.",
+      { version: 'v12.30', date: 'Ιούλιος 2026', items: [
+        "🔢 Πόσα κομμάτια έχει κάθε κατηγορία προμηθευτή: μπλε αριθμός δίπλα σε κάθε γραμμή στη φόρμα του προμηθευτή, και «· 3 κομμάτια» στην αναλυτική λίστα κωδικών της κάρτας. Δεν χρειάζεται πια να πατήσετε ✕ για να δείτε τι υπάρχει μέσα — και δύο κατηγορίες με το ίδιο όνομα ξεχωρίζουν αμέσως.",
+        "ℹ️ Μετράει τα κομμάτια σε απόθεμα, με τον ίδιο ακριβώς κανόνα που χρησιμοποιεί η διαγραφή — οπότε ο αριθμός που βλέπετε είναι αυτός που θα μεταφερθεί.",
       ]},
       ]
   },
@@ -25924,9 +25989,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.29', date: 'Jul 2026', items: [
-        "💛 The second metal now shows in the showroom: a silver ring with a gold face reads «SILVER 925» AND «GOLD 14K» on the card, and inside the detail «Silver 925 + Gold 14K» with «9.5 g + 1.3 g». Same on the item's own QR page.",
-        "ℹ️ This applies to every existing piece — the showroom updates itself the next time you open the Stock tab.",
+      { version: 'v12.30', date: 'Jul 2026', items: [
+        "🔢 How many pieces each vendor category holds: a blue number beside every row in the vendor form, and «· 3 pieces» in the card's code list. No need to press ✕ to find out what is inside — and two categories with the same name are now told apart at a glance.",
+        "ℹ️ It counts in-stock pieces using exactly the same rule the delete uses, so the number you see is the number that would be moved.",
       ]},
           ]
   }
@@ -30523,7 +30588,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.29';
+const APP_VERSION = '12.30';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -33555,6 +33620,7 @@ function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='', origIdx
   row.innerHTML = `
     <input type="text" placeholder="${lang==='el'?'π.χ. Σκουλαρίκια':'e.g. Earrings'}" value="${name}" style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:9px 10px;outline:none">
     <input type="number" placeholder="×2.5" step="0.1" min="1" value="${multiplier}" style="width:70px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:var(--gold);font-family:var(--font-mono);font-size:13px;padding:9px 8px;outline:none;text-align:center">
+    ${origIdx !== null ? '<span class="cat-count" style="visibility:hidden"></span>' : ''}
     <button onclick="this.parentElement.remove()" style="width:28px;height:36px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.2);border-radius:6px;color:#e06060;cursor:pointer;flex-shrink:0">✕</button>`;
   list.appendChild(row);
 }
