@@ -3518,6 +3518,7 @@ const T = {
     // calc result labels
     rMetal:'Μέταλλο', rWeight:'Βάρος', rSpot:'Τιμή Spot',
     rMetalCost:'Κόστος Μετάλλου', rLabor:'Εργασία', rWastage:'Φύρα',
+    invFilterRateType:'Χρέωση εργασίας',
     rSubtotal:'Υποσύνολο', rMargin:'Περιθώριο',
     rPreVat:'Τιμή πριν ΦΠΑ', rVat:'ΦΠΑ',
     rListPrice:'Τιμή Καταλόγου', rDiscount:'Έκπτωση', rProfitAfterDiscount:'Κέρδος μετά έκπτωση',
@@ -3997,6 +3998,7 @@ const T = {
     refCardCategory:'Category', refCardCode:'Code', refCardRate:'Rate/g',
     rMetal:'Metal', rWeight:'Weight', rSpot:'Spot Price',
     rMetalCost:'Metal Cost', rLabor:'Labor', rWastage:'Wastage',
+    invFilterRateType:'Labor charged',
     rSubtotal:'Subtotal', rMargin:'Margin',
     rPreVat:'Price before VAT', rVat:'VAT',
     rListPrice:'List Price', rDiscount:'Discount', rProfitAfterDiscount:'Profit after discount',
@@ -15953,6 +15955,27 @@ function syncKaratToCat(rawKarat) {
   }
 }
 
+// ── The three ways a metal category charges labour ────────────────────────────────
+// Per gram, a flat fee, or per item. Labelled with the same €/g · € · 📦 shorthand the
+// vendor form's rate-type toggle uses, so the Stock filter reads like the vendor page.
+const RATE_TYPES = ['pergram', 'flat', 'peritem'];
+function rateTypeLabel(rt) {
+  const isEl = lang === 'el';
+  return rt === 'flat'    ? '€ '  + (isEl ? 'Σταθερή'      : 'Flat')
+       : rt === 'peritem' ? '📦 ' + (isEl ? 'Ανά τεμάχιο'  : 'Per item')
+       :                            (isEl ? '€/γρ.'        : '€/g');
+}
+// Which of the three a PIECE is priced by, resolved through getItemCat — the same lookup
+// that prices it, so the filter can never disagree with the price on the card. Returns
+// null for anything with no metal category (coins, raw metal, other-type, orphans), which
+// therefore drops out whenever one of these pills is selected.
+function itemRateType(item) {
+  if (!item || item.isCoin || item.isMetal || item.metal === 'other') return null;
+  const cat = getItemCat(item);
+  if (!cat || catIsOther(cat)) return null;
+  return cat.rateType || 'pergram';
+}
+
 // Shared label for a labor-category <option>: "Σκουλαρίκια (18K · €22/γρ.)".
 // The karat + rate are shown so two same-named categories are distinguishable at a glance.
 function catOptionLabel(cat, isOtherType) {
@@ -19706,7 +19729,7 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost, wastageAmt };
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 // Show the "Total Cost" summary card? Off by default (keeps the comfortable 3-card layout);
 // the owner flips it on via a toggle in the Filter sheet. A view preference, not a filter,
 // so it persists across renders and is unaffected by "Clear filters".
@@ -19907,7 +19930,7 @@ let _invShowSelectedOnly = false; // select mode: narrow the list to only picked
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.rateTypes||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -19930,6 +19953,7 @@ function updateInvFilterBadge() {
     if ((_invFilters.platings||[]).length) parts.push((_invFilters.platings||[]).map(v =>
       v === PLATING_PLAIN ? (lang==='el'?'Απλό ασήμι':'Plain silver') : silverPlatingLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
+    if ((_invFilters.rateTypes||[]).length) parts.push((_invFilters.rateTypes||[]).map(v => rateTypeLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
     if (_invFilters.seasonMin) parts.push('🕰️ ' + _invFilters.seasonMin + '+ ' + t('invSeasonWord'));
@@ -20137,6 +20161,13 @@ function openInvFilterSheet() {
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invShowCostLbl')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_showCostCard?' sel':''}" data-group="showCost" data-val="1">${t('invShowCostPill')}</button></div></div>`;
 
   // Time in stock (owner/manager only) — spot long-sitting pieces to discount.
+  // How the piece's labour is charged. A cost-model concept, so owner/manager only —
+  // consistent with the gain and time-in-stock filters. Only the kinds actually present
+  // in the stock are offered, so a shop using none of them sees nothing new.
+  const _rtPresent = RATE_TYPES.filter(rt => items.some(i => itemRateType(i) === rt));
+  const rateTypeGroup = (!can('see_cost') || _rtPresent.length < 2) ? '' :
+    pillGroup('invFilterRateType', _rtPresent, _invFilters.rateTypes || [], 'rateTypes', v => rateTypeLabel(v));
+
   const seasonGroup = (!can('see_cost')) ? '' :
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterAge')}</div><div class="inv-fs-pills">` +
     [1, 2, 3, 5].map(v => `<button class="inv-fs-pill${_invFilters.seasonMin===v?' sel':''}" data-group="season" data-val="${v}">${v}+ ${t('invSeasonWord')}</button>`).join('') +
@@ -20217,6 +20248,7 @@ function openInvFilterSheet() {
     platingGroup +
     colorGroup +
     genderGroup +
+    rateTypeGroup +
     mixedMetalGroup +
     gainGroup +
     seasonGroup +
@@ -20392,7 +20424,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -20793,6 +20825,11 @@ function renderInvList() {
     }
     if (f.mixedMetal) {
       if (!item.secondaryMetal) return false;
+    }
+    // How the labour is charged (per gram / flat / per item). Anything with no metal
+    // category — coins, raw metal, other-type — has no answer and drops out.
+    if (f.rateTypes && f.rateTypes.length) {
+      if (!f.rateTypes.includes(itemRateType(item))) return false;
     }
     // Gain % filter — show only items whose price rose at least this much vs their
     // recorded initial price (a quick way to spot unrealistic jumps).
@@ -26150,12 +26187,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.32', date: 'Ιούλιος 2026', items: [
-        "⚖️ Φύρα ανά προμηθευτή. Κάποιοι προμηθευτές δεν χρεώνουν τον χρυσό στην τιμή αγοράς — τον χρεώνουν ακριβότερα για την απώλεια κατασκευής (ο Καλλίνικος +10%: 66,90 €/γρ. έγιναν 73,59 €/γρ., γι' αυτό το μενταγιόν κόστισε 127,40 € ενώ η εφαρμογή έλεγε 117 €). Στην καρτέλα του προμηθευτή υπάρχει τώρα πεδίο «Φύρα Μετάλλου (%)».",
-        "🧾 Στην ανάλυση τιμής η φύρα εμφανίζεται σε δική της γραμμή («Φύρα 10%»), ώστε να διαβάζεται δίπλα στο τιμολόγιο του προμηθευτή.",
-        "🎯 Και ανά κατηγορία, αν ο προμηθευτής χρεώνει φύρα π.χ. στα χυτά αλλά όχι στις αλυσίδες: πατήστε το όνομα της κατηγορίας και βάλτε δικό της ποσοστό. Κενό = ακολουθεί τον προμηθευτή, 0 = αυτή η κατηγορία δεν έχει φύρα. Όποια κατηγορία έχει δικό της ποσοστό φαίνεται με χρυσό «φ%» στην καρτέλα του προμηθευτή.",
-        "✅ Αφορά ΜΟΝΟ τον προμηθευτή που θα συμπληρώσετε — όλοι οι υπόλοιποι μένουν ακριβώς όπως ήταν. Δεν επηρεάζει τις κατηγορίες «ανά τεμάχιο», όπου το κόστος το γράφετε ήδη εσείς από το τιμολόγιο.",
-        "📈 Μόλις τη συμπληρώσετε, η εφαρμογή ρωτάει αν πρόκειται για διόρθωση (οπότε επαναφέρει τις αρχικές τιμές των υπαρχόντων κομματιών, για να μη δείξουν ψεύτικη αύξηση %) ή για πραγματική αύξηση τιμής.",
+      { version: 'v12.33', date: 'Ιούλιος 2026', items: [
+        "🔎 Φίλτρο «Χρέωση εργασίας» στο Απόθεμα: δείτε ξεχωριστά τα κομμάτια που χρεώνονται €/γρ., με σταθερή εργασία ή ανά τεμάχιο. Χρήσιμο π.χ. για να βρείτε όλα τα «ανά τεμάχιο» κομμάτια που δεν επηρεάζονται από τη φύρα.",
       ]},
       ]
   },
@@ -26186,12 +26219,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.32', date: 'Jul 2026', items: [
-        "⚖️ Per-vendor manufacturing wastage. Some suppliers don't charge the gold at the market price — they charge more to cover what is lost in making the piece (Καλλίνικος adds 10%: €66.90/g became €73.59/g, which is why a pendant cost €127.40 while the app said €117). The vendor form now has a “Metal Wastage (%)” field.",
-        "🧾 The price breakdown shows the wastage on its own line (“Wastage 10%”), so it reads straight against the supplier's invoice.",
-        "🎯 Per category too, if a supplier charges wastage on cast pieces but not on chains: tap the category name and give it its own percentage. Blank = follow the vendor, 0 = this category has no wastage. A category with its own figure shows a gold “φ%” on the vendor card.",
-        "✅ It affects ONLY the vendor you fill it in for — every other vendor stays exactly as it was. It does not touch per-item categories, where you already type the cost from the invoice.",
-        "📈 When you set it, the app asks whether this is a correction (it then re-baselines existing pieces so they don't show a fake price jump) or a real price increase.",
+      { version: 'v12.33', date: 'Jul 2026', items: [
+        "🔎 A “Labor charged” filter in Stock: see separately the pieces charged per gram, at a flat fee, or per item. Handy for finding all the per-item pieces, which the wastage does not affect.",
       ]},
           ]
   }
@@ -30788,7 +30817,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.32';
+const APP_VERSION = '12.33';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
