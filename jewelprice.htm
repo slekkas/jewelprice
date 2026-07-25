@@ -26493,10 +26493,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.43', date: 'Ιούλιος 2026', items: [
-        "🎀 Διόρθωση: όταν μια ομάδα έχει κομμάτια σε δύο σετ (π.χ. αμέθυστος & φεγγαρόπετρα), πατώντας το σήμα «Σετ» στην κάρτα σας ρωτάει πλέον ΠΟΙΟ σετ — πριν άνοιγε μόνο το ένα.",
-        "🌐 Βιτρίνα: μπαίνοντας σε ένα σετ ξεκινά τώρα από το 1ο κομμάτι (πριν έδειχνε 2/2).",
-        "🖼️ Βιτρίνα: μέσα στο σετ υπάρχει τώρα μια σειρά με μικρές φωτο όλων των κομματιών — πατήστε ένα για να δείτε το συγκεκριμένο κομμάτι.",
+      { version: 'v12.44', date: 'Ιούλιος 2026', items: [
+        "🛒 Προσθήκη σετ στο καλάθι: μέσα σε ένα σετ (Απόθεμα → σήμα «🎀 Σετ») υπάρχει κουμπί «Προσθήκη σετ στο καλάθι». Μπαίνουν όλα τα κομμάτια — μετά Πώληση Όλων ή Κράτηση, ή αφαιρέστε ένα κομμάτι (π.χ. το δαχτυλίδι) από το καλάθι.",
+        "🌐 Βιτρίνα: νέα καταχώρηση «Σετ» στο μενού Περιήγησης — δείχνει όλα τα σετ (με φίλτρα χρυσό/ασήμι/άλλο, γυναικεία/ανδρικά).",
+        "💝 Βιτρίνα: μέσα σε ένα σετ, κουμπί «Ζητήστε ολόκληρο το σετ» — ο πελάτης ζητάει όλα τα κομμάτια με ένα πάτημα.",
       ]},
       ]
   },
@@ -26527,10 +26527,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.43', date: 'Jul 2026', items: [
-        "🎀 Fix: when a group has pieces in two sets (e.g. amethyst & moonstone), tapping the card's “Set” badge now asks WHICH set — before it only opened one of them.",
-        "🌐 Showroom: opening a set now starts at the 1st piece (it used to show 2/2).",
-        "🖼️ Showroom: inside a set there's now a row of small photos of every piece — tap one to view that specific piece.",
+      { version: 'v12.44', date: 'Jul 2026', items: [
+        "🛒 Add set to cart: inside a set (Stock → the “🎀 Set” badge) there's now an “Add set to cart” button. All the pieces go in — then Sell all or Reserve, or remove a piece (e.g. the ring) from the cart.",
+        "🌐 Showroom: a new “Sets” entry in the Browse menu — shows every set (with gold/silver/other, women/men filters).",
+        "💝 Showroom: inside a set, an “Inquire about the whole set” button — a customer asks about all the pieces in one tap.",
       ]},
           ]
   }
@@ -31147,7 +31147,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.43';
+const APP_VERSION = '12.44';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -32689,6 +32689,8 @@ function openInvSet(setId) {
         </div>
         <button onclick="closeInvSet()" class="modal-x">✕</button>
       </div>
+      <button onclick="invAddSetToCart('${setId}')" style="margin-top:12px;width:100%;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:13px;color:#0E0C08;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">🛒 ${lang==='el'?'Προσθήκη σετ στο καλάθι':'Add set to cart'}</button>
+      <div style="margin-top:6px;font-size:10px;color:var(--text-dim);line-height:1.5;text-align:center">${lang==='el'?'Μετά: Πώληση όλων / Κράτηση — ή αφαιρέστε ένα κομμάτι από το καλάθι.':'Then: Sell all / Reserve — or remove a piece from the cart.'}</div>
       ${isOwner ? `<button onclick="_invSetRename('${setId}')" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✏️ ${lang==='el'?'Μετονομασία σετ':'Rename set'}</button>` : ''}
       ${isOwner ? `<div style="display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--wa03);border:1px solid var(--wa10);border-radius:10px;padding:10px">
         <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:center">${setPhoto ? `<img src="${setPhoto}" style="width:100%;height:100%;object-fit:contain">` : '<span style="font-size:22px;opacity:0.5">📷</span>'}</div>
@@ -32974,6 +32976,32 @@ function openSetChooser(setIds) {
       ${items.map(i => `<button onclick="closeSetChooser();openInvSet('${i.sid}')" style="width:100%;text-align:left;display:flex;align-items:center;gap:8px;background:var(--wa04);border:1px solid var(--wa12);border-radius:10px;padding:13px;margin-bottom:8px;color:var(--text-light);font-family:var(--font-body);font-size:14px;cursor:pointer">🎀 <span style="flex:1">${_e(i.nm)}</span><span style="color:var(--text-dim);font-size:12px">${i.count}</span></button>`).join('')}
     </div>`;
   document.body.appendChild(ov);
+}
+
+// Drop every in-stock piece of a set into the quote cart (pinned by record id), then show
+// the cart. From there the existing Sell-all / Reserve / remove-a-line flows do the rest —
+// so "sell the whole set" and "she doesn't want the ring" both work with no new machinery.
+// All roles (selling is not owner-gated).
+function invAddSetToCart(setId) {
+  const members = _setMembersOf(setId);
+  if (!members.length) return;
+  const inCart = new Set(quoteCart.map(ci => ci.invId).filter(Boolean));
+  let added = 0;
+  members.forEach(([id, item]) => {
+    if (inCart.has(id)) return;   // already in the cart — never double-add
+    const p = calcInvItemPrice(item);
+    const price = p ? (p.retail || 0) : 0;
+    const metalLabel = item.metal === 'gold' ? t('gold') : item.metal === 'silver' ? t('silver') : (lang==='el'?'Άλλο':'Other');
+    const nm = [item.jewelryType ? invTypeLabel(item.jewelryType) : '', _itemDesc(item)].filter(Boolean).join(' · ') || (item.qrCode || '');
+    const result = { finalPrice: price, retail: price, discount: 0, metalLabel, metal: item.metal, weight: item.weight || 0, photoUrl: item.photoUrl || '', photoUrlHi: item.photoUrlHi || '' };
+    quoteCart.push({ name: nm, result, invId: id });
+    added++;
+  });
+  updateCartUI();
+  closeInvSet();
+  if (added === 0) { showToast(lang==='el' ? '🛒 Ήδη στο καλάθι' : '🛒 Already in the cart'); }
+  else { showToast('🛒 ' + (lang==='el' ? `Το σετ μπήκε στο καλάθι (${added})` : `Set added to cart (${added})`)); }
+  const cp = document.getElementById('cartPanel'); if (cp) cp.style.display = 'block';
 }
 
 // ── EDIT ALL IN GROUP ─────────────────────────────────────────────────────────

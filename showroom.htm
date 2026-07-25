@@ -825,6 +825,13 @@
     color: var(--text-dim); text-transform: uppercase;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52px;
   }
+  .lb-set-inquire {
+    display: block; width: 100%; cursor: pointer; margin: 2px 0 14px;
+    font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: #fff; border: none; border-radius: 2px;
+    padding: 13px; background: var(--gold-dim); transition: all 0.18s;
+  }
+  .lb-set-inquire:hover { background: var(--gold); }
   .lb-title {
     font-family: 'Cormorant Garamond', Georgia, serif;
     font-size: 18px; font-weight: 400;
@@ -1972,7 +1979,17 @@ function renderNavMenuTypeLevel() {
     </button>`
   ).join('');
 
+  // "Sets" browses matching sets — a category-like entry leading to the same
+  // metal / gender step, then the one-box-per-set view.
+  const setCount = new Set(allItems.filter(i => i.setId).map(i => i.setId)).size;
+  const setsSection = setCount ? `
+    <div class="nav-menu-group"><button class="nav-menu-item" onclick="navMenuSelectType('__sets__')">
+      <span>${isEl ? 'Σετ' : 'Sets'}</span><span class="nm-count">${setCount} ›</span>
+    </button></div>
+    <div class="nav-menu-divider"></div>` : '';
+
   document.getElementById('navMenuBody').innerHTML = `
+    ${setsSection}
     <div class="nav-menu-section-label">${isEl ? 'Κατηγορία' : 'Category'}</div>
     <div class="nav-menu-group">${items}</div>
     <div class="nav-menu-divider"></div>
@@ -1996,10 +2013,11 @@ function navMenuBack() {
 
 function renderNavMenuFacetLevel(typeKey) {
   const isEl = lang === 'el';
+  const isSets = typeKey === '__sets__';
   document.getElementById('navMenuBackBtn').style.display = '';
-  document.getElementById('navMenuTitle').textContent = typeLabel(typeKey);
+  document.getElementById('navMenuTitle').textContent = isSets ? (isEl ? 'Σετ' : 'Sets') : typeLabel(typeKey);
 
-  const itemsInType = allItems.filter(i => i.jewelryType === typeKey);
+  const itemsInType = isSets ? allItems.filter(i => i.setId) : allItems.filter(i => i.jewelryType === typeKey);
 
   const metalLabel = { gold: isEl?'Χρυσός':'Gold', silver: isEl?'Ασήμι':'Silver', other: isEl?'Άλλο':'Other' };
   const metalOrder = ['gold','silver','other'];
@@ -2044,9 +2062,11 @@ function renderNavMenuFacetLevel(typeKey) {
   if (html) html += `<div class="nav-menu-divider"></div>`;
 
   const resultCount = _navFacetResultCount(typeKey);
-  const showLabel = isEl
-    ? `Εμφάνιση ${resultCount} ${resultCount === 1 ? 'Είδους' : 'Ειδών'}`
-    : `Show ${resultCount} ${resultCount === 1 ? 'Item' : 'Items'}`;
+  const showLabel = isSets
+    ? (isEl ? `Εμφάνιση ${resultCount} ${resultCount === 1 ? 'Σετ' : 'Σετ'}` : `Show ${resultCount} ${resultCount === 1 ? 'Set' : 'Sets'}`)
+    : (isEl
+      ? `Εμφάνιση ${resultCount} ${resultCount === 1 ? 'Είδους' : 'Ειδών'}`
+      : `Show ${resultCount} ${resultCount === 1 ? 'Item' : 'Items'}`);
   const disabledAttr = resultCount === 0 ? 'disabled' : '';
   const disabledStyle = resultCount === 0 ? 'opacity:0.4;cursor:default;' : '';
   html += `<button class="drawer-apply" style="width:100%;${disabledStyle}" onclick="navApplyFacets('${typeKey}')" ${disabledAttr}>${showLabel}</button>`;
@@ -2062,11 +2082,14 @@ function navToggleFacet(kind, value) {
 }
 
 function _navFacetResultCount(typeKey) {
+  const isSets = typeKey === '__sets__';
   const matched = allItems.filter(i =>
-    i.jewelryType === typeKey &&
+    (isSets ? !!i.setId : i.jewelryType === typeKey) &&
     (_navDraftMetals.length === 0 || _navDraftMetals.includes(i.metal)) &&
     genderMatches(_navDraftGenders, i)
   );
+  // Sets: the result is the number of distinct sets (one box each), not pieces.
+  if (isSets) return new Set(matched.map(i => i.setId)).size;
   // Collapse similar pieces (same groupId + colour) into ONE, exactly like the grid does,
   // so the facet count matches the number of cards the customer will actually see.
   const seen = new Set();
@@ -2083,9 +2106,11 @@ function _navFacetResultCount(typeKey) {
 }
 
 function navApplyFacets(typeKey) {
+  const isSets = typeKey === '__sets__';
   activeFilters = {
-    types: typeKey ? [typeKey] : [],
-    vendors: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false,
+    types: isSets ? [] : (typeKey ? [typeKey] : []),
+    vendors: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false,
+    setsOnly: isSets,
     metals:  [..._navDraftMetals],
     genders: [..._navDraftGenders]
   };
@@ -2585,6 +2610,13 @@ function lbSetJump(i) {
   lbSetIdx = i;
   openLightbox(lbSetIds[i], true);
 }
+// Select every piece of the set for one inquiry, then close so the selection bar shows.
+function selectWholeSet() {
+  if (!lbSetIds || !lbSetIds.length) return;
+  lbSetIds.forEach(k => selected.add(k));
+  updateSelBar();
+  closeLightbox();
+}
 
 // ─── GRID ──────────────────────────────────────────────────────────────────────
 function renderGrid() {
@@ -2844,6 +2876,8 @@ function openLightbox(key, keepSet) {
         <span>${tl}</span>
       </button>`;
     }).join('') + '</div>';
+    // "Buy the whole set" — selects every piece for one inquiry.
+    setStripHtml += `<button class="lb-set-inquire" onclick="selectWholeSet()">${lang==='el'?'Ζητήστε ολόκληρο το σετ':'Inquire about the whole set'} (${lbSetIds.length})</button>`;
   }
 
   document.getElementById('lightboxBody').innerHTML = `
