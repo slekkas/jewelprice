@@ -12578,7 +12578,40 @@ async function _saleLinkBadRecords() {
     bad.push({ kind: 'bulk', sale: s, ownId, own, batch });
   });
   bad.push(...(await _saleUnsoldRecords(sales, inv)));
+  bad.push(...(await _saleMissingCostRecords(sales, inv)));
   return bad;
+}
+
+// ── Paid for, but no cost recorded (profit lost) ────────────────────────────
+// A normal item-linked sale whose stored cost is missing (null) even though the
+// piece has a derivable cost — so its profit was never counted. This is the
+// class that lost €200 on the NK0044 cart sale (v12.45): an other-type piece
+// keeps its cost in the QR, and the sale path used to read it via a helper that
+// returned nothing for other-type pieces. The source is fixed for all future
+// sales; this catches any record already written wrong.
+//
+// Deliberately narrow — never touches records that legitimately carry no cost:
+// manual sales with no linked piece, €0 giveaways, scrap gains, repair income,
+// returns/breakage. Only flags a piece whose real cost can be derived.
+async function _saleMissingCostRecords(sales, inv) {
+  const out = [];
+  (sales || []).forEach(s => {
+    if (!s || s.cost != null) return;                       // already has a cost
+    if (!(parseFloat(s.amount) > 0)) return;                // €0 (giveaway) — not a normal sale
+    if (s.scrapGain || s.repairIncome || s.giveaway || s.giftBreakage || s.isReturn || s.returnOfSaleId || s.bulkInvId) return;
+    let ownId = (s.invId && inv[s.invId]) ? s.invId : null;
+    let own = ownId ? inv[ownId] : null;
+    if (!own && s.invQr) {
+      const k = _qrKey(s.invQr);
+      const hit = Object.entries(inv).find(([, it]) => it && it.qrCode && !it.isBulk && _qrKey(it.qrCode) === k);
+      if (hit) { ownId = hit[0]; own = hit[1]; }
+    }
+    if (!own || own.isBulk) return;                         // no piece to derive a cost from
+    const cost = _invSaleCost(own);
+    if (cost == null) return;                               // genuinely underivable — leave it alone
+    out.push({ kind: 'missingcost', sale: s, ownId, own, cost });
+  });
+  return out;
 }
 
 // ── Paid for, but still on the shelf ────────────────────────────────────────
@@ -12687,6 +12720,17 @@ async function scanSaleLinks() {
             (isEl ? 'θα σημειωθεί πουλημένο και θα συνδεθεί' : 'will be marked sold and linked') + '</div>'
         );
       }
+      if (e.kind === 'missingcost') {
+        const vat = parseFloat(state.vat) || 0;
+        const _prof = parseFloat((_saleExVat(s, vat) - e.cost).toFixed(2));
+        return wrap(
+          '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' +
+            (isEl ? 'Πληρώθηκε, αλλά δεν καταγράφηκε κόστος — το κέρδος χάθηκε' : 'Paid for, but no cost recorded — profit was lost') + '</div>' +
+          '<div style="font-size:11px;color:var(--success);margin-top:2px">' +
+            ownName + (ownRef ? ' (' + ownRef + ')' : '') + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(e.cost) +
+            ' · ' + (isEl ? 'κέρδος' : 'profit') + ' ' + money(_prof) + '</div>'
+        );
+      }
       const f = _saleLinkFixedValues(e);
       const nowName = _itemDesc(e.batch) || invTypeLabel(e.batch.jewelryType) || '—';
       return wrap(
@@ -12765,6 +12809,40 @@ async function fixSaleLink(saleId) {
   const entry = bad.find(e => e.sale.id === saleId);
   if (!entry) { showToast(isEl ? 'Δεν χρειάζεται διόρθωση' : 'Nothing to repair'); return; }
   if (entry.kind === 'unsold') { _fixSaleUnsold(entry); return; }
+  if (entry.kind === 'missingcost') {
+    const vat = parseFloat(state.vat) || 0;
+    const cost = parseFloat(parseFloat(entry.cost).toFixed(2));
+    const profit = parseFloat((_saleExVat(entry.sale, vat) - cost).toFixed(2));
+    const nm = _itemDesc(entry.own) || invTypeLabel(entry.own.jewelryType) || '—';
+    const cur = state.currency || '€';
+    showConfirm(
+      isEl ? 'Καταγραφή κόστους ' + cur + cost.toFixed(2) + ' και κέρδους ' + cur + profit.toFixed(2) + ' για «' + nm + '»; (Το ποσό της πώλησης δεν αλλάζει.)'
+           : 'Record cost ' + cur + cost.toFixed(2) + ' and profit ' + cur + profit.toFixed(2) + ' for "' + nm + '"? (The sale amount does not change.)',
+      async () => {
+        const sales = await getSales();
+        const rec = sales.find(x => x.id === saleId);
+        if (!rec) return;
+        const before = JSON.parse(JSON.stringify(rec));   // roll back on a failed write (v11.62)
+        rec.cost = cost;
+        rec.profit = profit;
+        if (!rec.invId && entry.ownId) rec.invId = entry.ownId;
+        _salesCache = sales;
+        localStorage.setItem('jpro_sales', JSON.stringify(sales));
+        if (!(await pushSalesToCloud(sales))) {
+          const i = sales.findIndex(x => x.id === saleId);
+          if (i !== -1) sales[i] = before;
+          _salesCache = sales;
+          localStorage.setItem('jpro_sales', JSON.stringify(sales));
+          showToast('⚠️ ' + (isEl ? 'Η αποθήκευση απέτυχε — τίποτα δεν άλλαξε' : 'Save failed — nothing was changed'));
+          return;
+        }
+        showToast('✅ ' + (isEl ? 'Διορθώθηκε' : 'Repaired'));
+        await scanSaleLinks();
+        try { await renderSalesPanel(); } catch (e) {}
+      }
+    );
+    return;
+  }
   const f = _saleLinkFixedValues(entry);
   const newName = _itemDesc(entry.own) || invTypeLabel(entry.own.jewelryType) || '—';
   showConfirm(
@@ -12972,26 +13050,24 @@ async function confirmSale() {
   // For per-item labor items, use stored purchaseCost (what was actually paid to supplier)
   let _saleCost = lastCalcResult ? (parseFloat(lastCalcResult.baseCost) || null) : null;
   let _saleSeqRef = lastCalcResult?.seqRef || null;
+  // Derive the cost from the ACTUAL piece being sold, never from lastCalcResult (which
+  // belongs to whatever was last in the calc — a different item entirely in a cart sale).
+  // _invSaleCost is the single source of truth and handles other-type pieces, whose cost
+  // lives in the QR (v12.45 — the missing-cost bug that lost €200 of profit on NK0044).
   if (window._saleFromInvId && _inventoryCache) {
     const _saleInvItem = _inventoryCache[window._saleFromInvId];
-    if (_saleInvItem?.purchaseCost) {
-      _saleCost = parseFloat(_saleInvItem.purchaseCost);
-    } else if (_saleInvItem) {
-      // Standard items don't store purchaseCost — derive cost independently per item
-      // (never reuse lastCalcResult.baseCost here, it may belong to a different item)
-      const _item1Calc = calcInvItemPrice(_saleInvItem);
-      if (_item1Calc?.baseCost != null) _saleCost = _item1Calc.baseCost;
+    if (_saleInvItem) {
+      const _c = _invSaleCost(_saleInvItem);
+      if (_c != null) _saleCost = _c;
+      if (_saleInvItem.seqId) _saleSeqRef = itemRefCode(_saleInvItem);
     }
-    if (_saleInvItem?.seqId) _saleSeqRef = itemRefCode(_saleInvItem);
   } else if (window._saleFromInvQr && _inventoryCache) {
     const _qrMatch = Object.values(_inventoryCache).find(it => it.qrCode === window._saleFromInvQr);
-    if (_qrMatch?.purchaseCost) {
-      _saleCost = parseFloat(_qrMatch.purchaseCost);
-    } else if (_qrMatch) {
-      const _qrCalc = calcInvItemPrice(_qrMatch);
-      if (_qrCalc?.baseCost != null) _saleCost = _qrCalc.baseCost;
+    if (_qrMatch) {
+      const _c = _invSaleCost(_qrMatch);
+      if (_c != null) _saleCost = _c;
+      if (_qrMatch.seqId) _saleSeqRef = itemRefCode(_qrMatch);
     }
-    if (_qrMatch?.seqId) _saleSeqRef = itemRefCode(_qrMatch);
   }
   const _isCashSale = document.getElementById('saleCashToggle')?.classList.contains('cash-active') || false;
   // ── Gift certificate ──
@@ -13198,11 +13274,9 @@ async function confirmSale() {
         }
         // Always create the sale record for this item
         const _restSeqRef = itemRefCode(item);
-        // Derive cost: use purchaseCost if available, otherwise calculate from current prices
-        const _restCalc = calcInvItemPrice(item);
-        const _restCost = item.purchaseCost
-          ? parseFloat(item.purchaseCost)
-          : (_restCalc && _restCalc.baseCost ? _restCalc.baseCost : null);
+        // Same single source of truth as the first record — handles other-type pieces,
+        // whose cost lives in the QR (calcInvItemPrice alone returned null for them). v12.45.
+        const _restCost = _invSaleCost(item);
         const _stdRec = await addSaleRecord(_restAmt.toFixed(2), note, date, saleVendor, _restBonus, _currentUserBonus, item.qrCode||item.code||'', saleCustomer, saleEmail, _restCost, _isCashSale, null, null, _restSeqRef, _gcOpts(_restAmt));
         // Link to the exact record so a later delete restores THIS piece (identical same-QR
         // group members are otherwise indistinguishable by QR alone). Persisted by the
@@ -17924,6 +17998,20 @@ function _invOtherCost(item) {
   const pc = parseFloat(item.purchaseCost); return pc > 0 ? pc : 0;
 }
 
+// The ONE correct way to read a piece's COST for a sale record — the single source
+// of truth every sale path must use, so the books can never disagree with the CSV
+// export (which already uses this exact rule). Other-type pieces keep their cost in
+// the QR, not purchaseCost; everything else uses purchaseCost when the shop paid a
+// known price, else the computed production cost. Returns null when genuinely
+// underivable (never guesses, never borrows another item's figure). v12.45.
+function _invSaleCost(item) {
+  if (!item) return null;
+  if (item.metal === 'other') { const c = _invOtherCost(item); return c > 0 ? c : null; }
+  if (parseFloat(item.purchaseCost) > 0) return parseFloat(item.purchaseCost);
+  const p = calcInvItemPrice(item);
+  return (p && p.baseCost != null && isFinite(p.baseCost)) ? parseFloat(p.baseCost) : null;
+}
+
 // Pure precious-metal grams in one item (exact for coins/scrap, weight×purity else).
 function _invPureGrams(item) {
   if (!item) return 0;
@@ -19859,7 +19947,12 @@ function calcInvItemPrice(item) {
   if (item.metal === 'other') {
     if (!item.fixedRetail) return null;
     const retail = parseFloat(item.fixedRetail);
-    return { retail, metalValue: 0, cur, isFixed: true };
+    // An other-type piece keeps its COST in the QR (gross × vendor discount), NOT in
+    // purchaseCost — so baseCost must be exposed here. Without it every path that reads
+    // calcInvItemPrice(item).baseCost (the sale record, reservations, giveaways, sets,
+    // totals) recorded a NULL cost for these pieces, losing all their profit (v12.45 —
+    // found when the first other-type item ever sold, NK0044, showed €0 profit).
+    return { retail, metalValue: 0, baseCost: _invOtherCost(item), cur, isFixed: true };
   }
 
   // Raw metal / scrap stock: value = live pure-metal melt only (no labour/markup/VAT).
@@ -26493,10 +26586,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.44', date: 'Ιούλιος 2026', items: [
-        "🛒 Προσθήκη σετ στο καλάθι: μέσα σε ένα σετ (Απόθεμα → σήμα «🎀 Σετ») υπάρχει κουμπί «Προσθήκη σετ στο καλάθι». Μπαίνουν όλα τα κομμάτια — μετά Πώληση Όλων ή Κράτηση, ή αφαιρέστε ένα κομμάτι (π.χ. το δαχτυλίδι) από το καλάθι.",
-        "🌐 Βιτρίνα: νέα καταχώρηση «Σετ» στο μενού Περιήγησης — δείχνει όλα τα σετ (με φίλτρα χρυσό/ασήμι/άλλο, γυναικεία/ανδρικά).",
-        "💝 Βιτρίνα: μέσα σε ένα σετ, κουμπί «Ζητήστε ολόκληρο το σετ» — ο πελάτης ζητάει όλα τα κομμάτια με ένα πάτημα.",
+      { version: 'v12.45', date: 'Ιούλιος 2026', items: [
+        "🔧 Διόρθωση κέρδους: κομμάτια τύπου «Άλλο» (π.χ. Butterflyfish) κρατούν το κόστος τους μέσα στον κωδικό, όχι στο πεδίο κόστους — και μια πώληση δεν το κατέγραφε, οπότε το κέρδος τους έβγαινε μηδέν. Τώρα υπολογίζεται σωστά σε κάθε πώληση, κράτηση, δώρο και σετ.",
+        "🩹 «Έλεγχος Συνδέσεων Πωλήσεων» (Ρυθμίσεις): εντοπίζει και διορθώνει παλιές πωλήσεις που καταγράφηκαν χωρίς κόστος — δείχνει το σωστό κόστος και κέρδος και τα καταχωρεί με ένα πάτημα. Το ποσό της πώλησης δεν αλλάζει.",
       ]},
       ]
   },
@@ -26527,10 +26619,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.44', date: 'Jul 2026', items: [
-        "🛒 Add set to cart: inside a set (Stock → the “🎀 Set” badge) there's now an “Add set to cart” button. All the pieces go in — then Sell all or Reserve, or remove a piece (e.g. the ring) from the cart.",
-        "🌐 Showroom: a new “Sets” entry in the Browse menu — shows every set (with gold/silver/other, women/men filters).",
-        "💝 Showroom: inside a set, an “Inquire about the whole set” button — a customer asks about all the pieces in one tap.",
+      { version: 'v12.45', date: 'Jul 2026', items: [
+        "🔧 Profit fix: “Other”-type pieces (e.g. Butterflyfish) keep their cost inside the code, not in the cost field — and a sale wasn't recording it, so their profit came out as zero. It's now computed correctly on every sale, reservation, gift and set.",
+        "🩹 “Sale Link Check” (Settings): now finds and repairs older sales recorded with no cost — it shows the correct cost and profit and records them in one tap. The sale amount never changes.",
       ]},
           ]
   }
@@ -31147,7 +31238,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.44';
+const APP_VERSION = '12.45';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
