@@ -1610,11 +1610,51 @@ function itemColorLabel(value) {
 }
 
 // Known stone types (same order as index.htm)
-const STONE_TYPES = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite','Amethyst',
-  'Ametrine','Apatite','Aquamarine','Akoya Pearl','Baroque Pearl','Black Pearl','Carnelian','Citrine','Cobalt Calcite',
-  'Coral','Crystal','Freshwater Pearl','Garnet','Hematite','Jade','Keshi Pearl','Labradorite','Lapis Lazuli','Malachite','Moonstone','Morganite',
-  'Onyx','Opal','Peridot','Quartz','South Sea Pearl','Spinel','Tahitian Pearl','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
-const PEARL_TYPES = ['Pearl','Baroque Pearl','Black Pearl','Keshi Pearl','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
+// Colour / variety families — kept identical to jewelprice.htm (see the note there).
+const STONE_FAMILIES = {
+  'Diamond':    ['Black Diamond','Champagne Diamond','Yellow Diamond','Pink Diamond','Salt and Pepper Diamond'],
+  'Sapphire':   ['Pink Sapphire','Yellow Sapphire','White Sapphire','Green Sapphire','Padparadscha Sapphire'],
+  'Pearl':      ['Akoya Pearl','Baroque Pearl','Black Pearl','Freshwater Pearl','Keshi Pearl','Mother of Pearl','South Sea Pearl','Tahitian Pearl'],
+  'Agate':      ['Blue Lace Agate','Moss Agate'],
+  'Coral':      ['Red Coral','Pink Coral','Black Coral'],
+  'Garnet':     ['Rhodolite Garnet','Tsavorite Garnet','Spessartite Garnet'],
+  'Moonstone':  ['Rainbow Moonstone','Peach Moonstone'],
+  'Opal':       ['White Opal','Black Opal','Fire Opal','Boulder Opal'],
+  'Quartz':     ['Rose Quartz','Smoky Quartz','Rutilated Quartz','Lemon Quartz','Clear Quartz'],
+  'Spinel':     ['Black Spinel'],
+  'Topaz':      ['Blue Topaz','London Blue Topaz','Swiss Blue Topaz','White Topaz','Imperial Topaz','Mystic Topaz'],
+  'Tourmaline': ['Pink Tourmaline','Green Tourmaline','Watermelon Tourmaline','Black Tourmaline','Paraiba Tourmaline'],
+};
+const STONE_FAMILY_LABELS = {
+  'Diamond':    { en: 'Diamonds (all)',    el: 'Διαμάντια (όλα)' },
+  'Sapphire':   { en: 'Sapphires (all)',   el: 'Ζαφείρια (όλα)' },
+  'Pearl':      { en: 'Pearls (all)',      el: 'Μαργαριτάρια (όλα)' },
+  'Agate':      { en: 'Agates (all)',      el: 'Αχάτες (όλοι)' },
+  'Coral':      { en: 'Corals (all)',      el: 'Κοράλλια (όλα)' },
+  'Garnet':     { en: 'Garnets (all)',     el: 'Γρανάτες (όλοι)' },
+  'Moonstone':  { en: 'Moonstones (all)',  el: 'Φεγγαρόλιθοι (όλοι)' },
+  'Opal':       { en: 'Opals (all)',       el: 'Οπάλια (όλα)' },
+  'Quartz':     { en: 'Quartz (all)',      el: 'Χαλαζίες (όλοι)' },
+  'Spinel':     { en: 'Spinels (all)',     el: 'Σπινέλιοι (όλοι)' },
+  'Topaz':      { en: 'Topaz (all)',       el: 'Τοπάζια (όλα)' },
+  'Tourmaline': { en: 'Tourmalines (all)', el: 'Τουρμαλίνες (όλες)' },
+};
+const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite',
+  'Amethyst','Ametrine','Apatite','Aquamarine','Carnelian','Citrine','Cobalt Calcite','Coral','Crystal',
+  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Malachite','Moonstone','Morganite','Onyx',
+  'Opal','Peridot','Quartz','Spinel','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
+const STONE_TYPES = STONE_ORDER.flatMap(s => STONE_FAMILIES[s] ? [s, ...STONE_FAMILIES[s]] : [s]);
+const STONE_FAMILY_OF = (() => {
+  const m = {};
+  STONE_TYPES.forEach(s => { m[s] = s; });
+  Object.entries(STONE_FAMILIES).forEach(([parent, kids]) => kids.forEach(k => { m[k] = parent; }));
+  return m;
+})();
+function stoneFamilyMembers(parent) { return STONE_FAMILIES[parent] ? [parent, ...STONE_FAMILIES[parent]] : [parent]; }
+function stoneFamilyLabel(parent) {
+  const e = STONE_FAMILY_LABELS[parent];
+  return e ? (lang === 'el' ? e.el : e.en) : stoneLabel(parent);
+}
 const STONE_TRANSLATIONS = {
   'Diamond':'Διαμάντι','Emerald':'Σμαράγδι','Ruby':'Ρουμπίνι','Sapphire':'Ζαφείρι',
   'Agate':'Αχάτης','Alexandrite':'Αλεξανδρίτης','Amazonite':'Αμαζονίτης','Amethyst':'Αμέθυστος',
@@ -1628,6 +1668,23 @@ const STONE_TRANSLATIONS = {
   'Peridot':'Περιδότης','Quartz':'Χαλαζίας','South Sea Pearl':'Μαργαριτάρι Νότιας Θάλασσας',
   'Spinel':'Σπινέλιος','Tahitian Pearl':'Ταϊτιανό Μαργαριτάρι','Tanzanite':'Τανζανίτης',
   'Topaz':'Τοπάζιο','Tourmaline':'Τουρμαλίνης','Turquoise':'Τυρκουάζ','Zircon':'Ζιρκόνιο',
+  'Black Diamond':'Μαύρο Διαμάντι','Champagne Diamond':'Διαμάντι Σαμπανιζέ','Yellow Diamond':'Κίτρινο Διαμάντι',
+  'Pink Diamond':'Ροζ Διαμάντι','Salt and Pepper Diamond':'Διαμάντι Salt & Pepper',
+  'Pink Sapphire':'Ροζ Ζαφείρι','Yellow Sapphire':'Κίτρινο Ζαφείρι','White Sapphire':'Λευκό Ζαφείρι',
+  'Green Sapphire':'Πράσινο Ζαφείρι','Padparadscha Sapphire':'Ζαφείρι Padparadscha',
+  'Mother of Pearl':'Φίλντισι',
+  'Blue Lace Agate':'Αχάτης Blue Lace','Moss Agate':'Αχάτης Βρυώδης',
+  'Red Coral':'Κόκκινο Κοράλλι','Pink Coral':'Ροζ Κοράλλι','Black Coral':'Μαύρο Κοράλλι',
+  'Rhodolite Garnet':'Γρανάτης Ροδολίτης','Tsavorite Garnet':'Γρανάτης Τσαβορίτης','Spessartite Garnet':'Γρανάτης Σπεσσαρτίνη',
+  'Rainbow Moonstone':'Φεγγαρόλιθος Rainbow','Peach Moonstone':'Ροδακινί Φεγγαρόλιθος',
+  'White Opal':'Λευκό Οπάλιο','Black Opal':'Μαύρο Οπάλιο','Fire Opal':'Οπάλιο Φωτιάς','Boulder Opal':'Οπάλιο Boulder',
+  'Rose Quartz':'Ροζ Χαλαζίας','Smoky Quartz':'Χαλαζίας Καπνίας','Rutilated Quartz':'Χαλαζίας με Ρουτίλιο',
+  'Lemon Quartz':'Χαλαζίας Lemon','Clear Quartz':'Διάφανος Χαλαζίας',
+  'Black Spinel':'Μαύρος Σπινέλιος',
+  'Blue Topaz':'Μπλε Τοπάζιο','London Blue Topaz':'Τοπάζιο London Blue','Swiss Blue Topaz':'Τοπάζιο Swiss Blue',
+  'White Topaz':'Λευκό Τοπάζιο','Imperial Topaz':'Τοπάζιο Imperial','Mystic Topaz':'Τοπάζιο Mystic',
+  'Pink Tourmaline':'Ροζ Τουρμαλίνης','Green Tourmaline':'Πράσινος Τουρμαλίνης','Watermelon Tourmaline':'Τουρμαλίνης Καρπούζι',
+  'Black Tourmaline':'Μαύρος Τουρμαλίνης','Paraiba Tourmaline':'Τουρμαλίνης Paraiba',
 };
 function stoneLabel(type) { return (lang==='el' && STONE_TRANSLATIONS[type]) ? STONE_TRANSLATIONS[type] : type; }
 function stonesDescDisplay(desc) {
@@ -1652,7 +1709,24 @@ const STONE_PLURAL_EN = {
   'Jade':'Jade','Keshi Pearl':'Keshi Pearls','Labradorite':'Labradorites','Lapis Lazuli':'Lapis Lazuli','Malachite':'Malachites',
   'Moonstone':'Moonstones','Morganite':'Morganites','Onyx':'Onyxes','Opal':'Opals','Peridot':'Peridots','Quartz':'Quartz',
   'South Sea Pearl':'South Sea Pearls','Spinel':'Spinels','Tahitian Pearl':'Tahitian Pearls','Tanzanite':'Tanzanites',
-  'Topaz':'Topazes','Tourmaline':'Tourmalines','Turquoise':'Turquoise','Zircon':'Zircons'
+  'Topaz':'Topazes','Tourmaline':'Tourmalines','Turquoise':'Turquoise','Zircon':'Zircons',
+  'Black Diamond':'Black Diamonds','Champagne Diamond':'Champagne Diamonds','Yellow Diamond':'Yellow Diamonds',
+  'Pink Diamond':'Pink Diamonds','Salt and Pepper Diamond':'Salt and Pepper Diamonds',
+  'Pink Sapphire':'Pink Sapphires','Yellow Sapphire':'Yellow Sapphires','White Sapphire':'White Sapphires',
+  'Green Sapphire':'Green Sapphires','Padparadscha Sapphire':'Padparadscha Sapphires',
+  'Mother of Pearl':'Mother of Pearl',
+  'Blue Lace Agate':'Blue Lace Agates','Moss Agate':'Moss Agates',
+  'Red Coral':'Red Coral','Pink Coral':'Pink Coral','Black Coral':'Black Coral',
+  'Rhodolite Garnet':'Rhodolite Garnets','Tsavorite Garnet':'Tsavorite Garnets','Spessartite Garnet':'Spessartite Garnets',
+  'Rainbow Moonstone':'Rainbow Moonstones','Peach Moonstone':'Peach Moonstones',
+  'White Opal':'White Opals','Black Opal':'Black Opals','Fire Opal':'Fire Opals','Boulder Opal':'Boulder Opals',
+  'Rose Quartz':'Rose Quartz','Smoky Quartz':'Smoky Quartz','Rutilated Quartz':'Rutilated Quartz',
+  'Lemon Quartz':'Lemon Quartz','Clear Quartz':'Clear Quartz',
+  'Black Spinel':'Black Spinels',
+  'Blue Topaz':'Blue Topazes','London Blue Topaz':'London Blue Topazes','Swiss Blue Topaz':'Swiss Blue Topazes',
+  'White Topaz':'White Topazes','Imperial Topaz':'Imperial Topazes','Mystic Topaz':'Mystic Topazes',
+  'Pink Tourmaline':'Pink Tourmalines','Green Tourmaline':'Green Tourmalines','Watermelon Tourmaline':'Watermelon Tourmalines',
+  'Black Tourmaline':'Black Tourmalines','Paraiba Tourmaline':'Paraiba Tourmalines'
 };
 const STONE_PLURAL_EL = {
   'Diamond':'Διαμάντια','Emerald':'Σμαράγδια','Ruby':'Ρουμπίνια','Sapphire':'Ζαφείρια','Pearl':'Μαργαριτάρια',
@@ -1663,7 +1737,24 @@ const STONE_PLURAL_EL = {
   'Jade':'Νεφρίτες','Keshi Pearl':'Κέσι Μαργαριτάρια','Labradorite':'Λαμπραδορίτες','Lapis Lazuli':'Λαπίς Λάζουλι','Malachite':'Μαλαχίτες',
   'Moonstone':'Φεγγαρόλιθοι','Morganite':'Μοργκανίτες','Onyx':'Όνυχες','Opal':'Οπάλια','Peridot':'Περιδότες','Quartz':'Χαλαζίες',
   'South Sea Pearl':'Μαργαριτάρια Νότιας Θάλασσας','Spinel':'Σπινέλιοι','Tahitian Pearl':'Ταϊτιανά Μαργαριτάρια','Tanzanite':'Τανζανίτες',
-  'Topaz':'Τοπάζια','Tourmaline':'Τουρμαλίνες','Turquoise':'Τυρκουάζ','Zircon':'Ζιρκόνια'
+  'Topaz':'Τοπάζια','Tourmaline':'Τουρμαλίνες','Turquoise':'Τυρκουάζ','Zircon':'Ζιρκόνια',
+  'Black Diamond':'Μαύρα Διαμάντια','Champagne Diamond':'Διαμάντια Σαμπανιζέ','Yellow Diamond':'Κίτρινα Διαμάντια',
+  'Pink Diamond':'Ροζ Διαμάντια','Salt and Pepper Diamond':'Διαμάντια Salt & Pepper',
+  'Pink Sapphire':'Ροζ Ζαφείρια','Yellow Sapphire':'Κίτρινα Ζαφείρια','White Sapphire':'Λευκά Ζαφείρια',
+  'Green Sapphire':'Πράσινα Ζαφείρια','Padparadscha Sapphire':'Ζαφείρια Padparadscha',
+  'Mother of Pearl':'Φίλντισι',
+  'Blue Lace Agate':'Αχάτες Blue Lace','Moss Agate':'Αχάτες Βρυώδεις',
+  'Red Coral':'Κόκκινα Κοράλλια','Pink Coral':'Ροζ Κοράλλια','Black Coral':'Μαύρα Κοράλλια',
+  'Rhodolite Garnet':'Γρανάτες Ροδολίτες','Tsavorite Garnet':'Γρανάτες Τσαβορίτες','Spessartite Garnet':'Γρανάτες Σπεσσαρτίνες',
+  'Rainbow Moonstone':'Φεγγαρόλιθοι Rainbow','Peach Moonstone':'Ροδακινί Φεγγαρόλιθοι',
+  'White Opal':'Λευκά Οπάλια','Black Opal':'Μαύρα Οπάλια','Fire Opal':'Οπάλια Φωτιάς','Boulder Opal':'Οπάλια Boulder',
+  'Rose Quartz':'Ροζ Χαλαζίες','Smoky Quartz':'Χαλαζίες Καπνίες','Rutilated Quartz':'Χαλαζίες με Ρουτίλιο',
+  'Lemon Quartz':'Χαλαζίες Lemon','Clear Quartz':'Διάφανοι Χαλαζίες',
+  'Black Spinel':'Μαύροι Σπινέλιοι',
+  'Blue Topaz':'Μπλε Τοπάζια','London Blue Topaz':'Τοπάζια London Blue','Swiss Blue Topaz':'Τοπάζια Swiss Blue',
+  'White Topaz':'Λευκά Τοπάζια','Imperial Topaz':'Τοπάζια Imperial','Mystic Topaz':'Τοπάζια Mystic',
+  'Pink Tourmaline':'Ροζ Τουρμαλίνες','Green Tourmaline':'Πράσινοι Τουρμαλίνες','Watermelon Tourmaline':'Τουρμαλίνες Καρπούζι',
+  'Black Tourmaline':'Μαύροι Τουρμαλίνες','Paraiba Tourmaline':'Τουρμαλίνες Paraiba'
 };
 // Singular or plural stone name in the current language.
 function stoneLabelN(type, plural) {
@@ -2207,61 +2298,44 @@ function renderDrawer() {
     html += pillGroup(isEl?'Υλικό':'Material', opts.materials, 'materials', otherMaterialLabel);
   }
     if (opts.stones.length > 0) {
-      // Build pearl-subcategory aware stone group
-      // Pearl group slots right after the 4 precious stones
-      const PRECIOUS_4 = ['Diamond','Emerald','Ruby','Sapphire'];
-      const pearlsInOpts = PEARL_TYPES.filter(p => opts.stones.includes(p));
-      const precious4Present = PRECIOUS_4.filter(s => opts.stones.includes(s));
-      const restAlpha = opts.stones.filter(s => !PRECIOUS_4.includes(s) && !PEARL_TYPES.includes(s));
-      const nonPearlOpts = [...precious4Present, ...restAlpha];
-      if (!pearlsInOpts.length) {
-        html += dropGroup(isEl?'Πέτρες':'Stones', nonPearlOpts, 'stones', v => stoneLabel(v));
-      } else {
-        const selArr = draftFilters['stones'];
-        const hasSel = selArr.length > 0;
-        const triggerLabel = hasSel ? selArr.map(v => stoneLabel(v)).join(', ') : (isEl?'Επιλέξτε…':'Select…');
-        // Precious 4 items (before pearl group)
-        const precious4Items = precious4Present.map(v => {
-          const sel = selArr.includes(v);
-          return `<div class="sw-picker-item${sel?' sel':''}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)">
-            <span>${stoneLabel(v)}</span>
-            <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          </div>`;
-        }).join('');
-        // Rest alphabetical items (after pearl group)
-        const restItems = restAlpha.map(v => {
-          const sel = selArr.includes(v);
-          return `<div class="sw-picker-item${sel?' sel':''}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)">
-            <span>${stoneLabel(v)}</span>
-            <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          </div>`;
-        }).join('');
-        const allPearlsSel = pearlsInOpts.every(p => selArr.includes(p));
-        const pearlExpanded = pearlsInOpts.some(p => selArr.includes(p));
-        const pearlAllLabel = isEl ? 'Μαργαριτάρια (όλα)' : 'Pearls (all)';
-        // Pearl header row with ▶/▼ collapse toggle
-        const pearlAllItem = `<div class="sw-picker-item sw-pearl-all${allPearlsSel?' sel':''}" data-key="stones-pearls-all" data-val="all" onclick="toggleDraftPearlAll(this)" style="font-weight:600;border-top:1px solid rgba(201,168,76,0.15);border-bottom:1px solid rgba(201,168,76,0.1);background:rgba(201,168,76,0.05)">
-          <span style="display:flex;align-items:center;gap:8px"><span class="pearl-chev" style="font-size:10px;color:var(--text-muted)">${pearlExpanded?'▼':'▶'}</span>${pearlAllLabel}</span>
-          <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      // Stones in STONE_ORDER order (precious four + Pearl first, then alphabetical), with
+      // every colour/variety family collapsed under a «… (all)» header. Generalised from
+      // the old pearl-only version so a new family needs no code here.
+      const selArr = draftFilters['stones'];
+      const hasSel = selArr.length > 0;
+      const triggerLabel = hasSel ? selArr.map(v => stoneLabel(v)).join(', ') : (isEl?'Επιλέξτε…':'Select…');
+      const tick = `<div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+      const row = (v, fam, shown) => {
+        const cls = 'sw-picker-item' + (fam ? ' sw-fam-sub' : '') + (selArr.includes(v) ? ' sel' : '');
+        const extra = fam ? ` data-fam="${fam}" style="padding-left:28px;display:${shown?'flex':'none'}"` : '';
+        return `<div class="${cls}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)"${extra}>
+          <span>${stoneLabel(v)}</span>${tick}
         </div>`;
-        // Pearl sub-items hidden by default unless one is already selected
-        const pearlSubItems = pearlsInOpts.map(v => {
-          const sel = selArr.includes(v);
-          return `<div class="sw-picker-item sw-pearl-sub${sel?' sel':''}" data-key="stones" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleDraftPickerItem(this)" style="padding-left:28px;display:${pearlExpanded?'flex':'none'}">
-            <span>${stoneLabel(v)}</span>
-            <div class="sw-picker-circle"><svg class="sw-picker-check" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="#0E0C08" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          </div>`;
-        }).join('');
-        // Order: precious4 → pearl header → pearl subs → rest alpha
-        html += `<div class="drawer-section">
-          <div class="drawer-section-label">${isEl?'Πέτρες':'Stones'}</div>
-          <button class="sw-picker-trigger${hasSel?' has-sel':''}" id="swTrigger_stones" onclick="toggleSwPicker('stones')">
-            <span id="swLabel_stones">${triggerLabel}</span>
-            <span class="chev">▼</span>
-          </button>
-          <div class="sw-picker-list" id="swList_stones">${precious4Items}${pearlAllItem}${pearlSubItems}${restItems}</div>
-        </div><div class="drawer-divider"></div>`;
-      }
+      };
+      const seen = new Set();
+      let listHtml = '';
+      STONE_ORDER.forEach(parent => {
+        const present = stoneFamilyMembers(parent).filter(m => opts.stones.includes(m));
+        present.forEach(m => seen.add(m));
+        if (!present.length) return;
+        // One variety in stock is not a family — show it as an ordinary row.
+        if (present.length === 1) { listHtml += row(present[0]); return; }
+        const allSel = present.every(p => selArr.includes(p));
+        const expanded = present.some(p => selArr.includes(p));
+        listHtml += `<div class="sw-picker-item sw-fam-all${allSel?' sel':''}" data-key="stones-fam-all" data-fam="${parent}" onclick="toggleDraftFamilyAll(this, event)" style="font-weight:600;border-top:1px solid rgba(201,168,76,0.15);border-bottom:1px solid rgba(201,168,76,0.1);background:rgba(201,168,76,0.05)">
+          <span style="display:flex;align-items:center;gap:8px"><span class="fam-chev" style="font-size:10px;color:var(--text-muted)">${expanded?'▼':'▶'}</span>${stoneFamilyLabel(parent)}</span>${tick}
+        </div>`;
+        listHtml += present.map(m => row(m, parent, expanded)).join('');
+      });
+      opts.stones.filter(s => !seen.has(s)).forEach(s => { listHtml += row(s); });
+      html += `<div class="drawer-section">
+        <div class="drawer-section-label">${isEl?'Πέτρες':'Stones'}</div>
+        <button class="sw-picker-trigger${hasSel?' has-sel':''}" id="swTrigger_stones" onclick="toggleSwPicker('stones')">
+          <span id="swLabel_stones">${triggerLabel}</span>
+          <span class="chev">▼</span>
+        </button>
+        <div class="sw-picker-list" id="swList_stones">${listHtml}</div>
+      </div><div class="drawer-divider"></div>`;
     }
   if (opts.genders.length > 1) {
     html += pillGroup(isEl?'Κοινό':'For', opts.genders, 'genders', v => genderLabel[v]||v);
@@ -2317,16 +2391,16 @@ function toggleDraftPickerItem(el) {
     const hasSel = arr.length > 0;
     trigger.classList.toggle('has-sel', hasSel);
     labelEl.textContent = hasSel ? arr.map(v => stoneLabel(v)).join(', ') : (isEl ? 'Επιλέξτε…' : 'Select…');
-    // Sync pearl-all header sel state
-    if (key === 'stones') {
-      const pearlAllBtn = document.querySelector('.sw-pearl-all');
-      if (pearlAllBtn) {
-        const pearlsPresent = PEARL_TYPES.filter(p => document.querySelector(`.sw-pearl-sub[data-val="${p}"]`));
-        const allSel = pearlsPresent.length > 0 && pearlsPresent.every(p => draftFilters.stones.includes(p));
-        pearlAllBtn.classList.toggle('sel', allSel);
-      }
-    }
+    if (key === 'stones') _swSyncFamilyHeaders();
   }
+}
+
+// A family header is ticked only while every one of its members is ticked.
+function _swSyncFamilyHeaders() {
+  document.querySelectorAll('.sw-fam-all').forEach(hdr => {
+    const subs = Array.from(document.querySelectorAll(`.sw-fam-sub[data-fam="${hdr.dataset.fam}"]`));
+    hdr.classList.toggle('sel', subs.length > 0 && subs.every(s => draftFilters.stones.includes(s.dataset.val)));
+  });
 }
 
 function clearDraftFilters() {
@@ -2352,31 +2426,22 @@ function toggleDraftHandmade(btn) {
   btn.classList.toggle('sel', draftFilters.handmade);
 }
 
-function toggleDraftPearlAll(el) {
+// Family header: the circle selects/clears the whole family, the row body expands or
+// collapses it. Scoped by data-fam so families never affect each other.
+function toggleDraftFamilyAll(el, ev) {
   const isEl = lang === 'el';
-  const pearlsPresent = PEARL_TYPES.filter(p =>
-    document.querySelector(`.sw-pearl-sub[data-val="${p}"]`));
-  // If click was on the circle → select/deselect all; otherwise → collapse toggle
-  const clickedCircle = event.target.closest('.sw-picker-circle');
-  if (clickedCircle) {
-    const allSel = pearlsPresent.every(p => draftFilters.stones.includes(p));
-    if (allSel) {
-      pearlsPresent.forEach(p => {
-        const idx = draftFilters.stones.indexOf(p);
-        if (idx !== -1) draftFilters.stones.splice(idx, 1);
-        const pEl = document.querySelector(`.sw-pearl-sub[data-val="${p}"]`);
-        if (pEl) pEl.classList.remove('sel');
-      });
-      el.classList.remove('sel');
-    } else {
-      pearlsPresent.forEach(p => {
-        if (!draftFilters.stones.includes(p)) draftFilters.stones.push(p);
-        const pEl = document.querySelector(`.sw-pearl-sub[data-val="${p}"]`);
-        if (pEl) pEl.classList.add('sel');
-      });
-      el.classList.add('sel');
-    }
-    // Update trigger label
+  const fam = el.dataset.fam;
+  const subEls = Array.from(document.querySelectorAll(`.sw-fam-sub[data-fam="${fam}"]`));
+  if ((ev || window.event).target.closest('.sw-picker-circle')) {
+    const allSel = subEls.length > 0 && subEls.every(s => draftFilters.stones.includes(s.dataset.val));
+    subEls.forEach(s => {
+      const v = s.dataset.val;
+      const idx = draftFilters.stones.indexOf(v);
+      if (allSel) { if (idx !== -1) draftFilters.stones.splice(idx, 1); }
+      else if (idx === -1) draftFilters.stones.push(v);
+      s.classList.toggle('sel', !allSel);
+    });
+    el.classList.toggle('sel', !allSel);
     const trigger = document.getElementById('swTrigger_stones');
     const labelEl = document.getElementById('swLabel_stones');
     if (trigger && labelEl) {
@@ -2385,11 +2450,9 @@ function toggleDraftPearlAll(el) {
       labelEl.textContent = hasSel ? draftFilters.stones.map(v => stoneLabel(v)).join(', ') : (isEl?'Επιλέξτε…':'Select…');
     }
   } else {
-    // Toggle collapse
-    const subs = document.querySelectorAll('.sw-pearl-sub');
-    const chevEl = el.querySelector('.pearl-chev');
-    const isOpen = subs.length > 0 && subs[0].style.display !== 'none';
-    subs.forEach(s => { s.style.display = isOpen ? 'none' : 'flex'; });
+    const isOpen = subEls.length > 0 && subEls[0].style.display !== 'none';
+    subEls.forEach(s => { s.style.display = isOpen ? 'none' : 'flex'; });
+    const chevEl = el.querySelector('.fam-chev');
     if (chevEl) chevEl.textContent = isOpen ? '▶' : '▼';
   }
 }

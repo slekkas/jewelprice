@@ -8990,7 +8990,105 @@ function toggleCalcHandmade() {
 let stoneEstimatedValue = null; // last AI-estimated value for "apply" button
 let _stoneEstimatePerRow = []; // per-stone prices from last AI/offline estimate
 
-const STONE_TYPES = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite','Amethyst','Ametrine','Apatite','Aquamarine','Akoya Pearl','Baroque Pearl','Black Pearl','Carnelian','Citrine','Cobalt Calcite','Coral','Crystal','Freshwater Pearl','Garnet','Hematite','Jade','Keshi Pearl','Labradorite','Lapis Lazuli','Malachite','Moonstone','Morganite','Onyx','Opal','Peridot','Quartz','South Sea Pearl','Spinel','Tahitian Pearl','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
+// ── STONE FAMILIES ────────────────────────────────────────────────────────────
+// A stone that comes in several well-known colours or varieties is listed under its
+// PARENT, so every stone picker stays browsable as the list grows (the pattern the
+// pearl filter already used, now generalised — see stoneOptionsHtml / the filter sheets).
+// Parent first, then its varieties; anything not named here stands on its own.
+// Adding a variety here means it also needs: a Greek name (STONE_TRANSLATIONS), a unique
+// abbreviation (STONE_ABBREV_MAP) and — in showroom.htm — a plural (STONE_PLURAL_*).
+const STONE_FAMILIES = {
+  'Diamond':    ['Black Diamond','Champagne Diamond','Yellow Diamond','Pink Diamond','Salt and Pepper Diamond'],
+  'Sapphire':   ['Pink Sapphire','Yellow Sapphire','White Sapphire','Green Sapphire','Padparadscha Sapphire'],
+  'Pearl':      ['Akoya Pearl','Baroque Pearl','Black Pearl','Freshwater Pearl','Keshi Pearl','Mother of Pearl','South Sea Pearl','Tahitian Pearl'],
+  'Agate':      ['Blue Lace Agate','Moss Agate'],
+  'Coral':      ['Red Coral','Pink Coral','Black Coral'],
+  'Garnet':     ['Rhodolite Garnet','Tsavorite Garnet','Spessartite Garnet'],
+  'Moonstone':  ['Rainbow Moonstone','Peach Moonstone'],
+  'Opal':       ['White Opal','Black Opal','Fire Opal','Boulder Opal'],
+  'Quartz':     ['Rose Quartz','Smoky Quartz','Rutilated Quartz','Lemon Quartz','Clear Quartz'],
+  'Spinel':     ['Black Spinel'],
+  'Topaz':      ['Blue Topaz','London Blue Topaz','Swiss Blue Topaz','White Topaz','Imperial Topaz','Mystic Topaz'],
+  'Tourmaline': ['Pink Tourmaline','Green Tourmaline','Watermelon Tourmaline','Black Tourmaline','Paraiba Tourmaline'],
+};
+// Header shown on a collapsed family row. Written out per family because Greek plurals
+// (and their agreement with «όλα/όλες/όλοι») cannot be derived mechanically.
+const STONE_FAMILY_LABELS = {
+  'Diamond':    { en: 'Diamonds (all)',    el: 'Διαμάντια (όλα)' },
+  'Sapphire':   { en: 'Sapphires (all)',   el: 'Ζαφείρια (όλα)' },
+  'Pearl':      { en: 'Pearls (all)',      el: 'Μαργαριτάρια (όλα)' },
+  'Agate':      { en: 'Agates (all)',      el: 'Αχάτες (όλοι)' },
+  'Coral':      { en: 'Corals (all)',      el: 'Κοράλλια (όλα)' },
+  'Garnet':     { en: 'Garnets (all)',     el: 'Γρανάτες (όλοι)' },
+  'Moonstone':  { en: 'Moonstones (all)',  el: 'Φεγγαρόλιθοι (όλοι)' },
+  'Opal':       { en: 'Opals (all)',       el: 'Οπάλια (όλα)' },
+  'Quartz':     { en: 'Quartz (all)',      el: 'Χαλαζίες (όλοι)' },
+  'Spinel':     { en: 'Spinels (all)',     el: 'Σπινέλιοι (όλοι)' },
+  'Topaz':      { en: 'Topaz (all)',       el: 'Τοπάζια (όλα)' },
+  'Tourmaline': { en: 'Tourmalines (all)', el: 'Τουρμαλίνες (όλες)' },
+};
+// Display order of the stones that stand on their own or head a family: the four
+// precious ones + Pearl first, then alphabetical.
+const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite',
+  'Amethyst','Ametrine','Apatite','Aquamarine','Carnelian','Citrine','Cobalt Calcite','Coral','Crystal',
+  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Malachite','Moonstone','Morganite','Onyx',
+  'Opal','Peridot','Quartz','Spinel','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
+// The flat list every other consumer uses — DERIVED, so a family edit can never leave it stale.
+const STONE_TYPES = STONE_ORDER.flatMap(s => STONE_FAMILIES[s] ? [s, ...STONE_FAMILIES[s]] : [s]);
+// Variety (or parent) → parent name. A stone standing on its own maps to itself.
+const STONE_FAMILY_OF = (() => {
+  const m = {};
+  STONE_TYPES.forEach(s => { m[s] = s; });
+  Object.entries(STONE_FAMILIES).forEach(([parent, kids]) => kids.forEach(k => { m[k] = parent; }));
+  return m;
+})();
+function stoneFamilyOf(type) { return STONE_FAMILY_OF[type] || type; }
+function stoneFamilyMembers(parent) { return STONE_FAMILIES[parent] ? [parent, ...STONE_FAMILIES[parent]] : [parent]; }
+function stoneFamilyLabel(parent, isEl) {
+  const e = STONE_FAMILY_LABELS[parent];
+  return e ? (isEl ? e.el : e.en) : stoneLabelFor(parent, isEl);
+}
+// Offline per-carat guide prices for the ✨ Estimate button, by clarity tier
+// [top, good, fair, low]. ONE table shared by all three estimate paths (calc, edit item,
+// scan) — they used to be three hand-kept copies that had already drifted apart.
+// A variety with no row of its own inherits its family's price via stonePerCaratGuide(),
+// so «Blue Topaz» is priced as Topaz; only varieties that are worth genuinely different
+// money from their parent are listed separately.
+const COLORED_PER_CT = {
+  Ruby:[1300,640,240,90], Emerald:[980,480,190,75], Sapphire:[820,400,160,70],
+  Alexandrite:[1900,960,320,120], Aquamarine:[190,110,55,22], Amethyst:[65,32,16,6],
+  Citrine:[48,24,13,5], Garnet:[130,65,32,12], Morganite:[160,88,40,15],
+  Opal:[320,160,64,24], Pearl:[240,128,56,18], Peridot:[80,40,19,7],
+  Spinel:[480,240,96,32], Tanzanite:[640,320,128,48], Topaz:[96,48,22,8],
+  Tourmaline:[320,160,64,24], Turquoise:[65,32,16,6],
+  Agate:[30,15,8,3], Onyx:[35,18,9,4], Crystal:[20,10,5,2],
+  // Varieties that are NOT worth roughly what their family is
+  'Black Diamond':[60,40,25,12], 'Salt and Pepper Diamond':[180,120,70,30],
+  'Champagne Diamond':[900,560,300,110], 'Yellow Diamond':[4000,2600,1400,500],
+  'Pink Diamond':[30000,20000,11000,4000],
+  'Padparadscha Sapphire':[2600,1300,520,200],
+  'Paraiba Tourmaline':[6000,3000,1200,450],
+  'Tsavorite Garnet':[900,450,180,70], 'Spessartite Garnet':[420,210,85,32],
+  'Black Opal':[900,450,180,70], 'Fire Opal':[180,90,36,14],
+  'Mother of Pearl':[12,6,3,1],
+};
+const COLORED_PER_CT_DEFAULT = [160,80,32,12];
+// Guide price for a stone: its own row, else its family's, else the generic fallback.
+function stonePerCaratGuide(type) {
+  return COLORED_PER_CT[type] || COLORED_PER_CT[stoneFamilyOf(type)] || COLORED_PER_CT_DEFAULT;
+}
+// Longest name first — every "does this text start with a stone name?" matcher must use
+// this order, or «Blue Topaz» would be read as plain «Topaz».
+const STONE_TYPES_LONGEST = [...STONE_TYPES].sort((a, b) => b.length - a.length);
+// <option> list for a stone <select>, families collapsed into native <optgroup>s.
+function stoneOptionsHtml(selected) {
+  const isEl = lang === 'el';
+  const opt = s => `<option value="${s}"${selected === s ? ' selected' : ''}>${stoneLabelFor(s, isEl)}</option>`;
+  return STONE_ORDER.map(s => {
+    if (!STONE_FAMILIES[s]) return opt(s);
+    return `<optgroup label="${stoneLabelFor(s, isEl)}">${stoneFamilyMembers(s).map(opt).join('')}</optgroup>`;
+  }).join('');
+}
 
 // Stone type display translations (display only — Firebase always stores English)
 const STONE_TRANSLATIONS = {
@@ -9036,6 +9134,49 @@ const STONE_TRANSLATIONS = {
   'Tourmaline':      'Τουρμαλίνης',
   'Turquoise':       'Τυρκουάζ',
   'Zircon':          'Ζιρκόνιο',
+  // ── colour / variety families (v12.48) ──
+  'Black Diamond':           'Μαύρο Διαμάντι',
+  'Champagne Diamond':       'Διαμάντι Σαμπανιζέ',
+  'Yellow Diamond':          'Κίτρινο Διαμάντι',
+  'Pink Diamond':            'Ροζ Διαμάντι',
+  'Salt and Pepper Diamond': 'Διαμάντι Salt & Pepper',
+  'Pink Sapphire':           'Ροζ Ζαφείρι',
+  'Yellow Sapphire':         'Κίτρινο Ζαφείρι',
+  'White Sapphire':          'Λευκό Ζαφείρι',
+  'Green Sapphire':          'Πράσινο Ζαφείρι',
+  'Padparadscha Sapphire':   'Ζαφείρι Padparadscha',
+  'Mother of Pearl':         'Φίλντισι',
+  'Blue Lace Agate':         'Αχάτης Blue Lace',
+  'Moss Agate':              'Αχάτης Βρυώδης',
+  'Red Coral':               'Κόκκινο Κοράλλι',
+  'Pink Coral':              'Ροζ Κοράλλι',
+  'Black Coral':             'Μαύρο Κοράλλι',
+  'Rhodolite Garnet':        'Γρανάτης Ροδολίτης',
+  'Tsavorite Garnet':        'Γρανάτης Τσαβορίτης',
+  'Spessartite Garnet':      'Γρανάτης Σπεσσαρτίνη',
+  'Rainbow Moonstone':       'Φεγγαρόλιθος Rainbow',
+  'Peach Moonstone':         'Ροδακινί Φεγγαρόλιθος',
+  'White Opal':              'Λευκό Οπάλιο',
+  'Black Opal':              'Μαύρο Οπάλιο',
+  'Fire Opal':               'Οπάλιο Φωτιάς',
+  'Boulder Opal':            'Οπάλιο Boulder',
+  'Rose Quartz':             'Ροζ Χαλαζίας',
+  'Smoky Quartz':            'Χαλαζίας Καπνίας',
+  'Rutilated Quartz':        'Χαλαζίας με Ρουτίλιο',
+  'Lemon Quartz':            'Χαλαζίας Lemon',
+  'Clear Quartz':            'Διάφανος Χαλαζίας',
+  'Black Spinel':            'Μαύρος Σπινέλιος',
+  'Blue Topaz':              'Μπλε Τοπάζιο',
+  'London Blue Topaz':       'Τοπάζιο London Blue',
+  'Swiss Blue Topaz':        'Τοπάζιο Swiss Blue',
+  'White Topaz':             'Λευκό Τοπάζιο',
+  'Imperial Topaz':          'Τοπάζιο Imperial',
+  'Mystic Topaz':            'Τοπάζιο Mystic',
+  'Pink Tourmaline':         'Ροζ Τουρμαλίνης',
+  'Green Tourmaline':        'Πράσινος Τουρμαλίνης',
+  'Watermelon Tourmaline':   'Τουρμαλίνης Καρπούζι',
+  'Black Tourmaline':        'Μαύρος Τουρμαλίνης',
+  'Paraiba Tourmaline':      'Τουρμαλίνης Paraiba',
 };
 // Helper: translate stone type for display
 // Language-explicit stone name. The document builders (quote, certificate) are handed an
@@ -9096,8 +9237,6 @@ function stripMelee(text) {
 function stonesDescPublic(desc) {
   return desc ? stripMelee(stonesDescDisplay(desc)) : desc;
 }
-// Pearl group for filter subcategories
-const PEARL_TYPES = ['Pearl','Baroque Pearl','Black Pearl','Keshi Pearl','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
 const CLARITY_GRADES = ['FL','IF','VVS1','VVS2','VS1','VS2','SI1','SI2','I1','I2','I3'];
 const COLOR_GRADES = ['D','E','F','G','H','I','J','K','L','M'];
 const STONE_SHAPES = ['Round','Princess','Oval','Cushion','Emerald Cut','Pear','Marquise','Heart','Radiant','Asscher','Baguette'];
@@ -9173,7 +9312,7 @@ function addStoneRow(data={}) {
   div.className = 'stone-row';
   div.style.cssText = 'background:var(--wa03);border:1px solid rgba(201,168,76,0.15);border-radius:4px;padding:10px;margin-bottom:8px;position:relative';
 
-  const typeOptions = STONE_TYPES.map(t => `<option value="${t}"${data.type===t?' selected':''}>${lang==='el'?(STONE_TRANSLATIONS[t]||t):t}</option>`).join('');
+  const typeOptions = stoneOptionsHtml(data.type);
   const clarityOptions = `<option value="">—</option>` + CLARITY_GRADES.map(c => `<option value="${c}"${data.clarity===c?' selected':''}>${c}</option>`).join('');
   const colorOptions = `<option value="">—</option>` + COLOR_GRADES.map(c => `<option value="${c}"${data.color===c?' selected':''}>${c}</option>`).join('');
   const shapeOptions = `<option value="">—</option>` + STONE_SHAPES.map(s => `<option value="${s}"${data.shape===s?' selected':''}>${s}</option>`).join('');
@@ -9912,7 +10051,7 @@ function _openLabelModalInner(data, modal, content) {
     if (_lblStPicker && _lblStChips && _lblStAdd) {
       window._labelStones = [];   // fresh per new item
       _lblStPicker.innerHTML = '<option value="">' + (lang==='el'?'— Επιλέξτε πέτρα —':'— Pick a stone —') + '</option>' +
-        STONE_TYPES.map(s => '<option value="'+s+'">'+(lang==='el'?(STONE_TRANSLATIONS[s]||s):s)+'</option>').join('');
+        stoneOptionsHtml('');
       _lblStPicker.value = '';
       const _lblRenderStChips = () => {
         _lblStChips.innerHTML = '';
@@ -14470,14 +14609,6 @@ RETAIL: €[integer]`;
       '2.00-2.99': [17200,10600,5600,2100],
       '3.00+':     [25000,15600,8100,3000],
     };
-    const COLORED_PER_CT = {
-      Ruby:[1300,640,240, 90], Emerald:[980,480,190, 75], Sapphire:[820,400,160, 70],
-      Alexandrite:[1900,960,320,120], Aquamarine:[190,110, 55, 22], Amethyst:[65, 32, 16,  6],
-      Citrine:[48, 24, 13,  5], Garnet:[130, 65, 32, 12], Morganite:[160, 88, 40, 15],
-      Opal:[320,160, 64, 24], Pearl:[240,128, 56, 18], Peridot:[80, 40, 19,  7],
-      Spinel:[480,240, 96, 32], Tanzanite:[640,320,128, 48], Topaz:[96, 48, 22,  8],
-      Tourmaline:[320,160, 64, 24], Turquoise:[65, 32, 16,  6],
-    };
     const colorMod = c => !c?0.85:['D','E','F'].includes(c)?1.0:['G','H'].includes(c)?0.85:['I','J'].includes(c)?0.70:0.55;
     const clarityIdx = c => !c?1:['FL','IF','VVS1','VVS2'].includes(c)?0:['VS1','VS2'].includes(c)?1:['SI1','SI2'].includes(c)?2:3;
 
@@ -14503,7 +14634,7 @@ RETAIL: €[integer]`;
           stoneTotal = (ct > 0 ? rp[clarityIdx(s.clarity)] * colorMod(s.color) * ct : rp[1] * 0.10) * effectiveQty;
         }
       } else {
-        const prices = COLORED_PER_CT[type] || [160,80,32,12];
+        const prices = stonePerCaratGuide(type);
         stoneTotal = (ct > 0 ? prices[clarityIdx(s.clarity)] * ct : prices[1] * 0.5) * effectiveQty;
       }
       totalWholesale += stoneTotal;
@@ -16717,8 +16848,43 @@ const STONE_ABBREV_MAP = {
   // Pearl varieties & Jade — 4-letter codes matching the historical no-carat fallback
   // (type.slice(0,4)), so tags already printed for these types keep scanning correctly.
   'AKOY': 'Akoya Pearl', 'FRES': 'Freshwater Pearl', 'JADE': 'Jade',
-  'SOUT': 'South Sea Pearl', 'TAHI': 'Tahitian Pearl'
+  'SOUT': 'South Sea Pearl', 'TAHI': 'Tahitian Pearl',
+  // ── colour / variety families (v12.48) — three letters, so the stone suffix stays
+  // short on the tag. Never reuse a code: an already-printed tag would resolve to the
+  // wrong stone. _assertStoneAbbrevsUnique() below guards this at load time.
+  'BLD': 'Black Diamond',   'CHD': 'Champagne Diamond', 'YLD': 'Yellow Diamond',
+  'PKD': 'Pink Diamond',    'SPD': 'Salt and Pepper Diamond',
+  'PKS': 'Pink Sapphire',   'YLS': 'Yellow Sapphire',   'WHS': 'White Sapphire',
+  'GRS': 'Green Sapphire',  'PAD': 'Padparadscha Sapphire',
+  'MOP': 'Mother of Pearl',
+  'BLA': 'Blue Lace Agate', 'MSA': 'Moss Agate',
+  'RCO': 'Red Coral',       'PCO': 'Pink Coral',        'BCO': 'Black Coral',
+  'RHG': 'Rhodolite Garnet','TSG': 'Tsavorite Garnet',  'SPG': 'Spessartite Garnet',
+  'RMO': 'Rainbow Moonstone','PMO': 'Peach Moonstone',
+  'WHO': 'White Opal',      'BLO': 'Black Opal',        'FIO': 'Fire Opal',
+  'BOO': 'Boulder Opal',
+  'ROQ': 'Rose Quartz',     'SMQ': 'Smoky Quartz',      'RUQ': 'Rutilated Quartz',
+  'LEQ': 'Lemon Quartz',    'CLQ': 'Clear Quartz',
+  'BSP': 'Black Spinel',
+  'BLT': 'Blue Topaz',      'LBT': 'London Blue Topaz', 'SBT': 'Swiss Blue Topaz',
+  'WHT': 'White Topaz',     'IMT': 'Imperial Topaz',    'MYT': 'Mystic Topaz',
+  'PKT': 'Pink Tourmaline', 'GRT': 'Green Tourmaline',  'WMT': 'Watermelon Tourmaline',
+  'BKT': 'Black Tourmaline','PBT': 'Paraiba Tourmaline'
 };
+
+// Every stone in the picker must be encodable on a tag, and no two may share a code —
+// a duplicate would silently make one stone's printed tags resolve to the other.
+// Runs once at load; logs rather than throws so a data slip can never break the app.
+(function _assertStoneAbbrevsUnique() {
+  const seen = {}, missing = [];
+  Object.entries(STONE_ABBREV_MAP).forEach(([abbr, name]) => {
+    if (seen[name]) console.error('[stones] two codes for ' + name + ': ' + seen[name] + ' / ' + abbr);
+    seen[name] = abbr;
+    if (/\d/.test(abbr)) console.error('[stones] code contains a digit (would be read as weight): ' + abbr);
+  });
+  STONE_TYPES.forEach(s => { if (s !== 'Diamond' && !seen[s]) missing.push(s); });
+  if (missing.length) console.error('[stones] no tag code for: ' + missing.join(', '));
+})();
 
 function parseStoneFromCode(stonePart) {
   // stonePart examples: ".30VS2H", "1.00VVS1D", ".50SAP", "8x.10SI2G", "t.80SI2G", "tLAP"
@@ -16727,17 +16893,12 @@ function parseStoneFromCode(stonePart) {
   if (!stonePart) return null;
   const CLARITY = ['FL','IF','VVS1','VVS2','VS1','VS2','SI1','SI2','I1','I2','I3'];
   const COLOR = ['D','E','F','G','H','I','J','K','L','M'];
-  const COLORED_FULL = ['Ruby','Emerald','Sapphire','Alexandrite','Aquamarine','Amethyst',
-    'Citrine','Garnet','Morganite','Opal','Pearl','Peridot','Spinel',
-    'Tanzanite','Topaz','Tourmaline','Turquoise','Agate','Onyx','Crystal',
-    'Jade','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
-  // Also check full name without carat (e.g. "Coral", "Sapphire" written fully)
-  const COLORED_FULL_EARLY = ['Ruby','Emerald','Sapphire','Alexandrite','Aquamarine','Amethyst',
-    'Citrine','Garnet','Morganite','Opal','Pearl','Peridot','Spinel',
-    'Tanzanite','Topaz','Tourmaline','Turquoise','Agate','Onyx','Crystal',
-    'Moonstone','Quartz','Hematite','Lapis Lazuli','Labradorite','Amazonite','Carnelian',
-    'Ametrine','Malachite','Zircon','Coral','Cobalt Calcite','Baroque Pearl','Keshi Pearl',
-    'Jade','Akoya Pearl','Freshwater Pearl','South Sea Pearl','Tahitian Pearl'];
+  // A stone written out in full instead of abbreviated (with or without a carat).
+  // DERIVED from STONE_TYPES so a new stone is understood the moment it is added —
+  // the old hand-kept lists had already fallen behind. 'Diamond' is excluded on
+  // purpose: a bare/carat-only Diamond falls through to the clarity+colour parse.
+  const COLORED_FULL = STONE_TYPES.filter(s => s !== 'Diamond');
+  const COLORED_FULL_EARLY = COLORED_FULL;
 
   // Attempt to parse a (prefix-stripped) token as a stone with a known qty
   function tryParse(remaining, qty) {
@@ -19867,7 +20028,7 @@ async function migrateStoneDescFormat() {
       if (caratFirst) { carat = caratFirst[1]; seg = seg.slice(caratFirst[0].length).trim(); }
       // find stone type
       let type = '';
-      for (const st of STONE_TYPES) {
+      for (const st of STONE_TYPES_LONGEST) {
         if (seg.toLowerCase().startsWith(st.toLowerCase())) {
           type = st; seg = seg.slice(st.length).trim(); break;
         }
@@ -20334,7 +20495,7 @@ function openInvFilterSheet() {
   const vendors = [...new Set(items.map(i => i.vendorName).filter(Boolean))].sort();
   // Extract unique stone types from stonesDesc fields
   const stoneTypeSet = new Set();
-  const _stoneTypesForFilter = [...STONE_TYPES].sort((a,b) => b.length - a.length);
+  const _stoneTypesForFilter = STONE_TYPES_LONGEST;
   items.forEach(item => {
     if (item.stonesDesc) {
       // stonesDesc format: "Diamond 0.30ct VS1 G · Ruby 0.50ct" — split on ' · '
@@ -20533,63 +20694,42 @@ function openInvFilterSheet() {
     dropGroup('invFilterVendor', vendors,  _invFilters.vendors, 'vendors', v => v) +
     (function() {
       if (!stoneTypes.length) return '';
-      // Separate pearls from other stones
-      // Pearl group slots right after the 4 precious stones (Diamond/Emerald/Ruby/Sapphire)
-      const PRECIOUS_4 = ['Diamond','Emerald','Ruby','Sapphire'];
-      const pearlsInInv = PEARL_TYPES.filter(p => stoneTypes.includes(p));
-      // nonPearls = precious 4 first (if present), then rest alphabetically
-      const precious4Present = PRECIOUS_4.filter(s => stoneTypes.includes(s) && !PEARL_TYPES.includes(s));
-      const restAlpha = stoneTypes.filter(s => !PRECIOUS_4.includes(s) && !PEARL_TYPES.includes(s));
-      const nonPearls = [...precious4Present, ...restAlpha];
-      if (!pearlsInInv.length) {
-        return dropGroup('invFilterStone', nonPearls, _invFilters.stones, 'stones', v => stoneLabel(v));
-      }
-      // Build items HTML for precious 4 (before pearl group)
-      const precious4Items = precious4Present.map(val => {
+      // Stones in STONE_ORDER order (precious four + Pearl first, then alphabetical), with
+      // every colour/variety family collapsed under a «… (all)» header. Generalised from
+      // the old pearl-only version so a new family needs no code here.
+      const _tick = `<div class="inv-fs-picker-circle"><svg class="inv-fs-picker-checkmark" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#0E0C08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+      const _row = (val, fam, shown) => {
         const sel = _invFilters.stones.includes(val);
-        const safeVal = val.replace(/"/g,'&quot;');
-        return `<div class="inv-fs-picker-item${sel?' sel':''}" data-group="stones" data-val="${safeVal}">
-          <span>${stoneLabel(val)}</span>
-          <div class="inv-fs-picker-circle"><svg class="inv-fs-picker-checkmark" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#0E0C08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        const cls = 'inv-fs-picker-item' + (fam ? ' inv-fs-fam-sub' : '') + (sel ? ' sel' : '');
+        const extra = fam ? ` data-fam="${fam}" style="padding-left:28px;display:${shown ? 'flex' : 'none'}"` : '';
+        return `<div class="${cls}" data-group="stones" data-val="${val.replace(/"/g,'&quot;')}"${extra}>
+          <span>${stoneLabel(val)}</span>${_tick}
         </div>`;
-      }).join('');
-      // Build items HTML for rest (after pearl group)
-      const restItems = restAlpha.map(val => {
-        const sel = _invFilters.stones.includes(val);
-        const safeVal = val.replace(/"/g,'&quot;');
-        return `<div class="inv-fs-picker-item${sel?' sel':''}" data-group="stones" data-val="${safeVal}">
-          <span>${stoneLabel(val)}</span>
-          <div class="inv-fs-picker-circle"><svg class="inv-fs-picker-checkmark" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#0E0C08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      };
+      // Anything the extractor found that isn't in STONE_ORDER (legacy free-text) still shows.
+      const _seen = new Set();
+      let listHtml = '';
+      STONE_ORDER.forEach(parent => {
+        const present = stoneFamilyMembers(parent).filter(m => stoneTypes.includes(m));
+        present.forEach(m => _seen.add(m));
+        if (!present.length) return;
+        // One member in stock is not a family — show it as an ordinary row.
+        if (present.length === 1) { listHtml += _row(present[0]); return; }
+        const allSel = present.every(p => _invFilters.stones.includes(p));
+        const expanded = present.some(p => _invFilters.stones.includes(p));
+        listHtml += `<div class="inv-fs-picker-item inv-fs-fam-all${allSel?' sel':''}" data-group="stones-fam-all" data-fam="${parent}" style="font-weight:600;border-top:1px solid rgba(201,168,76,0.15);border-bottom:1px solid rgba(201,168,76,0.1);background:rgba(201,168,76,0.05)">
+          <span style="display:flex;align-items:center;gap:8px"><span class="fam-chev" style="font-size:10px;color:var(--text-muted)">${expanded?'▼':'▶'}</span>${stoneFamilyLabel(parent, lang==='el')}</span>${_tick}
         </div>`;
-      }).join('');
-      // Build pearl sub-items (hidden by default — collapsed)
-      const allPearlsSel = pearlsInInv.every(p => _invFilters.stones.includes(p));
-      const pearlAllLabel = lang==='el' ? 'Μαργαριτάρια (όλα)' : 'Pearls (all)';
-      const pearlSubItems = pearlsInInv.map(val => {
-        const sel = _invFilters.stones.includes(val);
-        const safeVal = val.replace(/"/g,'&quot;');
-        return `<div class="inv-fs-picker-item inv-fs-pearl-sub${sel?' sel':''}" data-group="stones" data-val="${safeVal}" style="padding-left:28px;display:none">
-          <span>${stoneLabel(val)}</span>
-          <div class="inv-fs-picker-circle"><svg class="inv-fs-picker-checkmark" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#0E0C08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>`;
-      }).join('');
-      // Pearl header row — collapsed by default, ▶/▼ toggle
-      const pearlExpanded = pearlsInInv.some(p => _invFilters.stones.includes(p));
-      const pearlAllItem = `<div class="inv-fs-picker-item inv-fs-pearl-all${allPearlsSel?' sel':''}" data-group="stones-pearls-all" data-val="all" style="font-weight:600;border-top:1px solid rgba(201,168,76,0.15);border-bottom:1px solid rgba(201,168,76,0.1);background:rgba(201,168,76,0.05)">
-        <span style="display:flex;align-items:center;gap:8px"><span class="pearl-chev" style="font-size:10px;color:var(--text-muted)">${pearlExpanded?'▼':'▶'}</span>${pearlAllLabel}</span>
-        <div class="inv-fs-picker-circle"><svg class="inv-fs-picker-checkmark" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#0E0C08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      </div>`;
+        listHtml += present.map(m => _row(m, parent, expanded)).join('');
+      });
+      stoneTypes.filter(s => !_seen.has(s)).forEach(s => { listHtml += _row(s); });
       const selCount = _invFilters.stones.length;
-      const selectedStoneLabels = _invFilters.stones.map(v => stoneLabel(v));
       const triggerLabel = selCount === 0
         ? (lang==='el'?'Επιλέξτε πέτρα...':'Select stone...')
-        : selectedStoneLabels.join(', ');
-      const hasSelCls = selCount > 0 ? ' has-sel' : '';
-      // Order: precious4 → pearl header → pearl subs (hidden) → rest alpha
-      const listHtml = precious4Items + pearlAllItem + pearlSubItems + restItems;
+        : _invFilters.stones.map(v => stoneLabel(v)).join(', ');
       return `<div class="inv-fs-group">
         <div class="inv-fs-label">${t('invFilterStone')}</div>
-        <button class="inv-fs-picker-trigger${hasSelCls}" data-picker="stones" onclick="toggleInvPicker('stones')">
+        <button class="inv-fs-picker-trigger${selCount>0?' has-sel':''}" data-picker="stones" onclick="toggleInvPicker('stones')">
           <span class="inv-fs-picker-label" id="invPickerLabel_stones">${triggerLabel}</span>
           <span class="chev">▼</span>
         </button>
@@ -20657,6 +20797,14 @@ function openInvFilterSheet() {
     }
   };
 
+  // A family header is ticked only while every one of its members is ticked.
+  function _invSyncFamHeaders(root) {
+    root.querySelectorAll('.inv-fs-fam-all').forEach(hdr => {
+      const subs = Array.from(root.querySelectorAll(`.inv-fs-fam-sub[data-fam="${hdr.dataset.fam}"]`));
+      hdr.classList.toggle('sel', subs.length > 0 && subs.every(s => _invFilters.stones.includes(s.dataset.val)));
+    });
+  }
+
   // Custom picker items — click handler
   content.querySelectorAll('.inv-fs-picker-item').forEach(item => {
     item.addEventListener('click', function(e) {
@@ -20678,36 +20826,26 @@ function openInvFilterSheet() {
           this.classList.add('sel');
         }
         // Fall through to the trigger-label update below.
-      } else if (grp === 'stones-pearls-all') {
-        const pearlsPresent = PEARL_TYPES.filter(p =>
-          content.querySelector(`.inv-fs-pearl-sub[data-val="${p}"]`));
-        // Determine if click was on the circle (select-all) or the row body (collapse)
-        const clickedCircle = e.target.closest('.inv-fs-picker-circle');
-        if (clickedCircle) {
-          // Select/deselect all pearls
-          const allSel = pearlsPresent.every(p => _invFilters.stones.includes(p));
-          if (allSel) {
-            pearlsPresent.forEach(p => {
-              const idx = _invFilters.stones.indexOf(p);
-              if (idx !== -1) _invFilters.stones.splice(idx, 1);
-              const el = content.querySelector(`.inv-fs-pearl-sub[data-val="${p}"]`);
-              if (el) el.classList.remove('sel');
-            });
-            this.classList.remove('sel');
-          } else {
-            pearlsPresent.forEach(p => {
-              if (!_invFilters.stones.includes(p)) _invFilters.stones.push(p);
-              const el = content.querySelector(`.inv-fs-pearl-sub[data-val="${p}"]`);
-              if (el) el.classList.add('sel');
-            });
-            this.classList.add('sel');
-          }
+      } else if (grp === 'stones-fam-all') {
+        // A family header: the circle selects/clears the whole family, the row body
+        // expands or collapses it. Scoped by data-fam so families never affect each other.
+        const fam = this.dataset.fam;
+        const subEls = Array.from(content.querySelectorAll(`.inv-fs-fam-sub[data-fam="${fam}"]`));
+        const present = subEls.map(el => el.dataset.val);
+        if (e.target.closest('.inv-fs-picker-circle')) {
+          const allSel = present.length > 0 && present.every(p => _invFilters.stones.includes(p));
+          subEls.forEach(el => {
+            const p = el.dataset.val;
+            const i = _invFilters.stones.indexOf(p);
+            if (allSel) { if (i !== -1) _invFilters.stones.splice(i, 1); }
+            else if (i === -1) _invFilters.stones.push(p);
+            el.classList.toggle('sel', !allSel);
+          });
+          this.classList.toggle('sel', !allSel);
         } else {
-          // Toggle collapse of sub-items
-          const subs = content.querySelectorAll('.inv-fs-pearl-sub');
-          const chevEl = this.querySelector('.pearl-chev');
-          const isOpen = subs.length > 0 && subs[0].style.display !== 'none';
-          subs.forEach(s => { s.style.display = isOpen ? 'none' : 'flex'; });
+          const isOpen = subEls.length > 0 && subEls[0].style.display !== 'none';
+          subEls.forEach(el => { el.style.display = isOpen ? 'none' : 'flex'; });
+          const chevEl = this.querySelector('.fam-chev');
           if (chevEl) chevEl.textContent = isOpen ? '▶' : '▼';
           return; // no filter change, no label update needed
         }
@@ -20717,16 +20855,8 @@ function openInvFilterSheet() {
         const idx = arr.indexOf(val);
         if (idx === -1) { arr.push(val); this.classList.add('sel'); }
         else { arr.splice(idx, 1); this.classList.remove('sel'); }
-        // Sync pearl-all header state
-        if (grp === 'stones') {
-          const pearlAllBtn = content.querySelector('.inv-fs-pearl-all');
-          if (pearlAllBtn) {
-            const pearlsPresent = PEARL_TYPES.filter(p =>
-              content.querySelector(`.inv-fs-pearl-sub[data-val="${p}"]`));
-            const allSel = pearlsPresent.length > 0 && pearlsPresent.every(p => _invFilters.stones.includes(p));
-            pearlAllBtn.classList.toggle('sel', allSel);
-          }
-        }
+        // Keep each family header in step with its own members
+        if (grp === 'stones') _invSyncFamHeaders(content);
       }
       // Update trigger label
       const labelEl = document.getElementById('invPickerLabel_' + grp);
@@ -21165,7 +21295,7 @@ function renderInvList() {
     if (f.stones.length) {
       if (!item.stonesDesc) return false;
       // Extract stone types from this item using the same parser as the filter builder
-      const _sTypesForMatch = [...STONE_TYPES].sort((a,b) => b.length - a.length);
+      const _sTypesForMatch = STONE_TYPES_LONGEST;
       const _itemStones = [];
       item.stonesDesc.split(' · ').forEach(seg => {
         seg = seg.trim()
@@ -22308,14 +22438,6 @@ RETAIL: €[integer]`;
           '2.00-2.99':[17200,10600,5600,2100],
           '3.00+':    [25000,15600,8100,3000],
         };
-        const COLORED_PER_CT = {
-          Ruby:[1300,640,240,90], Emerald:[980,480,190,75], Sapphire:[820,400,160,70],
-          Alexandrite:[1900,960,320,120], Aquamarine:[190,110,55,22], Amethyst:[65,32,16,6],
-          Citrine:[48,24,13,5], Garnet:[130,65,32,12], Morganite:[160,88,40,15],
-          Opal:[320,160,64,24], Pearl:[240,128,56,18], Peridot:[80,40,19,7],
-          Spinel:[480,240,96,32], Tanzanite:[640,320,128,48], Topaz:[96,48,22,8],
-          Tourmaline:[320,160,64,24], Turquoise:[65,32,16,6], Agate:[30,15,8,3], Onyx:[35,18,9,4], Crystal:[20,10,5,2],
-        };
         const _clarIdx = c => !c?1:['FL','IF','VVS1','VVS2'].includes(c)?0:['VS1','VS2'].includes(c)?1:['SI1','SI2'].includes(c)?2:3;
         const _colMod = c => !c?0.85:['D','E','F'].includes(c)?1.0:['G','H'].includes(c)?0.85:['I','J'].includes(c)?0.70:0.55;
 
@@ -22339,7 +22461,7 @@ RETAIL: €[integer]`;
               stoneTotal = (ct > 0 ? rp[_clarIdx(s.clarity)] * _colMod(s.color) * ct : rp[1] * 0.10) * (isMelee?1:(s.qty||1));
             }
           } else {
-            const prices = COLORED_PER_CT[type] || [160,80,32,12];
+            const prices = stonePerCaratGuide(type);
             stoneTotal = (ct > 0 ? prices[_clarIdx(s.clarity)] * ct : prices[1] * 0.5) * (isMelee?1:(s.qty||1));
           }
           totalW += stoneTotal;
@@ -22427,7 +22549,7 @@ function _invEditAddStoneRow(data={}) {
   const div = document.createElement('div');
   div.className = 'inv-edit-stone-row';
   div.style.cssText = 'background:var(--wa03);border:1px solid rgba(201,168,76,0.15);border-radius:6px;padding:10px;margin-bottom:8px;position:relative';
-  const typeOptions = STONE_TYPES.map(t => `<option value="${t}"${data.type===t?' selected':''}>${lang==='el'?(STONE_TRANSLATIONS[t]||t):t}</option>`).join('');
+  const typeOptions = stoneOptionsHtml(data.type);
   const clarityOptions = `<option value="">—</option>` + CLARITY_GRADES.map(c => `<option value="${c}"${data.clarity===c?' selected':''}>${c}</option>`).join('');
   const colorOptions = `<option value="">—</option>` + COLOR_GRADES.map(c => `<option value="${c}"${data.color===c?' selected':''}>${c}</option>`).join('');
   const shapeOptions = `<option value="">—</option>` + STONE_SHAPES.map(s => `<option value="${s}"${data.shape===s?' selected':''}>${s}</option>`).join('');
@@ -22580,7 +22702,7 @@ function _invEditParseStoredStones(stonesDesc) {
     else if (/^melee\s/i.test(seg)) { qty = 't'; seg = seg.replace(/^melee\s/i, ''); }
     // type is first word(s) — find known stone type
     let type = '';
-    for (const st of STONE_TYPES) {
+    for (const st of STONE_TYPES_LONGEST) {
       if (seg.startsWith(st)) { type = st; seg = seg.slice(st.length).trim(); break; }
     }
     if (!type) { // fallback: first word
@@ -22806,7 +22928,7 @@ function invEdit(id) {
     (lang==='el'?'Πέτρες (Προαιρετικό)':'Stone (Optional)') +
     '</label><div id="invEditStoneChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div><div style="display:flex;gap:6px"><select id="invEditStonePicker" style="flex:1;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.35);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;outline:none"><option value="">' +
     (lang==='el'?'— Επιλέξτε πέτρα —':'— Pick a stone —') +
-    '</option>' + STONE_TYPES.map(s=>'<option value="'+s+'">'+(lang==="el"?(STONE_TRANSLATIONS[s]||s):s)+'</option>').join('') +
+    '</option>' + stoneOptionsHtml('') +
     '</select><button id="invEditStoneAddBtn" style="flex:0 0 44px;height:42px;background:rgba(100,160,255,0.15);border:1px solid rgba(100,160,255,0.4);border-radius:8px;font-size:20px;cursor:pointer">+</button></div></div>'
   ) : (
     '<div style="margin-bottom:18px">' +
@@ -23295,7 +23417,7 @@ RETAIL: \u20ac[integer]`;
 
       // 3. Offline table fallback
       const DPC = {'0.01-0.09':[340,220,130,48],'0.10-0.14':[580,380,210,76],'0.15-0.19':[720,470,260,94],'0.20-0.24':[1050,680,370,135],'0.25-0.29':[1250,810,440,162],'0.30-0.39':[1680,1090,590,215],'0.40-0.49':[2800,1800,1020,370],'0.50-0.69':[3800,2400,1360,480],'0.70-0.89':[5000,3200,1780,620],'0.90-0.99':[6100,3900,2160,750],'1.00-1.24':[8100,5100,2780,970],'1.25-1.49':[10200,6400,3400,1200],'1.50-1.99':[12500,7800,4200,1500],'2.00-2.99':[17200,10600,5600,2100],'3.00+':[25000,15600,8100,3000]};
-      const CPC = {Ruby:[1300,640,240,90],Emerald:[980,480,190,75],Sapphire:[820,400,160,70],Alexandrite:[1900,960,320,120],Aquamarine:[190,110,55,22],Amethyst:[65,32,16,6],Citrine:[48,24,13,5],Garnet:[130,65,32,12],Morganite:[160,88,40,15],Opal:[320,160,64,24],Pearl:[240,128,56,18],Peridot:[80,40,19,7],Spinel:[480,240,96,32],Tanzanite:[640,320,128,48],Topaz:[96,48,22,8],Tourmaline:[320,160,64,24],Turquoise:[65,32,16,6]};
+      // Shared guide table — see COLORED_PER_CT / stonePerCaratGuide.
       const _ci = c => !c?1:['FL','IF','VVS1','VVS2'].includes(c)?0:['VS1','VS2'].includes(c)?1:['SI1','SI2'].includes(c)?2:3;
       const _cm = c => !c?0.85:['D','E','F'].includes(c)?1.0:['G','H'].includes(c)?0.85:['I','J'].includes(c)?0.70:0.55;
       let totW = 0; const ll = [];
@@ -23308,7 +23430,7 @@ RETAIL: \u20ac[integer]`;
             for (const [rng,pr] of Object.entries(DPC)) { if (rng.endsWith('+')){ if(ct>=parseFloat(rng))rp=pr; } else { const [lo,hi]=rng.split('-').map(Number);if(ct>=lo&&ct<=hi){rp=pr;break;} } }
             st = (ct>0?rp[_ci(s.clarity)]*_cm(s.color)*ct:rp[1]*0.10)*(isMel?1:(s.qty||1));
           }
-        } else { const pr=CPC[tp]||[160,80,32,12]; st=(ct>0?pr[_ci(s.clarity)]*ct:pr[1]*0.5)*(isMel?1:(s.qty||1)); }
+        } else { const pr=stonePerCaratGuide(tp); st=(ct>0?pr[_ci(s.clarity)]*ct:pr[1]*0.5)*(isMel?1:(s.qty||1)); }
         totW+=st; const ql=isMel?'(melee) ':(s.qty>1?s.qty+'\u00d7 ':'');
         ll.push(ql+tp+(ct?' '+ct+'ct':'')+(s.clarity?' '+s.clarity:'')+(s.color?' '+s.color:'')+' \u2192 '+cur2+Math.round(st));
       });
@@ -25586,7 +25708,7 @@ function invAddSimilar(sourceId) {
       <input id="invAddSimQty" type="number" step="1" min="1" max="50" value="1" inputmode="numeric"
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
       ${_canSwapStone ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Πέτρα':'Stone'} <span style="color:var(--text-dim)">· ${lang==='el'?'αλλάζει τον κωδικό QR':'changes the QR code'}</span></div>
-      <select id="invAddSimStone" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(120,200,255,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${STONE_TYPES.map(s => `<option value="${s}"${s===_srcStoneType?' selected':''}>${_resEsc(stoneLabel(s))}</option>`).join('')}</select>`
+      <select id="invAddSimStone" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(120,200,255,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${stoneOptionsHtml(_srcStoneType)}</select>`
       : (_srcStones.length > 1 ? `<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">${lang==='el'?`💎 ${_srcStones.length} πέτρες — αντιγράφονται όπως είναι`:`💎 ${_srcStones.length} stones — copied as they are`}</div>` : '')}
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Χρώμα':'Color'}</div>
       <select id="invAddSimColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(100,160,255,0.2);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${itemColorOptionsHtml(source.color)}</select>
@@ -26592,8 +26714,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.47', date: 'Ιούλιος 2026', items: [
-        "🏷️ Ετικέτα: ο κωδικός αναφοράς τυπώνεται δύο θέσεις πιο κάτω (0,25 χιλ.), ώστε το πρώτο γράμμα να μην κόβεται στην άκρη της ετικέτας. Το QR δεν μετακινήθηκε καθόλου.",
+      { version: 'v12.48', date: 'Ιούλιος 2026', items: [
+        "💎 Φίλντισι (Mother of Pearl) — προστέθηκε παντού: στον υπολογισμό, στα φίλτρα και στο showroom.",
+        "🎨 42 νέες αποχρώσεις πετρών: Τοπάζιο (Μπλε, London Blue, Swiss Blue, Λευκό, Imperial, Mystic), Ζαφείρι (Ροζ, Κίτρινο, Λευκό, Πράσινο, Padparadscha), Διαμάντι (Μαύρο, Σαμπάνια, Κίτρινο, Ροζ, Salt & Pepper), Χαλαζίας (Ροζ, Καπνίας, με Ρουτίλιο, Lemon, Διάφανος), Τουρμαλίνης, Γρανάτης, Οπάλιο, Φεγγαρόλιθος, Κοράλλι, Αχάτης, Σπινέλιος.",
+        "🇬🇷 Τα ελληνικά ονόματα ακολουθούν αυτό που γράφουν πραγματικά τα ελληνικά καταστήματα: «Αχάτης Βρυώδης», «Χαλαζίας Καπνίας», «Διαμάντι Σαμπανιζέ», «Φίλντισι» — αλλά μένουν στα αγγλικά εκεί που έτσι τα γράφουν και οι Έλληνες κοσμηματοπώλες (London/Swiss Blue, Salt & Pepper, Rainbow, Padparadscha, Paraiba).",
+        "📂 Κάθε πέτρα ομαδοποιείται πλέον κάτω από το κύριο όνομά της — όπως ήδη γινόταν με τα μαργαριτάρια. Ισχύει σε ΚΑΘΕ λίστα πετρών: υπολογισμός, νέο κόσμημα, επεξεργασία, φίλτρα αποθέματος και showroom.",
+        "✨ Εκτίμηση τιμής πέτρας: μία κοινή λίστα τιμών αντί για τρεις — μια απόχρωση παίρνει την τιμή της κύριας πέτρας της (π.χ. Μπλε Τοπάζιο = Τοπάζιο).",
       ]},
       ]
   },
@@ -26624,8 +26750,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.47', date: 'Jul 2026', items: [
-        "🏷️ Label: the reference code now prints two steps lower (0.25 mm), so the first letter is no longer clipped by the edge of the tag. The QR has not moved at all.",
+      { version: 'v12.48', date: 'Jul 2026', items: [
+        "💎 Mother of Pearl added everywhere — pricing, filters and the showroom.",
+        "🎨 42 new stone colours: Topaz (Blue, London Blue, Swiss Blue, White, Imperial, Mystic), Sapphire (Pink, Yellow, White, Green, Padparadscha), Diamond (Black, Champagne, Yellow, Pink, Salt & Pepper), Quartz (Rose, Smoky, Rutilated, Lemon, Clear), Tourmaline, Garnet, Opal, Moonstone, Coral, Agate, Spinel.",
+        "🇬🇷 The Greek names follow what Greek shops actually write — «Αχάτης Βρυώδης», «Χαλαζίας Καπνίας», «Διαμάντι Σαμπανιζέ», «Φίλντισι» — and stay in English where Greek jewellers themselves keep the English (London/Swiss Blue, Salt & Pepper, Rainbow, Padparadscha, Paraiba).",
+        "📂 Every stone is now grouped under its main name — the way pearls already were. It works in EVERY stone list: pricing, new item, edit, stock filters and the showroom.",
+        "✨ Stone price estimate: one shared price list instead of three — a colour inherits its parent stone's price (e.g. Blue Topaz = Topaz).",
       ]},
           ]
   }
@@ -31242,7 +31372,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.47';
+const APP_VERSION = '12.48';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
