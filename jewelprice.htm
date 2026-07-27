@@ -18638,20 +18638,33 @@ function stkCloseScanner() {
   const overlay = document.getElementById('stkOverlay'); if (overlay) overlay.style.display = 'none';
 }
 
-// Resolve a scanned raw value to an inventory item (by qrCode, else printed ref code).
-function stkResolve(raw) {
+// Resolve a scanned/typed raw value to inventory ENTRIES — by descriptive qrCode, else by
+// printed reference code, handling an item.htm?qr=… URL. Returns the id as well as the
+// item, because a caller that intends to WRITE needs the record id, not a code string
+// (a code is a description, not an identity). `matches` holds every piece the code names:
+// identical grouped pieces and coin batches legitimately share one code, and 25 in-stock
+// reference codes are shared today — so a caller that must pick one has to see them all.
+// Codes are compared through _qrKey so the four legacy `+`-form codes still resolve
+// (verified: of 754 distinct stored codes only those 4 normalise, and none collide).
+function resolveCodeToInvEntry(raw) {
   let code = (raw || '').trim();
   try { const u = new URL(raw); const p = u.searchParams.get('qr') || u.searchParams.get('code'); if (p) code = p; } catch (e) {}
   const up = code.trim().toUpperCase();
-  const vals = Object.values(_inventoryCache || {});
-  let item = vals.find(it => it.qrCode && it.qrCode.trim().toUpperCase() === up && it.status !== 'sold')
-          || vals.find(it => it.qrCode && it.qrCode.trim().toUpperCase() === up);
-  if (!item) {
-    item = vals.find(it => (itemRefCode(it) || '').toUpperCase() === up && it.status !== 'sold')
-        || vals.find(it => (itemRefCode(it) || '').toUpperCase() === up);
-  }
-  const qr = item ? ((item.qrCode || '').trim().toUpperCase() || up) : up;
-  return { qr, item, code: up };
+  const key = _qrKey(up);
+  const es = Object.entries(_inventoryCache || {}).filter(([, it]) => it);
+  let hits = es.filter(([, it]) => it.qrCode && _qrKey(it.qrCode) === key);
+  if (!hits.length) hits = es.filter(([, it]) => (itemRefCode(it) || '').toUpperCase() === up);
+  const live = hits.filter(([, it]) => it.status !== 'sold');
+  const pick = (live[0] || hits[0] || [null, null]);
+  return { id: pick[0], item: pick[1], code: up, matches: hits };
+}
+
+// Resolve a scanned raw value to an inventory item (by qrCode, else printed ref code).
+function stkResolve(raw) {
+  const r = resolveCodeToInvEntry(raw);
+  const item = r.item;
+  const qr = item ? ((item.qrCode || '').trim().toUpperCase() || r.code) : r.code;
+  return { qr, item, code: r.code };
 }
 
 async function stkOnScan(raw, viaManual) {
@@ -26714,12 +26727,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.48', date: 'Ιούλιος 2026', items: [
-        "💎 Φίλντισι (Mother of Pearl) — προστέθηκε παντού: στον υπολογισμό, στα φίλτρα και στο showroom.",
-        "🎨 42 νέες αποχρώσεις πετρών: Τοπάζιο (Μπλε, London Blue, Swiss Blue, Λευκό, Imperial, Mystic), Ζαφείρι (Ροζ, Κίτρινο, Λευκό, Πράσινο, Padparadscha), Διαμάντι (Μαύρο, Σαμπάνια, Κίτρινο, Ροζ, Salt & Pepper), Χαλαζίας (Ροζ, Καπνίας, με Ρουτίλιο, Lemon, Διάφανος), Τουρμαλίνης, Γρανάτης, Οπάλιο, Φεγγαρόλιθος, Κοράλλι, Αχάτης, Σπινέλιος.",
-        "🇬🇷 Τα ελληνικά ονόματα ακολουθούν αυτό που γράφουν πραγματικά τα ελληνικά καταστήματα: «Αχάτης Βρυώδης», «Χαλαζίας Καπνίας», «Διαμάντι Σαμπανιζέ», «Φίλντισι» — αλλά μένουν στα αγγλικά εκεί που έτσι τα γράφουν και οι Έλληνες κοσμηματοπώλες (London/Swiss Blue, Salt & Pepper, Rainbow, Padparadscha, Paraiba).",
-        "📂 Κάθε πέτρα ομαδοποιείται πλέον κάτω από το κύριο όνομά της — όπως ήδη γινόταν με τα μαργαριτάρια. Ισχύει σε ΚΑΘΕ λίστα πετρών: υπολογισμός, νέο κόσμημα, επεξεργασία, φίλτρα αποθέματος και showroom.",
-        "✨ Εκτίμηση τιμής πέτρας: μία κοινή λίστα τιμών αντί για τρεις — μια απόχρωση παίρνει την τιμή της κύριας πέτρας της (π.χ. Μπλε Τοπάζιο = Τοπάζιο).",
+      { version: 'v12.49', date: 'Ιούλιος 2026', items: [
+        "🎀 Προσθήκη κομματιών σε σετ με σάρωση: ανοίξτε το σετ → «➕ Προσθήκη κομματιών» → σαρώστε την ετικέτα του νέου κομματιού. Το ένα μετά το άλλο, χωρίς να ψάχνετε στο απόθεμα.",
+        "⌨️ Χωρίς κάμερα (π.χ. σε laptop) γράψτε απλώς τον κωδικό αναφοράς — καλύπτει και τις χαραγμένες ετικέτες που δεν διαβάζονται.",
+        "🛡️ Σας λέει πάντα τι έγινε: άγνωστος κωδικός, πωλημένο κομμάτι, ή κομμάτι που ανήκει ήδη σε άλλο σετ (ρωτάει πριν το μεταφέρει). Αν δύο διαφορετικά κομμάτια έχουν τον ίδιο κωδικό, ρωτάει ποιο κρατάτε.",
       ]},
       ]
   },
@@ -26750,12 +26761,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.48', date: 'Jul 2026', items: [
-        "💎 Mother of Pearl added everywhere — pricing, filters and the showroom.",
-        "🎨 42 new stone colours: Topaz (Blue, London Blue, Swiss Blue, White, Imperial, Mystic), Sapphire (Pink, Yellow, White, Green, Padparadscha), Diamond (Black, Champagne, Yellow, Pink, Salt & Pepper), Quartz (Rose, Smoky, Rutilated, Lemon, Clear), Tourmaline, Garnet, Opal, Moonstone, Coral, Agate, Spinel.",
-        "🇬🇷 The Greek names follow what Greek shops actually write — «Αχάτης Βρυώδης», «Χαλαζίας Καπνίας», «Διαμάντι Σαμπανιζέ», «Φίλντισι» — and stay in English where Greek jewellers themselves keep the English (London/Swiss Blue, Salt & Pepper, Rainbow, Padparadscha, Paraiba).",
-        "📂 Every stone is now grouped under its main name — the way pearls already were. It works in EVERY stone list: pricing, new item, edit, stock filters and the showroom.",
-        "✨ Stone price estimate: one shared price list instead of three — a colour inherits its parent stone's price (e.g. Blue Topaz = Topaz).",
+      { version: 'v12.49', date: 'Jul 2026', items: [
+        "🎀 Add pieces to a set by scanning: open the set → “➕ Add pieces” → scan the new piece's tag. One after another, with no hunting through stock.",
+        "⌨️ No camera (on a laptop) — just type the reference code. It also covers a tag too scratched to scan.",
+        "🛡️ It always tells you what happened: unknown code, sold piece, or a piece already in another set (it asks before moving it). If two different pieces share a code, it asks which one you are holding.",
       ]},
           ]
   }
@@ -31372,7 +31381,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.48';
+const APP_VERSION = '12.49';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -32916,14 +32925,16 @@ function openInvSet(setId) {
       </div>
       <button onclick="invAddSetToCart('${setId}')" style="margin-top:12px;width:100%;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:13px;color:#0E0C08;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">🛒 ${lang==='el'?'Προσθήκη σετ στο καλάθι':'Add set to cart'}</button>
       <div style="margin-top:6px;font-size:10px;color:var(--text-dim);line-height:1.5;text-align:center">${lang==='el'?'Μετά: Πώληση όλων / Κράτηση — ή αφαιρέστε ένα κομμάτι από το καλάθι.':'Then: Sell all / Reserve — or remove a piece from the cart.'}</div>
-      ${isOwner ? `<button onclick="_invSetRename('${setId}')" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✏️ ${lang==='el'?'Μετονομασία σετ':'Rename set'}</button>` : ''}
+      ${isOwner ? `<button onclick="openSetAddPieces('${setId}')" style="margin-top:12px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">➕ ${lang==='el'?'Προσθήκη κομματιών':'Add pieces'}</button>
+      <div style="margin-top:5px;font-size:10px;color:var(--text-dim);line-height:1.5;text-align:center">${lang==='el'?'Σαρώστε την ετικέτα του νέου κομματιού — ή γράψτε τον κωδικό αναφοράς.':'Scan the new piece’s tag — or type its reference code.'}</div>` : ''}
+      ${isOwner ? `<button onclick="_invSetRename('${setId}')" style="margin-top:10px;width:100%;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:10px;padding:11px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✏️ ${lang==='el'?'Μετονομασία σετ':'Rename set'}</button>` : ''}
       ${isOwner ? `<div style="display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--wa03);border:1px solid var(--wa10);border-radius:10px;padding:10px">
         <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:center">${setPhoto ? `<img src="${setPhoto}" style="width:100%;height:100%;object-fit:contain">` : '<span style="font-size:22px;opacity:0.5">📷</span>'}</div>
         <div style="flex:1;min-width:0;font-size:11px;color:var(--text-dim);line-height:1.4">${setPhoto ? (lang==='el'?'Φωτογραφία σετ (βιτρίνα)':'Set photo (showroom)') : (lang==='el'?'Χωρίς φωτο σετ — στη βιτρίνα χρησιμοποιείται το 1ο κομμάτι':'No set photo — the showroom uses the first piece')}</div>
         <button onclick="openSetPhotoDialog('${setId}')" style="flex-shrink:0;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:8px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer">📷 ${setPhoto ? (lang==='el'?'Αλλαγή':'Change') : (lang==='el'?'Προσθήκη':'Add')}</button>
       </div>` : ''}
       <div style="margin-top:12px">${rowsHtml}</div>
-      ${isOwner ? `<div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.5">${lang==='el'?'Για προσθήκη κομματιού: επιλέξτε το στο Απόθεμα μαζί με ένα κομμάτι του σετ και πατήστε 🎀 Σετ.':'To add a piece: select it in Stock together with a set piece, then tap 🎀 Set.'}</div>` : ''}
+      ${isOwner ? `<div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.5">${lang==='el'?'Εναλλακτικά: επιλέξτε το κομμάτι στο Απόθεμα μαζί με ένα κομμάτι του σετ και πατήστε 🎀 Σετ.':'Or: select the piece in Stock together with a set piece, then tap 🎀 Set.'}</div>` : ''}
       ${isOwner ? `<button onclick="_invSetDisband('${setId}')" class="modal-danger">🎀 ${lang==='el'?'Διάλυση σετ':'Disband set'}</button>` : ''}
     </div>`;
   document.body.appendChild(overlay);
@@ -33098,6 +33109,292 @@ async function _setDetach(itemId) {
   if (rest.length === 1) { const [lid, lit] = rest[0]; delete lit.setId; delete lit.setNameEl; delete lit.setNameEn; _inventoryCache[lid] = lit; await saveInventoryItem(lid, lit); }
   closeSetPicker();
   showToast(lang==='el' ? 'Αφαιρέθηκε από το σετ' : 'Removed from set');
+  renderInvList();
+}
+
+// ── ADD PIECES TO A SET BY SCANNING ────────────────────────────────────────────
+// A set has no code of its own — and it doesn't need one: any MEMBER's tag identifies it.
+// So the ring and the bracelet that arrive months after the necklace are added the way the
+// shop actually works — open the set, scan the new pieces in, one after another. The typed
+// field is not a fallback for iPhone alone: it is how this is done on the laptop, and it
+// also covers a tag too scratched to scan.
+//
+// Own camera + decode loop (like the stocktake), never the Calc scanner — this panel sits
+// above the set sheet and must not disturb the counter's own scan state.
+let _setAdd = { setId: null, stream: null, interval: null, scanning: false, paused: false, added: [] };
+
+function _setAddEsc(s) { return String(s || '').replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c])); }
+
+// What a piece is, in one line, for the feedback and the added-list.
+function _setAddPieceLine(it) {
+  const ref = it.seqId ? itemRefCode(it) : (it.qrCode || '—');
+  const bits = [it.jewelryType ? invTypeLabel(it.jewelryType) : '', _itemDesc(it)].filter(Boolean).join(' · ');
+  const extra = [it.goldColor ? goldColorLabel(it.goldColor) : '', it.silverPlating ? silverPlatingLabel(it.silverPlating) : '',
+                 it.color ? itemColorLabel(it.color) : '', it.stonesDesc ? stonesDescDisplay(it.stonesDesc) : ''].filter(Boolean).join(' · ');
+  return { ref, info: [bits, extra].filter(Boolean).join(' · ') };
+}
+
+function closeSetAddPieces() {
+  _setAdd.scanning = false;
+  clearInterval(_setAdd.interval); _setAdd.interval = null;
+  if (_setAdd.stream) { try { _setAdd.stream.getTracks().forEach(t => t.stop()); } catch (e) {} _setAdd.stream = null; }
+  const v = document.getElementById('setAddVideo'); if (v) v.srcObject = null;
+  const ov = document.getElementById('setAddOverlay'); if (ov) ov.remove();
+}
+
+// Done → close and reopen the set so the new pieces are actually on screen.
+function _setAddDone() {
+  const setId = _setAdd.setId;
+  closeSetAddPieces();
+  if (setId) openInvSet(setId);
+}
+
+async function openSetAddPieces(setId) {
+  if (!can('manage_stock')) return;
+  closeSetAddPieces();
+  const members = _setMembersOf(setId);
+  if (!members.length) return;
+  const name = _setDisplayName(members[0][1]) || (lang === 'el' ? 'Σετ' : 'Set');
+  const isEl = lang === 'el';
+  _setAdd = { setId, stream: null, interval: null, scanning: false, paused: false, added: [] };
+
+  const ov = document.createElement('div');
+  ov.id = 'setAddOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  ov.onclick = (e) => { if (e.target === ov) _setAddDone(); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">➕ ${isEl ? 'Προσθήκη κομματιών' : 'Add pieces'}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:2px">🎀 ${_setAddEsc(name)}</div>
+        </div>
+        <button onclick="_setAddDone()" class="modal-x">✕</button>
+      </div>
+      <div id="setAddVideoWrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px">
+        <video id="setAddVideo" playsinline muted style="width:100%;display:block;max-height:38vh;object-fit:cover"></video>
+      </div>
+      <div id="setAddStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:10px;min-height:15px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="setAddManual" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+          placeholder="${isEl ? 'π.χ. RG0110' : 'e.g. RG0110'}"
+          style="flex:1;min-width:0;padding:11px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:var(--font-mono);font-size:14px;letter-spacing:0.08em;box-sizing:border-box">
+        <button onclick="_setAddManualSubmit()" style="flex:0 0 auto;background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:10px;padding:0 16px;font-size:14px;font-weight:700;cursor:pointer">➕</button>
+      </div>
+      <div id="setAddFeedback" style="font-size:12px;line-height:1.5;min-height:18px;margin-bottom:8px"></div>
+      <div id="setAddList"></div>
+      <button onclick="_setAddDone()" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:13px;color:#0E0C08;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${isEl ? 'Τέλος' : 'Done'}</button>
+    </div>`;
+  document.body.appendChild(ov);
+
+  const mi = document.getElementById('setAddManual');
+  if (mi) mi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); _setAddManualSubmit(); } });
+
+  const status = document.getElementById('setAddStatus');
+  if (canDecodeQr()) {
+    const wrap = document.getElementById('setAddVideoWrap');
+    if (wrap) wrap.style.display = '';
+    if (status) status.textContent = isEl ? 'Σαρώστε την ετικέτα του κομματιού' : 'Scan the piece’s tag';
+    _setAddStartCamera();
+  } else {
+    // iOS/Safari can't decode a QR — and on a laptop there is no camera to point anyway.
+    if (status) status.textContent = isEl ? 'Πληκτρολογήστε τον κωδικό αναφοράς' : 'Type the reference code';
+    setTimeout(() => { try { mi.focus(); } catch (e) {} }, 200);
+  }
+}
+
+async function _setAddStartCamera() {
+  const video = document.getElementById('setAddVideo');
+  const status = document.getElementById('setAddStatus');
+  if (!video) return;
+  const hires = !('BarcodeDetector' in window);
+  try {
+    _setAdd.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: hires ? 1920 : 1280 }, height: { ideal: hires ? 1080 : 720 } } });
+    video.srcObject = _setAdd.stream;
+    await video.play();
+    await _setupCameraFocus(_setAdd.stream, null, null);
+    _setAddDecodeLoop(video);
+  } catch (e) {
+    if (status) status.textContent = lang === 'el' ? 'Χωρίς κάμερα — πληκτρολογήστε τον κωδικό' : 'No camera — type the code instead';
+    const wrap = document.getElementById('setAddVideoWrap'); if (wrap) wrap.style.display = 'none';
+    setTimeout(() => { try { document.getElementById('setAddManual').focus(); } catch (e) {} }, 150);
+  }
+}
+
+function _setAddDecodeLoop(video) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  _setAdd.scanning = true; _setAdd.paused = false;
+  clearInterval(_setAdd.interval);
+  _setAdd.interval = setInterval(async () => {
+    if (!_setAdd.scanning || _setAdd.paused) return;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
+    _setAdd.paused = true;
+    try {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const raw = await decodeQrFromCanvas(canvas);
+      if (raw) await _setAddOnCode(raw);
+      // Cooldown either way, so the same tag isn't read twice while it's still in frame.
+      setTimeout(() => { _setAdd.paused = false; }, 1300);
+    } catch (e) { _setAdd.paused = false; }
+  }, 250);
+}
+
+function _setAddManualSubmit() {
+  const mi = document.getElementById('setAddManual');
+  if (!mi) return;
+  const v = (mi.value || '').trim();
+  if (!v) return;
+  mi.value = '';
+  _setAddOnCode(v);
+  try { mi.focus(); } catch (e) {}
+}
+
+function _setAddSay(html, color) {
+  const fb = document.getElementById('setAddFeedback');
+  if (fb) { fb.innerHTML = html; fb.style.color = color || 'var(--text-muted)'; }
+}
+
+// A code that names nothing, a sold piece, or a coin must SAY so — a scan that silently
+// does nothing is indistinguishable from a broken scanner.
+async function _setAddOnCode(raw) {
+  const setId = _setAdd.setId;
+  if (!setId) return;
+  const isEl = lang === 'el';
+  const r = resolveCodeToInvEntry(raw);
+  const code = _setAddEsc(r.code);
+
+  if (!r.matches.length) {
+    _setAddSay('⚠️ ' + (isEl ? `Δεν βρέθηκε κομμάτι με κωδικό <b>${code}</b>` : `No piece found for <b>${code}</b>`), '#e57373');
+    try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) {}
+    return;
+  }
+  const usable = r.matches.filter(([, it]) => it.status !== 'sold' && !it.isBulk && !it.isCoin && !it.isMetal);
+  if (!usable.length) {
+    const one = r.matches[0][1];
+    const why = one.isCoin ? (isEl ? 'Τα νομίσματα δεν μπαίνουν σε σετ' : 'Coins cannot be in a set')
+              : one.isMetal ? (isEl ? 'Το μέταλλο δεν μπαίνει σε σετ' : 'Raw metal cannot be in a set')
+              : one.isBulk ? (isEl ? 'Οι αλυσίδες με το γραμμάριο δεν μπαίνουν σε σετ' : 'By-the-gram chains cannot be in a set')
+              : (isEl ? 'Το κομμάτι είναι πωλημένο' : 'That piece is sold');
+    _setAddSay('⚠️ ' + code + ' — ' + why, '#e57373');
+    try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) {}
+    return;
+  }
+  const free = usable.filter(([, it]) => it.setId !== setId);
+  if (!free.length) {
+    const l = _setAddPieceLine(usable[0][1]);
+    _setAddSay('✓ ' + _setAddEsc(l.ref) + ' — ' + (isEl ? 'είναι ήδη σε αυτό το σετ' : 'is already in this set'), 'var(--text-muted)');
+    return;
+  }
+  // Several pieces share this code AND genuinely differ (different stone, colour or
+  // weight) — the tag cannot say which one is in your hand, so ask rather than guess.
+  const keys = new Set(free.map(([, it]) => _refVariantKey(it)));
+  if (keys.size > 1) { _setAddAskWhich(free, code); return; }
+  // Interchangeable twins: prefer one that isn't already committed to another set.
+  const target = free.find(([, it]) => !it.setId) || free[0];
+  await _setAddApply(setId, target[0]);
+}
+
+function _setAddAskWhich(list, code) {
+  const isEl = lang === 'el';
+  const rows = list.map(([id, it]) => {
+    const l = _setAddPieceLine(it);
+    const w = it.metal === 'other' ? '' : (parseFloat(it.weight || 0).toFixed(2) + 'g');
+    const sub = [l.info, w].filter(Boolean).join(' · ');
+    return `<button onclick="_setAddApply('${_setAdd.setId}','${id}')" style="width:100%;text-align:left;display:flex;gap:9px;align-items:center;background:var(--wa04);border:1px solid var(--wa12);border-radius:10px;padding:9px 10px;margin-top:6px;color:var(--text-light);font-family:var(--font-body);font-size:13px;cursor:pointer">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:40px;height:40px;border-radius:7px;object-fit:contain;background:#fff;flex:0 0 auto">` : ''}
+      <span style="flex:1;min-width:0"><b style="font-family:var(--font-mono);letter-spacing:0.06em">${_setAddEsc(l.ref)}</b><br><span style="font-size:11px;color:var(--text-dim)">${_setAddEsc(sub)}</span></span>
+    </button>`;
+  }).join('');
+  _setAddSay((isEl ? `<b>${list.length} διαφορετικά κομμάτια</b> έχουν τον κωδικό ${code}. Ποιο κρατάτε;`
+                  : `<b>${list.length} different pieces</b> carry the code ${code}. Which one are you holding?`) + rows, 'var(--gold-light)');
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
+}
+
+// The write. Rolls the cache back on a failed save — a failure must never be left looking
+// like a success (and the panel says so, rather than showing a piece that isn't there).
+async function _setAddApply(setId, id) {
+  const it = (_inventoryCache || {})[id];
+  if (!it) return;
+  const isEl = lang === 'el';
+  const members = _setMembersOf(setId);
+  if (!members.length) return;
+  const nameEl = members[0][1].setNameEl || '', nameEn = members[0][1].setNameEn || '';
+  // Already committed elsewhere → ask before moving it. A piece belongs to one set.
+  if (it.setId && it.setId !== setId) {
+    const oldName = _setDisplayName(it) || (isEl ? 'άλλο σετ' : 'another set');
+    const newName = (isEl ? (nameEl || nameEn) : (nameEn || nameEl)) || (isEl ? 'αυτό το σετ' : 'this set');
+    _setAdd.paused = true;
+    showConfirm(
+      isEl ? `Το κομμάτι ανήκει ήδη στο σετ «${oldName}». Μεταφορά στο «${newName}»;`
+           : `That piece is already in the set “${oldName}”. Move it to “${newName}”?`,
+      async () => { _setAdd.paused = false; await _setAddWrite(setId, id, nameEl, nameEn, it.setId); },
+      () => { _setAdd.paused = false; }
+    );
+    return;
+  }
+  await _setAddWrite(setId, id, nameEl, nameEn, null);
+}
+
+async function _setAddWrite(setId, id, nameEl, nameEn, oldSet) {
+  const it = (_inventoryCache || {})[id];
+  if (!it) return;
+  const isEl = lang === 'el';
+  const snap = { setId: it.setId, el: it.setNameEl, en: it.setNameEn };
+  it.setId = setId; it.setNameEl = nameEl; it.setNameEn = nameEn; _inventoryCache[id] = it;
+  const ok = await saveInventoryItem(id, it);
+  if (!ok) {
+    it.setId = snap.setId; it.setNameEl = snap.el; it.setNameEn = snap.en; _inventoryCache[id] = it;
+    _setAddSay('⚠️ ' + (isEl ? 'Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : 'Save failed — try again'), '#e57373');
+    return;
+  }
+  // Moved out of another set that is now down to one piece: a set of one is nothing.
+  if (oldSet) {
+    const rest = _setMembersOf(oldSet);
+    if (rest.length === 1) {
+      const [lid, lit] = rest[0];
+      delete lit.setId; delete lit.setNameEl; delete lit.setNameEn; _inventoryCache[lid] = lit;
+      await saveInventoryItem(lid, lit);
+    }
+  }
+  const l = _setAddPieceLine(it);
+  _setAdd.added = _setAdd.added.filter(a => a.id !== id);
+  _setAdd.added.unshift({ id, ref: l.ref, info: l.info, photo: it.photoUrl || '' });
+  _setAddRenderList();
+  _setAddSay('✅ ' + _setAddEsc(l.ref) + (l.info ? ' — ' + _setAddEsc(l.info) : ''), '#81c784');
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
+  renderInvList();
+}
+
+function _setAddRenderList() {
+  const box = document.getElementById('setAddList');
+  if (!box) return;
+  const isEl = lang === 'el';
+  if (!_setAdd.added.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div style="font-size:10px;color:var(--text-muted);letter-spacing:0.06em;margin:10px 0 6px">${isEl ? 'ΠΡΟΣΤΕΘΗΚΑΝ' : 'ADDED'} (${_setAdd.added.length})</div>` +
+    _setAdd.added.map(a => `<div style="display:flex;gap:9px;align-items:center;background:rgba(129,199,132,0.08);border:1px solid rgba(129,199,132,0.25);border-radius:10px;padding:8px 10px;margin-bottom:6px">
+      ${a.photo ? `<img src="${a.photo}" style="width:36px;height:36px;border-radius:7px;object-fit:contain;background:#fff;flex:0 0 auto">` : ''}
+      <span style="flex:1;min-width:0"><b style="font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;color:var(--gold-light)">${_setAddEsc(a.ref)}</b>${a.info ? `<br><span style="font-size:11px;color:var(--text-dim)">${_setAddEsc(a.info)}</span>` : ''}</span>
+      <button onclick="_setAddUndo('${a.id}')" style="flex:0 0 auto;background:rgba(229,115,115,0.14);border:1px solid rgba(229,115,115,0.4);color:#e57373;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer">✕</button>
+    </div>`).join('');
+}
+
+// Took the wrong twin off the tray — undo it here rather than hunting for it later.
+async function _setAddUndo(id) {
+  const it = (_inventoryCache || {})[id];
+  if (!it) return;
+  const snap = { setId: it.setId, el: it.setNameEl, en: it.setNameEn };
+  delete it.setId; delete it.setNameEl; delete it.setNameEn; _inventoryCache[id] = it;
+  const ok = await saveInventoryItem(id, it);
+  if (!ok) {
+    it.setId = snap.setId; it.setNameEl = snap.el; it.setNameEn = snap.en; _inventoryCache[id] = it;
+    _setAddSay('⚠️ ' + (lang === 'el' ? 'Η αποθήκευση απέτυχε' : 'Save failed'), '#e57373');
+    return;
+  }
+  _setAdd.added = _setAdd.added.filter(a => a.id !== id);
+  _setAddRenderList();
+  _setAddSay(lang === 'el' ? 'Αφαιρέθηκε από το σετ' : 'Removed from the set', 'var(--text-muted)');
   renderInvList();
 }
 
