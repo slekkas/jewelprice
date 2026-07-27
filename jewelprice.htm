@@ -7577,7 +7577,10 @@ function openReservationDetail(id) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="_callPhone('${(r.clientPhone||'').replace(/[^0-9+]/g,'')}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
-      <button onclick="document.getElementById('reservationDetailOverlay').remove()" class="modal-x">✕</button>
+      <div style="display:flex;gap:7px;align-items:center;flex-shrink:0">
+        ${_resCanEdit(r) ? `<button onclick="openResEdit('${r.id}')" class="modal-x" title="${isEl ? 'Επεξεργασία' : 'Edit'}" style="font-size:14px">✏️</button>` : ''}
+        <button onclick="document.getElementById('reservationDetailOverlay').remove()" class="modal-x">✕</button>
+      </div>
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.agreedTotal) || 0).toFixed(2)}</span></div>
@@ -7586,6 +7589,7 @@ function openReservationDetail(id) {
     <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction'}</span><span style="color:var(--text-muted)">${r.cashSale ? (isEl ? '💵 Μετρητά' : '💵 Cash') : (isEl ? '🧾 Με απόδειξη' : '🧾 With receipt')}</span></div>
     ${r.holdUntil ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Κράτηση έως' : 'Hold until'}</span><span style="color:var(--text-muted)">${fmtDate(r.holdUntil)}</span></div>` : ''}
     ${r.clientEmail ? `<div style="font-size:11px;color:var(--text-dim);margin:2px 0">${_resEsc(r.clientEmail)}</div>` : ''}
+    ${r.notes ? `<div style="font-size:12px;color:var(--text-muted);margin:8px 0 0;padding:9px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;white-space:pre-wrap;line-height:1.5">${_resEsc(r.notes)}</div>` : ''}
     <div style="border-top:1px solid var(--wa08);margin:12px 0;padding-top:10px">
       <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">${isEl ? 'Πληρωμές' : 'Payments'}</div>${payHtml}
     </div>
@@ -7604,6 +7608,151 @@ function openReservationDetail(id) {
     ${(r.status === 'cancelled' || r.status === 'expired') ? `<button onclick="_resDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}`}
   </div>`;
   document.body.appendChild(ov);
+}
+
+// ── Edit a reservation (correct a mistake) ──────────────────────────────────
+// The everyday need is the "hold until" date, but the same form covers the customer's
+// details, the agreed price, the cash/receipt flag and a free note.
+//
+// The ITEMS are deliberately NOT editable here: changing them means moving reserved
+// flags between pieces, and the honest way to do that is Cancel + reserve again.
+//
+// Who may edit: owner/manager, or the person who created the hold — the same rule the
+// sale detail uses for Edit/Return. An employee who mistypes a date at the counter has
+// to be able to fix it; only a FINISHED hold (completed/cancelled) is locked, because
+// that is history.
+function _resCanEdit(r) {
+  if (!r) return false;
+  if (r.status !== 'active' && r.status !== 'expired') return false;
+  if (can('desk_admin')) return true;
+  const me = (creds.displayName || creds.userName || '').trim();
+  return !!me && (r.createdBy || '').trim() === me;
+}
+function _resEdStatus(msg) { const el = document.getElementById('resEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+
+function openResEdit(id) {
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  if (!_resCanEdit(r)) { showToast(lang === 'el' ? 'Δεν επιτρέπεται η επεξεργασία' : 'Editing not allowed'); return; }
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const paid = resPaid(r);
+  document.getElementById('resEditOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'resEditOverlay';
+  // Top-anchored + scrollable: this form is typed into, so a centred sheet would put
+  // its own fields behind the keyboard.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.88);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">✏️ ${resNoFmt(r)}</div>
+      <button onclick="document.getElementById('resEditOverlay').remove()" class="modal-x">✕</button>
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Κράτηση έως' : 'Hold until'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="resEdHoldDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${r.holdUntil ? fmtDate(r.holdUntil) : '—'}</div>
+      <input id="resEdHold" type="date" value="${r.holdUntil || ''}" onchange="var _d=document.getElementById('resEdHoldDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
+    ${r.status === 'expired' ? `<div style="font-size:11px;color:#e0a85a;margin:-4px 0 10px;line-height:1.45">${isEl ? 'Η κράτηση έχει λήξει. Βάλτε μελλοντική ημερομηνία και θα ρωτηθείτε αν θέλετε να ενεργοποιηθεί ξανά.' : 'This reservation has expired. Set a future date and you will be asked whether to reactivate it.'}</div>` : ''}
+
+    <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
+    <input id="resEdName" autocomplete="off" value="${_resEsc(r.clientName || '')}" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+    <div style="margin-bottom:10px">${_phoneFieldHtml('resEdPhoneCode', 'resEdPhone', r.clientPhone || '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+    <input id="resEdEmail" type="email" autocomplete="off" value="${_resEsc(r.clientEmail || '')}" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
+
+    <div style="${_resLbl}">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'} (${cur})</div>
+    <input id="resEdAgreed" type="number" step="0.01" inputmode="decimal" value="${(parseFloat(r.agreedTotal) || 0).toFixed(2)}" style="${_resInp}">
+    ${paid > 0 ? `<div style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px">${isEl ? `Έχουν ήδη πληρωθεί ${cur}${paid.toFixed(2)} — η τιμή δεν μπορεί να πέσει κάτω από αυτά.` : `${cur}${paid.toFixed(2)} already paid — the price can't go below that.`}</div>` : ''}
+
+    <div style="margin-bottom:10px">${_cashToggleHtml('resEdCash')}</div>
+
+    <div style="${_resLbl}">${isEl ? 'Σημείωση (προαιρετικό)' : 'Note (optional)'}</div>
+    <textarea id="resEdNotes" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. θα το παραλάβει μετά τις 15' : 'e.g. collecting after the 15th'}">${_resEsc(r.notes || '')}</textarea>
+
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;line-height:1.45">${isEl ? 'Τα είδη της κράτησης δεν αλλάζουν από εδώ — ακυρώστε την και κάντε νέα κράτηση.' : 'The reserved items are not changed here — cancel the hold and reserve again.'}</div>
+    <div id="resEdStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px"></div>
+    <button onclick="_resEditSave('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+  _setCashBtnState(document.getElementById('resEdCash'), !!r.cashSale);
+}
+
+async function _resEditSave(id) {
+  const list = getReservations(); const r = list.find(x => x.id === id); if (!r) return;
+  if (!_resCanEdit(r)) { showToast(lang === 'el' ? 'Δεν επιτρέπεται η επεξεργασία' : 'Editing not allowed'); return; }
+  const isEl = lang === 'el'; const cur = state.currency || '€';
+  const name = (document.getElementById('resEdName').value || '').trim();
+  if (!name) { _resEdStatus(isEl ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
+  const agreed = parseFloat(document.getElementById('resEdAgreed').value);
+  if (!Number.isFinite(agreed) || agreed < 0) { _resEdStatus(isEl ? '⚠️ Βάλτε έγκυρη τιμή' : '⚠️ Enter a valid price'); return; }
+  // A hold can never be worth less than what the customer has already handed over.
+  const paid = resPaid(r);
+  if (agreed + 0.005 < paid) { _resEdStatus(isEl ? `⚠️ Η τιμή δεν μπορεί να είναι κάτω από τα πληρωμένα (${cur}${paid.toFixed(2)})` : `⚠️ The price cannot be below what is already paid (${cur}${paid.toFixed(2)})`); return; }
+  const holdUntil = document.getElementById('resEdHold').value || '';
+  const phone = _readPhoneField('resEdPhoneCode', 'resEdPhone');
+  const email = (document.getElementById('resEdEmail').value || '').trim();
+  const notes = (document.getElementById('resEdNotes').value || '').trim();
+  const cashSale = _isCashBtn('resEdCash');
+  const reviving = r.status === 'expired' && holdUntil && holdUntil >= todayStr();
+
+  r.clientName = name; r.clientPhone = phone; r.clientEmail = email;
+  r.agreedTotal = parseFloat(agreed.toFixed(2));
+  r.cashSale = cashSale; r.holdUntil = holdUntil; r.notes = notes;
+  saveReservationsLocal(list); pushReservationsToCloud(list);
+  upsertClientFromSale(name, phone, email);   // a corrected phone should reach the Clients book too
+
+  document.getElementById('resEditOverlay')?.remove();
+  showToast(isEl ? '✓ Αποθηκεύτηκε' : '✓ Saved');
+  openReservationDetail(id);
+  renderReservations();
+  if (reviving) _resOfferRevive(id);
+}
+
+// An EXPIRED hold whose date has been pushed into the future. Its pieces were released
+// back to stock (and the showroom) when it expired, so bringing it back must put them
+// on hold again — and only the ones that are still free to hold. Anything sold or now
+// held by someone else is NAMED, never silently dropped: the record keeps listing it
+// (so the history stays true) but it is not re-flagged.
+function _resOfferRevive(id) {
+  const isEl = lang === 'el';
+  const r = getReservations().find(x => x.id === id);
+  if (!r || r.status !== 'expired') return;
+  showConfirm(
+    isEl ? `Η κράτηση είχε λήξει. Να ενεργοποιηθεί ξανά έως ${fmtDate(r.holdUntil)};`
+         : `This reservation had expired. Reactivate it until ${fmtDate(r.holdUntil)}?`,
+    async () => {
+      if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { _inventoryCache = await loadInventory(); } catch (e) {} }
+      const _nameOf = iid => {
+        const it = (_inventoryCache || {})[iid];
+        if (it && it.seqId) return itemRefCode(it);
+        const li = ((r.items || []).find(x => x && x.invId === iid)) || {};
+        return li.ref || li.desc || (it && it.qrCode) || iid;
+      };
+      // Work out what is still holdable BEFORE flipping the status — _resHoldFor only
+      // looks at ACTIVE reservations, so this one must not yet be one of them.
+      const free = [], gone = [];
+      for (const iid of (r.itemIds || [])) {
+        const it = (_inventoryCache || {})[iid];
+        const held = _resHoldFor(iid);
+        if (!it || it.status !== 'in_stock' || (held && held.id !== id)) gone.push(iid); else free.push(iid);
+      }
+      const list = getReservations(); const r2 = list.find(x => x.id === id); if (!r2) return;
+      r2.status = 'active'; r2.dateCompleted = null;
+      saveReservationsLocal(list); pushReservationsToCloud(list);
+      const mark = await _resMarkItems(free, id);
+      openReservationDetail(id);
+      renderReservations();
+      if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+      const problems = gone.concat(mark.failed.filter(f => gone.indexOf(f) === -1));
+      if (!problems.length) { showToast(isEl ? '✓ Η κράτηση ενεργοποιήθηκε ξανά' : '✓ Reservation reactivated'); return; }
+      const names = problems.map(_nameOf).join(', ');
+      showConfirm(
+        isEl ? `Η κράτηση ενεργοποιήθηκε, ΑΛΛΑ αυτά τα κομμάτια δεν μπήκαν ξανά σε κράτηση: ${names}. Ελέγξτε τα στο Απόθεμα και διορθώστε τη συμφωνημένη τιμή αν χρειάζεται.`
+             : `The reservation is active again, BUT these pieces could not be put back on hold: ${names}. Check them in Stock and adjust the agreed price if needed.`,
+        () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false }
+      );
+    },
+    null, { okLabel: isEl ? 'Ενεργοποίηση' : 'Reactivate' }
+  );
 }
 
 async function _resAddPayment(id) {
@@ -26727,10 +26876,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.49', date: 'Ιούλιος 2026', items: [
-        "🎀 Προσθήκη κομματιών σε σετ με σάρωση: ανοίξτε το σετ → «➕ Προσθήκη κομματιών» → σαρώστε την ετικέτα του νέου κομματιού. Το ένα μετά το άλλο, χωρίς να ψάχνετε στο απόθεμα.",
-        "⌨️ Χωρίς κάμερα (π.χ. σε laptop) γράψτε απλώς τον κωδικό αναφοράς — καλύπτει και τις χαραγμένες ετικέτες που δεν διαβάζονται.",
-        "🛡️ Σας λέει πάντα τι έγινε: άγνωστος κωδικός, πωλημένο κομμάτι, ή κομμάτι που ανήκει ήδη σε άλλο σετ (ρωτάει πριν το μεταφέρει). Αν δύο διαφορετικά κομμάτια έχουν τον ίδιο κωδικό, ρωτάει ποιο κρατάτε.",
+      { version: 'v12.50', date: 'Ιούλιος 2026', items: [
+        "✏️ Επεξεργασία κράτησης: το μολύβι δίπλα στο ✕ διορθώνει την ημερομηνία «κράτηση έως», τα στοιχεία του πελάτη, τη συμφωνημένη τιμή και το 💵 μετρητά/απόδειξη.",
+        "📝 Σημείωση στην κράτηση (π.χ. «θα το παραλάβει μετά τις 15») — φαίνεται στην καρτέλα της κράτησης.",
+        "🔄 Κράτηση που έληξε: βάλτε μελλοντική ημερομηνία και ρωτάει αν θέλετε να ενεργοποιηθεί ξανά — τα κομμάτια ξαναμπαίνουν σε κράτηση. Όποιο έχει πουληθεί ή κρατηθεί από άλλον, σας το λέει με το όνομά του.",
+        "🔒 Η τιμή δεν μπορεί να πέσει κάτω από όσα έχει ήδη πληρώσει ο πελάτης. Τα είδη της κράτησης δεν αλλάζουν από εδώ.",
       ]},
       ]
   },
@@ -26761,10 +26911,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.49', date: 'Jul 2026', items: [
-        "🎀 Add pieces to a set by scanning: open the set → “➕ Add pieces” → scan the new piece's tag. One after another, with no hunting through stock.",
-        "⌨️ No camera (on a laptop) — just type the reference code. It also covers a tag too scratched to scan.",
-        "🛡️ It always tells you what happened: unknown code, sold piece, or a piece already in another set (it asks before moving it). If two different pieces share a code, it asks which one you are holding.",
+      { version: 'v12.50', date: 'Jul 2026', items: [
+        "✏️ Edit a reservation: the pencil next to the ✕ corrects the “hold until” date, the customer's details, the agreed price and the 💵 cash/receipt flag.",
+        "📝 A note on the reservation (e.g. “collecting after the 15th”) — shown on the reservation card.",
+        "🔄 An expired hold: set a future date and it asks whether to reactivate it — the pieces go back on hold. Anything sold, or now held by someone else, is named.",
+        "🔒 The price can never drop below what the customer has already paid. The reserved items are not changed here.",
       ]},
           ]
   }
@@ -31381,7 +31532,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.49';
+const APP_VERSION = '12.50';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
