@@ -17499,32 +17499,88 @@ async function _enrichStoneShapesFromInventory(raw) {
   } catch (e) {}
 }
 
-function _jumpToInvCard(fbKey) {
+// ── "Jump to this piece" (focus a Stock card) ────────────────────────────────
+// Used by the Calc "View →" chip, the AI photo-match results, the Stale Stock report
+// and the set sheet. Two things it must not do, both of which it used to:
+//   1. GUESS at a delay. It fired on a fixed 250 ms timer while renderInventory() was
+//      still downloading the stock, found no cards, gave up in SILENCE — and cleared
+//      the owner's status filter on the way out. Pressing it again worked because by
+//      then the cache was warm. It now AWAITS the render (_invReady), so it works on
+//      the first press however slow the connection.
+//   2. Lose the jump to a background redraw. renderInventory() refreshes from the cloud
+//      behind the list and redraws when anything changed; that rebuild threw away the
+//      card just scrolled to. A jump stays "pending" for a few seconds and is re-applied.
+let _invJumpTarget = null;   // the piece being jumped to, held briefly
+let _invJumpAt = 0;
+const INV_JUMP_HOLD_MS = 6000;
+
+async function _jumpToInvCard(fbKey) {
+  _invJumpTarget = fbKey; _invJumpAt = Date.now();
   showPanel('inventory');
-  setTimeout(async () => {
-    // renderInvList may not have run yet — trigger it
-    if (!document.querySelector('.inv-card[data-inv-id]')) {
-      await renderInvList();
+  try { await _invReady; } catch (e) {}   // the list is on screen only after this resolves
+  _invFocusCard(fbKey);
+}
+
+// Reveal (paging in if needed), scroll to and highlight one piece's card.
+// `quiet` = a re-apply after a redraw: never widen filters, never toast.
+function _invFocusCard(fbKey, quiet) {
+  if (!fbKey) return false;
+  if (!_invEnsureRendered(fbKey)) {
+    // Not in the current view. Widen ONLY when the piece is genuinely in the stock data:
+    // a jump that failed because the list never loaded must not silently wipe the owner's
+    // filters — which is exactly what the old code did on every failed jump.
+    if (!(_inventoryCache && _inventoryCache[fbKey])) {
+      if (!quiet) showToast('⚠️ ' + (lang === 'el'
+        ? 'Δεν φορτώθηκε το απόθεμα — δοκιμάστε ξανά'
+        : 'Stock did not load — try again'));
+      return false;
     }
-    // A grouped piece is shown by its group's card, which carries the representative's id.
-    let card = _invEnsureRendered(fbKey) ? document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(fbKey)}"]`) : null;
-    if (!card) {
-      // Item may be filtered out — clear filters and retry
-      if (typeof _invFilters !== 'undefined') {
-        _invFilters.status = [];
-        await renderInvList();
-        _invEnsureRendered(fbKey);
-      }
+    if (quiet) return false;
+    // Most often it is simply a sold piece. NB an EMPTY status filter is not "show
+    // everything" — it hides sold items by default — so both widening steps have to ask
+    // for both pills explicitly. (The old code set it to [] and then still couldn't find
+    // a sold piece: it wiped the owner's filter for nothing.)
+    _invFilters.status = ['in_stock', 'sold'];
+    renderInvList();
+    if (!_invEnsureRendered(fbKey)) {
+      // Something else is hiding it — a search term, a type/vendor/date filter. The owner
+      // asked to see THIS piece, so clear the lot rather than land on a list without it.
+      const s = document.getElementById('invSearchInput'); if (s) s.value = '';
+      clearInvFilters();
+      _invFilters.status = ['in_stock', 'sold'];
+      updateInvFilterBadge();
+      renderInvList();
+      _invEnsureRendered(fbKey);
     }
-    const target = document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(fbKey)}"]`);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.style.transition = 'box-shadow .3s, outline .3s';
-      target.style.outline = '2px solid var(--gold)';
-      target.style.boxShadow = '0 0 0 4px rgba(201,168,76,0.25)';
-      setTimeout(() => { target.style.outline = ''; target.style.boxShadow = ''; }, 1800);
+  }
+  // A grouped piece is shown by its group's card, which carries the representative's id.
+  const target = document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(fbKey)}"]`);
+  if (!target) return false;
+  const _panel = document.getElementById('panel-inventory');
+  const _before = _panel ? _panel.scrollTop : 0;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // A smooth scroll is an ANIMATION and can simply be dropped (reduced-motion settings, a
+  // page that is not being painted). Landing on the piece matters more than the animation,
+  // so if nothing has moved shortly after and the card is still off screen, jump straight to it.
+  setTimeout(() => {
+    if (!_panel) return;
+    const cr = target.getBoundingClientRect(), pr = _panel.getBoundingClientRect();
+    if (Math.abs(_panel.scrollTop - _before) < 4 && (cr.top < pr.top || cr.bottom > pr.bottom)) {
+      target.scrollIntoView({ block: 'center' });
     }
-  }, 250);
+  }, 450);
+  target.style.transition = 'box-shadow .3s, outline .3s';
+  target.style.outline = '2px solid var(--gold)';
+  target.style.boxShadow = '0 0 0 4px rgba(201,168,76,0.25)';
+  setTimeout(() => { target.style.outline = ''; target.style.boxShadow = ''; }, 1800);
+  return true;
+}
+
+// A redraw rebuilt the list under a jump that had just landed — put it back.
+function _invReapplyJump() {
+  if (!_invJumpTarget) return;
+  if (Date.now() - _invJumpAt > INV_JUMP_HOLD_MS) { _invJumpTarget = null; return; }
+  _invFocusCard(_invJumpTarget, true);
 }
 
 function _lookupCodeOtherType(raw, match, foundBanner) {
@@ -21112,7 +21168,16 @@ function applyInvFilters() {
   renderInvList();
 }
 
-async function renderInventory() {
+// Resolves when the Stock list is actually on screen. "Jump to this piece" flows must
+// await this instead of guessing at a delay — see _jumpToInvCard.
+let _invReady = null;
+
+function renderInventory() {
+  _invReady = _renderInventoryNow();
+  return _invReady;
+}
+
+async function _renderInventoryNow() {
   // Instant path (v10.23): if inventory is already in memory, draw it immediately
   // (like every other tab) and refresh from the cloud in the BACKGROUND, redrawing
   // only if the data actually changed. This removes the "wait for the network"
@@ -21121,18 +21186,22 @@ async function renderInventory() {
   if (_hadCache) {
     renderInvList();
     loadInventory().then(fresh => {
-      if (!fresh) return;
+      // A failed fetch returns {} — assigning that would wipe the whole in-memory stock
+      // and draw "no items in stock" from a passing network blip. Keep the last good copy
+      // (the v11.74 lesson, which fixed the scan path but left this one).
+      if (!fresh || _invLoadFailed) return;
       if (JSON.stringify(fresh) === JSON.stringify(_inventoryCache)) return; // no change → no redraw
       _inventoryCache = fresh;
       // Don't yank the list out from under a user who has scrolled down; the fresh
       // cache is already stored, so the next open (or scroll-to-top) shows it.
       const panel = document.getElementById('panel-inventory');
-      if (!panel || panel.scrollTop < 200) renderInvList();
+      if (!panel || panel.scrollTop < 200) { renderInvList(); _invReapplyJump(); }
     }).catch(() => {});
     return;
   }
   // First inventory open of the session: fetch, then render.
-  _inventoryCache = await loadInventory();
+  const _fresh = await loadInventory();
+  if (!_invLoadFailed || !_inventoryCache) _inventoryCache = _fresh;
   renderInvList();
 }
 
@@ -26876,11 +26945,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.50', date: 'Ιούλιος 2026', items: [
-        "✏️ Επεξεργασία κράτησης: το μολύβι δίπλα στο ✕ διορθώνει την ημερομηνία «κράτηση έως», τα στοιχεία του πελάτη, τη συμφωνημένη τιμή και το 💵 μετρητά/απόδειξη.",
-        "📝 Σημείωση στην κράτηση (π.χ. «θα το παραλάβει μετά τις 15») — φαίνεται στην καρτέλα της κράτησης.",
-        "🔄 Κράτηση που έληξε: βάλτε μελλοντική ημερομηνία και ρωτάει αν θέλετε να ενεργοποιηθεί ξανά — τα κομμάτια ξαναμπαίνουν σε κράτηση. Όποιο έχει πουληθεί ή κρατηθεί από άλλον, σας το λέει με το όνομά του.",
-        "🔒 Η τιμή δεν μπορεί να πέσει κάτω από όσα έχει ήδη πληρώσει ο πελάτης. Τα είδη της κράτησης δεν αλλάζουν από εδώ.",
+      { version: 'v12.51', date: 'Ιούλιος 2026', items: [
+        "🎯 «Άνοιγμα» / «Δες το →»: πάει πάντα στο κομμάτι με την πρώτη φορά. Πριν, αν το απόθεμα δεν είχε προλάβει να κατέβει, σας άφηνε στη λίστα χωρίς το κομμάτι και έπρεπε να το ξαναπατήσετε — τώρα περιμένει να φορτώσει.",
+        "🔎 Αν το κομμάτι κρύβεται από φίλτρο ή αναζήτηση, καθαρίζονται και το βρίσκει (πουλημένο κομμάτι πλέον εμφανίζεται σωστά).",
+        "🛡️ Τα φίλτρα σας δεν σβήνονται πια χωρίς λόγο, και αν το απόθεμα δεν φόρτωσε σας το λέει καθαρά αντί να μη γίνεται τίποτα.",
+        "📦 Μια στιγμιαία διακοπή δικτύου δεν αδειάζει πια τη λίστα αποθέματος («δεν υπάρχουν αντικείμενα») — κρατάει την τελευταία καλή εικόνα.",
       ]},
       ]
   },
@@ -26911,11 +26980,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.50', date: 'Jul 2026', items: [
-        "✏️ Edit a reservation: the pencil next to the ✕ corrects the “hold until” date, the customer's details, the agreed price and the 💵 cash/receipt flag.",
-        "📝 A note on the reservation (e.g. “collecting after the 15th”) — shown on the reservation card.",
-        "🔄 An expired hold: set a future date and it asks whether to reactivate it — the pieces go back on hold. Anything sold, or now held by someone else, is named.",
-        "🔒 The price can never drop below what the customer has already paid. The reserved items are not changed here.",
+      { version: 'v12.51', date: 'Jul 2026', items: [
+        "🎯 “Open” / “View →” now lands on the piece the FIRST time. Before, if the stock had not finished downloading it left you on the list without the piece and you had to press it again — it now waits for the data.",
+        "🔎 If a filter or a search term is hiding the piece, they are cleared so it can be found (a sold piece now shows up properly).",
+        "🛡️ Your filters are no longer wiped for nothing, and if the stock could not be loaded it says so instead of doing nothing.",
+        "📦 A passing network blip no longer empties the stock list (“no items in stock”) — the last good copy is kept.",
       ]},
           ]
   }
@@ -31532,7 +31601,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.50';
+const APP_VERSION = '12.51';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
