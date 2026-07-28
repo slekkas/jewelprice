@@ -9662,13 +9662,17 @@ function buildLabelStrings() {
 // Cell size stays 2. Cell 3 was tested and rejected: a QR needs a 4-module quiet zone, so
 // at cell 3 the code + margins need ~87 of the label's 96 dots — about one dot of slack,
 // which any label-feed drift would eat. Cell 2 needs 66 of 96.
-const TAG_QR_Y = 27;   // see buildTSPL — kept here so printLabel's job header can't drift from it
+// v12.52: the printer was dropped and the label roll re-inserted, so it now feeds a little
+// high — everything prints 2 dots above where it used to. Both the QR and the text were
+// moved down by 2 dots (27→29, nudge 2→4) to compensate. X positions are untouched.
+const TAG_QR_Y = 29;   // see buildTSPL — kept here so printLabel's job header can't drift from it
 // The ref code is printed vertically centred on the label. On this tag stock the first
 // character was landing on the die-cut at the top edge and losing a sliver of the "P"
 // (owner's photo, PE0805). TAG_TEXT_NUDGE pushes the TEXT down by whole printer dots
 // (1 dot = 0.125 mm at 203 dpi) — the smallest step the printer can make. It moves the
-// text ONLY; the QR is positioned by TAG_QR_Y above and is deliberately untouched.
-const TAG_TEXT_NUDGE = 2;
+// text ONLY; the QR is positioned by TAG_QR_Y above (they are nudged together when the
+// whole print needs to shift, as in v12.52).
+const TAG_TEXT_NUDGE = 4;
 function buildTSPL(data, qrOnly, copies, useRef) {
   // TSC TTP-244, 203dpi, 65x12mm = 520x96 dots
   // qrOnly=true → skip text lines, center QR horizontally (for long codes that overflow)
@@ -9684,8 +9688,9 @@ function buildTSPL(data, qrOnly, copies, useRef) {
   // label's centre line. Harmless while every code was a different size, but now that the
   // payload is a fixed 6-char ref code the QR is always 21 modules (42 dots), and that thin
   // top margin was clipping roughly one print in six as the label feed drifted.
-  // Centring it (27/27) costs nothing and puts the slack where it was being lost. The TEXT
-  // is positioned by its own topMargin below and is deliberately untouched.
+  // Centring it (27/27) costs nothing and puts the slack where it was being lost. Since
+  // v12.52 it sits 2 dots lower still (29/25) to match the re-inserted label roll; the TEXT
+  // is positioned by its own topMargin below, nudged by the same amount.
   const qrY = TAG_QR_Y;
   const qrX = 395;  // X position never changes — only text is suppressed in qrOnly mode
 
@@ -26945,11 +26950,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.51', date: 'Ιούλιος 2026', items: [
-        "🎯 «Άνοιγμα» / «Δες το →»: πάει πάντα στο κομμάτι με την πρώτη φορά. Πριν, αν το απόθεμα δεν είχε προλάβει να κατέβει, σας άφηνε στη λίστα χωρίς το κομμάτι και έπρεπε να το ξαναπατήσετε — τώρα περιμένει να φορτώσει.",
-        "🔎 Αν το κομμάτι κρύβεται από φίλτρο ή αναζήτηση, καθαρίζονται και το βρίσκει (πουλημένο κομμάτι πλέον εμφανίζεται σωστά).",
-        "🛡️ Τα φίλτρα σας δεν σβήνονται πια χωρίς λόγο, και αν το απόθεμα δεν φόρτωσε σας το λέει καθαρά αντί να μη γίνεται τίποτα.",
-        "📦 Μια στιγμιαία διακοπή δικτύου δεν αδειάζει πια τη λίστα αποθέματος («δεν υπάρχουν αντικείμενα») — κρατάει την τελευταία καλή εικόνα.",
+      { version: 'v12.52', date: 'Ιούλιος 2026', items: [
+        "🏷️ Ετικέτα: ο κωδικός και το QR τυπώνονται 2 βήματα πιο χαμηλά, για να ταιριάζουν με το ρολό μετά την επανατοποθέτησή του. Δεξιά-αριστερά δεν άλλαξε τίποτα.",
       ]},
       ]
   },
@@ -26980,11 +26982,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.51', date: 'Jul 2026', items: [
-        "🎯 “Open” / “View →” now lands on the piece the FIRST time. Before, if the stock had not finished downloading it left you on the list without the piece and you had to press it again — it now waits for the data.",
-        "🔎 If a filter or a search term is hiding the piece, they are cleared so it can be found (a sold piece now shows up properly).",
-        "🛡️ Your filters are no longer wiped for nothing, and if the stock could not be loaded it says so instead of doing nothing.",
-        "📦 A passing network blip no longer empties the stock list (“no items in stock”) — the last good copy is kept.",
+      { version: 'v12.52', date: 'Jul 2026', items: [
+        "🏷️ Tag: the reference code and the QR now print 2 steps lower, to match the label roll after it was re-inserted. Nothing moved left or right.",
       ]},
           ]
   }
@@ -31601,7 +31600,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.51';
+const APP_VERSION = '12.52';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
