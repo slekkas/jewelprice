@@ -10095,10 +10095,16 @@ function _openLabelModalInner(data, modal, content) {
   if (_lblGenderSel && _lblAlsoWrap) {
     _lblAlsoWrap.innerHTML = genderAlsoGroupHtml('label', _lblGenderSel.value || 'unisex', []);
   }
-  // Sync handmade toggle with calc state
+  // Sync handmade toggle with calc state — OR the selected labor category's handmade
+  // mark. The saved item reads THIS toggle, so a piece priced with a handmade category
+  // must open with it ON, or it is saved handmade:false and the showroom (which reads
+  // only the saved field) never shows the Handmade tag. The ✋ badge in Stock is
+  // derived live from the category, which is what hid the mismatch.
   const _lblHmBtn = document.getElementById('labelHandmadeToggle');
   if (_lblHmBtn) {
-    const on = calcHandmadeActive || false;
+    const _lblHmVendor = state.vendors[document.getElementById('vendorSelect')?.value];
+    const _lblHmCat = _lblHmVendor ? getVendorCategories(_lblHmVendor)[parseInt(document.getElementById('workType')?.value) || 0] : null;
+    const on = calcHandmadeActive || !!(_lblHmCat && _lblHmCat.handmade);
     _lblHmBtn.style.opacity = on ? '1' : '0.35';
     _lblHmBtn.style.background = on ? 'rgba(201,168,76,0.15)' : 'var(--wa04)';
     _lblHmBtn.style.borderColor = on ? 'rgba(201,168,76,0.5)' : 'var(--wa10)';
@@ -22102,7 +22108,20 @@ function renderInvList() {
     // colour, gender). The per-piece decorative colour is shown by the breakdown instead.
     // Show the handmade mark if ANY piece in the group is handmade (the representative
     // isn't necessarily the one flagged), mirroring the single card's badge.
-    const _grpHandmade = members.some(([, it]) => it.handmade || !!(getItemCat(it)?.handmade))
+    // Self-heal each member the way buildCard heals a single piece: persist handmade
+    // when the category says so but the stored flag is false. The heal used to live
+    // ONLY in buildCard, so a grouped piece was never repaired and the showroom
+    // (which reads only the saved field) never learned it was handmade.
+    let _grpAnyHm = false;
+    members.forEach(([mid, it]) => {
+      const _mHm = it.handmade || !!(getItemCat(it)?.handmade);
+      if (_mHm) _grpAnyHm = true;
+      if (_mHm && !it.handmade && it.status !== 'sold') {
+        it.handmade = true;
+        saveInventoryItem(mid, it).catch(() => {});
+      }
+    });
+    const _grpHandmade = _grpAnyHm
       ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
     const _grpHidden = rep.hideFromShowroom
       ? `<span class="inv-card-badge" title="${lang==='el'?'Κρυφό από τη βιτρίνα':'Hidden from showroom'}" style="background:rgba(229,115,115,0.13);border:1px solid rgba(229,115,115,0.35);color:#e57373">🙈</span>` : '';
@@ -22349,7 +22368,10 @@ async function prepareInvConfirm(raw) {
       ? buildStoneDescription(stones.map(s => ({ type: s.stoneType || s.type || '', qty: s.qty || 1, carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: s.shape || '' })))
       : '',
     stoneCost: cachedStoneCost,
-    handmade: calcHandmadeActive || false,
+    // Calc toggle OR the matched labor category's handmade mark — same rule the calc
+    // display uses; without the category half a handmade-category piece is born
+    // handmade:false and the showroom never shows the tag.
+    handmade: calcHandmadeActive || !!(state.vendors[parseInt(match.vendorIdx)] && getVendorCategories(state.vendors[parseInt(match.vendorIdx)])[parseInt(match.catIdx)]?.handmade) || false,
     gender: 'unisex',
     secondaryMetal: null,
     secondaryKarat: null,
@@ -26951,8 +26973,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.53', date: 'Ιούλιος 2026', items: [
-        "🏷️ Ετικέτα: ο κωδικός και το QR κατεβαίνουν άλλα 2 βήματα (4 συνολικά), για να ταιριάζουν με το ρολό μετά την επανατοποθέτησή του. Δεξιά-αριστερά δεν άλλαξε τίποτα.",
+      { version: 'v12.54', date: 'Ιούλιος 2026', items: [
+        "✋ Βιτρίνα: κομμάτι που φτιάχτηκε με χειροποίητη κατηγορία εργασίας αποθηκεύεται πλέον ως χειροποίητο από την πρώτη στιγμή, ώστε η ένδειξη «Χειροποίητο» να φαίνεται αμέσως στην online βιτρίνα (δεν χρειάζεται πια το ✋ στον υπολογιστή τιμής).",
+        "✋ Ομαδοποιημένα κομμάτια: η αυτόματη διόρθωση του «χειροποίητο» πιάνει πλέον και τα κομμάτια μέσα σε ομάδες — τα 2 μενταγιόν «Αρχαίος Έλληνας πολεμιστής» θα εμφανιστούν χειροποίητα στη βιτρίνα με το επόμενο άνοιγμα του Αποθέματος.",
       ]},
       ]
   },
@@ -26983,8 +27006,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.53', date: 'Jul 2026', items: [
-        "🏷️ Tag: the reference code and the QR move down another 2 steps (4 in total), to match the label roll after it was re-inserted. Nothing moved left or right.",
+      { version: 'v12.54', date: 'Jul 2026', items: [
+        "✋ Showroom: a piece created with a handmade labor category is now saved as handmade from the start, so the “Handmade” tag shows in the online showroom immediately (no need to also press ✋ in the calculator).",
+        "✋ Grouped pieces: the automatic handmade repair now also covers pieces inside groups — the 2 “Ancient Greek warrior” pendants will show as handmade in the showroom the next time Stock is opened.",
       ]},
           ]
   }
@@ -31601,7 +31625,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.53';
+const APP_VERSION = '12.54';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
