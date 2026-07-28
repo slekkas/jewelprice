@@ -9662,17 +9662,18 @@ function buildLabelStrings() {
 // Cell size stays 2. Cell 3 was tested and rejected: a QR needs a 4-module quiet zone, so
 // at cell 3 the code + margins need ~87 of the label's 96 dots — about one dot of slack,
 // which any label-feed drift would eat. Cell 2 needs 66 of 96.
-// v12.52: the printer was dropped and the label roll re-inserted, so it now feeds a little
-// high — everything prints 2 dots above where it used to. Both the QR and the text were
-// moved down by 2 dots (27→29, nudge 2→4) to compensate. X positions are untouched.
-const TAG_QR_Y = 29;   // see buildTSPL — kept here so printLabel's job header can't drift from it
+// v12.52/v12.53: the printer was dropped and the label roll re-inserted, so it now feeds
+// high — everything printed above where it used to. Both the QR and the text were moved
+// down together, 2 dots at a time after a test print (27→29→31, nudge 2→4→6). X positions
+// are untouched. To nudge again, change ONLY these two numbers.
+const TAG_QR_Y = 31;   // see buildTSPL — kept here so printLabel's job header can't drift from it
 // The ref code is printed vertically centred on the label. On this tag stock the first
 // character was landing on the die-cut at the top edge and losing a sliver of the "P"
 // (owner's photo, PE0805). TAG_TEXT_NUDGE pushes the TEXT down by whole printer dots
 // (1 dot = 0.125 mm at 203 dpi) — the smallest step the printer can make. It moves the
 // text ONLY; the QR is positioned by TAG_QR_Y above (they are nudged together when the
-// whole print needs to shift, as in v12.52).
-const TAG_TEXT_NUDGE = 4;
+// whole print needs to shift, as in v12.52/v12.53).
+const TAG_TEXT_NUDGE = 6;
 function buildTSPL(data, qrOnly, copies, useRef) {
   // TSC TTP-244, 203dpi, 65x12mm = 520x96 dots
   // qrOnly=true → skip text lines, center QR horizontally (for long codes that overflow)
@@ -9689,8 +9690,8 @@ function buildTSPL(data, qrOnly, copies, useRef) {
   // payload is a fixed 6-char ref code the QR is always 21 modules (42 dots), and that thin
   // top margin was clipping roughly one print in six as the label feed drifted.
   // Centring it (27/27) costs nothing and puts the slack where it was being lost. Since
-  // v12.52 it sits 2 dots lower still (29/25) to match the re-inserted label roll; the TEXT
-  // is positioned by its own topMargin below, nudged by the same amount.
+  // v12.52/v12.53 it sits 4 dots lower still (31/23) to match the re-inserted label roll;
+  // the TEXT is positioned by its own topMargin below, nudged by the same amount.
   const qrY = TAG_QR_Y;
   const qrX = 395;  // X position never changes — only text is suppressed in qrOnly mode
 
@@ -26950,8 +26951,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.52', date: 'Ιούλιος 2026', items: [
-        "🏷️ Ετικέτα: ο κωδικός και το QR τυπώνονται 2 βήματα πιο χαμηλά, για να ταιριάζουν με το ρολό μετά την επανατοποθέτησή του. Δεξιά-αριστερά δεν άλλαξε τίποτα.",
+      { version: 'v12.53', date: 'Ιούλιος 2026', items: [
+        "🏷️ Ετικέτα: ο κωδικός και το QR κατεβαίνουν άλλα 2 βήματα (4 συνολικά), για να ταιριάζουν με το ρολό μετά την επανατοποθέτησή του. Δεξιά-αριστερά δεν άλλαξε τίποτα.",
       ]},
       ]
   },
@@ -26982,8 +26983,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.52', date: 'Jul 2026', items: [
-        "🏷️ Tag: the reference code and the QR now print 2 steps lower, to match the label roll after it was re-inserted. Nothing moved left or right.",
+      { version: 'v12.53', date: 'Jul 2026', items: [
+        "🏷️ Tag: the reference code and the QR move down another 2 steps (4 in total), to match the label roll after it was re-inserted. Nothing moved left or right.",
       ]},
           ]
   }
@@ -31600,7 +31601,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.52';
+const APP_VERSION = '12.53';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
