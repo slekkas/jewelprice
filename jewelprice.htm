@@ -26980,8 +26980,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.55', date: 'Ιούλιος 2026', items: [
-        "✋ Βιτρίνα: το «Χειροποίητο» στην online βιτρίνα υπολογίζεται πλέον απευθείας από την κατηγορία εργασίας του κομματιού — με το πρώτο άνοιγμα του Αποθέματος διορθώνεται ΟΛΗ η βιτρίνα μονομιάς, χωρίς να χρειάζεται να εμφανιστεί η κάρτα κάθε κομματιού (αυτό άφηνε το PE0618 χωρίς ένδειξη ενώ το PE0553 είχε).",
+      { version: 'v12.56', date: 'Ιούλιος 2026', items: [
+        "📸 Εικόνα προβολής (Instagram/Facebook): κάτω από τις πέτρες μπαίνει τώρα και το μέταλλο του κοσμήματος — «ΑΣΗΜΙ 925 · ΧΡΥΣΟΣ 14K» — με το δεύτερο μέταλλο και την επιμετάλλωση όπου υπάρχουν. Ίδια διακριτική γραμματοσειρά με τις πέτρες, χωρίς πλαίσια.",
+        "🔧 Διόρθωση: σε κόσμημα με πολλές πέτρες η γραμμή των πετρών μπορούσε να ξεφύγει από τα άκρα της εικόνας. Και οι δύο γραμμές σμικρύνονται πλέον σωστά ώστε να χωράνε πάντα.",
       ]},
       ]
   },
@@ -27012,8 +27013,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.55', date: 'Jul 2026', items: [
-        "✋ Showroom: the “Handmade” tag in the online showroom is now derived directly from the piece's labor category — the first time Stock is opened, the WHOLE showroom feed is repaired in one pass, without each piece's card having to render (that gap left PE0618 untagged while PE0553 showed correctly).",
+      { version: 'v12.56', date: 'Jul 2026', items: [
+        "📸 Promo image (Instagram/Facebook): the metal of the piece now appears under the stone names — “SILVER 925 · GOLD 14K” — including the second metal and any plating. Same quiet lettering as the stones, no boxes.",
+        "🔧 Fix: on a piece with many stones the stone line could run off the edges of the image. Both lines now shrink properly so they always fit.",
       ]},
           ]
   }
@@ -31630,7 +31632,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.55';
+const APP_VERSION = '12.56';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -34370,6 +34372,49 @@ function _promoLogo(ctx, cx, cy, P) {
   ctx.restore();
 }
 
+// The metal(s) the piece is made of, for the line under the stones. Rendered as
+// plain letterspaced small caps exactly like the stone names — deliberately NOT as
+// boxed chips like the showroom card: framed pills read as UI, and this image goes
+// on Instagram. English only, like the rest of the promo image (it targets social
+// media, and a half-translated image reads worse than an English one).
+function _promoMetals(item) {
+  const parts = [];
+  if (item.metal === 'other' || item.jewelryType === 'other') {
+    const mat = otherMaterialLabel(item.otherMaterial, false);
+    if (mat) parts.push(mat);
+  } else if (item.metal) {
+    const m = metalWithPlating(item, false);
+    if (m) parts.push(m);
+    // second metal (a 925 body with a 14K face) — the same rule the showroom uses
+    if (item.secondaryMetal && parseFloat(item.secondaryWeight) > 0) {
+      const names = { gold: 'Gold', silver: 'Silver' };
+      const k = item.secondaryKarat ? String(item.secondaryKarat).replace(/s$/, '') : '';
+      let s = names[item.secondaryMetal] || item.secondaryMetal;
+      if (k) s += ' ' + (item.secondaryMetal === 'silver' ? k : k + 'K');
+      parts.push(s);
+    }
+  }
+  return parts;
+}
+
+// Shrink a letterspaced mono line until it really fits `maxW`. The letterspacing has
+// to come down with the font size — a long line is mostly spacing, so shrinking only
+// the glyphs leaves it wider than the canvas (a 5-stone piece painted 1020px inside
+// 1080). Returns the size + spacing to draw with; measured, not estimated.
+function _promoFitMono(ctx, txt, maxW, fs, ls, minFs) {
+  const hasLS = ('letterSpacing' in ctx);
+  const painted = () => {
+    ctx.font = '400 ' + fs + 'px "DM Mono", monospace';
+    if (!hasLS) return ctx.measureText(txt).width + txt.length * ls;
+    ctx.letterSpacing = ls + 'px';
+    const w = ctx.measureText(txt).width;
+    ctx.letterSpacing = '0px';
+    return w - ls; // canvas adds spacing after the last glyph too
+  };
+  while (painted() > maxW && fs > minFs) { fs -= 1; ls = Math.max(4, ls - 0.4); }
+  return { fs: fs, ls: ls };
+}
+
 async function drawPromoCanvas(item, style, format) {
   const W = 1080;
   const H = format === 'story' ? 1920 : 1350;
@@ -34429,10 +34474,18 @@ async function drawPromoCanvas(item, style, format) {
   }
 
   // ── layout metrics ──
+  // Two variants per format: with a metal line the photo card gives up a little
+  // height and the text block moves up, so the footer stays exactly where it was.
+  // With no metal to name, the original metrics are used unchanged.
   const isStory = format === 'story';
-  const L = isStory
-    ? { logoCy:300, localeY:436, cardY:514, cardW:840, cardH:860, eyebrowY:1490, descrY:1578, stonesY:1650, taglineY:1756, hairY:1796, siteY:1850 }
-    : { logoCy:236, localeY:366, cardY:414, cardW:780, cardH:530, eyebrowY:1022, descrY:1100, stonesY:1162, taglineY:1226, hairY:1254, siteY:1284 };
+  const metals = _promoMetals(item);
+  const L = metals.length
+    ? (isStory
+        ? { logoCy:300, localeY:436, cardY:514, cardW:840, cardH:820, eyebrowY:1450, descrY:1538, stonesY:1610, metalY:1662, taglineY:1756, hairY:1796, siteY:1850 }
+        : { logoCy:236, localeY:366, cardY:408, cardW:780, cardH:484, eyebrowY:970, descrY:1048, stonesY:1110, metalY:1158, taglineY:1226, hairY:1254, siteY:1284 })
+    : (isStory
+        ? { logoCy:300, localeY:436, cardY:514, cardW:840, cardH:860, eyebrowY:1490, descrY:1578, stonesY:1650, taglineY:1756, hairY:1796, siteY:1850 }
+        : { logoCy:236, localeY:366, cardY:414, cardW:780, cardH:530, eyebrowY:1022, descrY:1100, stonesY:1162, taglineY:1226, hairY:1254, siteY:1284 });
 
   _promoLogo(ctx, W/2, L.logoCy, P);
   _promoText(ctx, 'KARPATHOS · GREECE', W/2, L.localeY, '400 26px "DM Mono", monospace', P.gold, 12, 'center');
@@ -34485,16 +34538,18 @@ async function drawPromoCanvas(item, style, format) {
     const stoneRows = _invEditParseStoredStones(item.stonesDesc || '');
     const stoneNames = [...new Set(stoneRows.map(r => r.type).filter(Boolean))];
     if (stoneNames.length) {
-      let stoneTxt = stoneNames.join(' · ').toUpperCase();
-      let sfs = 30;
-      ctx.font = '400 ' + sfs + 'px "DM Mono", monospace';
-      while (ctx.measureText(stoneTxt).width + stoneTxt.length * 12 > W - 200 && sfs > 20) {
-        sfs -= 2;
-        ctx.font = '400 ' + sfs + 'px "DM Mono", monospace';
-      }
-      _promoText(ctx, stoneTxt, W/2, L.stonesY, '400 ' + sfs + 'px "DM Mono", monospace', P.sub, 12, 'center');
+      const stoneTxt = stoneNames.join(' · ').toUpperCase();
+      const f = _promoFitMono(ctx, stoneTxt, W - 200, 30, 12, 18);
+      _promoText(ctx, stoneTxt, W/2, L.stonesY, '400 ' + f.fs + 'px "DM Mono", monospace', P.sub, f.ls, 'center');
     }
   } catch(e) {}
+
+  // ── metal line (same quiet treatment as the stone names) ──
+  if (metals.length) {
+    const mTxt = metals.join(' · ').toUpperCase();
+    const f = _promoFitMono(ctx, mTxt, W - 200, 30, 12, 18);
+    _promoText(ctx, mTxt, W/2, L.metalY, '400 ' + f.fs + 'px "DM Mono", monospace', P.sub, f.ls, 'center');
+  }
 
   // ── footer ──
   _promoText(ctx, 'Handcrafted with passion', W/2, L.taglineY, 'italic 400 42px "Cormorant Garamond", Georgia, serif', P.tagline, 1, 'center');
