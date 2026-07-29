@@ -8319,7 +8319,10 @@ function openRepairDetail(id) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_repEsc(r.clientName || '—')}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${repNoFmt(r)} · ${repTypeLabel(r)} · ${statusLabel}</div></div>
-      <button onclick="document.getElementById('repairDetailOverlay').remove()" class="modal-x">✕</button>
+      <div style="display:flex;gap:7px;align-items:center;flex-shrink:0">
+        ${_repCanEdit(r) ? `<button onclick="openRepairEdit('${r.id}')" class="modal-x" title="${isEl ? 'Επεξεργασία' : 'Edit'}" style="font-size:14px">✏️</button>` : ''}
+        <button onclick="document.getElementById('repairDetailOverlay').remove()" class="modal-x">✕</button>
+      </div>
     </div>
     ${phoneBtn ? `<div style="margin-bottom:8px">${phoneBtn}</div>` : ''}
     ${r.photoUrl ? `<img src="${r.photoUrl}" style="width:100%;max-height:220px;object-fit:contain;background:#fff;border-radius:10px;margin-bottom:10px">` : ''}
@@ -8333,6 +8336,7 @@ function openRepairDetail(id) {
       ${r.finalCost != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κόστος' : 'Cost'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.finalCost) || 0).toFixed(2)}</span></div>` : ''}
       ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${((r.cashSale ? (parseFloat(r.finalPrice) || 0) : (parseFloat(r.finalPrice) || 0) / (1 + (parseFloat(state.vat) || 0) / 100)) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
+    ${r.notes ? `<div style="font-size:12px;color:var(--text-muted);margin:0 0 10px;padding:9px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;white-space:pre-wrap;line-height:1.5">${_repEsc(r.notes)}</div>` : ''}
     ${_isQ ? `<button onclick="_repairQuoteOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:12px;background:rgba(201,160,224,0.12);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✏️ ${isEl ? 'Τιμή & στοιχεία προσφοράς' : 'Edit the quote'}</button>` : ''}
     ${notifyRow}
     <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${_isQ ? (isEl ? 'Προσφορά (εκτύπωση / αποστολή)' : 'Quote (print / share)') : (isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)')}</button>
@@ -8343,6 +8347,159 @@ function openRepairDetail(id) {
     ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
   </div>`;
   document.body.appendChild(ov);
+}
+
+// ── Edit a ticket (correct a mistake) ──────────────────────────────────────
+// The everyday need is the "ready by" date, but the same form covers the customer's
+// details, the description, the estimate, the photo and a free note.
+//
+// The TYPE (repair / custom order) and the STATUS are deliberately NOT editable here:
+// the status is moved by the buttons that also do the work behind it (mark ready,
+// deposit → order, collect), and changing the type mid-ticket would rewrite what the
+// customer already signed for. A deposit that has been PAID can be corrected but not
+// removed — taking it back is a cancellation, not an edit.
+//
+// Who may edit: owner/manager, or the person who opened the ticket — the same rule the
+// reservation edit uses. Only a FINISHED ticket (collected/cancelled) is locked,
+// because that is history.
+function _repCanEdit(r) {
+  if (!r) return false;
+  if (_deskIsFinished('repairs', r)) return false;
+  if (can('desk_admin')) return true;
+  const me = (creds.displayName || creds.userName || '').trim();
+  return !!me && (r.createdBy || '').trim() === me;
+}
+function _repEdStatus(msg) { const el = document.getElementById('repEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+let _repEdPendingPhoto = null, _repEdPendingPhotoHi = null;  // separate from the create modal's
+
+function openRepairEdit(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el';
+  if (!_repCanEdit(r)) { showToast(isEl ? 'Δεν επιτρέπεται η επεξεργασία' : 'Editing not allowed'); return; }
+  _repEdPendingPhoto = null; _repEdPendingPhotoHi = null;
+  const cur = state.currency || '€';
+  const hasDep = parseFloat(r.deposit) > 0;
+  const _pd = r.datePromised || '';
+  document.getElementById('repairEditOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repairEditOverlay';
+  // Top-anchored + scrollable: this form is typed into, so a centred sheet would put
+  // its own fields behind the keyboard.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.88);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px;padding-top:max(16px,env(safe-area-inset-top))';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">✏️ ${repNoFmt(r)}</div>
+      <button onclick="document.getElementById('repairEditOverlay').remove()" class="modal-x">✕</button>
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Έτοιμο έως' : 'Ready by'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="repEdPromisedDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${_pd ? fmtDate(_pd) : '—'}</div>
+      <input id="repEdPromised" type="date" value="${_pd}" onchange="var _d=document.getElementById('repEdPromisedDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
+
+    <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
+    <input id="repEdName" autocomplete="off" value="${_repEsc(r.clientName || '')}" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
+    <div style="margin-bottom:10px">${_phoneFieldHtml('repEdPhoneCode', 'repEdPhone', r.clientPhone || '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+    <input id="repEdEmail" type="email" autocomplete="off" value="${_repEsc(r.clientEmail || '')}" style="${_resInp}" placeholder="Email ${isEl ? '(προαιρετικό)' : '(optional)'}">
+
+    <div style="${_resLbl}">${isEl ? 'Φωτογραφία' : 'Photo'}</div>
+    <div id="repEdPhotoPicker" style="margin-bottom:10px"></div>
+
+    <div style="${_resLbl}">${isEl ? 'Περιγραφή' : 'Description'}</div>
+    <textarea id="repEdDesc" rows="2" style="${_resInp};resize:vertical">${_repEsc(r.description || '')}</textarea>
+
+    <div style="${_resLbl}">${_repIsQuote(r) ? (isEl ? 'Τιμή προσφοράς' : 'Quoted price') : (isEl ? 'Εκτίμηση κόστους' : 'Estimate')}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <input id="repEdLow" type="number" step="0.01" inputmode="decimal" value="${parseFloat(r.estLow) > 0 ? parseFloat(r.estLow).toFixed(2) : ''}" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
+      <span style="color:var(--text-muted);flex:0 0 auto">–</span>
+      <input id="repEdHigh" type="number" step="0.01" inputmode="decimal" value="${parseFloat(r.estHigh) > 0 ? parseFloat(r.estHigh).toFixed(2) : ''}" placeholder="${isEl ? 'έως € (προαιρ.)' : 'to € (opt.)'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
+    </div>
+
+    ${hasDep ? `<div style="${_resLbl}">${isEl ? 'Προκαταβολή (πληρωμένη)' : 'Deposit (paid)'}</div>
+    <div style="display:flex;gap:8px;margin-bottom:5px">
+      <input id="repEdDeposit" type="number" step="0.01" inputmode="decimal" value="${(parseFloat(r.deposit) || 0).toFixed(2)}" style="${_resInp};margin-bottom:0;flex:1;width:auto">
+      <select id="repEdDepMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px">
+        <option value="cash"${r.depositMethod === 'cash' ? ' selected' : ''}>${isEl ? 'Μετρητά' : 'Cash'}</option>
+        <option value="card"${r.depositMethod === 'card' ? ' selected' : ''}>${isEl ? 'Κάρτα' : 'Card'}</option>
+        <option value="bank"${r.depositMethod === 'bank' ? ' selected' : ''}>${isEl ? 'Τράπεζα' : 'Bank'}</option>
+      </select>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.45">${isEl ? `Διορθώστε το ποσό αν χτυπήθηκε λάθος. Για να επιστραφεί η προκαταβολή, ακυρώστε το δελτίο.` : `Correct the amount if it was mistyped. To hand a deposit back, cancel the ticket.`}</div>` : ''}
+
+    ${_repIsQuote(r) ? `<div style="${_resLbl}">${isEl ? 'Ζητούμενη προκαταβολή (προαιρετικό)' : 'Deposit you ask for (optional)'}</div>
+    <input id="repEdDepAsk" type="number" step="0.01" inputmode="decimal" value="${parseFloat(r.depositAsked) > 0 ? parseFloat(r.depositAsked).toFixed(2) : ''}" placeholder="${cur}" style="${_resInp}">` : ''}
+
+    <div style="${_resLbl}">${isEl ? 'Σημείωση (προαιρετικό)' : 'Note (optional)'}</div>
+    <textarea id="repEdNotes" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. θα περάσει το απόγευμα' : 'e.g. coming by in the afternoon'}">${_repEsc(r.notes || '')}</textarea>
+
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;line-height:1.45">${isEl ? 'Ο τύπος και η κατάσταση του δελτίου δεν αλλάζουν από εδώ.' : 'The ticket type and status are not changed here.'}</div>
+    <div id="repEdStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px"></div>
+    <button id="repEdSaveBtn" onclick="_repairEditSave('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+  const pk = document.getElementById('repEdPhotoPicker');
+  if (pk) renderPhotoPicker(pk, { previewId: 'repEdPhoto', existingUrl: r.photoUrl || null, onCapture: (u, hi) => { _repEdPendingPhoto = u; _repEdPendingPhotoHi = hi; } });
+}
+
+async function _repairEditSave(id) {
+  const isEl = lang === 'el';
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+  if (!_repCanEdit(r)) { showToast(isEl ? 'Δεν επιτρέπεται η επεξεργασία' : 'Editing not allowed'); return; }
+  const cur = state.currency || '€';
+  const name = (document.getElementById('repEdName').value || '').trim();
+  if (!name) { _repEdStatus(isEl ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
+  const lo = parseFloat(document.getElementById('repEdLow').value) || 0;
+  const hi = parseFloat(document.getElementById('repEdHigh').value) || 0;
+  // A repair is priced with the item in your hand, so its estimate stays required.
+  // A custom order / quote may still be waiting for the workshop's price.
+  if (r.type !== 'custom' && lo <= 0 && hi <= 0) { _repEdStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
+  const depEl = document.getElementById('repEdDeposit');
+  let dep = null, depMethod = r.depositMethod || null;
+  if (depEl) {
+    dep = parseFloat(depEl.value);
+    if (!Number.isFinite(dep) || dep <= 0) { _repEdStatus(isEl ? `⚠️ Η πληρωμένη προκαταβολή δεν μπορεί να αφαιρεθεί — ακυρώστε το δελτίο` : `⚠️ A paid deposit can't be removed — cancel the ticket instead`); return; }
+    dep = parseFloat(dep.toFixed(2));
+    depMethod = document.getElementById('repEdDepMethod')?.value || depMethod || 'cash';
+  }
+  const btn = document.getElementById('repEdSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  // A failed upload must never wipe the photo that is already on the ticket, so the
+  // new one is only stamped on when it genuinely came back with a URL.
+  let photoUrl = r.photoUrl || '', photoUrlHi = r.photoUrlHi || '', photoFailed = false;
+  if (_repEdPendingPhoto) {
+    _repEdStatus(isEl ? '⏳ Μεταφόρτωση φωτογραφίας…' : '⏳ Uploading photo…');
+    try {
+      const up = await uploadInventoryPhoto(_repEdPendingPhoto, _repEdPendingPhotoHi, 'repair');
+      if (up && up.url) { photoUrl = up.url; photoUrlHi = up.hiUrl || up.url; } else photoFailed = true;
+    } catch (e) { photoFailed = true; }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = isEl ? 'Αποθήκευση' : 'Save'; }
+
+  r.clientName = name;
+  r.clientPhone = _readPhoneField('repEdPhoneCode', 'repEdPhone');
+  r.clientEmail = (document.getElementById('repEdEmail').value || '').trim();
+  r.description = (document.getElementById('repEdDesc').value || '').trim();
+  r.estLow = parseFloat(((lo || hi) || 0).toFixed(2));
+  r.estHigh = hi > lo ? parseFloat(hi.toFixed(2)) : 0;
+  r.datePromised = document.getElementById('repEdPromised').value || null;
+  r.notes = (document.getElementById('repEdNotes').value || '').trim();
+  r.photoUrl = photoUrl; r.photoUrlHi = photoUrlHi;
+  if (depEl) { r.deposit = dep; r.depositMethod = depMethod; }
+  const askEl = document.getElementById('repEdDepAsk');
+  if (askEl) { const a = parseFloat(askEl.value) || 0; r.depositAsked = a > 0 ? parseFloat(a.toFixed(2)) : null; }
+
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  upsertClientFromSale(r.clientName, r.clientPhone, r.clientEmail);  // a corrected number should reach Clients too
+  _repEdPendingPhoto = null; _repEdPendingPhotoHi = null;
+
+  document.getElementById('repairEditOverlay')?.remove();
+  showToast(photoFailed
+    ? (isEl ? '✓ Αποθηκεύτηκε — η φωτογραφία δεν ανέβηκε' : '✓ Saved — the photo did not upload')
+    : (isEl ? '✓ Αποθηκεύτηκε' : '✓ Saved'));
+  openRepairDetail(id);
+  renderRepairs();
 }
 
 function _repairSetStatus(id, status) {
@@ -26980,9 +27137,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.56', date: 'Ιούλιος 2026', items: [
-        "📸 Εικόνα προβολής (Instagram/Facebook): κάτω από τις πέτρες μπαίνει τώρα και το μέταλλο του κοσμήματος — «ΑΣΗΜΙ 925 · ΧΡΥΣΟΣ 14K» — με το δεύτερο μέταλλο και την επιμετάλλωση όπου υπάρχουν. Ίδια διακριτική γραμματοσειρά με τις πέτρες, χωρίς πλαίσια.",
-        "🔧 Διόρθωση: σε κόσμημα με πολλές πέτρες η γραμμή των πετρών μπορούσε να ξεφύγει από τα άκρα της εικόνας. Και οι δύο γραμμές σμικρύνονται πλέον σωστά ώστε να χωράνε πάντα.",
+      { version: 'v12.57', date: 'Ιούλιος 2026', items: [
+        "✏️ Επεξεργασία δελτίου (Επισκευές & Παραγγελίες): το μολυβάκι δίπλα στο ✕ διορθώνει ημερομηνία παράδοσης, στοιχεία πελάτη, περιγραφή, εκτίμηση, φωτογραφία και σημείωση — όπως ήδη γίνεται στις κρατήσεις. Τέλος οι διορθώσεις με το χέρι πάνω στο τυπωμένο δελτίο.",
+        "🔒 Ο τύπος και η κατάσταση του δελτίου δεν αλλάζουν από εκεί, και μια πληρωμένη προκαταβολή διορθώνεται αλλά δεν αφαιρείται (αυτό είναι ακύρωση). Παραλήφθηκε ή ακυρώθηκε = κλειδωμένο, είναι ιστορικό.",
       ]},
       ]
   },
@@ -27013,9 +27170,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.56', date: 'Jul 2026', items: [
-        "📸 Promo image (Instagram/Facebook): the metal of the piece now appears under the stone names — “SILVER 925 · GOLD 14K” — including the second metal and any plating. Same quiet lettering as the stones, no boxes.",
-        "🔧 Fix: on a piece with many stones the stone line could run off the edges of the image. Both lines now shrink properly so they always fit.",
+      { version: 'v12.57', date: 'Jul 2026', items: [
+        "✏️ Edit a ticket (Repairs & Custom orders): the pencil next to the ✕ corrects the ready-by date, the customer's details, the description, the estimate, the photo and a note — the same as reservations already do. No more correcting a printed ticket by hand.",
+        "🔒 The ticket type and status are not changed there, and a deposit already paid can be corrected but not removed (that is a cancellation). Collected or cancelled = locked, it is history.",
       ]},
           ]
   }
@@ -31632,7 +31789,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.56';
+const APP_VERSION = '12.57';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
