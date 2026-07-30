@@ -9834,8 +9834,10 @@ const TAG_QR_Y = 34;   // see buildTSPL — kept here so printLabel's job header
 // whole print needs to shift, as in v12.52/v12.53/v12.58).
 const TAG_TEXT_NUDGE = 9;
 // Horizontal position of the TEXT lines. The QR's X (395 in buildTSPL) must NEVER change —
-// only this one moves the printed ref code left/right (v12.58: 228 → 231, 3 dots right).
-const TAG_TEXT_X = 231;
+// only this one moves the printed ref code left/right (v12.58: 228 → 231, v12.59: → 234,
+// 3 dots right each time). The vertical centring of both is settled — do not touch
+// TAG_QR_Y / TAG_TEXT_NUDGE for a horizontal request.
+const TAG_TEXT_X = 234;
 function buildTSPL(data, qrOnly, copies, useRef) {
   // TSC TTP-244, 203dpi, 65x12mm = 520x96 dots
   // qrOnly=true → skip text lines, center QR horizontally (for long codes that overflow)
@@ -27142,8 +27144,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.58', date: 'Ιούλιος 2026', items: [
-        "🏷️ Ετικέτα: το QR και ο κωδικός αναφοράς τυπώνονται 3 βήματα πιο χαμηλά, και ο κωδικός αναφοράς 3 βήματα πιο δεξιά (1 βήμα = 0,125 χιλ.). Το QR δεν μετακινήθηκε καθόλου αριστερά-δεξιά.",
+      { version: 'v12.59', date: 'Ιούλιος 2026', items: [
+        "🏷️ Ετικέτα: ο κωδικός αναφοράς τυπώνεται άλλα 3 βήματα πιο δεξιά (1 βήμα = 0,125 χιλ.). Το QR έμεινε ακριβώς στη θέση του, και το πάνω-κάτω κεντράρισμα και των δύο δεν άλλαξε.",
       ]},
       ]
   },
@@ -27174,8 +27176,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.58', date: 'Jul 2026', items: [
-        "🏷️ Tag: the QR and the reference code print 3 steps lower, and the reference code 3 steps further right (1 step = 0.125 mm). The QR was not moved left or right at all.",
+      { version: 'v12.59', date: 'Jul 2026', items: [
+        "🏷️ Tag: the reference code prints another 3 steps further right (1 step = 0.125 mm). The QR stayed exactly where it is, and the up/down centring of both is unchanged.",
       ]},
           ]
   }
@@ -31792,7 +31794,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.58';
+const APP_VERSION = '12.59';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
