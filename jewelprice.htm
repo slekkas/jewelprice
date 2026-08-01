@@ -20329,6 +20329,37 @@ const PUBLIC_SAFE_FIELDS = ['qrCode','description','descEl','descEn','jewelryTyp
   // carry no cost/vendor information.
   'secondaryMetal','secondaryKarat','secondaryWeight'];
 
+// ── SHOWROOM PRICE BANDS ─────────────────────────────────────────────────────
+// The showroom shows no prices and must not: a customer who can read an exact
+// figure off a public page can price the whole stock. But "roughly what does this
+// cost?" is the first question anyone asks, so a piece publishes a coarse BAND
+// instead — one of these fixed buckets, chosen by the owner. Deliberately NOT a
+// slider or a min/max box: those let a viewer narrow the window until it names
+// the price. A fixed bucket can only ever say "somewhere in this €200 range".
+//
+// The published value is the band's own LABEL ('201-400'), never an index: an
+// index would silently mislabel every piece if this table and showroom.htm's
+// copy ever drifted apart, while a self-describing key can only fail to match.
+// KEEP THIS TABLE IN STEP WITH showroom.htm's PRICE_BANDS.
+const PRICE_BANDS = [
+  { key: '0-200',      min: 0,    max: 200 },
+  { key: '201-400',    min: 201,  max: 400 },
+  { key: '401-600',    min: 401,  max: 600 },
+  { key: '601-800',    min: 601,  max: 800 },
+  { key: '801-1000',   min: 801,  max: 1000 },
+  { key: '1001-1500',  min: 1001, max: 1500 },
+  { key: '1501-2000',  min: 1501, max: 2000 },
+  { key: '2001-3000',  min: 2001, max: 3000 },
+  { key: '3001-4000',  min: 3001, max: 4000 },
+  { key: '4001-5000',  min: 4001, max: 5000 },
+  { key: '5001+',      min: 5001, max: Infinity }
+];
+function priceBandKey(price) {
+  if (!(price > 0) || !isFinite(price)) return null;
+  const b = PRICE_BANDS.find(b => price <= b.max);
+  return b ? b.key : null;
+}
+
 // Reduce a full inventory item to the public-safe subset, or null if it should
 // not be published (only in-stock, non-bulk pieces appear in the showroom).
 function publicProjection(item, id) {
@@ -20349,6 +20380,19 @@ function publicProjection(item, id) {
   // means the once-per-session republishPublicShowroom() diff repairs every stale feed
   // entry in one pass, no card render needed.
   out.handmade = !!(item.handmade || getItemCat(item)?.handmade);
+  // Coarse price band (see PRICE_BANDS) — the showroom's only price signal. Derived
+  // live from the same retail the Stock card shows, rounded the way the customer
+  // would actually be quoted it (v12.14), so a piece can never land in a band the
+  // owner would not quote it at. OMITTED, never guessed, when the price cannot be
+  // computed (no spot price loaded yet, an other-type piece with no fixed retail);
+  // such a piece simply doesn't match any price filter.
+  try {
+    const _pr = calcInvItemPrice(item);
+    let _p = _pr ? _pr.retail : null;
+    if (_p != null) { const _r = autoRoundPrice(_p); if (_r != null) _p = _r; }
+    const _band = priceBandKey(_p);
+    if (_band) out.priceBand = _band;
+  } catch (e) {}
   return out;
 }
 
@@ -27144,8 +27188,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.59', date: 'Ιούλιος 2026', items: [
-        "🏷️ Ετικέτα: ο κωδικός αναφοράς τυπώνεται άλλα 3 βήματα πιο δεξιά (1 βήμα = 0,125 χιλ.). Το QR έμεινε ακριβώς στη θέση του, και το πάνω-κάτω κεντράρισμα και των δύο δεν άλλαξε.",
+      { version: 'v12.60', date: 'Αύγουστος 2026', items: [
+        "💶 Showroom: φίλτρο τιμής με σταθερά κουτάκια (€0–200, €201–400 … €5001+). Ο πελάτης βλέπει μόνο σε ποια ζώνη πέφτει ένα κόσμημα — καμία τιμή, και κανένα πεδίο ή slider που θα του επέτρεπε να στενέψει τη ζώνη μέχρι να βρει το ακριβές ποσό.",
+        "🔄 Η ζώνη υπολογίζεται από την τρέχουσα τιμή πώλησης (με τη στρογγυλοποίηση που θα λέγατε κι εσείς) και ενημερώνεται μόνη της· εμφανίζεται στο showroom μόλις ανοίξετε μία φορά την καρτέλα Απόθεμα.",
       ]},
       ]
   },
@@ -27176,8 +27221,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.59', date: 'Jul 2026', items: [
-        "🏷️ Tag: the reference code prints another 3 steps further right (1 step = 0.125 mm). The QR stayed exactly where it is, and the up/down centring of both is unchanged.",
+      { version: 'v12.60', date: 'Aug 2026', items: [
+        "💶 Showroom: a price filter made of fixed boxes (€0–200, €201–400 … €5001+). A customer sees only which band a piece falls in — never a price, and no box or slider they could narrow until it named the figure.",
+        "🔄 The band is worked out from the current selling price (rounded the way you would quote it) and keeps itself up to date; it appears in the showroom once you open the Stock tab.",
       ]},
           ]
   }
@@ -31794,7 +31840,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.59';
+const APP_VERSION = '12.60';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [

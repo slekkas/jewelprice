@@ -1442,9 +1442,9 @@ let allItems   = [];
 let filtered   = [];
 let selected   = new Set();   // firebase keys
 // Multi-select filters — each is an array of active values (empty = all)
-let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
+let activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], priceBands: [], stones: [], handmade: false, setsOnly: false };
 // Draft filters inside the drawer (applied on tap Apply)
-let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
+let draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], priceBands: [], stones: [], handmade: false, setsOnly: false };
 let lightboxKey = null;
 let searchQuery = ''; // current search string
 // Matching-set carousel: when the lightbox is browsing a set, these hold the ordered
@@ -1507,6 +1507,33 @@ function goldColorLabel(value) {
   const e = GOLD_COLORS.find(c => c.value === value);
   if (!e) return value;
   return lang === 'el' ? e.el : e.en;
+}
+
+// Price bands — mirror of PRICE_BANDS in jewelprice.htm. The showroom never shows a
+// price; each piece publishes only the coarse bucket it falls in (item.priceBand, a
+// self-describing key like '201-400'). Fixed buckets on purpose — a slider or a
+// min/max box would let a viewer narrow the window until it named the price.
+// KEEP THIS TABLE IN STEP WITH jewelprice.htm's PRICE_BANDS.
+const PRICE_BANDS = [
+  { key: '0-200',      min: 0,    max: 200 },
+  { key: '201-400',    min: 201,  max: 400 },
+  { key: '401-600',    min: 401,  max: 600 },
+  { key: '601-800',    min: 601,  max: 800 },
+  { key: '801-1000',   min: 801,  max: 1000 },
+  { key: '1001-1500',  min: 1001, max: 1500 },
+  { key: '1501-2000',  min: 1501, max: 2000 },
+  { key: '2001-3000',  min: 2001, max: 3000 },
+  { key: '3001-4000',  min: 3001, max: 4000 },
+  { key: '4001-5000',  min: 4001, max: 5000 },
+  { key: '5001+',      min: 5001, max: Infinity }
+];
+// Built from the band's own bounds, so a label can never disagree with the key it
+// came from. An unknown key (a feed written by a newer app) is shown as-is rather
+// than dropped — the customer still sees a sensible range.
+function priceBandLabel(key) {
+  const b = PRICE_BANDS.find(x => x.key === key);
+  if (!b) return key;
+  return isFinite(b.max) ? `€${b.min}–${b.max}` : `€${b.min}+`;
 }
 
 // Silver plating — mirror of SILVER_PLATING in jewelprice.htm. Blank/absent = plain silver.
@@ -1961,6 +1988,11 @@ function getFilterOptions() {
   // material-less piece just isn't matched by a material filter).
   const _mats = new Set(allItems.filter(i => i.metal==='other').map(i => i.otherMaterial||'').filter(Boolean));
   const materials = OTHER_MATERIALS.filter(m => _mats.has(m.value)).map(m => m.value);
+  // Price bands actually present in stock, in PRICE_BANDS order. A key this copy of
+  // the table doesn't know still shows (at the end) rather than vanishing silently.
+  const _pb = new Set(allItems.map(i => i.priceBand).filter(Boolean));
+  const priceBands = PRICE_BANDS.map(b => b.key).filter(k => _pb.has(k))
+    .concat([..._pb].filter(k => !PRICE_BANDS.some(b => b.key === k)));
   const hasHandmade = allItems.some(i => i.handmade);
   const hasSets = allItems.some(i => i.setId);
   // Vendors
@@ -1974,13 +2006,14 @@ function getFilterOptions() {
     ...STONE_PRIORITY.filter(s => allStones.includes(s)),
     ...allStones.filter(s => !STONE_PRIORITY.includes(s)).sort()
   ];
-  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, materials, stones: stonesSorted, hasHandmade, hasSets };
+  return { types, vendors, genders, metals, karats, goldColors: gcSorted, platings: platSorted, materials, priceBands, stones: stonesSorted, hasHandmade, hasSets };
 }
 
 function countActiveFilters() {
   return activeFilters.types.length + activeFilters.vendors.length + activeFilters.genders.length +
     activeFilters.metals.length + activeFilters.karats.length +
     activeFilters.goldColors.length + (activeFilters.platings||[]).length + (activeFilters.materials||[]).length +
+    (activeFilters.priceBands||[]).length +
     activeFilters.stones.length + (activeFilters.handmade ? 1 : 0) + (activeFilters.setsOnly ? 1 : 0);
 }
 
@@ -2012,6 +2045,7 @@ function updateFilterBar() {
     if (activeFilters.goldColors.length) parts.push(activeFilters.goldColors.map(goldColorLabel).join(', '));
     if ((activeFilters.platings||[]).length) parts.push(activeFilters.platings.map(_platFilterLabel).join(', '));
     if ((activeFilters.materials||[]).length) parts.push(activeFilters.materials.map(otherMaterialLabel).join(', '));
+    if ((activeFilters.priceBands||[]).length) parts.push(activeFilters.priceBands.map(priceBandLabel).join(', '));
     if (activeFilters.stones.length)     parts.push('💎 ' + activeFilters.stones.map(s=>stoneLabel(s)).join(', '));
     if (activeFilters.handmade)          parts.push(lang==='el'?'Χειροποίητα':'Handmade');
     if (activeFilters.setsOnly)          parts.push(lang==='el'?'Σετ':'Sets');
@@ -2200,7 +2234,7 @@ function navApplyFacets(typeKey) {
   const isSets = typeKey === '__sets__';
   activeFilters = {
     types: isSets ? [] : (typeKey ? [typeKey] : []),
-    vendors: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false,
+    vendors: [], karats: [], goldColors: [], platings: [], materials: [], priceBands: [], stones: [], handmade: false,
     setsOnly: isSets,
     metals:  [..._navDraftMetals],
     genders: [..._navDraftGenders]
@@ -2223,6 +2257,7 @@ function openFilterDrawer() {
     karats:     [...activeFilters.karats],
     goldColors: [...activeFilters.goldColors],
     platings: [...(activeFilters.platings||[])],
+    priceBands: [...(activeFilters.priceBands||[])],
     materials: [...(activeFilters.materials||[])],
     stones:     [...activeFilters.stones],
     handmade:   activeFilters.handmade,
@@ -2283,6 +2318,11 @@ function renderDrawer() {
 
   let html = '';
   html += dropGroup(isEl?'Τύπος':'Type', opts.types, 'types', typeLabel);
+  // Price band — fixed buckets, no slider and no min/max box (see PRICE_BANDS).
+  // Only worth showing when the stock actually spans more than one bucket.
+  if (opts.priceBands.length > 1) {
+    html += pillGroup(isEl?'Τιμή':'Price', opts.priceBands, 'priceBands', priceBandLabel);
+  }
   // Vendor filter hidden from customers
   html += pillGroup(isEl?'Μέταλλο':'Metal', opts.metals, 'metals', v => metalLabel[v]||v);
   if (opts.karats.length > 0) {
@@ -2404,7 +2444,7 @@ function _swSyncFamilyHeaders() {
 }
 
 function clearDraftFilters() {
-  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
+  draftFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], priceBands: [], stones: [], handmade: false, setsOnly: false };
   renderDrawer();
 }
 
@@ -2466,6 +2506,7 @@ function applyDrawerFilters() {
     karats:     [...draftFilters.karats],
     goldColors: [...draftFilters.goldColors],
     platings: [...(draftFilters.platings||[])],
+    priceBands: [...(draftFilters.priceBands||[])],
     materials: [...(draftFilters.materials||[])],
     stones:     [...draftFilters.stones],
     handmade:   draftFilters.handmade,
@@ -2476,7 +2517,7 @@ function applyDrawerFilters() {
 }
 
 function clearAllFilters() {
-  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], stones: [], handmade: false, setsOnly: false };
+  activeFilters = { types: [], vendors: [], genders: [], metals: [], karats: [], goldColors: [], platings: [], materials: [], priceBands: [], stones: [], handmade: false, setsOnly: false };
   // "Clear" means clear everything, including any leftover search text
   clearSearchInputOnly();
   applyFilters();
@@ -2594,6 +2635,9 @@ function applyFilters() {
       if (item.metal !== 'other') return false;
       if (!activeFilters.materials.includes(item.otherMaterial || '')) return false;
     }
+    // A piece whose band could not be computed carries none, and is left out while a
+    // price filter is on — we cannot claim it falls in a range we never worked out.
+    if ((activeFilters.priceBands||[]).length && !activeFilters.priceBands.includes(item.priceBand)) return false;
     if (activeFilters.goldColors.length) {
       if (item.metal !== 'gold') return false;
       const gc = item.goldColor || 'gold';
