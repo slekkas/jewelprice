@@ -1666,9 +1666,9 @@ const STONE_FAMILY_LABELS = {
   'Topaz':      { en: 'Topaz (all)',       el: 'Τοπάζια (όλα)' },
   'Tourmaline': { en: 'Tourmalines (all)', el: 'Τουρμαλίνες (όλες)' },
 };
-const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite',
+const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Abalone','Agate','Alexandrite','Amazonite',
   'Amethyst','Ametrine','Apatite','Aquamarine','Carnelian','Citrine','Cobalt Calcite','Coral','Crystal',
-  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Malachite','Moonstone','Morganite','Onyx',
+  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Lava Stone','Malachite','Moonstone','Morganite','Onyx',
   'Opal','Peridot','Quartz','Spinel','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
 const STONE_TYPES = STONE_ORDER.flatMap(s => STONE_FAMILIES[s] ? [s, ...STONE_FAMILIES[s]] : [s]);
 const STONE_FAMILY_OF = (() => {
@@ -1684,6 +1684,7 @@ function stoneFamilyLabel(parent) {
 }
 const STONE_TRANSLATIONS = {
   'Diamond':'Διαμάντι','Emerald':'Σμαράγδι','Ruby':'Ρουμπίνι','Sapphire':'Ζαφείρι',
+  'Abalone':'Αμπαλόνε','Lava Stone':'Λάβα',
   'Agate':'Αχάτης','Alexandrite':'Αλεξανδρίτης','Amazonite':'Αμαζονίτης','Amethyst':'Αμέθυστος',
   'Ametrine':'Αμετρίνη','Apatite':'Απατίτης','Aquamarine':'Ακουαμαρίνα',
   'Akoya Pearl':'Ακόγια Μαργαριτάρι','Baroque Pearl':'Μπαρόκ Μαργαριτάρι','Black Pearl':'Μαύρο Μαργαριτάρι',
@@ -1729,6 +1730,7 @@ function stonesDescDisplay(desc) {
 // +s (Ruby→Rubies, Topaz→Topazes); Greek needs explicit forms, so both are spelled out.
 const STONE_PLURAL_EN = {
   'Diamond':'Diamonds','Emerald':'Emeralds','Ruby':'Rubies','Sapphire':'Sapphires','Pearl':'Pearls',
+  'Abalone':'Abalone','Lava Stone':'Lava Stones',
   'Agate':'Agates','Alexandrite':'Alexandrites','Amazonite':'Amazonites','Amethyst':'Amethysts','Ametrine':'Ametrines',
   'Apatite':'Apatites','Aquamarine':'Aquamarines','Akoya Pearl':'Akoya Pearls','Baroque Pearl':'Baroque Pearls',
   'Black Pearl':'Black Pearls','Carnelian':'Carnelians','Citrine':'Citrines','Cobalt Calcite':'Cobalt Calcites',
@@ -1757,6 +1759,7 @@ const STONE_PLURAL_EN = {
 };
 const STONE_PLURAL_EL = {
   'Diamond':'Διαμάντια','Emerald':'Σμαράγδια','Ruby':'Ρουμπίνια','Sapphire':'Ζαφείρια','Pearl':'Μαργαριτάρια',
+  'Abalone':'Αμπαλόνε','Lava Stone':'Λάβα',
   'Agate':'Αχάτες','Alexandrite':'Αλεξανδρίτες','Amazonite':'Αμαζονίτες','Amethyst':'Αμέθυστοι','Ametrine':'Αμετρίνες',
   'Apatite':'Απατίτες','Aquamarine':'Ακουαμαρίνες','Akoya Pearl':'Ακόγια Μαργαριτάρια','Baroque Pearl':'Μπαρόκ Μαργαριτάρια',
   'Black Pearl':'Μαύρα Μαργαριτάρια','Carnelian':'Καρνεόλες','Citrine':'Κιτρίνες','Cobalt Calcite':'Κοβαλτίτες Ασβεστίτες',

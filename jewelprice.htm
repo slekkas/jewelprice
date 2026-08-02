@@ -6247,7 +6247,7 @@ async function openGiftCardDetail(id) {
 
     <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:11px 13px">
       ${row(isEl ? 'Αγοραστής' : 'Buyer', _gcEsc(g.buyerName || '—'))}
-      ${g.buyerPhone ? row(isEl ? 'Τηλέφωνο' : 'Phone', `<a href="#" onclick="_callPhone('${_gcEsc(g.buyerPhone)}');return false" style="color:var(--gold-light);text-decoration:none">${_gcEsc(g.buyerPhone)}</a>`) : ''}
+      ${g.buyerPhone ? row(isEl ? 'Τηλέφωνο' : 'Phone', `<a href="#" onclick="contactFromRecord('gift','${g.id}');return false" style="color:var(--gold-light);text-decoration:none">${_gcEsc(g.buyerPhone)}</a>`) : ''}
       ${g.buyerEmail ? row('Email', _gcEsc(g.buyerEmail)) : ''}
       ${g.toName ? row(isEl ? 'Προς' : 'To', _gcEsc(g.toName)) : ''}
       ${g.message ? row(isEl ? 'Αφιέρωση' : 'Message', _gcEsc(g.message)) : ''}
@@ -7576,7 +7576,7 @@ function openReservationDetail(id) {
   const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:#7fd6b0">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="_callPhone('${(r.clientPhone||'').replace(/[^0-9+]/g,'')}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
+      <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="contactFromRecord('res','${r.id}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
       <div style="display:flex;gap:7px;align-items:center;flex-shrink:0">
         ${_resCanEdit(r) ? `<button onclick="openResEdit('${r.id}')" class="modal-x" title="${isEl ? 'Επεξεργασία' : 'Edit'}" style="font-size:14px">✏️</button>` : ''}
         <button onclick="document.getElementById('reservationDetailOverlay').remove()" class="modal-x">✕</button>
@@ -9335,9 +9335,9 @@ const STONE_FAMILY_LABELS = {
 };
 // Display order of the stones that stand on their own or head a family: the four
 // precious ones + Pearl first, then alphabetical.
-const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Agate','Alexandrite','Amazonite',
+const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Abalone','Agate','Alexandrite','Amazonite',
   'Amethyst','Ametrine','Apatite','Aquamarine','Carnelian','Citrine','Cobalt Calcite','Coral','Crystal',
-  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Malachite','Moonstone','Morganite','Onyx',
+  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Lava Stone','Malachite','Moonstone','Morganite','Onyx',
   'Opal','Peridot','Quartz','Spinel','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
 // The flat list every other consumer uses — DERIVED, so a family edit can never leave it stale.
 const STONE_TYPES = STONE_ORDER.flatMap(s => STONE_FAMILIES[s] ? [s, ...STONE_FAMILIES[s]] : [s]);
@@ -9368,6 +9368,8 @@ const COLORED_PER_CT = {
   Spinel:[480,240,96,32], Tanzanite:[640,320,128,48], Topaz:[96,48,22,8],
   Tourmaline:[320,160,64,24], Turquoise:[65,32,16,6],
   Agate:[30,15,8,3], Onyx:[35,18,9,4], Crystal:[20,10,5,2],
+  // Organic / bead materials — nowhere near the generic gemstone default
+  Abalone:[18,9,5,2], 'Lava Stone':[8,4,2,1],
   // Varieties that are NOT worth roughly what their family is
   'Black Diamond':[60,40,25,12], 'Salt and Pepper Diamond':[180,120,70,30],
   'Champagne Diamond':[900,560,300,110], 'Yellow Diamond':[4000,2600,1400,500],
@@ -9402,6 +9404,7 @@ const STONE_TRANSLATIONS = {
   'Emerald':         'Σμαράγδι',
   'Ruby':            'Ρουμπίνι',
   'Sapphire':        'Ζαφείρι',
+  'Abalone':         'Αμπαλόνε',
   'Agate':           'Αχάτης',
   'Alexandrite':     'Αλεξανδρίτης',
   'Amazonite':       'Αμαζονίτης',
@@ -9424,6 +9427,7 @@ const STONE_TRANSLATIONS = {
   'Keshi Pearl':     'Κέσι Μαργαριτάρι',
   'Labradorite':     'Λαμπραδορίτης',
   'Lapis Lazuli':    'Λαπίς Λάζουλι',
+  'Lava Stone':      'Λάβα',
   'Malachite':       'Μαλαχίτης',
   'Moonstone':       'Φεγγαρόλιθος',
   'Morganite':       'Μοργκανίτης',
@@ -17170,6 +17174,7 @@ const STONE_ABBREV_MAP = {
   'LAP': 'Lapis Lazuli', 'LAB': 'Labradorite', 'AMA': 'Amazonite', 'CAR': 'Carnelian',
   'COR': 'Coral', 'COB': 'Cobalt Calcite',
   'APT': 'Apatite', 'BLP': 'Black Pearl',
+  'ABA': 'Abalone', 'LAV': 'Lava Stone',
   // Pearl varieties & Jade — 4-letter codes matching the historical no-carat fallback
   // (type.slice(0,4)), so tags already printed for these types keep scanning correctly.
   'AKOY': 'Akoya Pearl', 'FRES': 'Freshwater Pearl', 'JADE': 'Jade',
@@ -27188,9 +27193,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.60', date: 'Αύγουστος 2026', items: [
-        "💶 Showroom: φίλτρο τιμής με σταθερά κουτάκια (€0–200, €201–400 … €5001+). Ο πελάτης βλέπει μόνο σε ποια ζώνη πέφτει ένα κόσμημα — καμία τιμή, και κανένα πεδίο ή slider που θα του επέτρεπε να στενέψει τη ζώνη μέχρι να βρει το ακριβές ποσό.",
-        "🔄 Η ζώνη υπολογίζεται από την τρέχουσα τιμή πώλησης (με τη στρογγυλοποίηση που θα λέγατε κι εσείς) και ενημερώνεται μόνη της· εμφανίζεται στο showroom μόλις ανοίξετε μία φορά την καρτέλα Απόθεμα.",
+      { version: 'v12.61', date: 'Αύγουστος 2026', items: [
+        "📞 Πελάτες: πατώντας το τηλέφωνο ενός πελάτη ανοίγει πλέον μενού — Κλήση, WhatsApp, SMS ή Email — αντί να καλεί κατευθείαν. Το ίδιο και στο τηλέφωνο μιας κράτησης ή μιας δωροεπιταγής.",
+        "💎 Δύο νέες πέτρες: Λάβα και Αμπαλόνε (Abalone), σε ελληνικά και αγγλικά, διαθέσιμες παντού — καρτέλα, ετικέτα, φίλτρα και showroom.",
       ]},
       ]
   },
@@ -27221,9 +27226,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.60', date: 'Aug 2026', items: [
-        "💶 Showroom: a price filter made of fixed boxes (€0–200, €201–400 … €5001+). A customer sees only which band a piece falls in — never a price, and no box or slider they could narrow until it named the figure.",
-        "🔄 The band is worked out from the current selling price (rounded the way you would quote it) and keeps itself up to date; it appears in the showroom once you open the Stock tab.",
+      { version: 'v12.61', date: 'Aug 2026', items: [
+        "📞 Clients: tapping a client's phone number now opens a menu — Call, WhatsApp, SMS or Email — instead of dialling straight away. Same on a reservation's and a gift card's phone number.",
+        "💎 Two new stones: Lava Stone and Abalone, in Greek and English, available everywhere — card, tag, filters and showroom.",
       ]},
           ]
   }
@@ -29342,6 +29347,65 @@ function _callPhone(num) {
   window.location.href = 'tel:' + num.replace(/[^0-9+]/g, '');
 }
 
+// ── CONTACT SHEET ─────────────────────────────────────────────────────────────
+// Tapping a phone number opens this instead of going straight to the dialer:
+// call, WhatsApp, SMS or email. ONE sheet shared by Clients, Reservations and
+// Gift cards, so a phone number behaves the same wherever it appears — the same
+// three channels the Desk repair tickets already offer, minus the pre-filled
+// message (there is no ticket here to write about).
+function openContactSheet(phone, email, name) {
+  const isEl = lang === 'el';
+  const tel = String(phone || '').replace(/[^0-9+]/g, '');
+  const wa  = String(phone || '').replace(/[^0-9]/g, '');   // wa.me wants digits only
+  const mail = String(email || '').trim();
+  if (!tel && !mail) { showToast(isEl ? 'Χωρίς στοιχεία επικοινωνίας' : 'No contact details'); return; }
+  closeContactSheet();
+  const _e = s => String(s || '').replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]));
+  const ov = document.createElement('div');
+  ov.id = 'contactSheetOverlay';
+  // The values ride on the element, never inside an onclick string — a quote in an
+  // email or name would break the attribute.
+  ov.dataset.tel = tel; ov.dataset.wa = wa; ov.dataset.email = mail;
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  ov.onclick = e => { if (e.target === ov) closeContactSheet(); };
+  const btn = (ch, icon, label, col, bg, bd) => `<button onclick="_contactVia('${ch}')" style="width:100%;display:flex;align-items:center;gap:10px;background:${bg};border:1px solid ${bd};border-radius:10px;padding:14px 13px;margin-bottom:8px;color:${col};font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer">${icon} <span style="flex:1;text-align:left">${label}</span></button>`;
+  ov.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:420px;width:100%;padding:18px 18px 22px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name ? _e(name) : (isEl ? 'Επικοινωνία' : 'Contact')}</div>
+        <button onclick="closeContactSheet()" class="modal-x">✕</button>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-dim);margin-bottom:14px;overflow:hidden;text-overflow:ellipsis">${_e(phone || mail)}</div>
+      ${tel  ? btn('call',     '📞', isEl ? 'Κλήση' : 'Call', '#4bd07f', 'rgba(75,208,127,0.12)', 'rgba(75,208,127,0.35)') : ''}
+      ${wa   ? btn('whatsapp', '💬', 'WhatsApp', '#25d366', 'rgba(37,211,102,0.14)', 'rgba(37,211,102,0.4)') : ''}
+      ${tel  ? btn('sms',      '✉️', 'SMS', 'var(--gold-light)', 'rgba(212,175,55,0.1)', 'rgba(212,175,55,0.35)') : ''}
+      ${mail ? btn('email',    '📧', 'Email', 'var(--gold-light)', 'rgba(212,175,55,0.1)', 'rgba(212,175,55,0.35)') : ''}
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function closeContactSheet() { document.getElementById('contactSheetOverlay')?.remove(); }
+
+function _contactVia(channel) {
+  const ov = document.getElementById('contactSheetOverlay'); if (!ov) return;
+  const tel = ov.dataset.tel, wa = ov.dataset.wa, mail = ov.dataset.email;
+  closeContactSheet();
+  if (channel === 'call') window.location.href = 'tel:' + tel;
+  else if (channel === 'whatsapp') window.open('https://wa.me/' + wa, '_blank');
+  else if (channel === 'sms') window.location.href = 'sms:' + tel;
+  else if (channel === 'email') window.location.href = 'mailto:' + mail;
+}
+
+// The phone tap on a card: look the record up by id, so the name/email never has
+// to survive a trip through an HTML attribute.
+function contactFromRecord(kind, id) {
+  let p = '', e = '', n = '';
+  if (kind === 'client') { const c = getClients().find(x => x.id === id); if (c) { p = c.phone; e = c.email; n = c.name; } }
+  else if (kind === 'res') { const r = getReservations().find(x => x.id === id); if (r) { p = r.clientPhone; e = r.clientEmail; n = r.clientName; } }
+  else if (kind === 'gift') { const g = getGiftCards().find(x => x.id === id); if (g) { p = g.buyerPhone; e = g.buyerEmail; n = g.buyerName; } }
+  openContactSheet(p, e, n);
+}
+
 // ── COUNTRY DIAL CODES (phone fields) ─────────────────────────────────────────
 // Greece default; broad enough for a tourist island (EU + common visitor origins).
 const COUNTRY_DIAL = [
@@ -29699,7 +29763,7 @@ function renderClients(filter) {
           </div>
         </div>
         ${c.email?`<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:2px">✉ ${c.email}</div>`:''}
-        ${c.phone?`<div onclick="event.stopPropagation();_callPhone('${(c.phone||'').replace(/[^0-9+]/g,'')}')" title="${lang==='el'?'Κλήση':'Call'}" style="font-family:var(--font-mono);font-size:12px;color:#4bd07f;margin-bottom:3px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600">📞 ${c.phone}</div>`:''}
+        ${c.phone?`<div onclick="event.stopPropagation();contactFromRecord('client','${c.id}')" title="${lang==='el'?'Κλήση, WhatsApp ή SMS':'Call, WhatsApp or SMS'}" style="font-family:var(--font-mono);font-size:12px;color:#4bd07f;margin-bottom:3px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600">📞 ${c.phone}</div>`:''}
         ${addedStr?`<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:3px">🗓 ${lang==='el'?'Προστέθηκε':'Added'} ${addedStr}</div>`:''}
         ${c.notes?`<div style="font-family:var(--font-body);font-size:11px;color:var(--text-dim);font-style:italic;margin-top:5px;line-height:1.4">${c.notes}</div>`:''}
       </div>
@@ -31840,7 +31904,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.60';
+const APP_VERSION = '12.61';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
