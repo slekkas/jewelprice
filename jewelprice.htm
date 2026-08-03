@@ -9304,41 +9304,60 @@ let _stoneEstimatePerRow = []; // per-stone prices from last AI/offline estimate
 // Adding a variety here means it also needs: a Greek name (STONE_TRANSLATIONS), a unique
 // abbreviation (STONE_ABBREV_MAP) and — in showroom.htm — a plural (STONE_PLURAL_*).
 const STONE_FAMILIES = {
-  'Diamond':    ['Black Diamond','Champagne Diamond','Yellow Diamond','Pink Diamond','Salt and Pepper Diamond'],
-  'Sapphire':   ['Pink Sapphire','Yellow Sapphire','White Sapphire','Green Sapphire','Padparadscha Sapphire'],
+  'Diamond':    ['Black Diamond','Champagne Diamond','Yellow Diamond','Pink Diamond','Blue Diamond','Grey Diamond','Salt and Pepper Diamond'],
+  'Ruby':       ['Star Ruby'],
+  'Sapphire':   ['Pink Sapphire','Yellow Sapphire','White Sapphire','Green Sapphire','Purple Sapphire','Star Sapphire','Padparadscha Sapphire'],
   'Pearl':      ['Akoya Pearl','Baroque Pearl','Black Pearl','Freshwater Pearl','Keshi Pearl','Mother of Pearl','South Sea Pearl','Tahitian Pearl'],
-  'Agate':      ['Blue Lace Agate','Moss Agate'],
-  'Coral':      ['Red Coral','Pink Coral','Black Coral'],
-  'Garnet':     ['Rhodolite Garnet','Tsavorite Garnet','Spessartite Garnet'],
-  'Moonstone':  ['Rainbow Moonstone','Peach Moonstone'],
-  'Opal':       ['White Opal','Black Opal','Fire Opal','Boulder Opal'],
-  'Quartz':     ['Rose Quartz','Smoky Quartz','Rutilated Quartz','Lemon Quartz','Clear Quartz'],
-  'Spinel':     ['Black Spinel'],
-  'Topaz':      ['Blue Topaz','London Blue Topaz','Swiss Blue Topaz','White Topaz','Imperial Topaz','Mystic Topaz'],
-  'Tourmaline': ['Pink Tourmaline','Green Tourmaline','Watermelon Tourmaline','Black Tourmaline','Paraiba Tourmaline'],
+  'Agate':      ['Blue Lace Agate','Moss Agate','Dendritic Agate','Botswana Agate','Fire Agate'],
+  'Amber':      ['Baltic Amber','Green Amber','Cherry Amber'],
+  'Aventurine': ['Green Aventurine','Blue Aventurine'],
+  'Chalcedony': ['Blue Chalcedony'],
+  'Coral':      ['Red Coral','Pink Coral','White Coral','Black Coral','Fossil Coral'],
+  'Garnet':     ['Rhodolite Garnet','Almandine Garnet','Tsavorite Garnet','Spessartite Garnet','Demantoid Garnet'],
+  'Jasper':     ['Red Jasper','Picture Jasper','Ocean Jasper','Dalmatian Jasper'],
+  'Moonstone':  ['Rainbow Moonstone','Peach Moonstone','Blue Moonstone','Grey Moonstone'],
+  'Obsidian':   ['Snowflake Obsidian'],
+  'Onyx':       ['Black Onyx','Green Onyx'],
+  'Opal':       ['White Opal','Black Opal','Fire Opal','Boulder Opal','Ethiopian Opal','Pink Opal'],
+  'Quartz':     ['Rose Quartz','Smoky Quartz','Rutilated Quartz','Lemon Quartz','Clear Quartz','Milky Quartz','Strawberry Quartz'],
+  'Spinel':     ['Black Spinel','Red Spinel','Blue Spinel'],
+  'Tiger Eye':  ['Blue Tiger Eye','Red Tiger Eye'],
+  'Topaz':      ['Blue Topaz','London Blue Topaz','Swiss Blue Topaz','White Topaz','Pink Topaz','Imperial Topaz','Mystic Topaz'],
+  'Tourmaline': ['Pink Tourmaline','Green Tourmaline','Watermelon Tourmaline','Black Tourmaline','Rubellite Tourmaline','Indicolite Tourmaline','Paraiba Tourmaline'],
 };
 // Header shown on a collapsed family row. Written out per family because Greek plurals
 // (and their agreement with «όλα/όλες/όλοι») cannot be derived mechanically.
 const STONE_FAMILY_LABELS = {
   'Diamond':    { en: 'Diamonds (all)',    el: 'Διαμάντια (όλα)' },
+  'Ruby':       { en: 'Rubies (all)',      el: 'Ρουμπίνια (όλα)' },
   'Sapphire':   { en: 'Sapphires (all)',   el: 'Ζαφείρια (όλα)' },
   'Pearl':      { en: 'Pearls (all)',      el: 'Μαργαριτάρια (όλα)' },
   'Agate':      { en: 'Agates (all)',      el: 'Αχάτες (όλοι)' },
+  'Amber':      { en: 'Amber (all)',       el: 'Κεχριμπάρια (όλα)' },
+  'Aventurine': { en: 'Aventurine (all)',  el: 'Αβεντουρίνες (όλες)' },
+  'Chalcedony': { en: 'Chalcedony (all)',  el: 'Χαλκηδόνιοι (όλοι)' },
   'Coral':      { en: 'Corals (all)',      el: 'Κοράλλια (όλα)' },
   'Garnet':     { en: 'Garnets (all)',     el: 'Γρανάτες (όλοι)' },
+  'Jasper':     { en: 'Jasper (all)',      el: 'Ίασπεις (όλοι)' },
   'Moonstone':  { en: 'Moonstones (all)',  el: 'Φεγγαρόλιθοι (όλοι)' },
+  'Obsidian':   { en: 'Obsidian (all)',    el: 'Οψιδιανοί (όλοι)' },
+  'Onyx':       { en: 'Onyx (all)',        el: 'Όνυχες (όλοι)' },
   'Opal':       { en: 'Opals (all)',       el: 'Οπάλια (όλα)' },
   'Quartz':     { en: 'Quartz (all)',      el: 'Χαλαζίες (όλοι)' },
   'Spinel':     { en: 'Spinels (all)',     el: 'Σπινέλιοι (όλοι)' },
+  'Tiger Eye':  { en: 'Tiger Eye (all)',   el: 'Μάτια Τίγρης (όλα)' },
   'Topaz':      { en: 'Topaz (all)',       el: 'Τοπάζια (όλα)' },
   'Tourmaline': { en: 'Tourmalines (all)', el: 'Τουρμαλίνες (όλες)' },
 };
 // Display order of the stones that stand on their own or head a family: the four
 // precious ones + Pearl first, then alphabetical.
-const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl','Abalone','Agate','Alexandrite','Amazonite',
-  'Amethyst','Ametrine','Apatite','Aquamarine','Carnelian','Citrine','Cobalt Calcite','Coral','Crystal',
-  'Garnet','Hematite','Jade','Labradorite','Lapis Lazuli','Lava Stone','Malachite','Moonstone','Morganite','Onyx',
-  'Opal','Peridot','Quartz','Spinel','Tanzanite','Topaz','Tourmaline','Turquoise','Zircon'];
+const STONE_ORDER = ['Diamond','Emerald','Ruby','Sapphire','Pearl',
+  'Abalone','Agate','Alexandrite','Amazonite','Amber','Amethyst','Ametrine','Apatite','Aquamarine','Aventurine',
+  'Bloodstone','Carnelian','Chalcedony','Chrome Diopside','Chrysoprase','Citrine','Cobalt Calcite','Coral','Crystal',
+  'Fluorite','Garnet','Hematite','Howlite','Iolite','Jade','Jasper','Kunzite','Kyanite','Labradorite','Lapis Lazuli',
+  'Larimar','Lava Stone','Malachite','Marcasite','Moldavite','Moonstone','Morganite','Obsidian','Onyx','Opal',
+  'Peridot','Prehnite','Pyrite','Quartz','Rhodochrosite','Rhodonite','Selenite','Sodalite','Spinel','Sunstone',
+  'Tanzanite','Tiger Eye','Topaz','Tourmaline','Turquoise','Unakite','Zircon'];
 // The flat list every other consumer uses — DERIVED, so a family edit can never leave it stale.
 const STONE_TYPES = STONE_ORDER.flatMap(s => STONE_FAMILIES[s] ? [s, ...STONE_FAMILIES[s]] : [s]);
 // Variety (or parent) → parent name. A stone standing on its own maps to itself.
@@ -9367,18 +9386,32 @@ const COLORED_PER_CT = {
   Opal:[320,160,64,24], Pearl:[240,128,56,18], Peridot:[80,40,19,7],
   Spinel:[480,240,96,32], Tanzanite:[640,320,128,48], Topaz:[96,48,22,8],
   Tourmaline:[320,160,64,24], Turquoise:[65,32,16,6],
-  Agate:[30,15,8,3], Onyx:[35,18,9,4], Crystal:[20,10,5,2],
+  Agate:[30,15,8,3], Onyx:[35,18,9,4], Crystal:[20,10,5,2], Coral:[90,45,20,8],
   // Organic / bead materials — nowhere near the generic gemstone default
   Abalone:[18,9,5,2], 'Lava Stone':[8,4,2,1],
+  // Semi-precious / bead materials added in v12.62 — all far below the generic default
+  Prehnite:[30,15,8,3], Amber:[25,12,6,2], Aventurine:[8,4,2,1], Bloodstone:[12,6,3,1],
+  Chalcedony:[25,12,6,2], 'Chrome Diopside':[90,45,20,8], Chrysoprase:[60,30,14,5],
+  Fluorite:[15,8,4,2], Howlite:[6,3,2,1], Iolite:[70,35,16,6], Jasper:[8,4,2,1],
+  Kunzite:[90,45,20,8], Kyanite:[45,22,10,4], Larimar:[45,22,10,4], Marcasite:[6,3,2,1],
+  Moldavite:[140,70,35,14], Obsidian:[8,4,2,1], Pyrite:[8,4,2,1], Rhodochrosite:[50,25,12,5],
+  Rhodonite:[15,8,4,2], Selenite:[6,3,2,1], Sodalite:[10,5,3,1], Sunstone:[45,22,10,4],
+  'Tiger Eye':[12,6,3,1], Unakite:[8,4,2,1],
   // Varieties that are NOT worth roughly what their family is
   'Black Diamond':[60,40,25,12], 'Salt and Pepper Diamond':[180,120,70,30],
   'Champagne Diamond':[900,560,300,110], 'Yellow Diamond':[4000,2600,1400,500],
-  'Pink Diamond':[30000,20000,11000,4000],
-  'Padparadscha Sapphire':[2600,1300,520,200],
+  'Pink Diamond':[30000,20000,11000,4000], 'Blue Diamond':[40000,26000,14000,5000],
+  'Grey Diamond':[200,130,80,35],
+  'Padparadscha Sapphire':[2600,1300,520,200], 'Star Sapphire':[300,150,60,25],
+  'Star Ruby':[400,200,80,30],
   'Paraiba Tourmaline':[6000,3000,1200,450],
+  'Rubellite Tourmaline':[500,250,100,40], 'Indicolite Tourmaline':[450,220,90,35],
   'Tsavorite Garnet':[900,450,180,70], 'Spessartite Garnet':[420,210,85,32],
+  'Demantoid Garnet':[1400,700,280,110],
   'Black Opal':[900,450,180,70], 'Fire Opal':[180,90,36,14],
-  'Mother of Pearl':[12,6,3,1],
+  'Ethiopian Opal':[140,70,28,11], 'Pink Opal':[40,20,10,4],
+  'Red Spinel':[900,450,180,70], 'Blue Spinel':[700,350,140,55],
+  'Mother of Pearl':[12,6,3,1], 'Fossil Coral':[12,6,3,1],
 };
 const COLORED_PER_CT_DEFAULT = [160,80,32,12];
 // Guide price for a stone: its own row, else its family's, else the generic fallback.
@@ -9487,6 +9520,72 @@ const STONE_TRANSLATIONS = {
   'Watermelon Tourmaline':   'Τουρμαλίνης Καρπούζι',
   'Black Tourmaline':        'Μαύρος Τουρμαλίνης',
   'Paraiba Tourmaline':      'Τουρμαλίνης Paraiba',
+  // ── stones & varieties added v12.62 ──
+  // Greek names supplied by the owner from what Greek jewellery sites actually write,
+  // set in the app's own Title Case so they read consistently beside the existing ones.
+  'Prehnite':                'Πρενίτης',
+  'Amber':                   'Κεχριμπάρι',
+  'Baltic Amber':            'Κεχριμπάρι Βαλτικής',
+  'Green Amber':             'Πράσινο Κεχριμπάρι',
+  'Cherry Amber':            'Κεχριμπάρι Κερασί',
+  'Aventurine':              'Αβεντουρίνη',
+  'Green Aventurine':        'Πράσινη Αβεντουρίνη',
+  'Blue Aventurine':         'Μπλε Αβεντουρίνη',
+  'Bloodstone':              'Αιματόπετρα',
+  'Chalcedony':              'Χαλκηδόνιος',
+  'Blue Chalcedony':         'Μπλε Χαλκηδόνιος',
+  'Chrome Diopside':         'Διοψίδιος Χρωμίου',
+  'Chrysoprase':             'Χρυσοπράσιος',
+  'Fluorite':                'Φθορίτης',
+  'Howlite':                 'Χαουλίτης',
+  'Iolite':                  'Ιολίτης',
+  'Jasper':                  'Ίασπις',
+  'Red Jasper':              'Κόκκινος Ίασπις',
+  'Picture Jasper':          'Ίασπις Picture',
+  'Ocean Jasper':            'Ίασπις Ocean',
+  'Dalmatian Jasper':        'Ίασπις Δαλματίας',
+  'Kunzite':                 'Κουνζίτης',
+  'Kyanite':                 'Κυανίτης',
+  'Larimar':                 'Λάριμαρ',
+  'Marcasite':               'Μαρκασίτης',
+  'Moldavite':               'Μολδαβίτης',
+  'Obsidian':                'Οψιδιανός',
+  'Snowflake Obsidian':      'Οψιδιανός Χιονονιφάδα',
+  'Pyrite':                  'Πυρίτης',
+  'Rhodochrosite':           'Ροδοχρωσίτης',
+  'Rhodonite':               'Ροδονίτης',
+  'Selenite':                'Σελενίτης',
+  'Sodalite':                'Σοδαλίτης',
+  'Sunstone':                'Ηλιόλιθος',
+  'Tiger Eye':               'Μάτι Τίγρης',
+  'Blue Tiger Eye':          'Μπλε Μάτι Τίγρης',
+  'Red Tiger Eye':           'Κόκκινο Μάτι Τίγρης',
+  'Unakite':                 'Ουνακίτης',
+  'Blue Diamond':            'Μπλε Διαμάντι',
+  'Grey Diamond':            'Γκρι Διαμάντι',
+  'Star Ruby':               'Αστεροειδές Ρουμπίνι',
+  'Purple Sapphire':         'Μωβ Ζαφείρι',
+  'Star Sapphire':           'Αστεροειδές Ζαφείρι',
+  'Dendritic Agate':         'Δενδριτικός Αχάτης',
+  'Botswana Agate':          'Αχάτης Μποτσουάνα',
+  'Fire Agate':              'Αχάτης της Φωτιάς',
+  'White Coral':             'Λευκό Κοράλλι',
+  'Fossil Coral':            'Απολιθωμένο Κοράλλι',
+  'Almandine Garnet':        'Γρανάτης Αλμανδίνης',
+  'Demantoid Garnet':        'Αδαμαντοειδής Γρανάτης',
+  'Blue Moonstone':          'Μπλε Φεγγαρόπετρα',
+  'Grey Moonstone':          'Γκρι Φεγγαρόπετρα',
+  'Black Onyx':              'Μαύρος Όνυχας',
+  'Green Onyx':              'Πράσινος Όνυχας',
+  'Ethiopian Opal':          'Αιθιοπικός Οπάλιος',
+  'Pink Opal':               'Ροζ Οπάλιος',
+  'Milky Quartz':            'Γαλακτώδης Χαλαζίας',
+  'Strawberry Quartz':       'Χαλαζίας Φράουλα',
+  'Red Spinel':              'Κόκκινος Σπινέλιος',
+  'Blue Spinel':             'Μπλε Σπινέλιος',
+  'Pink Topaz':              'Ροζ Τοπάζι',
+  'Rubellite Tourmaline':    'Τουρμαλίνη Ρουμπελίτης',
+  'Indicolite Tourmaline':   'Τουρμαλίνη Ιντικολίτης',
 };
 // Helper: translate stone type for display
 // Language-explicit stone name. The document builders (quote, certificate) are handed an
@@ -17199,7 +17298,38 @@ const STONE_ABBREV_MAP = {
   'BLT': 'Blue Topaz',      'LBT': 'London Blue Topaz', 'SBT': 'Swiss Blue Topaz',
   'WHT': 'White Topaz',     'IMT': 'Imperial Topaz',    'MYT': 'Mystic Topaz',
   'PKT': 'Pink Tourmaline', 'GRT': 'Green Tourmaline',  'WMT': 'Watermelon Tourmaline',
-  'BKT': 'Black Tourmaline','PBT': 'Paraiba Tourmaline'
+  'BKT': 'Black Tourmaline','PBT': 'Paraiba Tourmaline',
+  // ── stones & varieties added v12.62 — same rule: three letters, never reused ──
+  'PRE': 'Prehnite',
+  'AMB': 'Amber',           'BAM': 'Baltic Amber',      'GAM': 'Green Amber',
+  'CAM': 'Cherry Amber',
+  'AVE': 'Aventurine',      'GAV': 'Green Aventurine',  'BAV': 'Blue Aventurine',
+  'BLS': 'Bloodstone',
+  'CHA': 'Chalcedony',      'BCH': 'Blue Chalcedony',
+  'CDI': 'Chrome Diopside', 'CHR': 'Chrysoprase',       'FLU': 'Fluorite',
+  'HOW': 'Howlite',         'IOL': 'Iolite',
+  'JAS': 'Jasper',          'RJA': 'Red Jasper',        'PJA': 'Picture Jasper',
+  'OJA': 'Ocean Jasper',    'DJA': 'Dalmatian Jasper',
+  'KUN': 'Kunzite',         'KYA': 'Kyanite',           'LAR': 'Larimar',
+  'MAR': 'Marcasite',       'MOL': 'Moldavite',
+  'OBS': 'Obsidian',        'SNO': 'Snowflake Obsidian',
+  'PYR': 'Pyrite',          'RHC': 'Rhodochrosite',     'RHO': 'Rhodonite',
+  'SEL': 'Selenite',        'SOD': 'Sodalite',          'SUN': 'Sunstone',
+  'TIE': 'Tiger Eye',       'BTE': 'Blue Tiger Eye',    'RTE': 'Red Tiger Eye',
+  'UNA': 'Unakite',
+  'BUD': 'Blue Diamond',    'GYD': 'Grey Diamond',
+  'STR': 'Star Ruby',
+  'PUS': 'Purple Sapphire', 'STS': 'Star Sapphire',
+  'DEA': 'Dendritic Agate', 'BWA': 'Botswana Agate',    'FIA': 'Fire Agate',
+  'WCO': 'White Coral',     'FCO': 'Fossil Coral',
+  'ALG': 'Almandine Garnet','DEG': 'Demantoid Garnet',
+  'BMO': 'Blue Moonstone',  'GMO': 'Grey Moonstone',
+  'BON': 'Black Onyx',      'GON': 'Green Onyx',
+  'ETO': 'Ethiopian Opal',  'PKO': 'Pink Opal',
+  'MIQ': 'Milky Quartz',    'STQ': 'Strawberry Quartz',
+  'RSP': 'Red Spinel',      'BSL': 'Blue Spinel',
+  'PNT': 'Pink Topaz',
+  'RBT': 'Rubellite Tourmaline', 'INT': 'Indicolite Tourmaline'
 };
 
 // Every stone in the picker must be encodable on a tag, and no two may share a code —
@@ -27193,9 +27323,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.61', date: 'Αύγουστος 2026', items: [
-        "📞 Πελάτες: πατώντας το τηλέφωνο ενός πελάτη ανοίγει πλέον μενού — Κλήση, WhatsApp, SMS ή Email — αντί να καλεί κατευθείαν. Το ίδιο και στο τηλέφωνο μιας κράτησης ή μιας δωροεπιταγής.",
-        "💎 Δύο νέες πέτρες: Λάβα και Αμπαλόνε (Abalone), σε ελληνικά και αγγλικά, διαθέσιμες παντού — καρτέλα, ετικέτα, φίλτρα και showroom.",
+      { version: 'v12.62', date: 'Αύγουστος 2026', items: [
+        "💎 Μεγάλη επέκταση πετρών: προστέθηκε ο Πρενίτης που ζητήθηκε, μαζί με 24 ακόμη δημοφιλείς πέτρες (Κεχριμπάρι, Αβεντουρίνης, Χαλκηδόνιος, Χρυσόπρασος, Φθορίτης, Χαουλίτης, Ιολίτης, Ίασπις, Κουνζίτης, Κυανίτης, Λαριμάρ, Μαρκασίτης, Μολδαβίτης, Οψιδιανός, Πυρίτης, Ροδοχρωσίτης, Ροδονίτης, Σεληνίτης, Σοδαλίτης, Ηλιόλιθος, Μάτι Τίγρη, Ουνακίτης, Αιματόλιθος, Διοψίδιο).",
+        "🎨 Νέες παραλλαγές χρώματος σε πέτρες που ήδη είχατε: Μπλε & Γκρι Διαμάντι, Ρουμπίνι Αστέρι, Μωβ & Αστέρι Ζαφείρι, τρεις ακόμη Αχάτες, Λευκό & Απολιθωμένο Κοράλλι, Αλμανδίνης & Δεμαντοειδής Γρανάτης, Μπλε & Γκρι Φεγγαρόλιθος, Μαύρος & Πράσινος Όνυχας, Οπάλιο Αιθιοπίας & Ροζ Οπάλιο, Γαλακτώδης & Φράουλα Χαλαζίας, Κόκκινος & Μπλε Σπινέλιος, Ροζ Τοπάζιο, Ρουμπελίτης & Ινδικολίτης Τουρμαλίνης.",
+        "📋 Όλες οι νέες πέτρες δουλεύουν παντού — λίστα επιλογής (ομαδοποιημένες ανά οικογένεια), κωδικός ετικέτας, εκτίμηση τιμής, φίλτρα και showroom, σε ελληνικά και αγγλικά.",
       ]},
       ]
   },
@@ -27226,9 +27357,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.61', date: 'Aug 2026', items: [
-        "📞 Clients: tapping a client's phone number now opens a menu — Call, WhatsApp, SMS or Email — instead of dialling straight away. Same on a reservation's and a gift card's phone number.",
-        "💎 Two new stones: Lava Stone and Abalone, in Greek and English, available everywhere — card, tag, filters and showroom.",
+      { version: 'v12.62', date: 'Aug 2026', items: [
+        "💎 Big stone expansion: Prehnite as requested, plus 24 more popular stones (Amber, Aventurine, Chalcedony, Chrysoprase, Fluorite, Howlite, Iolite, Jasper, Kunzite, Kyanite, Larimar, Marcasite, Moldavite, Obsidian, Pyrite, Rhodochrosite, Rhodonite, Selenite, Sodalite, Sunstone, Tiger Eye, Unakite, Bloodstone, Chrome Diopside).",
+        "🎨 New colour varieties of stones you already had: Blue & Grey Diamond, Star Ruby, Purple & Star Sapphire, three more Agates, White & Fossil Coral, Almandine & Demantoid Garnet, Blue & Grey Moonstone, Black & Green Onyx, Ethiopian & Pink Opal, Milky & Strawberry Quartz, Red & Blue Spinel, Pink Topaz, Rubellite & Indicolite Tourmaline.",
+        "📋 Every new stone works everywhere — the picker (grouped by family), the tag code, price estimates, filters and the showroom, in both Greek and English.",
       ]},
           ]
   }
@@ -31904,7 +32036,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.61';
+const APP_VERSION = '12.62';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
