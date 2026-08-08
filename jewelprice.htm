@@ -2975,6 +2975,10 @@
       </div>
       <button onclick="clearNotifFilter()" style="flex-shrink:0;background:transparent;border:none;color:#3DAA6A;font-size:20px;cursor:pointer;padding:0;line-height:1;margin-top:-2px">✕</button>
     </div>
+    <!-- Consignment totals for the CURRENT filtered view. The header cards only value
+         in-stock goods, so with the Sold filter on they read "—" exactly when the numbers
+         matter most. Owner/manager only (it is cost data). -->
+    <div id="invConsignBar" style="display:none;background:rgba(111,201,168,0.07);border:1px solid rgba(111,201,168,0.32);border-radius:12px;padding:11px 13px;margin-bottom:12px"></div>
     <div id="invList"></div>
   </div>
 </div>
@@ -21624,6 +21628,106 @@ function isReturnedToVendor(item) { return !!item && item.status === 'returned';
 // What you still owe a vendor: sold, on consignment, not yet settled.
 function consignOwed(item) { return isConsignment(item) && item.status === 'sold' && !item.consignSettledAt; }
 
+// ── What a consignment piece is worth to the vendor and to you ───────────────
+// The sale AMOUNT and the PROFIT live on the sale record, never on the item — and the
+// record's own `profit` already knows the VAT / cash / gift-certificate rules, so it is
+// read back rather than recomputed (the v12.45 lesson: one source for money).
+//
+// A piece is matched to its sale by record id first (`invId`, stamped since v11.78), then
+// by code — and a matched record is CONSUMED, so two pieces sharing a descriptive code
+// cannot both claim the same sale.
+function _consignMatchSale(id, item, pool) {
+  let i = pool.findIndex(s => s.invId === id);
+  if (i < 0) {
+    const k = _qrKey(item.qrCode || item.code || '');
+    if (k) i = pool.findIndex(s => s.invQr && _qrKey(s.invQr) === k);
+  }
+  if (i < 0) return null;
+  return pool.splice(i, 1)[0];
+}
+// Sale records that could belong to a sold piece: real sales only. A RETURN is a negative
+// mirror of a sale (v11.46) and must never be counted as one; scrap-gain, repair income
+// and gift breakage are not item sales at all. A GIVEAWAY stays in — the piece left the
+// shop for nothing, and you still owe the vendor for it.
+function _consignSalePool() {
+  return (_salesCache || []).filter(s => s && !s.returnOfSaleId && !s.scrapGain && !s.repairIncome && !s.giftBreakage);
+}
+
+// Totals for the rows currently on screen. Deliberately view-scoped: it answers
+// "what am I looking at", which is what the filters were used to ask.
+function consignViewTotals(rows) {
+  const pool = _consignSalePool();
+  const T = { n: 0, owed: 0, settled: 0, inStock: 0, sales: 0, profit: 0, sold: 0, unmatched: 0 };
+  for (const [id, item] of rows) {
+    if (!isConsignment(item)) continue;
+    T.n++;
+    const cost = _invSaleCost(item) || 0;
+    if (item.status === 'sold') {
+      T.sold++;
+      if (item.consignSettledAt) T.settled += cost; else T.owed += cost;
+      const rec = _consignMatchSale(id, item, pool);
+      if (rec) { T.sales += parseFloat(rec.amount) || 0; T.profit += parseFloat(rec.profit) || 0; }
+      else T.unmatched++;
+    } else if (item.status === 'in_stock') T.inStock += cost;
+  }
+  return T;
+}
+
+// One-shot: the bar needs the sales records, which are normally already in memory from
+// the boot sync. If they are not, load them once and repaint — never in a loop.
+let _consignSalesTried = false;
+function renderConsignBar(rows) {
+  const bar = document.getElementById('invConsignBar'); if (!bar) return;
+  if (!can('see_cost')) { bar.style.display = 'none'; return; }
+  const T = consignViewTotals(rows);
+  if (!T.n) { bar.style.display = 'none'; return; }
+  if (T.sold && !_salesCache && !_consignSalesTried) {
+    _consignSalesTried = true;
+    getSales().then(() => { if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList(); }).catch(() => {});
+  }
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const cell = (lbl, val, colour) => `<div style="flex:1 1 0;min-width:0;text-align:center">
+      <div style="font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lbl}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${colour}">${val}</div>
+    </div>`;
+  // Nothing has sold in this view → "you owe €0.00" is noise; the useful fact is simply
+  // how much of someone else's stock you are holding.
+  const cells = [];
+  if (T.sold) {
+    cells.push(cell(t('consignOwe'), cur + T.owed.toFixed(2), T.owed > 0 ? '#e0a85a' : 'var(--text-dim)'));
+    cells.push(cell(isEl ? 'Πωλήσεις' : 'Sales', cur + T.sales.toFixed(2), 'var(--gold-light)'));
+    cells.push(cell(isEl ? 'Κέρδος' : 'Profit', cur + T.profit.toFixed(2), T.profit >= 0 ? '#6fc9a8' : '#e57373'));
+    if (T.inStock > 0) cells.push(cell(isEl ? 'Στο ράφι' : 'On the shelf', cur + T.inStock.toFixed(2), 'var(--text)'));
+  } else {
+    cells.push(cell(isEl ? 'Αξία στο ράφι' : 'Value on the shelf', cur + T.inStock.toFixed(2), 'var(--text)'));
+  }
+  const notes = [];
+  if (T.settled > 0) notes.push((isEl ? 'εξοφλημένα' : 'settled') + ' ' + cur + T.settled.toFixed(2));
+  // Never let a total look complete when it is short — say how many sales could not be found.
+  if (T.unmatched) notes.push('⚠️ ' + T.unmatched + ' ' + (isEl ? 'χωρίς εγγραφή πώλησης' : 'with no sale record'));
+  bar.innerHTML = `<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+      <span style="font-size:13px">🤝</span>
+      <span style="flex:1;min-width:0;font-family:var(--font-body);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:#6fc9a8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isEl ? 'Παρακαταθήκη' : 'Consignment'} · ${T.n} ${_piecesWord(T.n)}</span>
+    </div>
+    <div style="display:flex;gap:8px">${cells.join('')}</div>
+    ${notes.length ? `<div style="font-size:10px;color:var(--text-muted);margin-top:7px;text-align:center">${notes.join(' · ')}</div>` : ''}`;
+  bar.style.display = '';
+}
+
+// The per-card line: what this one piece means for the vendor.
+function _consignCardLine(id, item) {
+  if (!isConsignment(item) || !can('see_cost')) return '';
+  const cur = state.currency || '€';
+  const cost = _invSaleCost(item) || 0;
+  const isEl = lang === 'el';
+  const txt = item.status === 'sold'
+    ? (item.consignSettledAt
+        ? { lbl: t('consignSettled'), col: 'var(--text-dim)' }
+        : { lbl: t('consignOwe'), col: '#e0a85a' })
+    : { lbl: (isEl ? 'Θα οφείλετε' : 'You will owe'), col: 'var(--text-dim)' };
+  return `<div style="font-size:11px;color:${txt.col};margin-bottom:6px;font-family:'DM Mono',monospace">🤝 ${txt.lbl}: ${cur}${cost.toFixed(2)}</div>`;
+}
+
 function _statusPillLabel(v) {
   return v === 'sold'     ? t('invFilterSold2')
        : v === 'returned' ? t('invFilterReturned')
@@ -22833,6 +22937,9 @@ function renderInvList() {
   // Update summary to reflect filtered results (coins INCLUDED — the totals must not
   // change when coins are hidden from the list below).
   renderInvSummary(filtered);
+  // Consignment totals for exactly what is on screen. Placed here, on the same rows the
+  // summary uses, so the two can never describe different sets of pieces.
+  renderConsignBar(filtered);
 
   // Coins and raw-metal lots are hidden from the Stock list by default — they only appear
   // when their type ("Coin" / "Metal") filter is chosen (or during a search). Their value
@@ -23204,6 +23311,7 @@ function renderInvList() {
         <div class="inv-card-meta">${metaLine}${vendorLine ? '<br>' + vendorLine : ''}${stonesLine ? '<br>' + stonesLine : ''}${dateLine ? '<br>' + dateLine : ''}</div>
         ${item.isCoin ? coinPriceHtml : (_isEmpInv ? '' : `<div class="inv-card-price">${priceStr}</div>`)}
         ${appreciationHtml}
+        ${_consignCardLine(id, item)}
         ${actionsHtml}
       </div>`;
   };
@@ -28158,21 +28266,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.65', date: 'Αύγουστος 2026', items: [
-        "📦 Νέα ενότητα «Παραγγελίες» στο Γραφείο. Οι παραγγελίες δεν κρύβονται πια κάτω από τις Επισκευές — έχουν δικό τους χώρο, με τέσσερις καρτέλες σε πλέγμα 2×2 (Κρατήσεις · Παραγγελίες · Επισκευές · Επιταγές).",
-        "📦 Δύο είδη παραγγελίας: «Παραγγελία» για κόσμημα που υπάρχει και το παραγγέλνετε από προμηθευτή, και «Ειδική κατασκευή» για κάτι που φτιάχνεται από την αρχή. Πριν, όλα ήταν «custom order».",
-        "🔤 Η κατάσταση λέει πλέον την αλήθεια ανά είδος: μια παραγγελία «Παραγγέλθηκε» και μετά «Έφτασε» — μια επισκευή είναι «Σε εξέλιξη» και μετά «Έτοιμο». Το ίδιο και στο μήνυμα προς τον πελάτη και στο τυπωμένο έντυπο.",
-        "🔢 Οι νέες παραγγελίες παίρνουν δική τους σειρά αριθμών (O-0001). Τα δελτία που έχετε ήδη τυπώσει κρατούν τον αριθμό τους — τίποτα δεν αλλάζει.",
-        "📥 Όταν φτάνει η παραγγελία: προσθέτετε τα κομμάτια στο απόθεμα ως συνήθως και μετά τα «συνδέετε» στην παραγγελία σαρώνοντας την ετικέτα του καθενός.",
-        "🔒 Τα συνδεδεμένα κομμάτια κρατούνται για τον πελάτη — φεύγουν από τη βιτρίνα και κανείς δεν μπορεί να τα πουλήσει κατά λάθος.",
-        "💰 Η «Παραλαβή & πώληση» τα πουλάει κανονικά στη συμφωνημένη τιμή: μία συναλλαγή, ένα κομμάτι ανά εγγραφή, με πραγματικό κόστος και κέρδος από το απόθεμα — όχι από νούμερο που πληκτρολογείτε.",
-        "🤝 Παρακαταθήκη: σημάνετε εμπόρευμα που κρατάτε χωρίς να το έχετε πληρώσει. Το κομμάτι λειτουργεί κανονικά — τιμολογείται, μπαίνει στη βιτρίνα, πουλιέται με σωστό κόστος και κέρδος — απλώς η εφαρμογή ξέρει πλέον ποιανού είναι.",
-        "↩️ «Επιστροφή στον προμηθευτή» αντί για διαγραφή: το κομμάτι φεύγει από απόθεμα, σύνολα, βιτρίνα και απογραφή, αλλά η καρτέλα του μένει ολόκληρη. Του χρόνου που θα σας τα ξαναδώσει, γυρίζουν με ένα πάτημα — και η ετικέτα που είναι ήδη πάνω τους διαβάζεται αμέσως.",
-        "🗂 Νέα εκκαθάριση παρακαταθήκης (Ρυθμίσεις): ανά προμηθευτή, τι πουλήθηκε (τι οφείλετε), τι έχετε ακόμη και τι επιστράφηκε — με «Εξόφληση», ώστε ό,τι πληρώσατε να μην ξαναεμφανίζεται.",
-        "⋯ Στην πολλαπλή επιλογή στο Απόθεμα: νέο κουμπί «⋯» με σήμανση/αφαίρεση παρακαταθήκης, επιστροφή στον προμηθευτή και επαναφορά — για ολόκληρη παραλαβή με μία κίνηση.",
-        "💰 Το «Κόστος» στο Απόθεμα δείχνει πλέον ξεχωριστά πόσο από αυτό είναι παρακαταθήκη, και η εξαγωγή για τον λογιστή έχει στήλη «Παρακαταθήκη» με δικά της σύνολα.",
-        "🧾 Η τιμή μοιράζεται στα κομμάτια αναλογικά με την αξία τους, ώστε ΦΠΑ και κέρδος να βγαίνουν σωστά στο καθένα.",
-        "✏️ Μπορείτε να αλλάξετε ένα δελτίο από «Παραγγελία» σε «Ειδική κατασκευή» και αντίστροφα. Μια επισκευή δεν γίνεται παραγγελία — είναι άλλη δουλειά.",
+      { version: 'v12.66', date: 'Αύγουστος 2026', items: [
+        "🤝 Σύνοψη παρακαταθήκης πάνω από τη λίστα: όταν βλέπετε κομμάτια σε παρακαταθήκη, εμφανίζεται τι οφείλετε, οι πωλήσεις και το κέρδος — ακριβώς για ό,τι δείχνει το φίλτρο εκείνη τη στιγμή.",
+        "🏷 Κάθε κάρτα παρακαταθήκης δείχνει πλέον το ποσό της: «Οφείλετε €104.00» όταν πουληθεί, «Εξοφλήθηκε» αφού πληρώσετε, «Θα οφείλετε» όσο είναι στο ράφι.",
+        "📊 Χρήσιμο κυρίως με φίλτρο «Παρακαταθήκη + Πουλημένα»: τα πάνω πλαίσια μετρούν μόνο ό,τι έχετε στο απόθεμα, οπότε εκεί έδειχναν παύλες. Τώρα βλέπετε νούμερα.",
+        "🔎 Οι πωλήσεις και το κέρδος διαβάζονται από τις πραγματικές εγγραφές πωλήσεων (με σωστό ΦΠΑ και μετρητά), οι επιστροφές δεν προσμετρώνται, και αν λείπει κάποια εγγραφή σας το λέει αντί να δείξει λειψό σύνολο.",
       ]},
       ]
   },
@@ -28203,21 +28301,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.65', date: 'Aug 2026', items: [
-        "📦 New «Orders» section in Desk. Orders no longer hide under Repairs — they have their own place, with four segments in a 2×2 grid (Reservations · Orders · Repairs · Gift Cards).",
-        "📦 Two kinds of order: «Order» for a piece that exists and you order it from a vendor, and «Custom» for something made from scratch. Before, everything was a «custom order».",
-        "🔤 The status now says the true thing per kind: an order is «Ordered» and then «Arrived» — a repair is «In progress» and then «Ready». Same in the customer message and on the printed form.",
-        "🔢 New orders get their own number series (O-0001). Tickets you have already printed keep their numbers — nothing changes.",
-        "📥 When the order arrives: add the pieces to stock as usual, then «link» them to the order by scanning each tag.",
-        "🔒 Linked pieces are held for the customer — they leave the showroom and nobody can sell them by accident.",
-        "💰 «Collect & sell» sells them normally at the agreed price: one transaction, one record per piece, with the real cost and profit from stock — not from a number you type.",
-        "🤝 Consignment: mark goods you hold but have not paid for. The piece behaves exactly as before — priced, on the showroom, sold with the right cost and profit — the app just knows whose goods they are.",
-        "↩️ «Return to vendor» instead of deleting: the piece leaves stock, the totals, the showroom and the stocktake, but its record stays whole. Next season one tap brings it back, and the tag already on it scans straight away.",
-        "🗂 New consignment settlement (Settings): per vendor, what sold (what you owe), what you still have and what has gone back — with «Settle», so what you have paid for stops coming up again.",
-        "⋯ In Stock select-mode: a new «⋯» button to mark/unmark consignment, return to the vendor and bring pieces back — a whole delivery in one go.",
-        "💰 The Stock «Cost» total now shows separately how much of it is consignment, and the accountant's export gains a «Consignment» column with its own subtotals.",
-        "🧾 The price is split across the pieces in proportion to their value, so VAT and profit come out right on each one.",
-        "✏️ You can switch a ticket between «Order» and «Custom». A repair can never become an order — it is a different job.",
+      { version: 'v12.66', date: 'Aug 2026', items: [
+        "🤝 Consignment summary above the list: when consignment pieces are on screen it shows what you owe, the sales and the profit — for exactly what the filter is showing.",
+        "🏷 Every consignment card now carries its amount: «You owe €104.00» once sold, «Settled» after you pay, «You will owe» while it is still on the shelf.",
+        "📊 Most useful with the «Consignment + Sold» filter: the cards at the top only value stock you still hold, so they showed dashes there. Now you get numbers.",
+        "🔎 Sales and profit are read from the real sale records (correct VAT and cash), returns are never counted, and if a sale record cannot be found it says so instead of showing a total that is quietly short.",
       ]},
           ]
   }
@@ -32991,7 +33079,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.65';
+const APP_VERSION = '12.66';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
