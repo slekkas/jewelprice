@@ -3870,6 +3870,7 @@ const T = {
     grpInitialLbl:'Αρχική αξία ομάδας',
     invFilterGain:'Υπεραξία τιμής',
     invShowCostLbl:'Σύνολο κόστους', invShowCostPill:'💰 Εμφάνιση κόστους',
+    invShowConsignPill:'🤝 Σύνολα παρακαταθήκης',
     invFilterAge:'Χρόνος στο απόθεμα', invSeasonWord:'σεζόν',
     staleReportBtn:'Στάσιμο', staleTitle:'🕰️ Στάσιμο απόθεμα',
     staleHint:'Κομμάτια που κάθονται καιρό — δείτε το περιθώριο έκπτωσης.', staleThreshold:'Ελάχιστες σεζόν',
@@ -4410,6 +4411,7 @@ const T = {
     grpInitialLbl:'Group initial value',
     invFilterGain:'Price Gain',
     invShowCostLbl:'Total Cost', invShowCostPill:'💰 Show cost',
+    invShowConsignPill:'🤝 Consignment totals',
     invFilterAge:'Time in Stock', invSeasonWord:'seasons',
     staleReportBtn:'Stale', staleTitle:'🕰️ Stale Stock',
     staleHint:'Pieces sitting a long time — see the room you have to discount.', staleThreshold:'Min. seasons',
@@ -21347,6 +21349,10 @@ let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], 
 // the owner flips it on via a toggle in the Filter sheet. A view preference, not a filter,
 // so it persists across renders and is unaffected by "Clear filters".
 let _showCostCard = (function(){ try { return localStorage.getItem('jpro_showCost') === '1'; } catch(e){ return false; } })();
+// Same idea for the consignment bar: OFF by default so it does not sit over the ordinary
+// stock view. Filtering BY consignment shows it regardless — that IS the question being
+// asked, so it should not need a second tap.
+let _showConsignBar = (function(){ try { return localStorage.getItem('jpro_showConsign') === '1'; } catch(e){ return false; } })();
 
 // Label for one Status-group pill. 'in_stock'/'sold' are real statuses; the rest are
 // cross-cutting flags (reserved / grouped / hidden / no-photo) that narrow within them.
@@ -21676,8 +21682,14 @@ function consignViewTotals(rows) {
 // One-shot: the bar needs the sales records, which are normally already in memory from
 // the boot sync. If they are not, load them once and repaint — never in a loop.
 let _consignSalesTried = false;
+// Off by default so it does not sit over the everyday stock view — but filtering BY
+// consignment IS the question, so there it shows without needing the toggle too.
+function _consignBarVisible() {
+  return _showConsignBar || (_invFilters.status || []).includes('consign');
+}
 function renderConsignBar(rows) {
   const bar = document.getElementById('invConsignBar'); if (!bar) return;
+  bar.dataset.has = '0';
   if (!can('see_cost')) { bar.style.display = 'none'; return; }
   const T = consignViewTotals(rows);
   if (!T.n) { bar.style.display = 'none'; return; }
@@ -21711,7 +21723,10 @@ function renderConsignBar(rows) {
     </div>
     <div style="display:flex;gap:8px">${cells.join('')}</div>
     ${notes.length ? `<div style="font-size:10px;color:var(--text-muted);margin-top:7px;text-align:center">${notes.join(' · ')}</div>` : ''}`;
-  bar.style.display = '';
+  // Content is built even when hidden, so the filter-sheet toggle reveals real numbers
+  // instantly instead of an empty box waiting for the next render.
+  bar.dataset.has = '1';
+  bar.style.display = _consignBarVisible() ? '' : 'none';
 }
 
 // The per-card line: what this one piece means for the vendor.
@@ -22159,7 +22174,8 @@ function openInvFilterSheet() {
   // filtered batch can be reconciled against the vendor's invoice. A view preference, not
   // a filter of the items.
   const showCostGroup = (!can('see_cost')) ? '' :
-    `<div class="inv-fs-group"><div class="inv-fs-label">${t('invShowCostLbl')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_showCostCard?' sel':''}" data-group="showCost" data-val="1">${t('invShowCostPill')}</button></div></div>`;
+    `<div class="inv-fs-group"><div class="inv-fs-label">${t('invShowCostLbl')}</div><div class="inv-fs-pills"><button class="inv-fs-pill${_showCostCard?' sel':''}" data-group="showCost" data-val="1">${t('invShowCostPill')}</button>`
+    + `<button class="inv-fs-pill${_showConsignBar?' sel':''}" data-group="showConsign" data-val="1">${t('invShowConsignPill')}</button></div></div>`;
 
   // Time in stock (owner/manager only) — spot long-sitting pieces to discount.
   // How the piece's labour is charged. A cost-model concept, so owner/manager only —
@@ -22270,6 +22286,16 @@ function openInvFilterSheet() {
       if (_cc) _cc.style.display = _showCostCard ? '' : 'none';
       const _sum = document.querySelector('.inv-summary');
       if (_sum) _sum.classList.toggle('show-cost', _showCostCard);
+      return;
+    }
+    if (grp === 'showConsign') {
+      // View preference, not a filter — the bar's numbers are recomputed on every render,
+      // so reveal/hide it directly rather than re-rendering the list.
+      _showConsignBar = !_showConsignBar;
+      try { localStorage.setItem('jpro_showConsign', _showConsignBar ? '1' : '0'); } catch (e) {}
+      btn.classList.toggle('sel', _showConsignBar);
+      const _cb = document.getElementById('invConsignBar');
+      if (_cb && _cb.dataset.has === '1') _cb.style.display = _consignBarVisible() ? '' : 'none';
       return;
     }
     if (grp === 'mixedMetal') {
@@ -28266,11 +28292,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.66', date: 'Αύγουστος 2026', items: [
-        "🤝 Σύνοψη παρακαταθήκης πάνω από τη λίστα: όταν βλέπετε κομμάτια σε παρακαταθήκη, εμφανίζεται τι οφείλετε, οι πωλήσεις και το κέρδος — ακριβώς για ό,τι δείχνει το φίλτρο εκείνη τη στιγμή.",
-        "🏷 Κάθε κάρτα παρακαταθήκης δείχνει πλέον το ποσό της: «Οφείλετε €104.00» όταν πουληθεί, «Εξοφλήθηκε» αφού πληρώσετε, «Θα οφείλετε» όσο είναι στο ράφι.",
-        "📊 Χρήσιμο κυρίως με φίλτρο «Παρακαταθήκη + Πουλημένα»: τα πάνω πλαίσια μετρούν μόνο ό,τι έχετε στο απόθεμα, οπότε εκεί έδειχναν παύλες. Τώρα βλέπετε νούμερα.",
-        "🔎 Οι πωλήσεις και το κέρδος διαβάζονται από τις πραγματικές εγγραφές πωλήσεων (με σωστό ΦΠΑ και μετρητά), οι επιστροφές δεν προσμετρώνται, και αν λείπει κάποια εγγραφή σας το λέει αντί να δείξει λειψό σύνολο.",
+      { version: 'v12.67', date: 'Αύγουστος 2026', items: [
+        "🤝 Τα σύνολα παρακαταθήκης δεν εμφανίζονται πια συνέχεια. Νέος διακόπτης «🤝 Σύνολα παρακαταθήκης» στο Φίλτρο (δίπλα στο «Εμφάνιση κόστους»), κλειστός από προεπιλογή.",
+        "🔎 Όταν φιλτράρετε με «Παρακαταθήκη» εμφανίζονται ούτως ή άλλως — αυτό ακριβώς ρωτάτε εκείνη τη στιγμή, οπότε δεν χρειάζεται δεύτερο πάτημα.",
+        "⚙️ Είναι ρύθμιση εμφάνισης, όχι φίλτρο: θυμάται την επιλογή σας, δεν μετράει στον μετρητή φίλτρων και δεν μηδενίζεται με την «Καθαρισμό φίλτρων».",
       ]},
       ]
   },
@@ -28301,11 +28326,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.66', date: 'Aug 2026', items: [
-        "🤝 Consignment summary above the list: when consignment pieces are on screen it shows what you owe, the sales and the profit — for exactly what the filter is showing.",
-        "🏷 Every consignment card now carries its amount: «You owe €104.00» once sold, «Settled» after you pay, «You will owe» while it is still on the shelf.",
-        "📊 Most useful with the «Consignment + Sold» filter: the cards at the top only value stock you still hold, so they showed dashes there. Now you get numbers.",
-        "🔎 Sales and profit are read from the real sale records (correct VAT and cash), returns are never counted, and if a sale record cannot be found it says so instead of showing a total that is quietly short.",
+      { version: 'v12.67', date: 'Aug 2026', items: [
+        "🤝 The consignment totals no longer show all the time. A new «🤝 Consignment totals» toggle in Filter (next to «Show cost»), off by default.",
+        "🔎 When you filter by «Consignment» they appear anyway — that is exactly what you are asking at that moment, so it should not need a second tap.",
+        "⚙️ It is a view setting, not a filter: it remembers your choice, does not count towards the filter badge and is not reset by «Clear filters».",
       ]},
           ]
   }
@@ -33079,7 +33103,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.66';
+const APP_VERSION = '12.67';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
