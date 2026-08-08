@@ -102,6 +102,10 @@
   .more-item { display:flex; align-items:center; gap:10px; width:100%; box-sizing:border-box; background:transparent; border:none; color:var(--text); font-family:var(--font-body); font-size:14px; padding:11px 12px; border-radius:8px; cursor:pointer; text-align:left; }
   .more-item:hover { background:rgba(212,175,55,0.1); color:var(--gold-light); }
   .more-item svg { flex-shrink:0; opacity:0.85; }
+  /* The select bar is capped at 360px on EVERY screen, so there is never room for two
+     text labels beside five controls and a readable count. The count is the one thing
+     that must stay legible; these two keep their icons and their title tooltips. */
+  #invShareBar .sbl { display:none }
   .desk-seg { flex:1; padding:9px 8px; background:transparent; border:none; border-radius:8px; color:var(--text-muted); font-family:var(--font-body); font-size:13px; font-weight:600; cursor:pointer; }
   .desk-seg.active { background:rgba(212,175,55,0.16); color:var(--gold-light); }
   .desk-sort { width:100%; box-sizing:border-box; padding:9px 11px; margin-bottom:12px; background:var(--dark-2); border:1px solid var(--card-border); border-radius:8px; color:var(--text); font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; }
@@ -1833,6 +1837,13 @@
         <button onclick="openInvExportSheet()" style="width:100%;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="exportBtn">📊 Εξαγωγή σε CSV</button>
       </div>
 
+      <!-- CONSIGNMENT SETTLEMENT — end-of-season reconciliation with a vendor -->
+      <div class="settings-section" id="consignSection" style="display:none;margin-top:18px">
+        <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="consignSecTitle">🤝 Παρακαταθήκη</h4>
+        <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin:0 0 10px 0;line-height:1.6" data-i18n="consignSecDesc">Εμπόρευμα που κρατάτε χωρίς να το έχετε πληρώσει. Δείχνει ανά προμηθευτή τι πουλήθηκε (τι οφείλετε), τι έχετε ακόμη και τι επιστράφηκε.</p>
+        <button onclick="openConsignReport()" style="width:100%;padding:12px;background:rgba(111,201,168,0.10);border:1px solid rgba(111,201,168,0.4);color:#6fc9a8;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="consignReport">🤝 Εκκαθάριση παρακαταθήκης</button>
+      </div>
+
       <!-- PHOTO-SEARCH DIAGNOSTIC — off by default; it is an instrument, not everyday furniture -->
       <div class="settings-section" id="aiDescPeekSection" style="display:none;margin-top:18px">
         <h4 style="font-family:var(--font-heading);font-size:13px;color:var(--gold-light);letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px 0" data-i18n="peekTitle">🔎 Έλεγχος Αναζήτησης με Φωτογραφία</h4>
@@ -2835,6 +2846,7 @@
           <div class="inv-stat-row"><span>🥇</span><span id="invStatCostGold">—</span></div>
           <div class="inv-stat-row"><span>🥈</span><span id="invStatCostSilver">—</span></div>
           <div class="inv-stat-row"><span>💎</span><span id="invStatCostOther">—</span></div>
+          <div class="inv-stat-row" id="invStatCostConsignRow" style="display:none"><span>🤝</span><span id="invStatCostConsign">—</span></div>
         </div>
       </div>
     </div>
@@ -2892,11 +2904,17 @@
     </button>
     <!-- Share floating bar (shown in select mode) -->
     <div id="invShareBar" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);z-index:9990;background:rgba(18,15,10,0.96);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:11px 14px;display:none;flex-direction:column;gap:8px;box-shadow:0 6px 32px rgba(0,0,0,0.7);max-width:360px;width:calc(100% - 32px);backdrop-filter:blur(12px)">
-      <!-- Row 1: count + utility (select all / exit) -->
-      <div style="display:flex;align-items:center;gap:8px">
-        <span id="invShareBarCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light);flex:1">0 επιλεγμένα</span>
-        <button id="invShowSelBtn" onclick="invToggleShowSelected()" title="View selected only" style="display:flex;align-items:center;gap:5px;background:var(--wa07);border:1px solid var(--wa20);border-radius:9px;padding:7px 11px;color:var(--text-muted);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="invShowSel">Επιλεγμένα</span></button>
-        <button onclick="invSelectAll()" title="Select All" style="display:flex;align-items:center;gap:5px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:9px;padding:7px 11px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4,12 9,17 20,6"/></svg><span data-i18n="invSelAll">Όλα</span></button>
+      <!-- Row 1: count + utility (select all / exit). gap:6 — with six controls, 8px
+           overflowed the 375px phone in Greek by ~5px. -->
+      <div style="display:flex;align-items:center;gap:6px">
+        <!-- min-width:0 lets the count shrink; without it a flex item refuses to go below its
+             own text and the row overflows once it carries five controls. -->
+        <span id="invShareBarCount" style="font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--gold-light);flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">0 επιλεγμένα</span>
+        <button id="invShowSelBtn" onclick="invToggleShowSelected()" title="View selected only" style="display:flex;align-items:center;gap:5px;background:var(--wa07);border:1px solid var(--wa20);border-radius:9px;padding:7px 11px;color:var(--text-muted);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span class="sbl" data-i18n="invShowSel">Επιλεγμένα</span></button>
+        <button onclick="invSelectAll()" title="Select All" style="display:flex;align-items:center;gap:5px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:9px;padding:7px 11px;color:var(--gold-light);font-family:var(--font-body);font-size:11px;font-weight:700;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4,12 9,17 20,6"/></svg><span class="sbl" data-i18n="invSelAll">Όλα</span></button>
+        <!-- Overflow: the occasional bulk actions. Row 2 already carries five buttons and
+             will not take a sixth, and these are not everyday taps. -->
+        <button id="invMoreBtn" onclick="openInvMoreActions()" title="More" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:17px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0">⋯</button>
         <button onclick="toggleInvShareBar()" title="Minimize" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="3,5 8,11 13,5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button onclick="toggleInvSelectMode()" title="Exit" style="background:var(--wa07);border:1px solid var(--wa15);border-radius:9px;width:36px;height:36px;color:var(--text-muted);font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">✕</button>
       </div>
@@ -3804,6 +3822,14 @@ const T = {
     selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
     invSelectBtn:'Επιλογή', invSelectDone:'Τέλος', invShareBtn:'Κοινοποίηση',
     invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση', invSelReserve:'Κράτηση', invShowSel:'Επιλεγμένα',
+    invFilterReturned:'↩️ Στον προμηθευτή', invFilterConsign:'🤝 Παρακαταθήκη',
+    consignSecTitle:'🤝 Παρακαταθήκη', consignSecDesc:'Εμπόρευμα που κρατάτε χωρίς να το έχετε πληρώσει. Δείχνει ανά προμηθευτή τι πουλήθηκε (τι οφείλετε), τι έχετε ακόμη και τι επιστράφηκε.',
+    invStatusReturned:'ΣΤΟΝ ΠΡΟΜΗΘΕΥΤΗ', consignTitle:'Παρακαταθήκη — δεν έχει πληρωθεί',
+    consignOwedShort:'οφείλεται', consignBringBack:'Επιστροφή στο απόθεμα',
+    consignMark:'Σήμανση ως παρακαταθήκη', consignUnmark:'Αφαίρεση παρακαταθήκης',
+    consignReturn:'Επιστροφή στον προμηθευτή', consignMore:'Περισσότερα',
+    consignReport:'🤝 Εκκαθάριση παρακαταθήκης', consignOwe:'Οφείλετε', consignSettle:'Εξόφληση',
+    consignSettled:'Εξοφλήθηκε', consignHere:'Στο κατάστημα', consignBack:'Επιστράφηκαν',
     hideShowroomLabel:'Απόκρυψη από βιτρίνα', hideShowroomHint:'Δεν θα εμφανίζεται στο online showroom',
     invColsList:'Λίστα', invCols2:'2 στήλες', invCols3:'3 στήλες',
     invShareSelected:'Κοινοποίηση Επιλεγμένων', invShareIncludePrice:'Εμφάνιση τιμής στην κοινοποίηση;',
@@ -4336,6 +4362,14 @@ const T = {
     selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
     invSelectBtn:'Select', invSelectDone:'Done', invShareBtn:'Share',
     invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell', invSelReserve:'Reserve', invShowSel:'Selected',
+    invFilterReturned:'↩️ With vendor', invFilterConsign:'🤝 Consignment',
+    consignSecTitle:'🤝 Consignment', consignSecDesc:'Goods you hold but have not paid for. Shows, per vendor, what sold (what you owe), what you still have and what has gone back.',
+    invStatusReturned:'WITH VENDOR', consignTitle:'On consignment — not paid for',
+    consignOwedShort:'owed', consignBringBack:'Back to stock',
+    consignMark:'Mark as consignment', consignUnmark:'Remove consignment',
+    consignReturn:'Return to vendor', consignMore:'More',
+    consignReport:'🤝 Consignment settlement', consignOwe:'You owe', consignSettle:'Settle',
+    consignSettled:'Settled', consignHere:'Still here', consignBack:'Returned',
     hideShowroomLabel:'Hide from showroom', hideShowroomHint:'Won\'t appear in the online showroom',
     invColsList:'List', invCols2:'2 columns', invCols3:'3 columns',
     invShareSelected:'Share Selected', invShareIncludePrice:'Include price in share?',
@@ -5327,6 +5361,7 @@ function applyRoleUI() {
   show('salesSection',      can('sales_admin'));
   show('backupSection',     can('backup'));    // create AND restore — owner only
   show('exportSection',     can('export'));
+  show('consignSection',    can('see_cost'));
   show('stocktakeSection',  can('stocktake'));
   show('saleLinkFixSection', can('sales_admin'));
   show('aiDescPeekSection', can('manage_stock'));
@@ -19297,7 +19332,7 @@ function runInvExport() {
 
   let rows = Object.entries(_inventoryCache || {}).filter(([id, it]) => {
     if (!it) return false;
-    if (status === 'in_stock' && it.status === 'sold') return false;
+    if (status === 'in_stock' && (it.status === 'sold' || it.status === 'returned')) return false;
     if (!typeSet.has(it.jewelryType || '')) return false;
     if (fromTs || toTs) { const d = _invItemDate(id, it); if (!d) return false; if (fromTs && d < fromTs) return false; if (toTs && d > toTs) return false; }
     return true;
@@ -19330,7 +19365,7 @@ function runInvExport() {
   if (incPure)   cols.push(isEl ? 'Καθαρό (γρ)' : 'Pure (g)');
   if (incCost)   cols.push(isEl ? 'Κόστος (€)' : 'Cost (€)');
   if (incRetail) cols.push(isEl ? 'Λιανική (€)' : 'Retail (€)');
-  cols.push(isEl ? 'Ημ. προσθήκης' : 'Date added', isEl ? 'Κατάσταση' : 'Status');
+  cols.push(isEl ? 'Ημ. προσθήκης' : 'Date added', isEl ? 'Κατάσταση' : 'Status', isEl ? 'Παρακαταθήκη' : 'Consignment');
   const nCols = cols.length;
 
   const lines = [];
@@ -19344,7 +19379,7 @@ function runInvExport() {
   lines.push('');
   lines.push(cols.map(esc).join(DELIM));
 
-  const grand = { count: 0, weight: 0, pure: 0, cost: 0, retail: 0 };
+  const grand = { count: 0, weight: 0, pure: 0, cost: 0, retail: 0, consignCost: 0, consignCount: 0 };
   const pureByKarat = {}; // "gold|18" → grams
   // Per-type PIECE counts split by metal & karat, for the end-of-file breakdown table.
   // byType[typeKey] = { total, gold:{total,karats:{'18':n}}, silver:{total,karats:{'925':n}} }
@@ -19384,9 +19419,15 @@ function runInvExport() {
     if (incCost)   cells.push(num(cost));
     if (incRetail) cells.push(num(retail));
     cells.push(esc(d ? fmtDate(new Date(d)) : ''));
-    cells.push(esc(it.status === 'sold' ? (isEl ? 'Πουλημένο' : 'Sold') : (isEl ? 'Απόθεμα' : 'In stock')));
+    cells.push(esc(it.status === 'sold' ? (isEl ? 'Πουλημένο' : 'Sold')
+      : it.status === 'returned' ? (isEl ? 'Στον προμηθευτή' : 'With vendor')
+      : (isEl ? 'Απόθεμα' : 'In stock')));
+    // Goods held but not owned. Listed either way (the owner's call), marked so the
+    // accountant can keep them out of the stock valuation if he wants to.
+    cells.push(esc(isConsignment(it) ? (isEl ? 'ΝΑΙ' : 'YES') : ''));
     lines.push(cells.join(DELIM));
     grand.count++; grand.weight += w; grand.pure += pure; grand.cost += cost; grand.retail += retail;
+    if (isConsignment(it)) { grand.consignCount++; grand.consignCost += cost; }
     if (sub) { sub.count++; sub.weight += w; sub.pure += pure; sub.cost += cost; sub.retail += retail; }
     if (pure > 0 && (it.metal === 'gold' || it.metal === 'silver')) {
       const key = it.metal + '|' + (it.karat || '?'); pureByKarat[key] = (pureByKarat[key] || 0) + pure;
@@ -19425,6 +19466,13 @@ function runInvExport() {
   if (pg > 0) lines.push(esc(isEl ? 'Σύνολο καθαρού χρυσού' : 'Total pure gold') + DELIM + g3(pg) + DELIM + esc(isEl ? 'γρ' : 'g'));
   if (ps > 0) lines.push(esc(isEl ? 'Σύνολο καθαρού ασημιού' : 'Total pure silver') + DELIM + g3(ps) + DELIM + esc(isEl ? 'γρ' : 'g'));
   if (incCost)   lines.push(esc(isEl ? 'Συνολικό κόστος' : 'Total cost') + DELIM + num(grand.cost) + DELIM + esc('€'));
+  if (grand.consignCount) {
+    lines.push(esc(isEl ? 'Σε παρακαταθήκη (τεμ.)' : 'On consignment (pieces)') + DELIM + grand.consignCount);
+    if (incCost) {
+      lines.push(esc(isEl ? 'Κόστος παρακαταθήκης' : 'Consignment cost') + DELIM + num(grand.consignCost) + DELIM + esc('€'));
+      lines.push(esc(isEl ? 'Κόστος δικού σας εμπορεύματος' : 'Own goods cost') + DELIM + num(grand.cost - grand.consignCost) + DELIM + esc('€'));
+    }
+  }
   if (incRetail) lines.push(esc(isEl ? 'Συνολική λιανική' : 'Total retail') + DELIM + num(grand.retail) + DELIM + esc('€'));
   lines.push(esc(isEl ? 'Σύνολο τεμαχίων' : 'Total pieces') + DELIM + grand.count);
 
@@ -21298,8 +21346,288 @@ let _showCostCard = (function(){ try { return localStorage.getItem('jpro_showCos
 
 // Label for one Status-group pill. 'in_stock'/'sold' are real statuses; the rest are
 // cross-cutting flags (reserved / grouped / hidden / no-photo) that narrow within them.
+// ── CONSIGNMENT (παρακαταθήκη) ───────────────────────────────────────────────
+// Stock the shop HOLDS but has not PAID for: a vendor sends pieces, you sell what you
+// can and hand the rest back at the end of the season.
+//
+// The piece behaves exactly like any other — priced, tagged, on the showroom, sold with
+// the usual cost and profit (you owe the vendor that cost the moment it sells). The flag
+// records only WHOSE goods they are, and it deliberately STAYS on the record after a
+// sale: it is what the settlement report reads to work out what you still owe. It clears
+// nothing on its own; paying stamps `consignSettledAt`.
+function isConsignment(item) { return !!(item && item.consignment); }
+
+// One writer for all four consignment/return actions, so they cannot drift apart.
+// Every write is checked and rolled back on failure — an unchecked failure here does not
+// look like an error, it looks like success (v11.62), and this decides whether a piece is
+// on your shelf or at the vendor's.
+async function _consignApply(ids, mutate) {
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  let ok = 0; const failed = [];
+  for (const id of ids) {
+    const it = _inventoryCache && _inventoryCache[id];
+    if (!it) { failed.push(id); continue; }
+    const before = JSON.stringify(it);
+    if (mutate(it) === false) continue;           // nothing to do for this piece
+    let saved = false;
+    try { saved = await saveInventoryItem(id, it); } catch (e) { saved = false; }
+    if (saved) ok++;
+    else { _inventoryCache[id] = JSON.parse(before); failed.push(id); }
+  }
+  return { ok, failed };
+}
+function _consignToast(res, doneMsg) {
+  const isEl = lang === 'el';
+  showToast(res.failed.length
+    ? `⚠️ ${doneMsg}: ${res.ok} · ${isEl ? 'απέτυχαν' : 'failed'}: ${res.failed.length}`
+    : `✓ ${doneMsg}: ${res.ok}`);
+}
+
+// Mark / unmark a batch. The everyday path: add the delivery to stock as usual, then
+// filter to that vendor, select the lot and mark it in one tap.
+async function invSetConsignment(ids, on) {
+  const res = await _consignApply(ids, it => {
+    if (on) it.consignment = true; else delete it.consignment;
+  });
+  _consignToast(res, on ? t('consignMark') : t('consignUnmark'));
+  renderInvList();
+  if (document.getElementById('consignOverlay')) renderConsignReport();
+}
+
+// Hand pieces back to the vendor. The record stays whole; only where the piece IS changes.
+// A sold piece is never touched — its money is history and it is not yours to send back.
+async function invReturnToVendor(ids) {
+  const _live = ids.filter(id => ((_inventoryCache || {})[id] || {}).status === 'in_stock');
+  if (!_live.length) { showToast(lang === 'el' ? '⚠️ Κανένα κομμάτι στο απόθεμα' : '⚠️ No pieces in stock'); return; }
+  const isEl = lang === 'el';
+  showConfirm(
+    isEl ? `Επιστροφή ${_live.length} ${_piecesWord(_live.length)} στον προμηθευτή; Φεύγουν από το απόθεμα και τη βιτρίνα, αλλά η καρτέλα τους μένει — γυρίζουν με ένα πάτημα.`
+         : `Send ${_live.length} ${_piecesWord(_live.length)} back to the vendor? They leave stock and the showroom, but their records stay — one tap brings them back.`,
+    async () => {
+      const res = await _consignApply(_live, it => { it.status = 'returned'; it.dateReturned = Date.now(); });
+      _consignToast(res, t('consignReturn'));
+      renderInvList();
+      if (document.getElementById('consignOverlay')) renderConsignReport();
+    }, null, { danger: false });
+}
+
+// Next season the vendor sends them back. The printed tag is still on the piece, so it
+// scans immediately. The price baseline is deliberately LEFT ALONE (owner's choice), so
+// the gain % keeps measuring real metal-price movement since the piece first arrived.
+// ── SETTLEMENT REPORT ────────────────────────────────────────────────────────
+// End of season, per vendor: what sold (what you owe), what is still on your shelf, and
+// what has already gone back. Read-only except for three explicit, confirm-gated actions.
+//
+// Cost goes through `_invSaleCost` — never a bespoke `purchaseCost || baseCost`, because
+// an "other"-type piece keeps its cost in the QR and would report €0 (v12.45). The
+// consignment vendor in this shop IS the other-type vendor, so that is not theoretical.
+let _consignVendor = null;
+
+function _consignRows() {
+  const out = [];
+  for (const [id, it] of Object.entries(_inventoryCache || {})) {
+    if (!it || !isConsignment(it)) continue;
+    out.push([id, it]);
+  }
+  return out;
+}
+// Vendor name for grouping — via _itemVendor so a piece whose stored index drifted (v11.14)
+// is still counted against the vendor whose goods it actually is.
+function _consignVendorName(it) {
+  const v = (typeof _itemVendor === 'function') ? _itemVendor(it) : null;
+  return (v && v.name) || it.vendorName || (lang === 'el' ? '—' : '—');
+}
+
+async function openConsignReport() {
+  if (!can('see_cost')) return;
+  const isEl = lang === 'el';
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
+    showToast(isEl ? '⏳ Φόρτωση αποθέματος…' : '⏳ Loading stock…');
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  document.getElementById('consignOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'consignOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:var(--dark);overflow-y:auto;-webkit-overflow-scrolling:touch';
+  ov.innerHTML = `<div style="max-width:560px;margin:0 auto;padding:16px 16px calc(28px + env(safe-area-inset-bottom,0px));padding-top:max(16px,env(safe-area-inset-top))">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="flex:1;font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${t('consignReport')}</div>
+      <button onclick="closeConsignReport()" class="modal-x">✕</button>
+    </div>
+    <div id="consignBody"></div>
+  </div>`;
+  document.body.appendChild(ov);
+  renderConsignReport();
+}
+function closeConsignReport() { document.getElementById('consignOverlay')?.remove(); _consignVendor = null; }
+
+function renderConsignReport() {
+  const box = document.getElementById('consignBody'); if (!box) return;
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const rows = _consignRows();
+  if (!rows.length) {
+    box.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px;line-height:1.6">${isEl
+      ? 'Κανένα κομμάτι σε παρακαταθήκη.<br><br>Προσθέστε την παραλαβή στο απόθεμα ως συνήθως, μετά φιλτράρετε στον προμηθευτή, επιλέξτε τα και «⋯ → 🤝 Σήμανση ως παρακαταθήκη».'
+      : 'Nothing on consignment yet.<br><br>Add the delivery to stock as usual, then filter to that vendor, select the pieces and «⋯ → 🤝 Mark as consignment».'}</div>`;
+    return;
+  }
+  // Vendor list
+  const byVendor = new Map();
+  for (const [id, it] of rows) {
+    const k = _consignVendorName(it);
+    if (!byVendor.has(k)) byVendor.set(k, []);
+    byVendor.get(k).push([id, it]);
+  }
+  if (!_consignVendor || !byVendor.has(_consignVendor)) {
+    box.innerHTML = [...byVendor.entries()].sort((a, b) => a[0].localeCompare(b[0], 'el')).map(([name, list]) => {
+      const owe = list.filter(([, it]) => consignOwed(it)).reduce((s, [, it]) => s + (_invSaleCost(it) || 0), 0);
+      const here = list.filter(([, it]) => it.status === 'in_stock').length;
+      const back = list.filter(([, it]) => isReturnedToVendor(it)).length;
+      return `<button onclick="_consignPick('${_ordEsc(name).replace(/'/g, "\\'")}')" style="width:100%;text-align:left;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:13px 14px;margin-bottom:9px;cursor:pointer;color:var(--text)">
+        <div style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);margin-bottom:5px">${_ordEsc(name)}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">
+          <span style="color:${owe > 0 ? '#e0a85a' : 'var(--text-dim)'}">${t('consignOwe')}: ${cur}${owe.toFixed(2)}</span>
+          &nbsp;·&nbsp; ${t('consignHere')}: ${here}
+          &nbsp;·&nbsp; ${t('consignBack')}: ${back}
+        </div></button>`;
+    }).join('');
+    return;
+  }
+  // One vendor
+  const list = byVendor.get(_consignVendor);
+  const owed = list.filter(([, it]) => consignOwed(it));
+  const here = list.filter(([, it]) => it.status === 'in_stock');
+  const back = list.filter(([, it]) => isReturnedToVendor(it));
+  const settled = list.filter(([, it]) => it.status === 'sold' && it.consignSettledAt);
+  const oweTotal = owed.reduce((s, [, it]) => s + (_invSaleCost(it) || 0), 0);
+  const line = ([id, it], right) => `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--wa05)">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+      <span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}</span>
+      <span style="flex:0 0 auto;font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${right}</span>
+    </div>`;
+  const section = (title, colour, body, action) => `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:13px 14px;margin-bottom:10px">
+      <div style="font-family:var(--font-body);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${colour};margin-bottom:8px">${title}</div>
+      ${body}${action || ''}</div>`;
+  box.innerHTML =
+    `<button onclick="_consignPick(null)" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;padding:0 0 10px">← ${isEl ? 'Όλοι οι προμηθευτές' : 'All vendors'}</button>
+     <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:12px">${_ordEsc(_consignVendor)}</div>` +
+    section(`${t('consignOwe')} — ${cur}${oweTotal.toFixed(2)}`, '#e0a85a',
+      owed.length ? owed.map(r => line(r, cur + (_invSaleCost(r[1]) || 0).toFixed(2))).join('')
+        : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Τίποτα απλήρωτο' : 'Nothing outstanding'}</div>`,
+      owed.length ? `<button onclick="_consignSettle()" style="width:100%;margin-top:10px;padding:11px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:9px;color:var(--ink);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✓ ${t('consignSettle')} — ${cur}${oweTotal.toFixed(2)}</button>` : '') +
+    section(`${t('consignHere')} — ${here.length}`, 'var(--gold-light)',
+      here.length ? here.map(r => line(r, (parseFloat(r[1].weight) || 0) ? (parseFloat(r[1].weight).toFixed(2) + 'g') : '')).join('')
+        : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Κανένα' : 'None'}</div>`,
+      here.length ? `<button onclick="_consignReturnAll()" style="width:100%;margin-top:10px;padding:11px;background:var(--wa07);border:1px solid var(--wa20);border-radius:9px;color:var(--text);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">↩️ ${t('consignReturn')} (${here.length})</button>` : '') +
+    (back.length ? section(`${t('consignBack')} — ${back.length}`, '#9fb4d4',
+      back.map(r => line(r, r[1].dateReturned ? fmtDate(new Date(r[1].dateReturned)) : '')).join(''),
+      `<button onclick="_consignBackAll()" style="width:100%;margin-top:10px;padding:11px;background:rgba(111,201,168,0.12);border:1px solid rgba(111,201,168,0.45);border-radius:9px;color:#6fc9a8;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer">📥 ${t('consignBringBack')} (${back.length})</button>`) : '') +
+    (settled.length ? section(`${t('consignSettled')} — ${settled.length}`, 'var(--text-dim)',
+      settled.map(r => line(r, r[1].consignSettledAt ? fmtDate(new Date(r[1].consignSettledAt)) : '')).join('')) : '');
+}
+function _consignPick(name) { _consignVendor = name; renderConsignReport(); }
+
+function _consignIdsFor(pred) {
+  return _consignRows().filter(([, it]) => _consignVendorName(it) === _consignVendor && pred(it)).map(([id]) => id);
+}
+// Paying the vendor. Stamps the pieces so next season's report is about next season —
+// without it the list would grow forever and you could pay for the same piece twice.
+function _consignSettle() {
+  const ids = _consignIdsFor(consignOwed);
+  if (!ids.length) return;
+  const cur = state.currency || '€';
+  const total = ids.reduce((s, id) => s + (_invSaleCost(_inventoryCache[id]) || 0), 0);
+  const isEl = lang === 'el';
+  showConfirm(
+    isEl ? `Εξόφληση ${ids.length} ${_piecesWord(ids.length)} στον ${_consignVendor} — ${cur}${total.toFixed(2)}; Θα φύγουν από τα οφειλόμενα.`
+         : `Settle ${ids.length} ${_piecesWord(ids.length)} with ${_consignVendor} — ${cur}${total.toFixed(2)}? They leave the outstanding list.`,
+    async () => {
+      const now = Date.now();
+      const res = await _consignApply(ids, it => { it.consignSettledAt = now; });
+      _consignToast(res, t('consignSettled'));
+      renderConsignReport();
+    }, null, { danger: false });
+}
+function _consignReturnAll() {
+  const ids = _consignIdsFor(it => it.status === 'in_stock');
+  if (!ids.length) return;
+  invReturnToVendor(ids);   // confirm-gated; it repaints the report itself when it lands
+}
+function _consignBackAll() {
+  const ids = _consignIdsFor(isReturnedToVendor);
+  if (!ids.length) return;
+  invBringBack(ids);
+}
+
+// The select-mode overflow sheet. Only offers what the SELECTION can actually do, so a
+// tap can never be a no-op you have to work out for yourself.
+function openInvMoreActions() {
+  if (!_invSelected || _invSelected.size === 0) { showToast(lang === 'el' ? '⚠️ Δεν επιλέξατε αντικείμενα' : '⚠️ No items selected'); return; }
+  const isEl = lang === 'el';
+  const ids = [...(_invSelected)];
+  const items = ids.map(id => (_inventoryCache || {})[id]).filter(Boolean);
+  const nCons = items.filter(isConsignment).length;
+  const nPlain = items.length - nCons;
+  const nLive = items.filter(i => i.status === 'in_stock').length;
+  const nRet = items.filter(isReturnedToVendor).length;
+  document.getElementById('invMoreOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'invMoreOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99996;background:rgba(0,0,0,0.82);display:flex;align-items:flex-end;justify-content:center;padding:0';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const row = (icon, label, sub, fn, colour) => `<button onclick="${fn}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--dark-3);border:1px solid var(--card-border);border-radius:11px;padding:13px 14px;margin-bottom:8px;color:${colour || 'var(--text)'};font-family:var(--font-body);font-size:14px;cursor:pointer">
+      <span style="font-size:19px;line-height:1;flex-shrink:0">${icon}</span>
+      <span style="flex:1;min-width:0"><span style="display:block;font-weight:600">${label}</span><span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">${sub}</span></span>
+    </button>`;
+  ov.innerHTML = `<div style="background:var(--dark-2);border-top-left-radius:18px;border-top-right-radius:18px;max-width:460px;width:100%;max-height:88vh;max-height:88dvh;overflow-y:auto;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="flex:1;font-family:var(--font-heading);font-size:16px;color:var(--gold-light)">${t('consignMore')} · ${ids.length}</div>
+      <button onclick="document.getElementById('invMoreOverlay').remove()" class="modal-x">✕</button>
+    </div>
+    ${nPlain ? row('🤝', t('consignMark'), isEl ? `${nPlain} ${_piecesWord(nPlain)} — εμπόρευμα που δεν έχετε πληρώσει` : `${nPlain} ${_piecesWord(nPlain)} — goods you have not paid for`, `_invMoreDo('mark')`, '#6fc9a8') : ''}
+    ${nCons ? row('✋', t('consignUnmark'), isEl ? `${nCons} ${_piecesWord(nCons)}` : `${nCons} ${_piecesWord(nCons)}`, `_invMoreDo('unmark')`) : ''}
+    ${nLive ? row('↩️', t('consignReturn'), isEl ? `${nLive} ${_piecesWord(nLive)} — φεύγουν από το απόθεμα, η καρτέλα μένει` : `${nLive} ${_piecesWord(nLive)} — they leave stock, the record stays`, `_invMoreDo('return')`) : ''}
+    ${nRet ? row('📥', t('consignBringBack'), isEl ? `${nRet} ${_piecesWord(nRet)} — γύρισαν από τον προμηθευτή` : `${nRet} ${_piecesWord(nRet)} — back from the vendor`, `_invMoreDo('back')`, '#6fc9a8') : ''}
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _invMoreDo(what) {
+  const ids = [...(_invSelected || [])];
+  document.getElementById('invMoreOverlay')?.remove();
+  if (what === 'mark') invSetConsignment(ids, true);
+  else if (what === 'unmark') invSetConsignment(ids, false);
+  else if (what === 'return') invReturnToVendor(ids);
+  else if (what === 'back') invBringBack(ids);
+}
+
+async function invBringBack(idOrIds) {
+  const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+  const _ret = ids.filter(id => ((_inventoryCache || {})[id] || {}).status === 'returned');
+  if (!_ret.length) { showToast(lang === 'el' ? '⚠️ Κανένα επιστραμμένο κομμάτι' : '⚠️ No returned pieces'); return; }
+  const res = await _consignApply(_ret, it => { it.status = 'in_stock'; delete it.dateReturned; });
+  _consignToast(res, t('consignBringBack'));
+  renderInvList();
+  if (document.getElementById('consignOverlay')) renderConsignReport();
+}
+
+// Returned to the vendor: NOT in stock, NOT sold. The piece has left the shop but the
+// record stays whole — ref code, tag, photo, weight, price history — so next season it
+// comes back with one tap and the tag still on it scans straight away. Deleting it, the
+// only option before, threw all of that away (same reasoning as retire-don't-delete for
+// vendors, v11.12). A third status value is safe by construction: all 63 status checks in
+// the file ask `=== 'in_stock'` or `=== 'sold'`, so a returned piece drops out of the
+// totals, the showroom feed and the stocktake without touching any of them.
+function isReturnedToVendor(item) { return !!item && item.status === 'returned'; }
+
+// What you still owe a vendor: sold, on consignment, not yet settled.
+function consignOwed(item) { return isConsignment(item) && item.status === 'sold' && !item.consignSettledAt; }
+
 function _statusPillLabel(v) {
   return v === 'sold'     ? t('invFilterSold2')
+       : v === 'returned' ? t('invFilterReturned')
+       : v === 'consign'  ? t('invFilterConsign')
        : v === 'grouped'  ? t('invFilterGrouped')
        : v === 'set'      ? t('invFilterSet')
        : v === 'hidden'   ? t('invFilterHidden')
@@ -21571,7 +21899,7 @@ function openInvFilterSheet() {
   });
   const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
   const stoneTypes = [...STONE_PRIORITY.filter(s => stoneTypeSet.has(s)), ...[...stoneTypeSet].filter(s => !STONE_PRIORITY.includes(s)).sort()];
-  const statuses = ['in_stock','sold','reserved','grouped','set','hidden','nophoto'];
+  const statuses = ['in_stock','sold','returned','consign','reserved','grouped','set','hidden','nophoto'];
 
   // Pills for small fixed sets (metal, karat, status)
   function pillGroup(labelKey, vals, selectedArr, groupKey, labelFn) {
@@ -22061,7 +22389,7 @@ function renderInvSummary(filteredItems) {
   // minus coins & raw-metal lots unless we're counting them (their VALUE still always counts).
   const totalFiltered = source.filter(i => (i.isCoin ? _countCoins : (i.isMetal ? _countMetal : true))).length;
   // Retail/Metal value always calculated from in-stock only
-  const inStock = source.filter(i => i.status !== 'sold');
+  const inStock = source.filter(i => i.status !== 'sold' && i.status !== 'returned');
   let totalRetail = 0, totalMetal = 0, totalPureGoldGrams = 0, totalPureSilverGrams = 0;
   let piecesGold = 0, piecesSilver = 0, piecesOther = 0;
   let retailGold = 0, retailSilver = 0, retailOther = 0;
@@ -22071,6 +22399,9 @@ function renderInvSummary(filteredItems) {
   // else the computed production cost (metal + labour + stones), and the discounted
   // gross for "other"-type items.
   let totalCost = 0, costGold = 0, costSilver = 0, costOther = 0;
+  // Consignment goods are counted in the cost total but shown separately: they are stock
+  // you hold, not money you have spent.
+  let costConsign = 0;
   // Appreciation baselines (owner-only header gain %). Count-independent: each piece's
   // live value AND its baseline enter/leave the sums together, so adding or selling stock
   // never moves the %, only real metal-price movement does.
@@ -22083,6 +22414,7 @@ function renderInvSummary(filteredItems) {
       ? _invOtherCost(item)
       : ((parseFloat(item.purchaseCost) > 0) ? parseFloat(item.purchaseCost) : (p ? (p.baseCost || 0) : 0));
     totalCost += _c;
+    if (isConsignment(item)) costConsign += _c;
     // Retail gain baseline — the add-date "initial price" each item already stores.
     if (p) { const _ir = parseFloat(item.initialRetail); if (_ir > 0) { retailBase += _ir; retailCur += p.retail; } }
     // Coins & raw-metal lots aren't counted as pieces unless they're being shown (their
@@ -22162,6 +22494,10 @@ function renderInvSummary(filteredItems) {
     _setTxt('invStatCostGold', costGold > 0 ? cur + Math.round(costGold).toLocaleString() : '—');
     _setTxt('invStatCostSilver', costSilver > 0 ? cur + Math.round(costSilver).toLocaleString() : '—');
     _setTxt('invStatCostOther', costOther > 0 ? cur + Math.round(costOther).toLocaleString() : '—');
+    // Only shown when there IS consignment stock — a shop with none sees nothing new.
+    const _ccRow = document.getElementById('invStatCostConsignRow');
+    if (_ccRow) _ccRow.style.display = costConsign > 0 ? '' : 'none';
+    _setTxt('invStatCostConsign', costConsign > 0 ? cur + Math.round(costConsign).toLocaleString() : '—');
   }
   _setTxt('invStatCost', _isEmpSummary ? '—' : (totalCost > 0 ? cur + Math.round(totalCost).toLocaleString() : '—'));
   const _pureGoldEl = document.getElementById('invStatPureGold');
@@ -22421,6 +22757,7 @@ function renderInvList() {
     }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
+    const isRetItem = item.status === 'returned';
     // 'hidden' and 'grouped' are cross-cutting flags, not real statuses; when selected the
     // item must be hidden-from-showroom / part of a similar-items group. The in_stock/sold
     // pills still apply (so "Rings + Grouped" narrows to in-stock ring groups).
@@ -22433,13 +22770,17 @@ function renderInvList() {
     // photographed without scrolling the whole stock. Coins/raw metal never carry a
     // photo by design, so they are not "missing" one.
     if (f.status.includes('nophoto') && (item.photoUrl || item.isCoin || item.isMetal)) return false;
-    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped' && s !== 'set' && s !== 'reserved' && s !== 'nophoto');
+    // 'consign' — another cross-cutting flag: goods held but not paid for. It narrows
+    // whichever real status is active (so "Consignment" alone means in-stock consignment).
+    if (f.status.includes('consign') && !isConsignment(item)) return false;
+    const _realStatus = f.status.filter(s => s !== 'hidden' && s !== 'grouped' && s !== 'set' && s !== 'reserved' && s !== 'nophoto' && s !== 'consign');
     if (_realStatus.length) {
-      const st = isSoldItem ? 'sold' : 'in_stock';
+      const st = isSoldItem ? 'sold' : isRetItem ? 'returned' : 'in_stock';
       if (!_realStatus.includes(st)) return false;
     } else {
-      // No in_stock/sold pill active — hide sold items by default (bulk chains never sold)
-      if (isSoldItem) return false;
+      // No real-status pill active — hide sold AND returned by default: neither is on the
+      // shelf. (Bulk chains are never sold.)
+      if (isSoldItem || isRetItem) return false;
     }
     if (f.dateFrom || f.dateTo) {
       const useSold = f.dateMode === 'sold';
@@ -22572,6 +22913,10 @@ function renderInvList() {
 
   const buildCard = ([id, item]) => {
     const isSold = item.status === 'sold';
+    const isRet = item.status === 'returned';
+    // "Not on the shelf" — the gate for everything a piece that has left the shop must not
+    // offer (sell, reserve, gift) or trigger (the background self-heals).
+    const _gone = isSold || isRet;
     const p = _px(item);
     const priceStr = p ? cur + p.retail.toFixed(2) : '—';
 
@@ -22627,7 +22972,7 @@ function renderInvList() {
 
     // Self-heal: store initialRetail if missing (existing items added before v9.24).
     // Coins are excluded — their value floats with spot, so a baseline is meaningless.
-    if (p && item.metal !== 'other' && !item.isCoin && !item.initialRetail && !isSold) {
+    if (p && item.metal !== 'other' && !item.isCoin && !item.initialRetail && !_gone) {
       item.initialRetail = parseFloat(p.retail.toFixed(2));
       // Capture the metal-value baseline at the same moment (add-date for new items).
       // Only fires for items missing a baseline — i.e. freshly-created ones; existing
@@ -22659,12 +23004,17 @@ function renderInvList() {
     }
     const badge = isSold
       ? `<span class="inv-card-badge inv-badge-sold">${t('invStatusSold')}</span>`
+      : isRet
+      ? `<span class="inv-card-badge" style="background:rgba(120,140,180,0.16);border:1px solid rgba(120,140,180,0.45);color:#9fb4d4">${t('invStatusReturned')}</span>`
       : `<span class="inv-card-badge inv-badge-stock">${t('invStatusStock')}</span>`;
+    const _consignBadge = isConsignment(item)
+      ? `<span class="inv-card-badge" title="${t('consignTitle')}" style="background:rgba(111,201,168,0.14);border:1px solid rgba(111,201,168,0.45);color:#6fc9a8">🤝${consignOwed(item) ? ' ' + t('consignOwedShort') : ''}</span>`
+      : '';
     const _isHandmade = item.handmade || !!(getItemCat(item)?.handmade);
     // Self-heal: persist handmade if the category is marked handmade now but wasn't
     // when this item was added/restocked — otherwise showroom.htm (which has no
     // vendor/category data, only the saved item) never sees the badge
-    if (_isHandmade && !item.handmade && !isSold) {
+    if (_isHandmade && !item.handmade && !_gone) {
       item.handmade = true;
       saveInventoryItem(id, item).catch(() => {});
     }
@@ -22674,7 +23024,7 @@ function renderInvList() {
     // Signature: a stone with an impossible carat (≥100ct). Rebuild from the QR code —
     // the ground truth for what was printed. If the QR has no real stone suffix,
     // stonesDesc is correctly cleared to empty.
-    if (item.metal === 'other' && !isSold && item.stonesDesc && (item.qrCode || item.code)) {
+    if (item.metal === 'other' && !_gone && item.stonesDesc && (item.qrCode || item.code)) {
       const _shRows = _invEditParseStoredStones(item.stonesDesc);
       if (_shRows.some(r => parseFloat(r.carat) >= 100)) {
         const _shParsed = parseCodeInput(item.qrCode || item.code);
@@ -22800,7 +23150,11 @@ function renderInvList() {
         `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:${_boughtLine?'2px':'6px'}">${_liveLbl}${_sellFrom}</div>` +
         _boughtLine;
     })();
-    const actionsHtml = item.isCoin ? `
+    const actionsHtml = isRet ? `
+      <div class="inv-card-actions">
+        ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:1;background:rgba(111,201,168,0.14);border:1px solid rgba(111,201,168,0.45);color:#6fc9a8" onclick="invBringBack('${id}')">↩️ ${t('consignBringBack')}</button>`}
+        ${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}
+      </div>` : item.isCoin ? `
       <div class="inv-card-actions">
         ${isSold
           ? `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}','${id}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
@@ -22827,7 +23181,7 @@ function renderInvList() {
         ${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}
       </div>`;
     return `
-      <div class="inv-card${isSold ? ' sold' : ''}" data-inv-id="${id}">
+      <div class="inv-card${_gone ? ' sold' : ''}" data-inv-id="${id}">
         <div class="inv-card-top">
           <div style="display:flex;align-items:flex-start;gap:5px;flex:1;min-width:0">
             <div class="inv-select-cb" data-id="${id}" onclick="invSelectToggleItem('${id}',!this.classList.contains('checked'))" style="display:none;flex-shrink:0;width:22px;height:22px;border-radius:5px;border:2px solid var(--gold);background:#1a1408;cursor:pointer;align-items:center;justify-content:center"></div>
@@ -22835,13 +23189,13 @@ function renderInvList() {
             <div class="inv-card-btns">
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
-            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${_held ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${_held ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${_held ? 'var(--gold)' : 'var(--wa20)'};color:${_held ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
-            ${(!isSold && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invGiveaway('${id}')" class="inv-share-btn" title="${lang==='el'?'Δώρο':'Give as gift'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">🎁</button>` : ''}
+            ${(!_gone && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${_held ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${_held ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${_held ? 'var(--gold)' : 'var(--wa20)'};color:${_held ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
+            ${(!_gone && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invGiveaway('${id}')" class="inv-share-btn" title="${lang==='el'?'Δώρο':'Give as gift'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">🎁</button>` : ''}
             </div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:8px;flex-shrink:0">
             ${item.photoUrl ? `<img src="${item.photoUrl}" onclick="showPhotoFullscreen('${item.photoUrl.replace(/'/g,"\\'")}',event)" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid rgba(212,175,55,0.3);cursor:pointer;flex-shrink:0" loading="lazy">` : ''}
-            <div class="inv-badge-col" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${_reservedBadge}${_setBadge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_platingBadge}${_genderBadge}${_secMetalBadge}</div>
+            <div class="inv-badge-col" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${badge}${_consignBadge}${_reservedBadge}${_setBadge}${handmadeBadge}${_hiddenBadge}${_colorBadge}${_goldColorBadge}${_platingBadge}${_genderBadge}${_secMetalBadge}</div>
           </div>
         </div>
         ${titleLine ? `<div class="inv-card-desc">${titleLine}</div>` : ''}
@@ -24130,6 +24484,10 @@ function invEdit(id) {
       <button id="invEditHideShowroomToggle" style="flex:0 0 46px;height:46px;background:${item.hideFromShowroom?'rgba(229,115,115,0.15)':'var(--wa04)'};border:1px solid ${item.hideFromShowroom?'rgba(229,115,115,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${item.hideFromShowroom?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(229,115,115,0.15)':'var(--wa04)';btn.style.borderColor=on?'rgba(229,115,115,0.5)':'var(--wa10)'})(this)">🙈</button>
       <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);line-height:1.35">${lang==='el'?'Απόκρυψη από βιτρίνα':'Hide from showroom'}<br><span style="font-size:11px;color:var(--text-dim)">${lang==='el'?'Δεν θα εμφανίζεται στο online showroom':'Won\'t appear in the online showroom'}</span></span>
     </div>
+    <div style="margin-bottom:18px;display:flex;align-items:center;gap:10px">
+      <button id="invEditConsignToggle" style="flex:0 0 46px;height:46px;background:${item.consignment?'rgba(111,201,168,0.15)':'var(--wa04)'};border:1px solid ${item.consignment?'rgba(111,201,168,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${item.consignment?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s" onclick="(function(btn){const on=btn.style.opacity!=='1';btn.style.opacity=on?'1':'0.35';btn.style.background=on?'rgba(111,201,168,0.15)':'var(--wa04)';btn.style.borderColor=on?'rgba(111,201,168,0.5)':'var(--wa10)'})(this)">🤝</button>
+      <span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);line-height:1.35">${lang==='el'?'Παρακαταθήκη':'On consignment'}<br><span style="font-size:11px;color:var(--text-dim)">${lang==='el'?'Εμπόρευμα προμηθευτή που δεν έχετε πληρώσει':'Vendor goods you have not paid for'}</span></span>
+    </div>
     ${!isOtherEdit && item.metal === 'gold' ? `
     <div style="margin-bottom:18px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Χρώμα Χρυσού':'Gold Color'}</label>
@@ -24638,6 +24996,8 @@ RETAIL: \u20ac[integer]`;
     item.vendorCode = (document.getElementById('invEditVendorCodeInput')?.value || '').trim().toUpperCase();
     item.handmade = document.getElementById('invEditHandmadeToggle')?.style.opacity === '1';
     item.hideFromShowroom = document.getElementById('invEditHideShowroomToggle')?.style.opacity === '1';
+    // Consignment: stored only when true, so an ordinary piece stays byte-identical.
+    if (document.getElementById('invEditConsignToggle')?.style.opacity === '1') item.consignment = true; else delete item.consignment;
     item.gender = document.getElementById('invEditGenderSelect')?.value || 'unisex';
     item.alsoGenders = readGenderAlso('invEdit');
     item.color = document.getElementById('invEditColorSelect')?.value || null;
@@ -27806,6 +28166,11 @@ const ABOUT = {
         "📥 Όταν φτάνει η παραγγελία: προσθέτετε τα κομμάτια στο απόθεμα ως συνήθως και μετά τα «συνδέετε» στην παραγγελία σαρώνοντας την ετικέτα του καθενός.",
         "🔒 Τα συνδεδεμένα κομμάτια κρατούνται για τον πελάτη — φεύγουν από τη βιτρίνα και κανείς δεν μπορεί να τα πουλήσει κατά λάθος.",
         "💰 Η «Παραλαβή & πώληση» τα πουλάει κανονικά στη συμφωνημένη τιμή: μία συναλλαγή, ένα κομμάτι ανά εγγραφή, με πραγματικό κόστος και κέρδος από το απόθεμα — όχι από νούμερο που πληκτρολογείτε.",
+        "🤝 Παρακαταθήκη: σημάνετε εμπόρευμα που κρατάτε χωρίς να το έχετε πληρώσει. Το κομμάτι λειτουργεί κανονικά — τιμολογείται, μπαίνει στη βιτρίνα, πουλιέται με σωστό κόστος και κέρδος — απλώς η εφαρμογή ξέρει πλέον ποιανού είναι.",
+        "↩️ «Επιστροφή στον προμηθευτή» αντί για διαγραφή: το κομμάτι φεύγει από απόθεμα, σύνολα, βιτρίνα και απογραφή, αλλά η καρτέλα του μένει ολόκληρη. Του χρόνου που θα σας τα ξαναδώσει, γυρίζουν με ένα πάτημα — και η ετικέτα που είναι ήδη πάνω τους διαβάζεται αμέσως.",
+        "🗂 Νέα εκκαθάριση παρακαταθήκης (Ρυθμίσεις): ανά προμηθευτή, τι πουλήθηκε (τι οφείλετε), τι έχετε ακόμη και τι επιστράφηκε — με «Εξόφληση», ώστε ό,τι πληρώσατε να μην ξαναεμφανίζεται.",
+        "⋯ Στην πολλαπλή επιλογή στο Απόθεμα: νέο κουμπί «⋯» με σήμανση/αφαίρεση παρακαταθήκης, επιστροφή στον προμηθευτή και επαναφορά — για ολόκληρη παραλαβή με μία κίνηση.",
+        "💰 Το «Κόστος» στο Απόθεμα δείχνει πλέον ξεχωριστά πόσο από αυτό είναι παρακαταθήκη, και η εξαγωγή για τον λογιστή έχει στήλη «Παρακαταθήκη» με δικά της σύνολα.",
         "🧾 Η τιμή μοιράζεται στα κομμάτια αναλογικά με την αξία τους, ώστε ΦΠΑ και κέρδος να βγαίνουν σωστά στο καθένα.",
         "✏️ Μπορείτε να αλλάξετε ένα δελτίο από «Παραγγελία» σε «Ειδική κατασκευή» και αντίστροφα. Μια επισκευή δεν γίνεται παραγγελία — είναι άλλη δουλειά.",
       ]},
@@ -27846,6 +28211,11 @@ const ABOUT = {
         "📥 When the order arrives: add the pieces to stock as usual, then «link» them to the order by scanning each tag.",
         "🔒 Linked pieces are held for the customer — they leave the showroom and nobody can sell them by accident.",
         "💰 «Collect & sell» sells them normally at the agreed price: one transaction, one record per piece, with the real cost and profit from stock — not from a number you type.",
+        "🤝 Consignment: mark goods you hold but have not paid for. The piece behaves exactly as before — priced, on the showroom, sold with the right cost and profit — the app just knows whose goods they are.",
+        "↩️ «Return to vendor» instead of deleting: the piece leaves stock, the totals, the showroom and the stocktake, but its record stays whole. Next season one tap brings it back, and the tag already on it scans straight away.",
+        "🗂 New consignment settlement (Settings): per vendor, what sold (what you owe), what you still have and what has gone back — with «Settle», so what you have paid for stops coming up again.",
+        "⋯ In Stock select-mode: a new «⋯» button to mark/unmark consignment, return to the vendor and bring pieces back — a whole delivery in one go.",
+        "💰 The Stock «Cost» total now shows separately how much of it is consignment, and the accountant's export gains a «Consignment» column with its own subtotals.",
         "🧾 The price is split across the pieces in proportion to their value, so VAT and profit come out right on each one.",
         "✏️ You can switch a ticket between «Order» and «Custom». A repair can never become an order — it is a different job.",
       ]},
