@@ -3275,8 +3275,11 @@
 <!-- DESK (Reservations + Repairs) -->
 <div id="panel-desk" class="panel">
   <div style="padding:14px 16px 0 16px">
-    <div style="display:flex;gap:6px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:5px;margin-bottom:14px">
+    <!-- Four segments in a 2x2 grid: four across one row does not fit in Greek on a
+         phone («Επιταγές & Πιστώσεις» alone wraps to two lines). -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:6px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:5px;margin-bottom:14px">
       <button id="deskTabRes" class="desk-seg active" onclick="deskShow('reservations')">🔒 <span data-i18n="deskReservations">Κρατήσεις</span></button>
+      <button id="deskTabOrd" class="desk-seg" onclick="deskShow('orders')">📦 <span data-i18n="deskOrders">Παραγγελίες</span></button>
       <button id="deskTabRep" class="desk-seg" onclick="deskShow('repairs')">🔧 <span data-i18n="deskRepairs">Επισκευές</span></button>
       <button id="deskTabGift" class="desk-seg" onclick="deskShow('gift')" style="position:relative">🎁 <span data-i18n="deskGift">Δωροεπιταγές</span><span id="deskGiftBadge" class="gift-badge" style="display:none"></span></button>
     </div>
@@ -3294,9 +3297,24 @@
       <div id="reservationsList"></div>
     </div>
 
+    <!-- ORDERS VIEW — a piece the customer will take away that you do not have yet:
+         ordered from a vendor (📦) or made from scratch (✨). Same ticket record as a
+         repair; a different job, so it gets its own list. -->
+    <div id="deskOrdersView" style="display:none">
+      <button onclick="openRepairModal('orders')" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="ordNewTicket">Νέα παραγγελία</span></button>
+      <input type="search" id="ordSearchInput" oninput="renderRepairs()" data-i18n-ph="ordSearchPh" placeholder="Αναζήτηση — πελάτης, παραγγελία…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:8px">
+      <select id="ordSortSelect" onchange="_deskSortChanged('orders', this.value)" class="desk-sort">
+        <option value="newest" data-i18n="deskSortNewest">Νεότερα πρώτα</option>
+        <option value="oldest" data-i18n="deskSortOldest">Παλαιότερα πρώτα</option>
+        <option value="due_soon" data-i18n="deskSortReadySoon">Παράδοση: πιο κοντινή</option>
+        <option value="name_asc" data-i18n="deskSortName">Όνομα Α→Ω</option>
+      </select>
+      <div id="ordersList"></div>
+    </div>
+
     <!-- REPAIRS VIEW -->
     <div id="deskRepairsView" style="display:none">
-      <button onclick="openRepairModal()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="repNewTicket">Νέο δελτίο</span></button>
+      <button onclick="openRepairModal('repairs')" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">＋ <span data-i18n="repNewTicket">Νέο δελτίο</span></button>
       <input type="search" id="repSearchInput" oninput="renderRepairs()" data-i18n-ph="repSearchPh" placeholder="Αναζήτηση — πελάτης, δελτίο…" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-2);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:8px">
       <select id="repSortSelect" onchange="_deskSortChanged('repairs', this.value)" class="desk-sort">
         <option value="newest" data-i18n="deskSortNewest">Νεότερα πρώτα</option>
@@ -3723,6 +3741,7 @@ const T = {
     stkReportTitle:'📋 Αποτέλεσμα Απογραφής',
     navDesk:'Πάγκος',
     deskReservations:'Κρατήσεις',
+    deskOrders:'Παραγγελίες',
     deskRepairs:'Επισκευές',
     deskGift:'Επιταγές & Πιστώσεις',
     deskSortNewest:'Νεότερα πρώτα', deskSortOldest:'Παλαιότερα πρώτα', deskSortName:'Όνομα Α→Ω',
@@ -3735,6 +3754,8 @@ const T = {
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
     repSearchPh:'Αναζήτηση — πελάτης, δελτίο…',
+    ordNewTicket:'Νέα παραγγελία',
+    ordSearchPh:'Αναζήτηση — πελάτης, παραγγελία…',
     resNew:'Νέα κράτηση',
     reserveBtn:'Κράτηση',
     resHint:'🔒 Για νέα κράτηση: υπολογίστε ή σαρώστε ένα είδος και πατήστε «Κράτηση» — ή από το καλάθι (πολλά είδη) ή την κάρτα στο Απόθεμα.',
@@ -4252,6 +4273,7 @@ const T = {
     stkReportTitle:'📋 Inventory Check Result',
     navDesk:'Desk',
     deskReservations:'Reservations',
+    deskOrders:'Orders',
     deskRepairs:'Repairs',
     deskGift:'Gift Cards & Credit',
     deskSortNewest:'Newest first', deskSortOldest:'Oldest first', deskSortName:'Name A→Z',
@@ -4264,6 +4286,8 @@ const T = {
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
     repSearchPh:'Search — customer, ticket…',
+    ordNewTicket:'New order',
+    ordSearchPh:'Search — customer, order…',
     resNew:'New reservation',
     reserveBtn:'Reserve',
     resHint:'🔒 To make a reservation: price or scan an item and tap «Reserve» — or from the cart (multiple items) or an item card in Stock.',
@@ -4874,6 +4898,7 @@ async function _refreshSharedLists(force) {
       else if (id === 'panel-desk') {
         // deskShow keeps no state variable — the open segment is whichever view is visible.
         const seg = document.getElementById('deskRepairsView')?.style.display !== 'none' ? 'repairs'
+                  : document.getElementById('deskOrdersView')?.style.display !== 'none' ? 'orders'
                   : document.getElementById('deskGiftView')?.style.display !== 'none' ? 'gift'
                   : 'reservations';
         deskShow(seg);
@@ -5541,9 +5566,10 @@ document.addEventListener('click', function(e) {
 // ─── DESK TAB (Reservations | Repairs | Gift certificates) ────────────────────
 function deskShow(which) {
   // Anything unrecognised falls back to reservations (the original default).
-  const seg = (which === 'repairs' || which === 'gift') ? which : 'reservations';
+  const seg = (which === 'repairs' || which === 'orders' || which === 'gift') ? which : 'reservations';
   const views = {
     reservations: ['deskReservationsView', 'deskTabRes'],
+    orders:       ['deskOrdersView',       'deskTabOrd'],
     repairs:      ['deskRepairsView',      'deskTabRep'],
     gift:         ['deskGiftView',         'deskTabGift']
   };
@@ -5554,7 +5580,9 @@ function deskShow(which) {
     document.getElementById(tabId)?.classList.toggle('active', key === seg);
   }
   if (seg === 'reservations' && typeof renderReservations === 'function') renderReservations();
-  if (seg === 'repairs' && typeof renderRepairs === 'function') renderRepairs();
+  // One render fills BOTH ticket lists (orders + repairs), so every existing
+  // `renderRepairs()` call site stays correct whichever segment is open.
+  if ((seg === 'repairs' || seg === 'orders') && typeof renderRepairs === 'function') renderRepairs();
   if (seg === 'gift' && typeof renderGiftCards === 'function') renderGiftCards();
 }
 
@@ -5566,7 +5594,7 @@ function deskShow(which) {
 // Display filter only: nothing is archived, moved or rewritten on the server.
 function _deskIsFinished(kind, r) {
   if (!r) return false;
-  if (kind === 'repairs') return r.status === 'collected' || r.status === 'cancelled';
+  if (kind === 'repairs' || kind === 'orders') return r.status === 'collected' || r.status === 'cancelled';
   if (kind === 'reservations') return r.status === 'completed' || r.status === 'cancelled' || r.status === 'expired';
   if (kind === 'gift') {
     if (r.status === 'redeemed' || r.status === 'cancelled') return true;
@@ -5583,7 +5611,7 @@ function _deskShowFinished(kind) {
 function _deskToggleFinished(kind) {
   try { localStorage.setItem('jpro_showFinished_' + kind, _deskShowFinished(kind) ? '0' : '1'); } catch (e) {}
   if (kind === 'gift') renderGiftCards();
-  else if (kind === 'repairs') renderRepairs();
+  else if (kind === 'repairs' || kind === 'orders') renderRepairs();
   else renderReservations();
 }
 // The shared control. `hidden` is how many finished records are being withheld,
@@ -5609,12 +5637,12 @@ function _deskFinishedToggleHtml(kind, hidden) {
 // ARE shown — or a search reaches them — today's active hold must not end up buried
 // under last season's completed ones. It also keeps every default byte-identical to
 // the fixed order these lists had before they were sortable.
-const DESK_SORT_IDS = { reservations: 'resSortSelect', repairs: 'repSortSelect', gift: 'gcSortSelect' };
-const DESK_SORT_DEFAULT = { reservations: 'newest', repairs: 'newest', gift: 'due_soon' };
+const DESK_SORT_IDS = { reservations: 'resSortSelect', orders: 'ordSortSelect', repairs: 'repSortSelect', gift: 'gcSortSelect' };
+const DESK_SORT_DEFAULT = { reservations: 'newest', orders: 'newest', repairs: 'newest', gift: 'due_soon' };
 function _deskSortChanged(kind, v) {
   try { localStorage.setItem('jpro_deskSort_' + kind, v); } catch (e) {}
   if (kind === 'gift') renderGiftCards();
-  else if (kind === 'repairs') renderRepairs();
+  else if (kind === 'repairs' || kind === 'orders') renderRepairs();
   else renderReservations();
 }
 // Restores the saved choice once per page load. The <select>s are static markup, so
@@ -7220,12 +7248,19 @@ function _resHoldFor(id) {
 // Rebuilt once per renderInvList so the cards can answer "held?" without walking the
 // reservations for each of ~700 pieces. Null outside a render → fall back to the flag.
 let _resHeldMap = null;
+// Same, for order tickets whose pieces have arrived. Deliberately SEPARATE from
+// _resActiveByItem: that one feeds the reservationId reconcile, which must never write
+// a ticket id into a field that means "reservation".
+let _ordHeldMap = null;
 // The one question the Stock list asks. Reservation records win; the flag is the
 // fallback for the moment before the map exists.
 function _isHeld(id, item) {
   if (!item || item.status !== 'in_stock') return null;   // a sold piece is not held
   const r = _resHeldMap ? _resHeldMap.get(id) : _resHoldFor(id);
   if (r) return r;
+  // An order whose pieces have arrived holds them just as a reservation does.
+  const t = _ordHeldMap ? _ordHeldMap.get(id) : _ordHoldFor(id);
+  if (t) return t;
   // No active hold names it, but it still carries a flag: show the 🔒 anyway. Over-
   // protecting costs a stale badge; under-protecting costs the piece. The reconcile
   // clears it once it can prove the reservations list is current.
@@ -7401,7 +7436,7 @@ function openReserveDialog(items, source) {
   items = items.filter(i => !i.invId || (!_seenIds.has(i.invId) && _seenIds.add(i.invId)));
   if (!items.length) { showToast(lang === 'el' ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock'); return; }
   // Reservation records first — a piece whose flag was lost is still held.
-  if (items.some(i => i.invId && (_resHoldFor(i.invId) || ((_inventoryCache || {})[i.invId] || {}).reservationId))) {
+  if (items.some(i => i.invId && (_holdFor(i.invId) || ((_inventoryCache || {})[i.invId] || {}).reservationId))) {
     showToast(lang === 'el' ? '⚠️ Κάποιο είδος είναι ήδη κρατημένο' : '⚠️ An item is already reserved'); return;
   }
   _resDlgItems = items;
@@ -7543,8 +7578,8 @@ async function reserveCartItems() {
 async function invReserve(id) {
   if (!_inventoryCache || !Object.keys(_inventoryCache).length) _inventoryCache = await loadInventory();
   const it = _inventoryCache[id]; if (!it) return;
-  const _already = _resHoldFor(id) || (it.reservationId ? { id: it.reservationId } : null);
-  if (_already) { showToast(lang === 'el' ? 'Ήδη κρατημένο' : 'Already reserved'); openReservationDetail(_already.id); return; }
+  const _already = _holdFor(id) || (it.reservationId ? { kind: 'res', id: it.reservationId } : null);
+  if (_already) { showToast(lang === 'el' ? 'Ήδη κρατημένο' : 'Already reserved'); _holdOpen(_already); return; }
   const item = _resItemFromInv(id);
   if (!item) { showToast(lang === 'el' ? '⚠️ Δεν μπορεί να κρατηθεί' : '⚠️ Cannot be reserved'); return; }
   openReserveDialog([item], 'stock');
@@ -8068,9 +8103,24 @@ async function pullRepairsFromCloud() {
     saveRepairsLocal(_repairs);
   } catch (e) {}
 }
-async function getNextRepairNo() {
+// ── Ticket kinds ─────────────────────────────────────────────────────────────
+// One record shape, three jobs:
+//   repair — work on the CUSTOMER'S OWN item. It is in your hand; no deposit.
+//   order  — a piece that exists in the world, ordered from a vendor for a customer.
+//   custom — a piece made from scratch to the customer's design.
+// The last two are both "something they will take away that you do not have yet",
+// so they share a lifecycle, a deposit and one Desk list (Παραγγελίες). A repair is
+// a different job and gets its own list back.
+function repIsOrder(r) { const t = (r && r.type) || ''; return t === 'order' || t === 'custom'; }
+function repKind(r) { return repIsOrder(r) ? 'orders' : 'repairs'; }
+
+// Each document kind in the app carries its own letter (G- gift, X- exchange), so an
+// order gets O-. The prefix is STORED on the ticket, never re-derived from the type:
+// R-0007 is already printed on a customer's paper and must not silently become O-0007.
+const TICKET_COUNTERS = { R: '/jewelprice_repair_counter', O: '/jewelprice_order_counter' };
+async function getNextRepairNo(prefix) {
   try {
-    const url = fbUrl('/jewelprice_repair_counter.json');
+    const url = fbUrl((TICKET_COUNTERS[prefix] || TICKET_COUNTERS.R) + '.json');
     const res = await fetch(url, { cache: 'no-store' });
     const cur = res.ok ? (await res.json() || 0) : 0;
     const next = cur + 1;
@@ -8078,7 +8128,7 @@ async function getNextRepairNo() {
     return next;
   } catch (e) { return Date.now() % 100000; }
 }
-function repNoFmt(r) { return 'R-' + String(r.ticketNo || 0).padStart(4, '0'); }
+function repNoFmt(r) { return ((r && r.ticketPrefix) || 'R') + '-' + String((r && r.ticketNo) || 0).padStart(4, '0'); }
 function repEstText(r) {
   const cur = state.currency || '€';
   const lo = parseFloat(r.estLow) || 0, hi = parseFloat(r.estHigh) || 0;
@@ -8086,14 +8136,25 @@ function repEstText(r) {
   if (hi > 0 && hi > lo) return cur + lo.toFixed(2) + ' – ' + cur + hi.toFixed(2);
   return cur + (lo || hi).toFixed(2);
 }
-function repTypeLabel(r) { return r.type === 'custom' ? (lang === 'el' ? 'Παραγγελία' : 'Custom order') : (lang === 'el' ? 'Επισκευή' : 'Repair'); }
+function repTypeLabel(r) {
+  const isEl = lang === 'el';
+  return r.type === 'order' ? (isEl ? 'Παραγγελία' : 'Order')
+    : r.type === 'custom' ? (isEl ? 'Ειδική κατασκευή' : 'Custom order')
+    : (isEl ? 'Επισκευή' : 'Repair');
+}
+function repTypeIcon(r) { return r.type === 'order' ? '📦' : r.type === 'custom' ? '✨' : '🔧'; }
+function repTypeColor(r) { return r.type === 'order' ? '#6fc9a8' : r.type === 'custom' ? '#d4b45f' : '#7fb3e0'; }
 // A quote is a ticket that hasn't been paid for yet — no deposit, no work started.
 function _repIsQuote(r) { return !!r && r.status === 'quote'; }
+// The two working statuses are named after what actually happened, which differs by
+// type: an ORDER is placed with a vendor and then arrives; a repair or a custom piece
+// is worked on and then becomes ready.
 function repStatusLabel(r) {
   const isEl = lang === 'el';
+  const isOrd = r.type === 'order';
   return r.status === 'quote' ? (isEl ? 'Προσφορά' : 'Quote')
-    : r.status === 'in_progress' ? (isEl ? 'Σε εξέλιξη' : 'In progress')
-    : r.status === 'ready' ? (isEl ? 'Έτοιμο' : 'Ready')
+    : r.status === 'in_progress' ? (isOrd ? (isEl ? 'Παραγγέλθηκε' : 'Ordered') : (isEl ? 'Σε εξέλιξη' : 'In progress'))
+    : r.status === 'ready' ? (isOrd ? (isEl ? 'Έφτασε' : 'Arrived') : (isEl ? 'Έτοιμο' : 'Ready'))
     : r.status === 'collected' ? (isEl ? 'Παραλήφθηκε' : 'Collected')
     : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
 }
@@ -8112,31 +8173,38 @@ function _repContact(r) {
   return { phone, email };
 }
 
-function renderRepairs() {
-  const box = document.getElementById('repairsList'); if (!box) return;
+// One call fills BOTH ticket lists, so every existing `renderRepairs()` call site
+// stays correct no matter which kind of ticket was just saved.
+function renderRepairs() { _renderTicketList('orders'); _renderTicketList('repairs'); }
+
+function _renderTicketList(kind) {
+  const isOrders = kind === 'orders';
+  const box = document.getElementById(isOrders ? 'ordersList' : 'repairsList'); if (!box) return;
   const isEl = lang === 'el';
-  const q = (document.getElementById('repSearchInput')?.value || '').toLowerCase().trim();
-  let list = getRepairs().slice();
+  const q = (document.getElementById(isOrders ? 'ordSearchInput' : 'repSearchInput')?.value || '').toLowerCase().trim();
+  let list = getRepairs().filter(r => repKind(r) === kind);
   const rank = s => s === 'quote' ? 0 : (s === 'in_progress' ? 1 : (s === 'ready' ? 2 : (s === 'collected' ? 3 : 4)));
-  const _rpMode = _deskSortValue('repairs');
+  const _rpMode = _deskSortValue(kind);
   list.sort((a, b) => rank(a.status) - rank(b.status) ||
     _deskCmp(_rpMode, a, b, r => r.datePromised, r => r.clientName));
   if (q) list = list.filter(r => (r.clientName || '').toLowerCase().includes(q) || repNoFmt(r).toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q));
   // Collected/cancelled tickets are hidden unless asked for; a search still finds them.
-  const _repFinished = list.filter(r => _deskIsFinished('repairs', r));
-  if (!q && !_deskShowFinished('repairs')) list = list.filter(r => !_deskIsFinished('repairs', r));
-  const _repToggle = q ? '' : _deskFinishedToggleHtml('repairs', _repFinished.length);
-  if (!list.length) { box.innerHTML = _repToggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Κανένα δελτίο ακόμη' : 'No tickets yet'}</div>`; return; }
+  const _repFinished = list.filter(r => _deskIsFinished(kind, r));
+  if (!q && !_deskShowFinished(kind)) list = list.filter(r => !_deskIsFinished(kind, r));
+  const _repToggle = q ? '' : _deskFinishedToggleHtml(kind, _repFinished.length);
+  if (!list.length) {
+    const none = isOrders ? (isEl ? 'Καμία παραγγελία ακόμη' : 'No orders yet') : (isEl ? 'Κανένα δελτίο ακόμη' : 'No tickets yet');
+    box.innerHTML = _repToggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${none}</div>`; return;
+  }
   box.innerHTML = _repToggle + list.map(r => {
     const statusChip = `<span style="color:${repStatusColor(r)}">${repStatusLabel(r)}</span>`;
     const thumb = r.photoUrl
       ? `<img src="${r.photoUrl}" style="width:52px;height:52px;border-radius:8px;object-fit:contain;background:#fff;flex-shrink:0">`
-      : `<div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${_repIsQuote(r) ? '📝' : r.type === 'custom' ? '✨' : '🔧'}</div>`;
+      : `<div style="width:52px;height:52px;border-radius:8px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${_repIsQuote(r) ? '📝' : repTypeIcon(r)}</div>`;
+    const _tc = repTypeColor(r);
     const typeChip = _repIsQuote(r)
       ? `<span style="background:rgba(201,160,224,0.15);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">📝 ${isEl ? 'Προσφορά' : 'Quote'}</span>`
-      : r.type === 'custom'
-      ? `<span style="background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">✨ ${isEl ? 'Παραγγελία' : 'Custom order'}</span>`
-      : `<span style="background:rgba(90,150,210,0.15);border:1px solid rgba(90,150,210,0.45);color:#7fb3e0;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">🔧 ${isEl ? 'Επισκευή' : 'Repair'}</span>`;
+      : `<span style="background:${_tc}26;border:1px solid ${_tc}80;color:${_tc};border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;white-space:nowrap">${repTypeIcon(r)} ${repTypeLabel(r)}</span>`;
     return `<div onclick="openRepairDetail('${r.id}')" style="display:flex;gap:11px;align-items:center;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:11px 13px;margin-bottom:9px;cursor:pointer">
       ${thumb}
       <div style="flex:1;min-width:0">
@@ -8145,7 +8213,7 @@ function renderRepairs() {
           <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0">${repNoFmt(r)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${typeChip}<span style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_repEsc(r.description || '')}</span></div>
-        ${_deskDateLine(r.dateCreated, r.datePromised, isEl ? 'έτοιμο' : 'ready', !_deskIsFinished('repairs', r))}
+        ${_deskDateLine(r.dateCreated, r.datePromised, isOrders && r.type === 'order' ? (isEl ? 'άφιξη' : 'arrives') : (isEl ? 'έτοιμο' : 'ready'), !_deskIsFinished(kind, r))}
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--text-muted)">${repEstText(r)}</span><span>${statusChip}</span></div>
       </div>
     </div>`;
@@ -8153,10 +8221,15 @@ function renderRepairs() {
 }
 
 // ── New / edit ticket modal ──
-function openRepairModal() {
+function openRepairModal(kind) {
   if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
   _repPendingPhoto = null; _repPendingPhotoHi = null;
   const isEl = lang === 'el';
+  // Opened from the Orders segment → an order (or a custom piece). From Repairs →
+  // a repair, with no type toggle at all: mixing the two is exactly what made the
+  // old single list confusing.
+  const _isOrd = kind === 'orders';
+  const _type0 = _isOrd ? 'order' : 'repair';
   const dflt = dateStrInDays(7);
   document.getElementById('repairModalOverlay')?.remove();
   const ov = document.createElement('div');
@@ -8164,13 +8237,14 @@ function openRepairModal() {
   ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🔧 ${isEl ? 'Νέο δελτίο' : 'New ticket'}</div>
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">${_isOrd ? '📦 ' + (isEl ? 'Νέα παραγγελία' : 'New order') : '🔧 ' + (isEl ? 'Νέο δελτίο επισκευής' : 'New repair ticket')}</div>
       <button onclick="document.getElementById('repairModalOverlay').remove()" class="modal-x">✕</button>
     </div>
-    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:12px">
-      <button id="repTypeRepair" class="desk-seg active" onclick="_repairSetType('repair')">🔧 ${isEl ? 'Επισκευή' : 'Repair'}</button>
-      <button id="repTypeCustom" class="desk-seg" onclick="_repairSetType('custom')">✨ ${isEl ? 'Παραγγελία' : 'Custom'}</button>
+    ${_isOrd ? `<div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:12px">
+      <button id="repTypeOrder" class="desk-seg active" onclick="_repairSetType('order')">📦 ${isEl ? 'Παραγγελία' : 'Order'}</button>
+      <button id="repTypeCustom" class="desk-seg" onclick="_repairSetType('custom')">✨ ${isEl ? 'Ειδική κατασκευή' : 'Custom'}</button>
     </div>
+    <div style="font-size:11px;color:var(--text-muted);line-height:1.45;margin:-4px 0 12px">${isEl ? '📦 κόσμημα που υπάρχει και το παραγγέλνετε · ✨ κατασκευάζεται από την αρχή' : '📦 a piece that exists, ordered from a vendor · ✨ made from scratch'}</div>` : ''}
     <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
     <div style="position:relative;margin-bottom:10px">
       <input id="repCustName" autocomplete="off" oninput="_repClientAutocomplete(this.value)" onblur="setTimeout(_repHideClientSug,200)" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
@@ -8181,7 +8255,7 @@ function openRepairModal() {
     <div style="${_resLbl}">${isEl ? 'Φωτογραφία (κόσμημα / σχέδιο)' : 'Photo (item / reference)'}</div>
     <div id="repPhotoPicker" style="margin-bottom:10px"></div>
     <div style="${_resLbl}">${isEl ? 'Περιγραφή' : 'Description'}</div>
-    <textarea id="repDesc" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. Συγκόλληση αλυσίδας, αλλαγή κουμπώματος…' : 'e.g. Solder chain, replace clasp…'}"></textarea>
+    <textarea id="repDesc" rows="2" style="${_resInp};resize:vertical" placeholder="${_isOrd ? (isEl ? 'π.χ. 4 δαχτυλίδια μαίανδρος 14κ, νούμερα 64, 62, 53, 53' : 'e.g. 4 Greek meander rings 14K, sizes 64, 62, 53, 53') : (isEl ? 'π.χ. Συγκόλληση αλυσίδας, αλλαγή κουμπώματος…' : 'e.g. Solder chain, replace clasp…')}"></textarea>
     <div id="repEstLbl" style="${_resLbl}">${isEl ? 'Εκτίμηση κόστους (απαιτείται)' : 'Estimate (required)'}</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
       <input id="repEstLow" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'από €' : 'from €'}" style="${_resInp};margin-bottom:0;flex:1 1 0;min-width:0;width:auto">
@@ -8205,22 +8279,25 @@ function openRepairModal() {
     <button onclick="_repairSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">💾 ${isEl ? 'Αποθήκευση' : 'Save ticket'}</button>
   </div>`;
   document.body.appendChild(ov);
-  ov.dataset.type = 'repair';
   const pk = document.getElementById('repPhotoPicker');
   if (pk) renderPhotoPicker(pk, { previewId: 'repPhoto', onCapture: (u, hi) => { _repPendingPhoto = u; _repPendingPhotoHi = hi; } });
+  _repairSetType(_type0);  // sets dataset.type + the deposit block + the estimate label
   setTimeout(() => document.getElementById('repCustName')?.focus(), 100);
 }
 function _repairSetType(type) {
   const ov = document.getElementById('repairModalOverlay'); if (ov) ov.dataset.type = type;
-  document.getElementById('repTypeRepair')?.classList.toggle('active', type === 'repair');
+  document.getElementById('repTypeOrder')?.classList.toggle('active', type === 'order');
   document.getElementById('repTypeCustom')?.classList.toggle('active', type === 'custom');
-  const dep = document.getElementById('repDepositBlock'); if (dep) dep.style.display = type === 'custom' ? '' : 'none';
+  // An order and a custom piece are both paid for with a deposit; a repair is not
+  // (the customer's own jewel IS the deposit).
+  const _ord = type === 'order' || type === 'custom';
+  const dep = document.getElementById('repDepositBlock'); if (dep) dep.style.display = _ord ? '' : 'none';
   // A repair is priced with the item in your hand, so the estimate stays required.
-  // A custom order is often quoted later — the estimate can wait.
+  // An order or custom piece is often quoted later — the estimate can wait.
   const el = document.getElementById('repEstLbl');
   if (el) el.textContent = lang === 'el'
-    ? (type === 'custom' ? 'Εκτίμηση κόστους (προαιρετικό)' : 'Εκτίμηση κόστους (απαιτείται)')
-    : (type === 'custom' ? 'Estimate (optional)' : 'Estimate (required)');
+    ? (_ord ? 'Εκτίμηση κόστους (προαιρετικό)' : 'Εκτίμηση κόστους (απαιτείται)')
+    : (_ord ? 'Estimate (optional)' : 'Estimate (required)');
 }
 function _repairDlgStatus(msg) { const el = document.getElementById('repDlgStatus'); if (el) el.textContent = msg || ''; }
 
@@ -8251,11 +8328,12 @@ async function _repairSave() {
   if (!name) { _repairDlgStatus(isEl ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
   const estLow = parseFloat(document.getElementById('repEstLow').value) || 0;
   const estHigh = parseFloat(document.getElementById('repEstHigh').value) || 0;
-  // Custom orders may be quoted later, so their estimate can be blank.
-  if (type !== 'custom' && estLow <= 0 && estHigh <= 0) { _repairDlgStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
+  const _isOrdT = repIsOrder({ type });
+  // Orders and custom pieces may be quoted later, so their estimate can be blank.
+  if (!_isOrdT && estLow <= 0 && estHigh <= 0) { _repairDlgStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
   const dep = parseFloat(document.getElementById('repDeposit')?.value) || 0;
-  // No deposit on a custom order = nothing has been paid, so it's a quote.
-  const isQuote = type === 'custom' && dep <= 0;
+  // No deposit on an order = nothing has been paid, so it's a quote.
+  const isQuote = _isOrdT && dep <= 0;
   const phone = _readPhoneField('repCustPhoneCode', 'repCustPhone');
   const email = (document.getElementById('repCustEmail').value || '').trim();
   const desc = (document.getElementById('repDesc').value || '').trim();
@@ -8268,10 +8346,11 @@ async function _repairSave() {
     _repairDlgStatus(isEl ? '⏳ Μεταφόρτωση φωτογραφίας…' : '⏳ Uploading photo…');
     try { const up = await uploadInventoryPhoto(_repPendingPhoto, _repPendingPhotoHi, 'repair'); if (up) { photoUrl = up.url; photoUrlHi = up.hiUrl || up.url; } } catch (e) {}
   }
-  const no = await getNextRepairNo();
+  const _prefix = _isOrdT ? 'O' : 'R';
+  const no = await getNextRepairNo(_prefix);
   const now = Date.now();
   const rec = {
-    id: 'rep_' + _stampId(), ticketNo: no, type,
+    id: 'rep_' + _stampId(), ticketNo: no, ticketPrefix: _prefix, type,
     clientName: name, clientPhone: phone, clientEmail: email,
     photoUrl, photoUrlHi, description: desc,
     estLow: parseFloat((estLow || estHigh).toFixed(2)), estHigh: estHigh > estLow ? parseFloat(estHigh.toFixed(2)) : 0,
@@ -8286,7 +8365,9 @@ async function _repairSave() {
   const list = getRepairs(); list.push(rec); saveRepairsLocal(list); pushRepairsToCloud(list);
   upsertClientFromSale(name, phone, email);
   ov?.remove();
-  showToast(isQuote ? (isEl ? '✓ Η προσφορά αποθηκεύτηκε' : '✓ Quote saved') : (isEl ? '✓ Το δελτίο δημιουργήθηκε' : '✓ Ticket created'));
+  showToast(isQuote ? (isEl ? '✓ Η προσφορά αποθηκεύτηκε' : '✓ Quote saved')
+    : _isOrdT ? (isEl ? '✓ Η παραγγελία καταχωρήθηκε' : '✓ Order created')
+    : (isEl ? '✓ Το δελτίο δημιουργήθηκε' : '✓ Ticket created'));
   renderRepairs();
   if (isQuote) setTimeout(() => openRepairDetail(rec.id), 150); // straight to sending it
 }
@@ -8337,12 +8418,13 @@ function openRepairDetail(id) {
       ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${((r.cashSale ? (parseFloat(r.finalPrice) || 0) : (parseFloat(r.finalPrice) || 0) / (1 + (parseFloat(state.vat) || 0) / 100)) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
     ${r.notes ? `<div style="font-size:12px;color:var(--text-muted);margin:0 0 10px;padding:9px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;white-space:pre-wrap;line-height:1.5">${_repEsc(r.notes)}</div>` : ''}
+    ${_ordPiecesBlock(r)}
     ${_isQ ? `<button onclick="_repairQuoteOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:12px;background:rgba(201,160,224,0.12);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✏️ ${isEl ? 'Τιμή & στοιχεία προσφοράς' : 'Edit the quote'}</button>` : ''}
     ${notifyRow}
-    <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${_isQ ? (isEl ? 'Προσφορά (εκτύπωση / αποστολή)' : 'Quote (print / share)') : (isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)')}</button>
+    <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${_isQ ? (isEl ? 'Προσφορά (εκτύπωση / αποστολή)' : 'Quote (print / share)') : repIsOrder(r) ? (isEl ? 'Παραγγελία (εκτύπωση / αποστολή)' : 'Order form (print / share)') : (isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)')}</button>
     ${_isQ ? `<button onclick="_repairDepositOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💶 ${isEl ? 'Προκαταβολή → παραγγελία' : 'Deposit paid → start order'}</button>` : ''}
-    ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">✓ ${isEl ? 'Έτοιμο' : 'Mark ready'}</button>` : ''}
-    ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="_repairCollectOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${isEl ? 'Παραλαβή' : 'Collect'}</button>` : ''}
+    ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">${r.type === 'order' ? '📥 ' + (isEl ? 'Έφτασε' : 'Mark arrived') : '✓ ' + (isEl ? 'Έτοιμο' : 'Mark ready')}</button>` : ''}
+    ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="${_ordLinkedInStock(r).length ? `_ordCompleteSale('${r.id}')` : `_repairCollectOpen('${r.id}')`}" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${_ordLinkedInStock(r).length ? (isEl ? 'Παραλαβή & πώληση' : 'Collect & sell') : (isEl ? 'Παραλαβή' : 'Collect')}</button>` : ''}
     ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
     ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
   </div>`;
@@ -8370,6 +8452,15 @@ function _repCanEdit(r) {
   return !!me && (r.createdBy || '').trim() === me;
 }
 function _repEdStatus(msg) { const el = document.getElementById('repEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+// Order ↔ custom is the ONE type change that is safe: same lifecycle, same deposit
+// rule, same document — only the wording differs. Crossing to or from a repair is
+// refused, because that would rewrite what the customer signed for.
+function _repEdSetType(type) {
+  if (type !== 'order' && type !== 'custom') return;
+  const ov = document.getElementById('repairEditOverlay'); if (ov) ov.dataset.type = type;
+  document.getElementById('repEdTypeOrder')?.classList.toggle('active', type === 'order');
+  document.getElementById('repEdTypeCustom')?.classList.toggle('active', type === 'custom');
+}
 let _repEdPendingPhoto = null, _repEdPendingPhotoHi = null;  // separate from the create modal's
 
 function openRepairEdit(id) {
@@ -8397,6 +8488,12 @@ function openRepairEdit(id) {
       <div id="repEdPromisedDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${_pd ? fmtDate(_pd) : '—'}</div>
       <input id="repEdPromised" type="date" value="${_pd}" onchange="var _d=document.getElementById('repEdPromisedDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
     </div>
+
+    ${repIsOrder(r) ? `<div style="${_resLbl}">${isEl ? 'Τύπος' : 'Type'}</div>
+    <div style="display:flex;gap:6px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:5px;margin-bottom:10px">
+      <button type="button" id="repEdTypeOrder" class="desk-seg${r.type === 'order' ? ' active' : ''}" onclick="_repEdSetType('order')">📦 ${isEl ? 'Παραγγελία' : 'Order'}</button>
+      <button type="button" id="repEdTypeCustom" class="desk-seg${r.type === 'custom' ? ' active' : ''}" onclick="_repEdSetType('custom')">✨ ${isEl ? 'Ειδική κατασκευή' : 'Custom'}</button>
+    </div>` : ''}
 
     <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
     <input id="repEdName" autocomplete="off" value="${_repEsc(r.clientName || '')}" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
@@ -8433,11 +8530,12 @@ function openRepairEdit(id) {
     <div style="${_resLbl}">${isEl ? 'Σημείωση (προαιρετικό)' : 'Note (optional)'}</div>
     <textarea id="repEdNotes" rows="2" style="${_resInp};resize:vertical" placeholder="${isEl ? 'π.χ. θα περάσει το απόγευμα' : 'e.g. coming by in the afternoon'}">${_repEsc(r.notes || '')}</textarea>
 
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;line-height:1.45">${isEl ? 'Ο τύπος και η κατάσταση του δελτίου δεν αλλάζουν από εδώ.' : 'The ticket type and status are not changed here.'}</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;line-height:1.45">${repIsOrder(r) ? (isEl ? 'Η κατάσταση δεν αλλάζει από εδώ. Παραγγελία ↔ ειδική κατασκευή αλλάζει μόνο τη διατύπωση — μια επισκευή είναι άλλη δουλειά και δεν γίνεται παραγγελία.' : 'The status is not changed here. Order ↔ custom only changes the wording — a repair is a different job and cannot become an order.') : (isEl ? 'Ο τύπος και η κατάσταση του δελτίου δεν αλλάζουν από εδώ.' : 'The ticket type and status are not changed here.')}</div>
     <div id="repEdStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px"></div>
     <button id="repEdSaveBtn" onclick="_repairEditSave('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
   </div>`;
   document.body.appendChild(ov);
+  ov.dataset.type = r.type || 'repair';
   const pk = document.getElementById('repEdPhotoPicker');
   if (pk) renderPhotoPicker(pk, { previewId: 'repEdPhoto', existingUrl: r.photoUrl || null, onCapture: (u, hi) => { _repEdPendingPhoto = u; _repEdPendingPhotoHi = hi; } });
 }
@@ -8453,7 +8551,7 @@ async function _repairEditSave(id) {
   const hi = parseFloat(document.getElementById('repEdHigh').value) || 0;
   // A repair is priced with the item in your hand, so its estimate stays required.
   // A custom order / quote may still be waiting for the workshop's price.
-  if (r.type !== 'custom' && lo <= 0 && hi <= 0) { _repEdStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
+  if (!repIsOrder(r) && lo <= 0 && hi <= 0) { _repEdStatus(isEl ? '⚠️ Η εκτίμηση κόστους απαιτείται' : '⚠️ An estimate is required'); return; }
   const depEl = document.getElementById('repEdDeposit');
   let dep = null, depMethod = r.depositMethod || null;
   if (depEl) {
@@ -8486,6 +8584,9 @@ async function _repairEditSave(id) {
   r.datePromised = document.getElementById('repEdPromised').value || null;
   r.notes = (document.getElementById('repEdNotes').value || '').trim();
   r.photoUrl = photoUrl; r.photoUrlHi = photoUrlHi;
+  // Only ever within the order/custom pair — a repair can never be reclassified.
+  const _newType = document.getElementById('repairEditOverlay')?.dataset.type;
+  if (repIsOrder(r) && (_newType === 'order' || _newType === 'custom')) r.type = _newType;
   if (depEl) { r.deposit = dep; r.depositMethod = depMethod; }
   const askEl = document.getElementById('repEdDepAsk');
   if (askEl) { const a = parseFloat(askEl.value) || 0; r.depositAsked = a > 0 ? parseFloat(a.toFixed(2)) : null; }
@@ -8520,10 +8621,14 @@ function _repairNotify(id, channel) {
     showToast(isEl ? '⚠️ Συμπληρώστε πρώτα την τιμή' : '⚠️ Fill in the price first');
     _repairQuoteOpen(id); return;
   }
-  const what = r.type === 'custom' ? (isEl ? 'η παραγγελία σας' : 'your custom order') : (isEl ? 'η επισκευή σας' : 'your repair');
+  // An ORDER arrives; a repair or a custom piece becomes ready. Say the true thing.
+  const what = r.type === 'order' ? (isEl ? 'η παραγγελία σας' : 'your order')
+    : r.type === 'custom' ? (isEl ? 'η ειδική σας παραγγελία' : 'your custom order')
+    : (isEl ? 'η επισκευή σας' : 'your repair');
+  const _arrived = r.type === 'order';
   const msg = _isQ ? _repQuoteMessage(r) : (isEl
-    ? `Γεια σας ${_grVocative(r.clientName)}! Στο Lekkas Jewelry, ${what} (${repNoFmt(r)}) είναι έτοιμη για παραλαβή. 💍`
-    : `Hello ${r.clientName || ''}! At Lekkas Jewelry, ${what} (${repNoFmt(r)}) is ready for pickup. 💍`);
+    ? `Γεια σας ${_grVocative(r.clientName)}! Στο Lekkas Jewelry, ${what} (${repNoFmt(r)}) ${_arrived ? 'έφτασε και σας περιμένει' : 'είναι έτοιμη για παραλαβή'}. 💍`
+    : `Hello ${r.clientName || ''}! At Lekkas Jewelry, ${what} (${repNoFmt(r)}) ${_arrived ? 'has arrived and is waiting for you' : 'is ready for pickup'}. 💍`);
   const enc = encodeURIComponent(msg);
   const _rc = _repContact(r); // ticket's own contact, else the linked client's
   if (channel === 'whatsapp') {
@@ -8642,7 +8747,7 @@ function _repairDepositOpen(id) {
   ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:360px">
     <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">💶 ${isEl ? 'Προκαταβολή' : 'Deposit'} · ${repNoFmt(r)}</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.45">${isEl ? 'Η προσφορά γίνεται παραγγελία και ξεκινά η κατασκευή.' : 'The quote becomes a custom order and work starts.'}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.45">${r.type === 'order' ? (isEl ? 'Η προσφορά γίνεται παραγγελία και δίνεται στον προμηθευτή.' : 'The quote becomes an order and goes to the vendor.') : (isEl ? 'Η προσφορά γίνεται παραγγελία και ξεκινά η κατασκευή.' : 'The quote becomes a custom order and work starts.')}</div>
     <div style="${_resLbl}">${isEl ? 'Ποσό' : 'Amount'} (€)</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <input id="repDepAmt" type="number" step="0.01" inputmode="decimal" value="${asked > 0 ? asked.toFixed(2) : ''}" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
@@ -8694,8 +8799,8 @@ function _repairCollectOpen(id) {
       </div>
     </div>
     <div style="margin-bottom:12px">${_cashToggleHtml('repCollectCashToggle')}</div>
-    ${r.type === 'custom' ? `
-    <!-- A custom order is a piece of jewelry being made, so a gift certificate
+    ${repIsOrder(r) ? `
+    <!-- An order or a custom piece is jewelry being sold, so a gift certificate
          may pay for it. A repair is labour on the customer's own item — excluded. -->
     <div style="margin-bottom:12px">
       <button id="repGiftBtn" onclick="_repOpenGiftPicker('${r.id}')" style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🎁 ${isEl ? 'Δωροεπιταγή' : 'Gift certificate'}</button>
@@ -8746,7 +8851,7 @@ async function _repairCollectConfirm(id) {
   // Gift certificate (custom orders only) — re-derived from the card, not the
   // on-screen figure, so a stale dialog can't overdraw it.
   const _rgSel = window._repGiftCard || null;
-  const _rgCard = (r.type === 'custom' && _rgSel) ? gcFindById(_rgSel.id) : null;
+  const _rgCard = (repIsOrder(r) && _rgSel) ? gcFindById(_rgSel.id) : null;
   const _rgUse = (_rgCard && gcIsSpendable(_rgCard)) ? Math.min(gcBalance(_rgCard), price) : 0;
   if (_rgUse > 0) {
     r.giftCardId = _rgCard.id;
@@ -8754,7 +8859,7 @@ async function _repairCollectConfirm(id) {
     saveRepairsLocal(list); pushRepairsToCloud(list); // persist the link (set after the save above)
   }
   if (logIt && price > 0) {
-    const note = (r.type === 'custom' ? (isEl ? 'Παραγγελία' : 'Custom order') : (isEl ? 'Επισκευή' : 'Repair')) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
+    const note = repTypeLabel(r) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
     try {
       const _inc = await _recordRepairIncome(price, cost, cashSale, note,
         _rgUse > 0 ? { giftAmt: _rgUse, giftWasCash: !!_rgCard.cashSale, giftCardId: _rgCard.id, giftCardNo: _rgCard.cardNo } : undefined);
@@ -8813,6 +8918,9 @@ function _repairCancel(id) {
     r.status = 'cancelled'; saveRepairsLocal(list); pushRepairsToCloud(list);
     document.getElementById('repairDetailOverlay')?.remove();
     renderRepairs();
+    // A cancelled ticket holds nothing — the hold is derived from the status, so the
+    // pieces are already free; just repaint the list if it is on screen.
+    if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
     showToast(lang === 'el' ? 'Ακυρώθηκε' : 'Cancelled');
   }, null, { danger: true });
 }
@@ -8823,6 +8931,7 @@ function _repairDelete(id) {
     saveRepairsLocal(list); pushRepairsToCloud(list, { allowEmpty: true });
     document.getElementById('repairDetailOverlay')?.remove();
     renderRepairs();
+    if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
     showToast(lang === 'el' ? 'Διαγράφηκε' : 'Deleted');
   }, null, { danger: true });
 }
@@ -8868,7 +8977,9 @@ async function buildRepairPDF(r) {
   // Title + ticket no/date
   doc.setFont('NotoSans', 'bold'); doc.setFontSize(8); doc.setTextColor(150, 130, 80); doc.setCharSpace(1.4);
   const title = _repIsQuote(r) ? (isEl ? 'ΠΡΟΣΦΟΡΑ' : 'QUOTE')
-    : r.type === 'custom' ? (isEl ? 'ΠΑΡΑΓΓΕΛΙΑ' : 'CUSTOM ORDER') : (isEl ? 'ΔΕΛΤΙΟ ΕΠΙΣΚΕΥΗΣ' : 'REPAIR TICKET');
+    : r.type === 'order' ? (isEl ? 'ΠΑΡΑΓΓΕΛΙΑ' : 'ORDER')
+    : r.type === 'custom' ? (isEl ? 'ΕΙΔΙΚΗ ΚΑΤΑΣΚΕΥΗ' : 'CUSTOM ORDER')
+    : (isEl ? 'ΔΕΛΤΙΟ ΕΠΙΣΚΕΥΗΣ' : 'REPAIR TICKET');
   doc.text(title, MARGIN, HEADER_H_MM + 5); doc.setCharSpace(0);
   setReg(9, 90, 90, 90); doc.text(repNoFmt(r) + '  ·  ' + fmtDate(new Date(r.dateCreated || Date.now())), pageW - MARGIN, HEADER_H_MM + 5, { align: 'right' });
 
@@ -8915,11 +9026,11 @@ async function buildRepairPDF(r) {
       ? 'Η παρούσα προσφορά είναι κατά προσέγγιση και η τελική τιμή επιβεβαιώνεται κατά την παράδοση. Η παραγγελία ξεκινά με την καταβολή της προκαταβολής, η οποία δεν επιστρέφεται σε περίπτωση ακύρωσης.'
       : 'This quote is approximate; the final price is confirmed on delivery. The order starts once the deposit is paid, and that deposit is non-refundable if the order is cancelled.')
     : isEl
-    ? (r.type === 'custom'
+    ? (repIsOrder(r)
       ? 'Η προκαταβολή δεν επιστρέφεται σε περίπτωση ακύρωσης της παραγγελίας. Η εκτίμηση είναι κατά προσέγγιση· η τελική τιμή επιβεβαιώνεται κατά την παράδοση.'
       : 'Η εκτίμηση είναι κατά προσέγγιση· η τελική τιμή επιβεβαιώνεται κατά την παράδοση. Το κόσμημα παραδίδεται με την επίδειξη αυτού του δελτίου.')
-    : (r.type === 'custom'
-      ? 'The deposit is non-refundable if the custom order is cancelled. The estimate is approximate; the final price is confirmed on delivery.'
+    : (repIsOrder(r)
+      ? 'The deposit is non-refundable if the order is cancelled. The estimate is approximate; the final price is confirmed on delivery.'
       : 'The estimate is approximate; the final price is confirmed on delivery. The item is released on presentation of this ticket.');
   const tl = doc.splitTextToSize(terms, pageW - 2 * MARGIN); doc.text(tl, MARGIN, y); y += tl.length * 4 + 6;
 
@@ -8940,7 +9051,7 @@ async function shareRepairForm(id) {
   showToast(lang === 'el' ? '⏳ Δημιουργία δελτίου…' : '⏳ Generating form…');
   try {
     const blob = await buildRepairPDF(r);
-    const fname = (_repIsQuote(r) ? 'quote-' : 'repair-') + repNoFmt(r) + '.pdf';
+    const fname = (_repIsQuote(r) ? 'quote-' : repIsOrder(r) ? 'order-' : 'repair-') + repNoFmt(r) + '.pdf';
     const file = new File([blob], fname, { type: 'application/pdf' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file] });
@@ -8950,6 +9061,360 @@ async function shareRepairForm(id) {
       setTimeout(() => URL.revokeObjectURL(url), 3000);
     }
   } catch (e) { if (e.name !== 'AbortError') showToast('⚠️ ' + (e.message || 'Failed')); }
+}
+
+// ═══ ORDER ARRIVAL: link → hold → sell ═══════════════════════════════════════
+//
+// The pieces on an order do not exist when the ticket is written. When they arrive
+// they are added to stock the normal way (each has its own weight, so each is priced
+// and tagged on its own), and then LINKED to the ticket by scanning its fresh tag.
+//
+// From that moment the ticket holds them for the customer, exactly as a reservation
+// does — and collecting runs the ordinary sale, so cost and profit come from the real
+// inventory records instead of a figure typed into the collect box.
+//
+// The link is a list of RECORD IDS on the ticket (`invIds`), never a code string: a
+// code is a description and several pieces may legitimately share one.
+
+// The pieces still resolvable, as [id, item] pairs. A piece deleted from stock simply
+// drops out — the ticket is not rewritten behind the owner's back.
+function _ordLinkedEntries(r) {
+  const out = [];
+  for (const id of ((r && r.invIds) || [])) {
+    const it = (_inventoryCache || {})[id];
+    if (it) out.push([id, it]);
+  }
+  return out;
+}
+function _ordLinkedInStock(r) { return _ordLinkedEntries(r).filter(([, it]) => it.status === 'in_stock'); }
+
+// The block in the ticket detail: what has arrived, and the way to link more.
+// Repairs never show it — the item is the customer's own and never enters stock.
+function _ordPiecesBlock(r) {
+  if (!repIsOrder(r) || _repIsQuote(r)) return '';
+  const isEl = lang === 'el';
+  const live = r.status === 'in_progress' || r.status === 'ready';
+  const rows = _ordLinkedEntries(r);
+  if (!rows.length && !live) return '';
+  const list = rows.map(([id, it]) => {
+    const sold = it.status === 'sold';
+    return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+      <span style="flex:1;min-width:0;font-size:12px;color:${sold ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${sold ? ' · ' + (isEl ? 'πουλήθηκε' : 'sold') : ''}</span>
+      ${live && !sold ? `<button onclick="_ordUnlink('${r.id}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>` : ''}
+    </div>`;
+  }).join('');
+  return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+    <div style="${_resLbl};margin-top:0">${rows.length ? (isEl ? `Κομμάτια (${rows.length}) — κρατημένα για τον πελάτη` : `Pieces (${rows.length}) — held for the customer`) : (isEl ? 'Κομμάτια' : 'Pieces')}</div>
+    ${list || `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Μόλις φτάσουν, προσθέστε τα στο απόθεμα και συνδέστε τα εδώ — τότε η παραλαβή τα πουλάει κανονικά, με σωστό κόστος και κέρδος.' : 'When they arrive, add them to stock and link them here — collection then sells them normally, with the real cost and profit.'}</div>`}
+    ${live ? `<button onclick="openOrderAddPieces('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(111,201,168,0.12);border:1px solid rgba(111,201,168,0.45);color:#6fc9a8;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">📥 ${rows.length ? (isEl ? 'Σύνδεση κι άλλων' : 'Link more pieces') : (isEl ? 'Έφτασαν — σύνδεση κομματιών' : 'They arrived — link the pieces')}</button>` : ''}
+  </div>`;
+}
+
+// A ticket holds its linked pieces while it is live. Derived from the ticket record —
+// there is deliberately NO second flag on the item to lose (item.reservationId belongs
+// to reservations and is left alone), so cancelling or collecting releases by itself.
+// invId -> live order ticket, for a whole-inventory pass.
+function _ordActiveByItem() {
+  const m = new Map();
+  for (const r of getRepairs()) {
+    if (!r || !repIsOrder(r)) continue;
+    if (r.status !== 'in_progress' && r.status !== 'ready') continue;
+    for (const id of (r.invIds || [])) if (id && !m.has(id)) m.set(id, r);
+  }
+  return m;
+}
+function _ordHoldFor(id) {
+  if (!id) return null;
+  for (const r of getRepairs()) {
+    if (!r || !repIsOrder(r)) continue;
+    if (r.status !== 'in_progress' && r.status !== 'ready') continue;
+    if ((r.invIds || []).indexOf(id) !== -1) return r;
+  }
+  return null;
+}
+
+// ── ONE question: "is this piece promised to a named customer?" ──────────────
+// A reservation and an arrived order are the same promise, so every guard that
+// sells, gifts, re-reserves or publishes a piece asks this — not two half-checks.
+// Returns a normalised descriptor so callers never care which kind it was.
+function _holdFor(id) {
+  const r = (typeof _resHoldFor === 'function') ? _resHoldFor(id) : null;
+  if (r) return { kind: 'res', id: r.id, clientName: r.clientName || '', no: resNoFmt(r) };
+  const t = _ordHoldFor(id);
+  if (t) return { kind: 'order', id: t.id, clientName: t.clientName || '', no: repNoFmt(t) };
+  return null;
+}
+function _holdOpen(h) {
+  if (!h) return;
+  if (h.kind === 'order') openRepairDetail(h.id); else openReservationDetail(h.id);
+}
+
+// ── The scanning sheet ───────────────────────────────────────────────────────
+let _ordAdd = { ticketId: null, stream: null, interval: null, scanning: false, paused: false, session: 0 };
+// Bumped on every open. getUserMedia resolves/rejects long after the sheet may have been
+// closed and reopened, and the element ids are the same — without this a stale callback
+// writes its message (in the OLD language) into the sheet that replaced it, and can leave
+// a camera running for a sheet that is gone.
+let _ordAddSeq = 0;
+function _ordEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+async function openOrderAddPieces(ticketId) {
+  const r = getRepairs().find(x => x.id === ticketId); if (!r) return;
+  const isEl = lang === 'el';
+  // The sheet resolves scans against the stock, so it must be loaded — opening straight
+  // from Desk without ever visiting Stock would otherwise make every scan "not found".
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  closeOrderAddPieces();
+  _ordAdd = { ticketId, stream: null, interval: null, scanning: false, paused: false, session: ++_ordAddSeq };
+  const ov = document.createElement('div');
+  ov.id = 'ordAddOverlay';
+  // Top-anchored: there is a field to type into (the v11.53 rule).
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.88);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
+  ov.onclick = (e) => { if (e.target === ov) closeOrderAddPieces(true); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">📥 ${isEl ? 'Σύνδεση κομματιών' : 'Link the pieces'}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:2px">${repNoFmt(r)} · ${_ordEsc(r.clientName || '')}</div>
+        </div>
+        <button onclick="closeOrderAddPieces(true)" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin:8px 0 12px">${isEl ? 'Προσθέστε πρώτα τα κομμάτια στο απόθεμα ως συνήθως, μετά σαρώστε την ετικέτα του καθενός εδώ. Θα κρατηθούν για τον πελάτη μέχρι την παραλαβή.' : 'Add the pieces to stock as usual first, then scan each new tag here. They will be held for the customer until collection.'}</div>
+      <div id="ordAddVideoWrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px">
+        <video id="ordAddVideo" playsinline muted style="width:100%;display:block;max-height:38vh;object-fit:cover"></video>
+      </div>
+      <div id="ordAddStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:10px;min-height:15px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="ordAddManual" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+          placeholder="${isEl ? 'π.χ. RG0110' : 'e.g. RG0110'}"
+          style="flex:1;min-width:0;padding:11px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:var(--font-mono);font-size:14px;letter-spacing:0.08em;box-sizing:border-box">
+        <button onclick="_ordAddManualSubmit()" style="flex:0 0 auto;background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:10px;padding:0 16px;font-size:14px;font-weight:700;cursor:pointer">➕</button>
+      </div>
+      <div id="ordAddFeedback" style="font-size:12px;line-height:1.5;min-height:18px;margin-bottom:8px"></div>
+      <div id="ordAddList"></div>
+      <button onclick="closeOrderAddPieces(true)" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:13px;color:var(--ink);font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${isEl ? 'Τέλος' : 'Done'}</button>
+    </div>`;
+  document.body.appendChild(ov);
+  const mi = document.getElementById('ordAddManual');
+  if (mi) mi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); _ordAddManualSubmit(); } });
+  _ordAddRenderList();
+  const status = document.getElementById('ordAddStatus');
+  if (canDecodeQr()) {
+    const wrap = document.getElementById('ordAddVideoWrap'); if (wrap) wrap.style.display = '';
+    if (status) status.textContent = isEl ? 'Σαρώστε την ετικέτα του κομματιού' : 'Scan the piece’s tag';
+    _ordAddStartCamera();
+  } else {
+    // iOS/Safari cannot decode a QR, and a laptop has no tag to point at anyway.
+    if (status) status.textContent = isEl ? 'Πληκτρολογήστε τον κωδικό αναφοράς' : 'Type the reference code';
+    setTimeout(() => { try { mi.focus(); } catch (e) {} }, 200);
+  }
+}
+
+async function _ordAddStartCamera() {
+  const mine = _ordAdd.session;
+  const video = document.getElementById('ordAddVideo');
+  if (!video) return;
+  const hires = !('BarcodeDetector' in window);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: hires ? 1920 : 1280 }, height: { ideal: hires ? 1080 : 720 } } });
+    // The sheet was closed (or reopened) while the camera was warming up.
+    if (_ordAdd.session !== mine) { try { stream.getTracks().forEach(t => t.stop()); } catch (e) {} return; }
+    _ordAdd.stream = stream;
+    video.srcObject = stream;
+    await video.play();
+    if (_ordAdd.session !== mine) return;
+    await _setupCameraFocus(stream, null, null);
+    if (_ordAdd.session !== mine) return;
+    _ordAddDecodeLoop(video);
+  } catch (e) {
+    if (_ordAdd.session !== mine) return;   // never write into the sheet that replaced this one
+    const status = document.getElementById('ordAddStatus');
+    if (status) status.textContent = lang === 'el' ? 'Χωρίς κάμερα — πληκτρολογήστε τον κωδικό' : 'No camera — type the code instead';
+    const wrap = document.getElementById('ordAddVideoWrap'); if (wrap) wrap.style.display = 'none';
+    setTimeout(() => { try { document.getElementById('ordAddManual').focus(); } catch (e) {} }, 150);
+  }
+}
+
+function _ordAddDecodeLoop(video) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  _ordAdd.scanning = true; _ordAdd.paused = false;
+  clearInterval(_ordAdd.interval);
+  _ordAdd.interval = setInterval(async () => {
+    if (!_ordAdd.scanning || _ordAdd.paused) return;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
+    _ordAdd.paused = true;
+    try {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const raw = await decodeQrFromCanvas(canvas);
+      if (raw) await _ordAddOnCode(raw);
+      // Cooldown either way, so one tag still in frame is not read twice.
+      setTimeout(() => { _ordAdd.paused = false; }, 1300);
+    } catch (e) { _ordAdd.paused = false; }
+  }, 250);
+}
+
+function _ordAddManualSubmit() {
+  const mi = document.getElementById('ordAddManual'); if (!mi) return;
+  const v = (mi.value || '').trim(); if (!v) return;
+  mi.value = '';
+  _ordAddOnCode(v);
+  try { mi.focus(); } catch (e) {}
+}
+function _ordAddSay(html, color) {
+  const fb = document.getElementById('ordAddFeedback');
+  if (fb) { fb.innerHTML = html; fb.style.color = color || 'var(--text-muted)'; }
+}
+
+// Every outcome is NAMED. A scan that silently does nothing is indistinguishable
+// from a broken scanner, and this one writes to a customer's order.
+async function _ordAddOnCode(raw) {
+  const tid = _ordAdd.ticketId; if (!tid) return;
+  const isEl = lang === 'el';
+  const list = getRepairs(); const r = list.find(x => x.id === tid); if (!r) return;
+  const res = resolveCodeToInvEntry(raw);
+  const code = _ordEsc(res.code);
+  const buzz = p => { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} };
+
+  if (!res.matches.length) {
+    _ordAddSay('⚠️ ' + (isEl ? `Δεν βρέθηκε κομμάτι με κωδικό <b>${code}</b>` : `No piece found for <b>${code}</b>`), '#e57373');
+    buzz([60, 40, 60]); return;
+  }
+  // A code may name several pieces (identical grouped pieces, a coin batch). Take one
+  // that is in stock and not already committed somewhere.
+  const linked = (r.invIds || []);
+  let pick = null, sawSold = false, sawLinkedHere = false, blockedBy = null;
+  for (const [id, it] of res.matches) {
+    if (linked.indexOf(id) !== -1) { sawLinkedHere = true; continue; }
+    if (it.status !== 'in_stock') { sawSold = true; continue; }
+    const h = _holdFor(id);
+    if (h) { blockedBy = h; continue; }
+    pick = [id, it]; break;
+  }
+  if (!pick) {
+    if (sawLinkedHere) _ordAddSay('ℹ️ ' + (isEl ? `Το <b>${code}</b> είναι ήδη σε αυτή την παραγγελία` : `<b>${code}</b> is already on this order`), 'var(--text-muted)');
+    else if (blockedBy) _ordAddSay('⚠️ ' + (isEl ? `Το <b>${code}</b> είναι κρατημένο${blockedBy.clientName ? ' για ' + _ordEsc(blockedBy.clientName) : ''} (${blockedBy.no})` : `<b>${code}</b> is held${blockedBy.clientName ? ' for ' + _ordEsc(blockedBy.clientName) : ''} (${blockedBy.no})`), '#e57373');
+    else if (sawSold) _ordAddSay('⚠️ ' + (isEl ? `Το <b>${code}</b> είναι ήδη πουλημένο` : `<b>${code}</b> is already sold`), '#e57373');
+    else _ordAddSay('⚠️ ' + (isEl ? 'Δεν μπορεί να συνδεθεί' : 'Cannot be linked'), '#e57373');
+    buzz([60, 40, 60]); return;
+  }
+  const [id, it] = pick;
+  // A by-the-gram batch is stock, not a piece; raw metal is not sold over the counter.
+  if (it.isBulk || it.isMetal) {
+    _ordAddSay('⚠️ ' + (isEl ? (it.isBulk ? 'Οι αλυσίδες με το γραμμάριο δεν συνδέονται εδώ' : 'Το μέταλλο δεν συνδέεται εδώ') : (it.isBulk ? 'By-the-gram chains cannot be linked here' : 'Raw metal cannot be linked here')), '#e57373');
+    buzz([60, 40, 60]); return;
+  }
+  r.invIds = linked.concat([id]);
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)), '#7fd6b0');
+  buzz(40);
+  _ordAddRenderList();
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+}
+
+function _ordPieceLine(it) {
+  const bits = [];
+  if (it.seqId) bits.push(itemRefCode(it));
+  const t = it.jewelryType ? invTypeLabel(it.jewelryType) : '';
+  if (t) bits.push(t);
+  const d = _itemDesc(it); if (d) bits.push(d);
+  return bits.join(' · ') || (it.qrCode || '');
+}
+
+function _ordAddRenderList() {
+  const box = document.getElementById('ordAddList'); if (!box) return;
+  const r = getRepairs().find(x => x.id === _ordAdd.ticketId);
+  const rows = _ordLinkedEntries(r);
+  const isEl = lang === 'el';
+  if (!rows.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div style="${_resLbl}">${isEl ? `Συνδεδεμένα (${rows.length})` : `Linked (${rows.length})`}</div>` + rows.map(([id, it]) => {
+    const sold = it.status === 'sold';
+    return `<div style="display:flex;align-items:center;gap:9px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;margin-bottom:6px">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+      <span style="flex:1;min-width:0;font-size:12px;color:${sold ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${sold ? ' · ' + (isEl ? 'πουλήθηκε' : 'sold') : ''}</span>
+      <button onclick="_ordUnlink('${_ordAdd.ticketId}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function _ordUnlink(ticketId, invId) {
+  const list = getRepairs(); const r = list.find(x => x.id === ticketId); if (!r) return;
+  r.invIds = (r.invIds || []).filter(x => x !== invId);
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  if (document.getElementById('ordAddOverlay')) _ordAddRenderList();
+  if (document.getElementById('repairDetailOverlay')) openRepairDetail(ticketId);
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+}
+
+function closeOrderAddPieces(reopen) {
+  _ordAdd.session = ++_ordAddSeq;   // invalidate any camera callback still in flight
+  _ordAdd.scanning = false;
+  clearInterval(_ordAdd.interval); _ordAdd.interval = null;
+  if (_ordAdd.stream) { _ordAdd.stream.getTracks().forEach(t => t.stop()); _ordAdd.stream = null; }
+  const v = document.getElementById('ordAddVideo'); if (v) v.srcObject = null;
+  const tid = _ordAdd.ticketId;
+  document.getElementById('ordAddOverlay')?.remove();
+  _ordAdd.ticketId = null;
+  if (reopen && tid) { renderRepairs(); openRepairDetail(tid); }
+}
+
+// ── Collect an order whose pieces are in stock ───────────────────────────────
+// Hands them to the ORDINARY sale flow at the agreed price, so each piece is marked
+// sold against its own record and its cost/profit come from the record — not from a
+// number typed into the collect box. `confirmSale` then calls _ordFinalizeCollect.
+async function _ordCompleteSale(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el';
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { _inventoryCache = await loadInventory(); } catch (e) {} }
+  const rows = _ordLinkedInStock(r);
+  if (!rows.length) { showToast(isEl ? '⚠️ Κανένα συνδεδεμένο κομμάτι στο απόθεμα' : '⚠️ No linked pieces in stock'); return; }
+  // The agreed total is one figure for the whole order; split it across the pieces in
+  // proportion to what each is actually worth, so each record's VAT split and profit
+  // are right. Equal split when no piece can be priced. The remainder rides on the last
+  // line, so the parts always add back up to the agreed total exactly.
+  const agreed = (parseFloat(r.finalPrice) > 0 ? parseFloat(r.finalPrice)
+    : parseFloat(r.estHigh) > 0 ? parseFloat(r.estHigh)
+    : parseFloat(r.estLow) || 0);
+  const retails = rows.map(([, it]) => { try { const p = calcInvItemPrice(it); return (p && p.retail > 0) ? p.retail : 0; } catch (e) { return 0; } });
+  const sum = retails.reduce((s, v) => s + v, 0);
+  const saleItems = []; let running = 0;
+  rows.forEach(([iid, it], i) => {
+    let price;
+    if (i === rows.length - 1) price = Math.round((agreed - running) * 100) / 100;
+    else {
+      price = sum > 0 ? Math.round(agreed * (retails[i] / sum) * 100) / 100 : Math.round((agreed / rows.length) * 100) / 100;
+      running += price;
+    }
+    saleItems.push({ id: iid, item: it, price: price });
+  });
+  window._completingOrderTicketId = id;
+  window._cartSaleItems = saleItems;
+  document.getElementById('repairDetailOverlay')?.remove();
+  openMultiSaleModal(saleItems);
+  // Customer + deposit note. Set AFTER the call — openMultiSaleModal clears these.
+  const _nm = document.getElementById('saleCustomerName'); if (_nm) _nm.value = r.clientName || '';
+  _setPhoneField('saleCustomerPhoneCode', 'saleCustomerPhone', r.clientPhone || '');
+  const _em = document.getElementById('saleCustomerEmail'); if (_em) _em.value = r.clientEmail || '';
+  const dep = parseFloat(r.deposit) || 0;
+  const note = document.getElementById('saleNoteInput');
+  if (note) note.value = repNoFmt(r) + (r.description ? ' — ' + r.description : '')
+    + (dep > 0 ? ' (' + (isEl ? 'προκαταβολή' : 'deposit') + ' ' + (state.currency || '€') + dep.toFixed(2) + ')' : '');
+}
+
+// Called from confirmSale once the sale is recorded. Books NO income of its own — the
+// sale records already carry the money; doing both would count the order twice.
+async function _ordFinalizeCollect(tid, total) {
+  const list = getRepairs(); const r = list.find(x => x.id === tid); if (!r) return;
+  r.status = 'collected';
+  r.dateCollected = Date.now();
+  if (parseFloat(total) > 0) r.finalPrice = parseFloat(parseFloat(total).toFixed(2));
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  if (document.getElementById('panel-desk')?.classList.contains('active')) renderRepairs();
 }
 
 function adjustCalcPadding() {
@@ -10747,13 +11212,13 @@ function _cartMissingOk(missing, total, action) {
 // right (they came in and paid), but it must never happen silently — the proper
 // path is Desk → the reservation → "Complete & sell", which closes the hold too.
 function _cartReservedOk(lines) {
-  const held = (lines || []).filter(L => !L.isBulk && L.item && (L.item.reservationId || _resHoldFor(L.id)));
+  const held = (lines || []).filter(L => !L.isBulk && L.item && (L.item.reservationId || _holdFor(L.id)));
   if (!held.length) return Promise.resolve(true);
   const isEl = lang === 'el';
   const names = held.map(L => L.ci.name || itemRefCode(L.item)).join(', ');
   const msg = isEl
-    ? `Κρατημένο για πελάτη: ${names}. Η κράτηση ΔΕΝ θα κλείσει αυτόματα — καλύτερα από τον Πάγκο → Κράτηση → «Ολοκλήρωση & πώληση». Πώληση ούτως ή άλλως;`
-    : `On hold for a customer: ${names}. The reservation will NOT be closed automatically — better done from Desk → the reservation → "Complete & sell". Sell anyway?`;
+    ? `Κρατημένο για πελάτη: ${names}. Η κράτηση/παραγγελία ΔΕΝ θα κλείσει αυτόματα — καλύτερα από τον Πάγκο, με «Ολοκλήρωση & πώληση» ή «Παραλαβή & πώληση». Πώληση ούτως ή άλλως;`
+    : `On hold for a customer: ${names}. The reservation/order will NOT be closed automatically — better done from Desk, with "Complete & sell" or "Collect & sell". Sell anyway?`;
   return new Promise(resolve => showConfirm(msg,
     () => resolve(true), () => resolve(false),
     { okLabel: isEl ? 'Πώληση' : 'Sell anyway', cancelLabel: isEl ? 'Άκυρο' : 'Cancel' }));
@@ -12220,14 +12685,14 @@ function _openSingleSaleModal(skipResGuard) {
   // warning at the counter. Asks the reservation records (see _resHoldFor).
   if (!skipResGuard) {
     const _sid = (typeof _calcScanInvId === 'function') ? _calcScanInvId() : null;
-    const _r = _sid ? _resHoldFor(_sid) : null;
+    const _r = _sid ? _holdFor(_sid) : null;
     if (_r) {
       const _who = _r.clientName || '';
       showConfirm(
         (lang === 'el'
-          ? `🔒 Αυτό το κομμάτι είναι κρατημένο${_who ? ' για ' + _who : ''} (${resNoFmt(_r)}). Άνοιγμα κράτησης για ολοκλήρωση;`
-          : `🔒 This piece is reserved${_who ? ' for ' + _who : ''} (${resNoFmt(_r)}). Open the reservation to complete it?`),
-        () => openReservationDetail(_r.id),
+          ? `🔒 Αυτό το κομμάτι είναι κρατημένο${_who ? ' για ' + _who : ''} (${_r.no}). Άνοιγμα για ολοκλήρωση;`
+          : `🔒 This piece is held${_who ? ' for ' + _who : ''} (${_r.no}). Open it to complete the sale?`),
+        () => _holdOpen(_r),
         () => _openSingleSaleModal(true),
         { okLabel: (lang === 'el' ? 'Άνοιγμα κράτησης' : 'Open reservation'), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
       );
@@ -13893,6 +14358,12 @@ async function confirmSale() {
   if (window._completingReservationId) {
     const _rid = window._completingReservationId; window._completingReservationId = null;
     try { await _resFinalizeComplete(_rid); } catch (e) {}
+  }
+  // Same for an order ticket whose arrived pieces were just sold. No income is booked
+  // here — these sale records ARE the money; _recordRepairIncome must not also run.
+  if (window._completingOrderTicketId) {
+    const _tid = window._completingOrderTicketId; window._completingOrderTicketId = null;
+    try { await _ordFinalizeCollect(_tid, amt); } catch (e) {}
   }
 }
 
@@ -17751,7 +18222,7 @@ async function _checkInvStatusForCalc(raw) {
     chip.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)';
     // A held piece must SAY so here — this chip is what the person at the counter reads
     // before pressing SOLD. Reads the reservation records, not the (losable) flag.
-    const _chipHold = item.status === 'in_stock' ? _resHoldFor(fbKey) : null;
+    const _chipHold = item.status === 'in_stock' ? _holdFor(fbKey) : null;
     const statusLabel = item.status === 'sold'
       ? (isEl ? '🏷️ Πουλήθηκε' : '🏷️ Sold')
       : _chipHold
@@ -20509,7 +20980,7 @@ function publicProjection(item, id) {
   if (item.hideFromShowroom) return null;
   // Reserved for a customer — hold it out of the public showroom until released.
   // Reservation records first: a piece whose flag was lost must not reappear online.
-  if (item.reservationId || (id && _resHoldFor(id))) return null;
+  if (item.reservationId || (id && _holdFor(id))) return null;
   const out = {};
   PUBLIC_SAFE_FIELDS.forEach(f => { if (item[f] !== undefined && item[f] !== null) out[f] = item[f]; });
   // Handmade is DERIVED (stored flag OR the labor category's mark), never just the
@@ -21811,7 +22282,7 @@ function renderInvList() {
   // item.reservationId — so a flag that was lost (failed write, another device, an
   // older app version) still shows its 🔒 and still blocks a sale on THIS render,
   // without waiting for the repair above to reach the cloud. Built once per render.
-  _resHeldMap = _resActiveByItem();
+  _resHeldMap = _resActiveByItem(); _ordHeldMap = _ordActiveByItem();
 
   // Keep the public showroom feed backfilled / self-healed (once per session, no-op if unchanged)
   republishPublicShowroom();
@@ -25068,14 +25539,14 @@ async function invMarkSold(id) {
   // reservation (so the deposit/hold is settled) rather than a stray sale.
   // Asks the reservation RECORDS, not item.reservationId — a flag that was lost
   // must never turn into a sale of someone else's held piece.
-  const _r = _resHoldFor(id);
+  const _r = _holdFor(id);
   if (_r) {
     const _who = _r.clientName || '';
     showConfirm(
-      (lang === 'el' ? `Αυτό το είδος είναι κρατημένο${_who ? ' για ' + _who : ''}. Άνοιγμα κράτησης για ολοκλήρωση;` : `This item is reserved${_who ? ' for ' + _who : ''}. Open the reservation to complete it?`),
-      () => { if (_r) openReservationDetail(_r.id); },
+      (lang === 'el' ? `Αυτό το είδος είναι κρατημένο${_who ? ' για ' + _who : ''} (${_r.no}). Άνοιγμα για ολοκλήρωση;` : `This item is held${_who ? ' for ' + _who : ''} (${_r.no}). Open it to complete the sale?`),
+      () => { if (_r) _holdOpen(_r); },
       () => openSaleModalFromInventory(id),
-      { okLabel: (lang === 'el' ? 'Άνοιγμα κράτησης' : 'Open reservation'), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
+      { okLabel: (lang === 'el' ? (_r.kind === 'order' ? 'Άνοιγμα παραγγελίας' : 'Άνοιγμα κράτησης') : (_r.kind === 'order' ? 'Open the order' : 'Open reservation')), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
     );
     return;
   }
@@ -25133,7 +25604,7 @@ function invGiveaway(id) {
   if (!item) return;
   const isEl = lang === 'el';
   // Reserved / coin / metal / bulk pieces are not everyday counter gifts.
-  if (item.reservationId || _resHoldFor(id)) {
+  if (item.reservationId || _holdFor(id)) {
     showToast('⚠️ ' + (isEl ? 'Το κομμάτι είναι κρατημένο — δεν μπορεί να δοθεί ως δώρο' : 'This piece is reserved — it cannot be given away'));
     return;
   }
@@ -27327,11 +27798,16 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.64', date: 'Αύγουστος 2026', items: [
-        "🖨 Επανεκτύπωση προσφοράς με πολλά κομμάτια: η προσφορά τυπώνεται ξανά ακριβώς όπως την δώσατε — όλα τα κομμάτια ξεχωριστά, με φωτογραφίες, κωδικούς και εκπτώσεις. Πριν, μια προσφορά με 2+ κομμάτια ξανατυπωνόταν σαν ένα κομμάτι με «€NaN» στα ποσά.",
-        "📄 Οι προσφορές αποθηκεύουν πλέον και τα ξεχωριστά κομμάτια, όχι μόνο το σύνολο. Παλιές προσφορές (πριν την ενημέρωση) έχουν μόνο τη σύνοψη — τυπώνονται σωστά, αλλά σε μία γραμμή, και σας το λέει.",
-        "💎 Η επανεκτύπωση ενός κομματιού κρατά τώρα και τις πέτρες, τον κωδικό αναφοράς και τη φωτογραφία.",
-        "🔧 Διόρθωση: σε προσφορά για αλυσίδα με το γραμμάριο δεν εμφανίζεται πια «€null/oz» στην τιμή μετάλλου.",
+      { version: 'v12.65', date: 'Αύγουστος 2026', items: [
+        "📦 Νέα ενότητα «Παραγγελίες» στο Γραφείο. Οι παραγγελίες δεν κρύβονται πια κάτω από τις Επισκευές — έχουν δικό τους χώρο, με τέσσερις καρτέλες σε πλέγμα 2×2 (Κρατήσεις · Παραγγελίες · Επισκευές · Επιταγές).",
+        "📦 Δύο είδη παραγγελίας: «Παραγγελία» για κόσμημα που υπάρχει και το παραγγέλνετε από προμηθευτή, και «Ειδική κατασκευή» για κάτι που φτιάχνεται από την αρχή. Πριν, όλα ήταν «custom order».",
+        "🔤 Η κατάσταση λέει πλέον την αλήθεια ανά είδος: μια παραγγελία «Παραγγέλθηκε» και μετά «Έφτασε» — μια επισκευή είναι «Σε εξέλιξη» και μετά «Έτοιμο». Το ίδιο και στο μήνυμα προς τον πελάτη και στο τυπωμένο έντυπο.",
+        "🔢 Οι νέες παραγγελίες παίρνουν δική τους σειρά αριθμών (O-0001). Τα δελτία που έχετε ήδη τυπώσει κρατούν τον αριθμό τους — τίποτα δεν αλλάζει.",
+        "📥 Όταν φτάνει η παραγγελία: προσθέτετε τα κομμάτια στο απόθεμα ως συνήθως και μετά τα «συνδέετε» στην παραγγελία σαρώνοντας την ετικέτα του καθενός.",
+        "🔒 Τα συνδεδεμένα κομμάτια κρατούνται για τον πελάτη — φεύγουν από τη βιτρίνα και κανείς δεν μπορεί να τα πουλήσει κατά λάθος.",
+        "💰 Η «Παραλαβή & πώληση» τα πουλάει κανονικά στη συμφωνημένη τιμή: μία συναλλαγή, ένα κομμάτι ανά εγγραφή, με πραγματικό κόστος και κέρδος από το απόθεμα — όχι από νούμερο που πληκτρολογείτε.",
+        "🧾 Η τιμή μοιράζεται στα κομμάτια αναλογικά με την αξία τους, ώστε ΦΠΑ και κέρδος να βγαίνουν σωστά στο καθένα.",
+        "✏️ Μπορείτε να αλλάξετε ένα δελτίο από «Παραγγελία» σε «Ειδική κατασκευή» και αντίστροφα. Μια επισκευή δεν γίνεται παραγγελία — είναι άλλη δουλειά.",
       ]},
       ]
   },
@@ -27362,11 +27838,16 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.64', date: 'Aug 2026', items: [
-        "🖨 Reprinting a multi-item quote: it now prints exactly as you gave it — every piece listed separately, with photos, codes and discounts. Before, a quote with 2+ pieces reprinted as one merged item with «€NaN» where the amounts should be.",
-        "📄 Quotes now store the separate pieces, not just the total. Quotes made before this update kept only the summary — they print correctly, but as one line, and the app tells you so.",
-        "💎 Reprinting a single item now keeps its stones, reference code and photo too.",
-        "🔧 Fix: a quote for a by-the-gram chain no longer shows «€null/oz» as the metal price.",
+      { version: 'v12.65', date: 'Aug 2026', items: [
+        "📦 New «Orders» section in Desk. Orders no longer hide under Repairs — they have their own place, with four segments in a 2×2 grid (Reservations · Orders · Repairs · Gift Cards).",
+        "📦 Two kinds of order: «Order» for a piece that exists and you order it from a vendor, and «Custom» for something made from scratch. Before, everything was a «custom order».",
+        "🔤 The status now says the true thing per kind: an order is «Ordered» and then «Arrived» — a repair is «In progress» and then «Ready». Same in the customer message and on the printed form.",
+        "🔢 New orders get their own number series (O-0001). Tickets you have already printed keep their numbers — nothing changes.",
+        "📥 When the order arrives: add the pieces to stock as usual, then «link» them to the order by scanning each tag.",
+        "🔒 Linked pieces are held for the customer — they leave the showroom and nobody can sell them by accident.",
+        "💰 «Collect & sell» sells them normally at the agreed price: one transaction, one record per piece, with the real cost and profit from stock — not from a number you type.",
+        "🧾 The price is split across the pieces in proportion to their value, so VAT and profit come out right on each one.",
+        "✏️ You can switch a ticket between «Order» and «Custom». A repair can never become an order — it is a different job.",
       ]},
           ]
   }
@@ -32140,7 +32621,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.64';
+const APP_VERSION = '12.65';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -33400,7 +33881,7 @@ function invGroupSelected() {
 // Edit / Mark-sold, plus an Ungroup action. Read from the live cache so it's current.
 function openInvGroup(gid) {
   closeInvGroup();
-  _resHeldMap = _resActiveByItem();   // this sheet can open long after the last list render
+  _resHeldMap = _resActiveByItem(); _ordHeldMap = _ordActiveByItem();   // this sheet can open long after the last list render
   const members = Object.entries(_inventoryCache || {})
     .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
   if (!members.length) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
