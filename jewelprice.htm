@@ -2504,6 +2504,11 @@
         </div>
       </div>
     </div>
+    <!-- MIXED PAYMENT. Part of the money handed over now is cash (no receipt)
+         and the rest goes through the card. The amount above is never touched;
+         only how it was settled is recorded, so the VAT and the profit follow
+         the money that actually went through the till. -->
+    <div id="saleSplitWrap" style="margin-bottom:14px"></div>
     <!-- "It's a gift" — issues an EXCHANGE CARD (κάρτα αλλαγής) with the sale.
          The card names the piece but NEVER its price: the person unwrapping it
          must not learn what was paid. It is not money — it just identifies this
@@ -2589,6 +2594,7 @@
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleAmount">Ποσό (€)</label>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="number" id="saleEditAmt" step="0.01" inputmode="decimal"
+          oninput="_splitSync('saleEdit')"
           style="flex:1;background:var(--dark-3);border:1px solid rgba(212,175,55,0.4);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:18px;padding:10px 12px">
         <button id="saleEditCashToggle" onclick="toggleManualCash('saleEditCashToggle')" data-cash-btn="1" title="Cash sale — no VAT deducted from profit"
           style="flex:0 0 auto;padding:8px 12px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text-muted);font-size:11px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap">
@@ -2596,6 +2602,9 @@
         </button>
       </div>
     </div>
+    <!-- Same mixed-payment control as the sale dialog, so a split can be
+         corrected afterwards instead of having to delete and re-record. -->
+    <div id="saleEditSplitWrap" style="margin-bottom:14px"></div>
     <div style="margin-bottom:14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleVendorLabel">Προμηθευτής</label>
       <div style="position:relative">
@@ -3773,6 +3782,9 @@ const T = {
     gcUseOnSale:'Δωροεπιταγή ή πίστωση',
     exCardOffer:'Κάρτα αλλαγής',
     gcCashDue:'Να εισπραχθούν',
+    splitPayBtn:'Μικτή πληρωμή (μετρητά + κάρτα)',
+    splitCashPart:'Μετρητά (χωρίς απόδειξη)',
+    splitRestPart:'Με απόδειξη / κάρτα',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
     repSearchPh:'Αναζήτηση — πελάτης, δελτίο…',
@@ -4314,6 +4326,9 @@ const T = {
     gcUseOnSale:'Gift certificate or credit',
     exCardOffer:'Exchange card',
     gcCashDue:'Cash due',
+    splitPayBtn:'Split payment (cash + card)',
+    splitCashPart:'Cash (no receipt)',
+    splitRestPart:'On receipt / card',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
     repSearchPh:'Search — customer, ticket…',
@@ -6865,6 +6880,9 @@ function _updateSaleGiftDisplay() {
   document.getElementById('saleGiftDue').textContent = cur + due.toFixed(2);
   box.style.display = '';
   btn.style.display = 'none';
+  // The certificate changes what is left to settle, so the split's "on receipt"
+  // half — and its cash ceiling — move with it.
+  try { _splitSync('sale'); } catch (e) {}
 }
 
 // ── Same picker, for a CUSTOM ORDER collection ───────────────────────────────
@@ -8840,6 +8858,9 @@ function _repairCollectOpen(id) {
       </div>
     </div>
     <div style="margin-bottom:12px">${_cashToggleHtml('repCollectCashToggle')}</div>
+    <!-- A €2000 order is exactly the kind that gets settled part cash, part
+         card, so it takes the same split as a sale. -->
+    <div id="repCollectSplitWrap" style="margin-bottom:12px"></div>
     ${repIsOrder(r) ? `
     <!-- An order or a custom piece is jewelry being sold, so a gift certificate
          may pay for it. A repair is labour on the customer's own item — excluded. -->
@@ -8863,6 +8884,9 @@ function _repairCollectOpen(id) {
     </div>
   </div>`;
   document.body.appendChild(ov);
+  // Rebuilt with the overlay each time, so it always starts closed — a split
+  // must never be inherited from the previous ticket.
+  _splitMount('repCollect', 'repCollectSplitWrap');
   ov.dataset.log = '1';  // default: log as income
   window._repGiftCard = null; // never inherit a certificate from a previous ticket
 }
@@ -8882,6 +8906,8 @@ async function _repairCollectConfirm(id) {
   const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
   const cost = parseFloat(document.getElementById('repFinalCost')?.value) || 0;
   const cashSale = _isCashBtn('repCollectCashToggle');
+  // Read before the overlay is removed below.
+  const splitCash = _splitValue('repCollect');
   const logIt = ov?.dataset.log === '1';
   r.status = 'collected'; r.dateCollected = Date.now();
   r.finalPrice = price > 0 ? parseFloat(price.toFixed(2)) : null;
@@ -8902,8 +8928,14 @@ async function _repairCollectConfirm(id) {
   if (logIt && price > 0) {
     const note = repTypeLabel(r) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
     try {
+      const _incOpts = _rgUse > 0
+        ? { giftAmt: _rgUse, giftWasCash: !!_rgCard.cashSale, giftCardId: _rgCard.id, giftCardNo: _rgCard.cardNo }
+        : {};
+      // Clamped to what is actually being handed over, so cash + card + any
+      // certificate can never add up to more than the price.
+      if (splitCash != null) _incOpts.cashAmt = Math.min(splitCash, parseFloat((price - _rgUse).toFixed(2)));
       const _inc = await _recordRepairIncome(price, cost, cashSale, note,
-        _rgUse > 0 ? { giftAmt: _rgUse, giftWasCash: !!_rgCard.cashSale, giftCardId: _rgCard.id, giftCardNo: _rgCard.cardNo } : undefined);
+        Object.keys(_incOpts).length ? _incOpts : undefined);
       if (_rgUse > 0) await _gcApplyRedemption(_rgCard.id, _rgUse, _inc ? _inc.id : null);
     } catch (e) {}
   } else if (_rgUse > 0) {
@@ -8924,21 +8956,31 @@ async function _recordRepairIncome(amount, cost, cashSale, note, giftOpts) {
   const vat = parseFloat(state.vat) || 0;
   // Same portion split as a sale: a certificate half arrived under its own
   // regime months ago. With no certificate this is the original formula.
+  // A MIXED payment (giftOpts.cashAmt) splits it once more, and the ex-VAT value
+  // then comes from _saleExVatRaw — the one place that knows the rule.
   const _go = giftOpts || {};
   const _giftPart = Math.min(Math.max(parseFloat(_go.giftAmt) || 0, 0), g);
-  const _cashPart = g - _giftPart;
-  const _pex = (v, isCash) => isCash ? v : v / (1 + vat / 100);
-  const exVat = _pex(_giftPart, !!_go.giftWasCash) + _pex(_cashPart, cashSale);
+  const _sp = _splitResolve(g, _giftPart, (_go.cashAmt != null ? _go.cashAmt : null), cashSale);
+  const exVat = _saleExVatRaw({
+    amount: g,
+    cashSale: _sp.cashSale,
+    cashAmt: _sp.cashAmt,
+    giftCardAmt: _giftPart > 0 ? _giftPart : 0,
+    giftCardWasCash: !!_go.giftWasCash
+  }, vat);
   const profit = parseFloat((exVat - c).toFixed(2));
   const rec = {
-    id: Date.now(),
+    // Date.now() alone collides when two records land in the same millisecond,
+    // and an id is what every lookup, delete and return keys on.
+    id: _nextSaleId(sales),
     amount: g, note: note || '', date: todayStr(), ts: Date.now(),
     vendor: '', customer: '', email: '',
     employee: creds.userName || '', employeeName: creds.displayName || '',
     bonusAmt: 0, bonusPct: 0, invQr: '',
-    cost: c > 0 ? c : null, profit, cashSale: !!cashSale,
+    cost: c > 0 ? c : null, profit, cashSale: _sp.cashSale,
     salePhotoUrl: '', salePhotoName: '', seqRef: '', repairIncome: true
   };
+  if (_sp.cashAmt != null) rec.cashAmt = _sp.cashAmt;
   if (_giftPart > 0) {
     rec.giftCardId = _go.giftCardId || null;
     rec.giftCardNo = _go.giftCardNo || null;
@@ -11455,11 +11497,12 @@ async function getSales() {
   return await pullSalesFromCloud();
 }
 
-// Ex-VAT value of a stored sale record. A sale part-paid by a gift certificate
-// arrived under two regimes, so it cannot be derived from cashSale alone — this
-// is the ONE place that knows the rule, so displays can never drift from the
-// profit that addSaleRecord actually stored.
-function _saleExVat(s, vat) {
+// Ex-VAT value of a stored sale record, UNROUNDED. A sale can arrive under
+// several regimes at once — a gift-certificate portion settled months ago, and
+// what is handed over today split between cash (no receipt) and card — so it
+// cannot be derived from cashSale alone. This is the ONE place that knows the
+// rule, so no display and no stored profit can ever drift from another.
+function _saleExVatRaw(s, vat) {
   const amt = parseFloat(s.amount) || 0;
   const raw = parseFloat(s.giftCardAmt) || 0;
   // Clamp the certificate portion by MAGNITUDE and force it to share the sale's
@@ -11471,9 +11514,51 @@ function _saleExVat(s, vat) {
   const g = (raw === 0 || (raw > 0) !== (amt > 0))
     ? 0
     : Math.sign(amt) * Math.min(Math.abs(raw), Math.abs(amt));
-  const c = amt - g;
+  const c = amt - g;                       // what the customer settles now
   const pex = (v, isCash) => isCash ? v : v / (1 + (vat || 0) / 100);
-  return parseFloat((pex(g, !!s.giftCardWasCash) + pex(c, s.cashSale)).toFixed(2));
+  // MIXED PAYMENT: part of what is settled now was handed over in cash (no
+  // receipt) and the rest went through the card. Clamped by magnitude and
+  // forced to share the sale's sign for exactly the same reason as the
+  // certificate portion above — a return reverses a mixed sale with a negative
+  // cashAmt, and an unsigned clamp would put the whole value under one regime.
+  const rawCash = parseFloat(s.cashAmt) || 0;
+  if (rawCash !== 0 && (rawCash > 0) === (amt > 0)) {
+    const cash = Math.sign(amt) * Math.min(Math.abs(rawCash), Math.abs(c));
+    return pex(g, !!s.giftCardWasCash) + cash + pex(c - cash, false);
+  }
+  // No split: all of it follows the one cashSale flag — identical to every
+  // record written before mixed payments existed.
+  return pex(g, !!s.giftCardWasCash) + pex(c, s.cashSale);
+}
+function _saleExVat(s, vat) { return parseFloat(_saleExVatRaw(s, vat).toFixed(2)); }
+
+// Decide what a record should STORE for a payment that may be split.
+// `cashTyped` is null when no split is in use, in which case the plain cash
+// toggle decides as it always has. cashAmt is written ONLY when the sale is
+// genuinely mixed: all-cash stays {cashSale:true, no cashAmt} and all-card
+// stays {cashSale:false, no cashAmt}, byte-identical to an ordinary record.
+function _splitResolve(amount, giftPart, cashTyped, fallbackCash) {
+  const payable = parseFloat((Math.abs(parseFloat(amount) || 0) - Math.abs(parseFloat(giftPart) || 0)).toFixed(2));
+  if (cashTyped == null || !(payable > 0)) return { cashSale: !!fallbackCash, cashAmt: null };
+  const c = Math.min(Math.max(parseFloat(parseFloat(cashTyped || 0).toFixed(2)), 0), payable);
+  if (c <= 0) return { cashSale: false, cashAmt: null };
+  if (c >= payable - 0.004) return { cashSale: true, cashAmt: null };
+  return { cashSale: false, cashAmt: c };
+}
+
+// True when this record was settled two ways at once.
+function _saleIsSplit(s) { return !!s && (parseFloat(s.cashAmt) || 0) !== 0; }
+
+// "💵 €200.00 + 🧾 €50.00" — the cash part and the part that went on a receipt.
+// Magnitudes, so a return reads the same way as the sale it reverses.
+function _splitLabel(s, cur) {
+  const amt = Math.abs(parseFloat(s.amount) || 0);
+  const gift = Math.abs(parseFloat(s.giftCardAmt) || 0);
+  const cash = Math.min(Math.abs(parseFloat(s.cashAmt) || 0), Math.max(0, amt - gift));
+  const rest = parseFloat(Math.max(0, amt - gift - cash).toFixed(2));
+  const c = cur || state.currency || '€';
+  const isEl = lang === 'el';
+  return `💵 ${c}${cash.toFixed(2)} ${isEl ? 'μετρητά' : 'cash'} + 🧾 ${c}${rest.toFixed(2)} ${isEl ? 'με απόδειξη' : 'on receipt'}`;
 }
 
 // Sale ids are Date.now(), which collides when several records are written in
@@ -11501,11 +11586,21 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
   //        exVat = 100 + 60/1.17 = 151.28  (not 160, and not 160/1.17 = 136.75)
   // With no certificate (every pre-existing caller) _giftPart is 0 and this
   // reduces EXACTLY to the original formula.
+  // The same is true of a MIXED payment (opts.cashAmt): part of what is handed
+  // over now is cash and the rest goes on a receipt. Both splits are resolved
+  // here and the ex-VAT value is then taken from _saleExVatRaw — the single
+  // place that knows the rule — so the stored profit can never disagree with
+  // what the sale detail shows.
   const _o = opts || {};
   const _giftPart = Math.min(Math.max(parseFloat(_o.giftAmt) || 0, 0), _amt);
-  const _cashPart = _amt - _giftPart;
-  const _portionExVat = (v, isCash) => isCash ? v : v / (1 + _vat / 100);
-  const _amtExVat = _portionExVat(_giftPart, !!_o.giftWasCash) + _portionExVat(_cashPart, cashSale);
+  const _sp = _splitResolve(_amt, _giftPart, (_o.cashAmt != null ? _o.cashAmt : null), cashSale);
+  const _amtExVat = _saleExVatRaw({
+    amount: _amt,
+    cashSale: _sp.cashSale,
+    cashAmt: _sp.cashAmt,
+    giftCardAmt: _giftPart > 0 ? _giftPart : 0,
+    giftCardWasCash: !!_o.giftWasCash
+  }, _vat);
   const _profit = _cost !== null ? parseFloat((_amtExVat - _cost).toFixed(2)) : null;
   const rec = {
     id: _nextSaleId(sales),
@@ -11523,11 +11618,14 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
     invQr: invQr || '',
     cost: _cost,
     profit: _profit,
-    cashSale: cashSale ? true : false,
+    cashSale: _sp.cashSale,
     salePhotoUrl: salePhotoUrl || '',
     salePhotoName: salePhotoName || '',
     seqRef: seqRef || ''
   };
+  // Only stamped when the payment was genuinely split, so an all-cash or
+  // all-card sale is byte-identical to one written before this existed.
+  if (_sp.cashAmt != null) rec.cashAmt = _sp.cashAmt;
   // Only stamped when a certificate was actually used, so existing records and
   // ordinary sales are byte-identical to before.
   if (_giftPart > 0) {
@@ -11783,6 +11881,13 @@ async function processReturn(origId, opts) {
   const _origGift = parseFloat(orig.giftCardAmt) || 0;
   if (_origGift > 0) rec.giftCardAmt = -Math.min(parseFloat((_origGift * r).toFixed(2)), refund);
   else { delete rec.giftCardId; delete rec.giftCardNo; delete rec.giftCardAmt; delete rec.giftCardWasCash; }
+  // So does a mixed payment: the return has to unwind under the same two
+  // regimes the sale arrived under, or a partial refund of a €200-cash-+-€50-card
+  // sale would take the whole reversal out of one of them. Scales with the
+  // refund like everything else, and goes negative with the amount.
+  const _origCash = Math.abs(parseFloat(orig.cashAmt) || 0);
+  if (_origCash > 0) rec.cashAmt = -Math.min(parseFloat((_origCash * r).toFixed(2)), refund);
+  else delete rec.cashAmt;
 
   // ── Store credit ──
   // A sale part-paid by a certificate can only refund THAT portion as credit —
@@ -12793,6 +12898,109 @@ function _setCashBtnState(btn, active) {
   btn.textContent = _cashLabel(active);
 }
 
+// ── MIXED PAYMENT CONTROL (cash + card on one sale) ──────────────────────────
+// €250 of which €200 in cash and €50 by card. The plain CASH toggle answers
+// "was this cash?" and cannot answer "how much of it", so opening the split
+// hides the toggle and takes the cash figure instead; the rest is on receipt.
+// ONE component, mounted into the sale dialog, the sale edit dialog and the
+// order/repair collection dialog, so the three can never drift apart.
+const _SPLIT_HOSTS = {
+  sale:       { amt: 'saleAmountInput', cashBtn: 'saleCashToggle',       gift: () => (window._saleGiftCard ? (parseFloat(window._saleGiftCard.use) || 0) : 0) },
+  saleEdit:   { amt: 'saleEditAmt',     cashBtn: 'saleEditCashToggle',   gift: () => 0 },
+  repCollect: { amt: 'repFinalPrice',   cashBtn: 'repCollectCashToggle', gift: () => (window._repGiftCard ? (parseFloat(window._repGiftCard.use) || 0) : 0) }
+};
+
+// What is actually being handed over now — the amount less anything a gift
+// certificate covers. That, not the sale total, is what can be split.
+function _splitPayable(p) {
+  const h = _SPLIT_HOSTS[p]; if (!h) return 0;
+  const amt = parseFloat(document.getElementById(h.amt)?.value) || 0;
+  return parseFloat(Math.max(0, amt - (parseFloat(h.gift()) || 0)).toFixed(2));
+}
+
+function _splitHtml(p) {
+  return `<button type="button" id="${p}SplitBtn" onclick="_splitOpen('${p}')"
+      style="width:100%;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">💵/💳 <span data-i18n="splitPayBtn">${t('splitPayBtn')}</span></button>
+    <div id="${p}SplitBox" style="display:none;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">💵 <span data-i18n="splitCashPart">${t('splitCashPart')}</span></span>
+        <button type="button" onclick="_splitClear('${p}')" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+      </div>
+      <input type="number" id="${p}SplitCash" step="0.01" inputmode="decimal" oninput="_splitSync('${p}')"
+        style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:8px 12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(201,168,76,0.2)">
+        <span style="color:var(--text-muted)">🧾 <span data-i18n="splitRestPart">${t('splitRestPart')}</span></span>
+        <span id="${p}SplitRest" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
+      </div>
+    </div>`;
+}
+
+// The wrap divs live in the static markup; the contents come from the one
+// template above. Mounted at boot so a first open is already correct, and the
+// data-i18n spans inside mean a language switch relabels it like everything else.
+function _splitMount(p, wrapId) {
+  const w = document.getElementById(wrapId);
+  if (w && !w.dataset.mounted) { w.innerHTML = _splitHtml(p); w.dataset.mounted = '1'; }
+}
+
+function _splitOpen(p, noFocus) {
+  const box = document.getElementById(p + 'SplitBox'); if (!box) return;
+  box.style.display = '';
+  const btn = document.getElementById(p + 'SplitBtn'); if (btn) btn.style.display = 'none';
+  // The plain toggle can only say all-or-nothing, so while a split is open it
+  // would be a second, contradictory answer to the same question.
+  const cb = document.getElementById(_SPLIT_HOSTS[p]?.cashBtn); if (cb) cb.style.display = 'none';
+  const inp = document.getElementById(p + 'SplitCash');
+  if (inp && !inp.value) inp.value = '';
+  _splitSync(p);
+  // Focused when the owner asked for the split, never when a saved record is
+  // merely being reopened — that would throw the keyboard up over the form.
+  if (inp && !noFocus) inp.focus();
+}
+
+function _splitClear(p) {
+  const box = document.getElementById(p + 'SplitBox'); if (box) box.style.display = 'none';
+  const btn = document.getElementById(p + 'SplitBtn'); if (btn) btn.style.display = '';
+  const cb = document.getElementById(_SPLIT_HOSTS[p]?.cashBtn); if (cb) cb.style.display = '';
+  const inp = document.getElementById(p + 'SplitCash'); if (inp) inp.value = '';
+}
+
+// Keeps the "on receipt" figure in step, and stops the cash part exceeding what
+// is being paid — the two must always add up to the money on the counter.
+function _splitSync(p) {
+  const box = document.getElementById(p + 'SplitBox');
+  if (!box || box.style.display === 'none') return;
+  const inp = document.getElementById(p + 'SplitCash'); if (!inp) return;
+  const payable = _splitPayable(p);
+  let c = parseFloat(inp.value);
+  if (!isFinite(c) || c < 0) c = 0;
+  if (c > payable) { c = payable; inp.value = payable.toFixed(2); }
+  const cur = state.currency || '€';
+  const rest = document.getElementById(p + 'SplitRest');
+  if (rest) rest.textContent = cur + Math.max(0, parseFloat((payable - c).toFixed(2))).toFixed(2);
+}
+
+// The cash figure to store, or null when no split is in use (the plain toggle
+// then decides, exactly as before).
+function _splitValue(p) {
+  const box = document.getElementById(p + 'SplitBox');
+  if (!box || box.style.display === 'none') return null;
+  const inp = document.getElementById(p + 'SplitCash');
+  const raw = parseFloat(inp?.value);
+  if (!isFinite(raw) || raw <= 0) return null;
+  return Math.min(parseFloat(raw.toFixed(2)), _splitPayable(p));
+}
+
+// Re-open the control on a record that was already saved as a mixed payment.
+function _splitSet(p, cash) {
+  const c = parseFloat(cash) || 0;
+  if (c <= 0) { _splitClear(p); return; }
+  _splitOpen(p, true);
+  const inp = document.getElementById(p + 'SplitCash');
+  if (inp) inp.value = c.toFixed(2);
+  _splitSync(p);
+}
+
 // Toggle cash for a WHOLE multi-item transaction from the combined sale view. Flips every
 // member record's cashSale flag together and re-derives each item's profit (cash → no VAT
 // removed), so the owner sets the payment method once instead of editing items one by one.
@@ -12804,9 +13012,14 @@ async function _toggleGroupCash() {
   const members = sales.filter(x => x.saleGroup === groupId);
   if (members.length === 0) return;
   const _vat = parseFloat(state.vat) || 0;
-  const newCash = !members[0].cashSale;
+  // A transaction that was split is shown with the toggle UNPRESSED, so the
+  // first press means "no — all of it was cash". Either way this is a deliberate
+  // whole-transaction answer, which replaces the split rather than sitting
+  // beside it and contradicting it.
+  const newCash = !(members[0].cashSale && !members.some(m => _saleIsSplit(m)));
   members.forEach(m => {
     m.cashSale = newCash;
+    delete m.cashAmt;
     if (m.cost != null) {
       // Only today's portion changes. The gift-certificate half was settled
       // months ago under its own regime and must not be rewritten by this toggle.
@@ -12883,6 +13096,8 @@ function closeSaleModal() {
   // cleared on a recorded sale, on the ✕, or after 30 minutes.
   window._saleGiftCard = null;
   _updateSaleGiftDisplay();
+  // Nor a mixed payment, which would silently split the NEXT customer's sale.
+  _splitClear('sale');
   // Nor a "this one's a gift" flag, which would print a card for the next sale.
   _saleWantsExCard = false;
   _syncSaleExCardBtn();
@@ -12975,6 +13190,9 @@ async function openSaleEditModal(s) {
       _editCashBtn.textContent = _cashLabel(false);
     }
   }
+  // A sale settled two ways reopens with its split showing (which also hides the
+  // all-or-nothing toggle above); anything else opens with the split closed.
+  _splitSet('saleEdit', _saleIsSplit(s) ? Math.abs(parseFloat(s.cashAmt) || 0) : 0);
   // Photo picker — show existing salePhotoUrl if any
   _pendingSaleEditPhoto = null;
   const _sepPicker = document.getElementById('saleEditPhotoPicker');
@@ -13024,15 +13242,29 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   // indicator (with a ✓ when active), so the passive badge is hidden to avoid a double marker.
   const _grpCashBtn = document.getElementById('sdmGroupCashBtn');
   const _canEditCash = isOwnerMgr || s.employee === creds.userName;
-  if (_grpCashBtn && _canEditCash) {
-    cashBadge.style.display = 'none';
-    _grpCashBtn.style.display = '';
-    _grpCashBtn.dataset.group = s.saleGroup || '';
-    _setCashBtnState(_grpCashBtn, !!s.cashSale);
+  // A transaction settled two ways was split proportionally across its lines, so
+  // the members share one split; sum it and show that instead of the toggle,
+  // which could only misreport it as all-or-nothing.
+  const _grpSplit = members.some(m => _saleIsSplit(m));
+  const _showGrpToggle = !!(_grpCashBtn && _canEditCash);
+  if (_grpCashBtn) {
+    _grpCashBtn.style.display = _showGrpToggle ? '' : 'none';
+    if (_showGrpToggle) {
+      _grpCashBtn.dataset.group = s.saleGroup || '';
+      // Never shown as "all cash" while the transaction is split — pressing it
+      // is then an override that replaces the split, not a description of it.
+      _setCashBtnState(_grpCashBtn, !!s.cashSale && !_grpSplit);
+    }
+  }
+  // The badge appears only when it says something the toggle cannot.
+  if (_grpSplit) {
+    cashBadge.style.display = '';
+    cashBadge.textContent = '💵/💳 ' + (lang === 'el' ? 'ΜΙΚΤΗ' : 'SPLIT');
+  } else if (!_showGrpToggle && s.cashSale) {
+    cashBadge.style.display = '';
+    cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH');
   } else {
-    if (_grpCashBtn) _grpCashBtn.style.display = 'none';
-    if (s.cashSale) { cashBadge.style.display = ''; cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH'); }
-    else { cashBadge.style.display = 'none'; }
+    cashBadge.style.display = 'none';
   }
   document.getElementById('sdmDate').textContent = fmtDate(s.date);
 
@@ -13054,8 +13286,17 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     const anyProfit = members.some(x => x.profit != null);
     const totProfit = anyProfit ? members.reduce((a, x) => a + (x.profit != null ? parseFloat(x.profit) : 0), 0) : null;
     const totBonus = members.reduce((a, x) => a + (x.bonusAmt || 0), 0);
+    // How the whole transaction was settled, summed over its lines — the split
+    // was spread proportionally, so only the total is meaningful to the owner.
+    if (_grpSplit) {
+      mkRow(lang === 'el' ? 'Πληρωμή' : 'Payment', _splitLabel({
+        amount: total,
+        cashAmt: members.reduce((a, x) => a + (parseFloat(x.cashAmt) || 0), 0),
+        giftCardAmt: members.reduce((a, x) => a + (parseFloat(x.giftCardAmt) || 0), 0)
+      }, cur), 'var(--gold-light)');
+    }
     mkRow(lang === 'el' ? 'Ποσό (χωρίς ΦΠΑ)' : 'Amount excl. VAT', cur + parseFloat(amtExVat.toFixed(2)).toFixed(2));
-    if (!s.cashSale && vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
+    if ((!s.cashSale || _grpSplit) && vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
     if (totCost != null) mkRow(lang === 'el' ? 'Κόστος' : 'Cost', cur + totCost.toFixed(2));
     if (totProfit != null) {
       const profitPct = amtExVat > 0 ? ' (' + ((totProfit / amtExVat) * 100).toFixed(1) + '%)' : '';
@@ -13196,6 +13437,10 @@ async function showSaleDetail(id, forceSingle) {
   if (s.cashSale) {
     cashBadge.style.display = '';
     cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH');
+  } else if (_saleIsSplit(s)) {
+    // Neither badge on its own would be true, so say it was both.
+    cashBadge.style.display = '';
+    cashBadge.textContent = '💵/💳 ' + (lang === 'el' ? 'ΜΙΚΤΗ' : 'SPLIT');
   } else {
     cashBadge.style.display = 'none';
   }
@@ -13267,6 +13512,9 @@ async function showSaleDetail(id, forceSingle) {
   if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
   if (s.email) mkMeta('✉️', 'Email', s.email);
   // Spell out a split payment rather than showing one misleading cash badge.
+  if (_saleIsSplit(s)) {
+    mkMeta('💵', lang === 'el' ? 'Πληρωμή' : 'Payment', _splitLabel(s, cur));
+  }
   if (s.giftCardAmt > 0) {
     const _gNo = 'G-' + String(s.giftCardNo || 0).padStart(4, '0');
     const _rest = parseFloat(((parseFloat(s.amount) || 0) - parseFloat(s.giftCardAmt)).toFixed(2));
@@ -13274,7 +13522,9 @@ async function showSaleDetail(id, forceSingle) {
     const _rWord = s.cashSale ? (lang === 'el' ? 'μετρητά' : 'cash') : (lang === 'el' ? 'απόδειξη' : 'receipt');
     mkMeta('🎁', lang === 'el' ? 'Δωροεπιταγή' : 'Gift certificate',
       `${_gNo} · ${cur}${parseFloat(s.giftCardAmt).toFixed(2)} (${_gWord})`
-      + (_rest > 0 ? ` + ${cur}${_rest.toFixed(2)} (${_rWord})` : ''));
+      // When the rest was itself split, the Payment row above already breaks it
+      // down — repeating it here with one regime word would contradict it.
+      + ((_rest > 0 && !_saleIsSplit(s)) ? ` + ${cur}${_rest.toFixed(2)} (${_rWord})` : ''));
   }
   if (s.vendor) mkMeta('🏷️', lang === 'el' ? 'Προμηθευτής' : 'Vendor', s.vendor);
   if (s.employeeName) mkMeta('🧑‍💼', lang === 'el' ? 'Πωλητής' : 'Salesperson', s.employeeName);
@@ -13582,7 +13832,10 @@ async function _saleDocBuild(saleId, groupId, isCert) {
   const servedBy = s0.employeeName || getDisplayName(isEl ? 'el' : 'en');
   const customer = s0.customer || '';
   // Cash was taken without a receipt — the document must not show a VAT split.
-  window._quoteIsCash = !!s0.cashSale;
+  // A MIXED payment is treated the same way: only part of it went through the
+  // till, so a full-amount VAT line on this document would be a false claim.
+  // It states the price and makes no VAT claim at all, which is the honest one.
+  window._quoteIsCash = !!s0.cashSale || members.some(m => _saleIsSplit(m));
 
   const parts = [];
   for (const m of members) parts.push(await _saleDocResult(m));
@@ -14020,7 +14273,20 @@ async function confirmSaleEdit() {
   const _editCash = document.getElementById('saleEditCashToggle')?.classList.contains('cash-active') || false;
   const _editVat = parseFloat(state.vat) || 0;
   const _editCost = sales[idx].cost || null;
-  const _editAmtBase = _editCash ? amt : amt / (1 + _editVat / 100);
+  // Resolve the payment the same way the sale dialog does, then take the ex-VAT
+  // value from _saleExVatRaw. This used to compute (cash ? amt : amt/(1+vat))
+  // on its own, which ignored a gift-certificate portion entirely — editing
+  // such a sale silently rewrote its profit under one regime. Now every split
+  // the record carries is honoured, mixed payments included.
+  const _editGift = Math.min(Math.abs(parseFloat(sales[idx].giftCardAmt) || 0), amt);
+  const _editSplit = _splitResolve(amt, _editGift, _splitValue('saleEdit'), _editCash);
+  const _editAmtBase = _saleExVatRaw({
+    amount: amt,
+    cashSale: _editSplit.cashSale,
+    cashAmt: _editSplit.cashAmt,
+    giftCardAmt: _editGift > 0 ? _editGift : 0,
+    giftCardWasCash: !!sales[idx].giftCardWasCash
+  }, _editVat);
   const _editProfit = _editCost !== null ? parseFloat((_editAmtBase - _editCost).toFixed(2)) : sales[idx].profit ?? null;
   // Upload new photo if captured, otherwise keep existing
   let _editImgUrl = sales[idx].salePhotoUrl || '';
@@ -14031,7 +14297,11 @@ async function confirmSaleEdit() {
     if (_uploaded) { _editImgUrl = _uploaded.url; _editImgName = _uploaded.name; }
     _pendingSaleEditPhoto = null;
   }
-  sales[idx] = { ...sales[idx], amount: amt, vendor, note, date, employee: employeeSlug, employeeName: employeeSlug ? employeeName : '', cashSale: _editCash, profit: _editProfit, salePhotoUrl: _editImgUrl, salePhotoName: _editImgName };
+  sales[idx] = { ...sales[idx], amount: amt, vendor, note, date, employee: employeeSlug, employeeName: employeeSlug ? employeeName : '', cashSale: _editSplit.cashSale, profit: _editProfit, salePhotoUrl: _editImgUrl, salePhotoName: _editImgName };
+  // Removed when the split was cleared (or the whole amount became cash/card),
+  // so a corrected record is left in exactly the shape a fresh one would have.
+  if (_editSplit.cashAmt != null) sales[idx].cashAmt = _editSplit.cashAmt;
+  else delete sales[idx].cashAmt;
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
   await pushSalesToCloud(sales);
@@ -14165,9 +14435,26 @@ async function confirmSale() {
   const _gcShare = v => (_gcUsable > 0 && amt > 0)
     ? parseFloat(Math.min(_gcUsable * (parseFloat(v) || 0) / amt, parseFloat(v) || 0).toFixed(2))
     : 0;
-  const _gcOpts = v => _gcUsable > 0
-    ? { giftAmt: _gcShare(v), giftWasCash: _gcWasCash, giftCardId: _gcCard.id, giftCardNo: _gcCard.cardNo }
-    : undefined;
+  // ── Mixed payment ──
+  // Read once, up front: closeSaleModal() runs mid-function and resets it.
+  // Clamped to what is actually being handed over (the total less whatever the
+  // certificate covers), so cash + card + certificate can never exceed the sale.
+  const _splitTyped = _splitValue('sale');
+  const _cashTotal = _splitTyped == null ? null
+    : Math.min(_splitTyped, parseFloat((amt - _gcUsable).toFixed(2)));
+  // Spread across the cart in proportion to each line's value, exactly like the
+  // certificate — every record then carries its own true cash/receipt split, so
+  // each line's VAT and profit are right and the parts still sum to the whole.
+  const _cashShare = v => (_cashTotal == null || amt <= 0) ? null
+    : parseFloat(Math.min(_cashTotal * (parseFloat(v) || 0) / amt, parseFloat(v) || 0).toFixed(2));
+  const _gcOpts = v => {
+    const o = _gcUsable > 0
+      ? { giftAmt: _gcShare(v), giftWasCash: _gcWasCash, giftCardId: _gcCard.id, giftCardNo: _gcCard.cardNo }
+      : {};
+    const c = _cashShare(v);
+    if (c != null) o.cashAmt = c;
+    return Object.keys(o).length ? o : undefined;
+  };
   // Upload sale photo if captured
   let _saleImgUrl = '';
   let _saleImgName = '';
@@ -16798,6 +17085,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Bring back a cart left open by a reload / the OS killing the app (same day only)
   _restoreQuoteCart();
   if (quoteCart.length > 0) updateCartUI();
+  // Mixed-payment controls: one template, mounted into both static dialogs.
+  _splitMount('sale', 'saleSplitWrap');
+  _splitMount('saleEdit', 'saleEditSplitWrap');
   _jpInitBackGuard();
   _requestPersistentStorage();
 });
@@ -28292,10 +28582,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.67', date: 'Αύγουστος 2026', items: [
-        "🤝 Τα σύνολα παρακαταθήκης δεν εμφανίζονται πια συνέχεια. Νέος διακόπτης «🤝 Σύνολα παρακαταθήκης» στο Φίλτρο (δίπλα στο «Εμφάνιση κόστους»), κλειστός από προεπιλογή.",
-        "🔎 Όταν φιλτράρετε με «Παρακαταθήκη» εμφανίζονται ούτως ή άλλως — αυτό ακριβώς ρωτάτε εκείνη τη στιγμή, οπότε δεν χρειάζεται δεύτερο πάτημα.",
-        "⚙️ Είναι ρύθμιση εμφάνισης, όχι φίλτρο: θυμάται την επιλογή σας, δεν μετράει στον μετρητή φίλτρων και δεν μηδενίζεται με την «Καθαρισμό φίλτρων».",
+      { version: 'v12.68', date: 'Αύγουστος 2026', items: [
+        "💵/💳 Μικτή πληρωμή: ο πελάτης πληρώνει μέρος με μετρητά και μέρος με κάρτα. Νέο κουμπί «Μικτή πληρωμή» στην καταχώριση πώλησης — γράφετε ΜΟΝΟ τα μετρητά και το υπόλοιπο («με απόδειξη») υπολογίζεται μόνο του.",
+        "📊 Ο ΦΠΑ και το κέρδος βγαίνουν σωστά: τα μετρητά μένουν ολόκληρα, μόνο από το μέρος της κάρτας αφαιρείται ΦΠΑ. Π.χ. €250 με €200 μετρητά + €50 κάρτα → κέρδος όπως πρέπει, ούτε σαν όλα μετρητά ούτε σαν όλα με απόδειξη.",
+        "🛍 Δουλεύει και σε πολλαπλή πώληση από το καλάθι: τα μετρητά μοιράζονται αναλογικά σε κάθε κομμάτι, ώστε το κάθε ένα να έχει το σωστό του κέρδος.",
+        "🎁 Συνδυάζεται με δωροεπιταγή/πίστωση, και ακολουθεί σωστά σε επιστροφή χρημάτων.",
+        "✏️ Διορθώνεται εκ των υστέρων από την Επεξεργασία πώλησης, και υπάρχει και στην Παραλαβή παραγγελίας/επισκευής.",
       ]},
       ]
   },
@@ -28326,10 +28618,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.67', date: 'Aug 2026', items: [
-        "🤝 The consignment totals no longer show all the time. A new «🤝 Consignment totals» toggle in Filter (next to «Show cost»), off by default.",
-        "🔎 When you filter by «Consignment» they appear anyway — that is exactly what you are asking at that moment, so it should not need a second tap.",
-        "⚙️ It is a view setting, not a filter: it remembers your choice, does not count towards the filter badge and is not reset by «Clear filters».",
+      { version: 'v12.68', date: 'Aug 2026', items: [
+        "💵/💳 Split payment: the customer pays part in cash and part by card. A new «Split payment» button in the sale dialog — type ONLY the cash part and the rest («on receipt») works itself out.",
+        "📊 VAT and profit come out right: the cash stays whole and VAT is taken off the card part only. E.g. €250 with €200 cash + €50 card → the profit it should be, neither all-cash nor all-receipt.",
+        "🛍 Works for a whole cart too: the cash is spread proportionally across the pieces, so each one keeps its own correct profit.",
+        "🎁 Composes with a gift certificate or credit, and reverses correctly on a refund.",
+        "✏️ Correctable afterwards from Edit sale, and available on order/repair collection as well.",
       ]},
           ]
   }
@@ -31829,6 +32123,9 @@ function updateSaleBonusPreview() {
   // the no-bonus early return below, or it would never fire for a user without
   // a bonus set (i.e. most of the time).
   try { _updateSaleGiftDisplay(); } catch (e) {}
+  // And the mixed-payment split, whose "on receipt" half is the amount less the
+  // cash part less whatever the certificate covers.
+  try { _splitSync('sale'); } catch (e) {}
   if (_currentUserBonus <= 0) return;
   const amt = parseFloat(document.getElementById('saleAmountInput')?.value) || 0;
   const bonus = (amt * _currentUserBonus / 100);
@@ -33103,7 +33400,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.67';
+const APP_VERSION = '12.68';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
