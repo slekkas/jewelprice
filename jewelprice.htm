@@ -2668,7 +2668,13 @@
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         <div id="sdmAmt" style="font-family:var(--font-heading);font-size:28px;font-weight:700;color:var(--gold-light)"></div>
         <div id="sdmCashBadge" style="display:none;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--gold-light);font-family:var(--font-mono);letter-spacing:0.05em">💵 CASH</div>
-        <button id="sdmGroupCashBtn" data-cash-btn="1" onclick="_toggleGroupCash()" title="Cash sale — no VAT deducted from profit" style="display:none;align-self:center;border-radius:6px;padding:5px 11px;font-size:11px;font-family:var(--font-mono);letter-spacing:0.05em;cursor:pointer"></button>
+        <!-- ONE control for "how was this paid?". It replaced a bare CASH toggle
+             (v10.4), which could only ever say all-or-nothing — and a split
+             lives spread across the transaction's lines, so a mixed cart could
+             otherwise not be corrected at all except by editing every line by
+             hand and dividing the cash across them yourself. The badge beside
+             it says which answer is currently stored. -->
+        <button id="sdmGroupPayBtn" onclick="_openGroupSplit()" style="display:none;align-self:center;border-radius:6px;padding:5px 11px;font-size:11px;font-family:var(--font-mono);letter-spacing:0.05em;cursor:pointer;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted)"></button>
       </div>
       <div id="sdmDate" style="font-size:12px;color:var(--text-muted);margin-top:2px"></div>
     </div>
@@ -11549,15 +11555,30 @@ function _splitResolve(amount, giftPart, cashTyped, fallbackCash) {
 // True when this record was settled two ways at once.
 function _saleIsSplit(s) { return !!s && (parseFloat(s.cashAmt) || 0) !== 0; }
 
-// "💵 €200.00 + 🧾 €50.00" — the cash part and the part that went on a receipt.
-// Magnitudes, so a return reads the same way as the sale it reverses.
-function _splitLabel(s, cur) {
+// How much of a record was settled in cash. NOT simply `cashAmt`: a record is
+// only split when it is PARTLY cash, so one that was wholly cash carries no
+// cashAmt at all. Summing cashAmt across a transaction would therefore miss
+// exactly those lines and under-report what was taken in cash.
+function _saleCashPart(s) {
   const amt = Math.abs(parseFloat(s.amount) || 0);
   const gift = Math.abs(parseFloat(s.giftCardAmt) || 0);
-  const cash = Math.min(Math.abs(parseFloat(s.cashAmt) || 0), Math.max(0, amt - gift));
+  const payable = Math.max(0, parseFloat((amt - gift).toFixed(2)));
+  if (_saleIsSplit(s)) return Math.min(Math.abs(parseFloat(s.cashAmt) || 0), payable);
+  return s.cashSale ? payable : 0;
+}
+
+// "💵 €200.00 μετρητά + 🧾 €50.00 με απόδειξη" — the cash part and the part that
+// went on a receipt. `compact` drops the words for a narrow label/value row,
+// where the full form wraps under its own label and collides with it.
+// Magnitudes, so a return reads the same way as the sale it reverses.
+function _splitLabel(s, cur, compact) {
+  const amt = Math.abs(parseFloat(s.amount) || 0);
+  const gift = Math.abs(parseFloat(s.giftCardAmt) || 0);
+  const cash = _saleCashPart(s);
   const rest = parseFloat(Math.max(0, amt - gift - cash).toFixed(2));
   const c = cur || state.currency || '€';
   const isEl = lang === 'el';
+  if (compact) return `💵 ${c}${cash.toFixed(2)} + 🧾 ${c}${rest.toFixed(2)}`;
   return `💵 ${c}${cash.toFixed(2)} ${isEl ? 'μετρητά' : 'cash'} + 🧾 ${c}${rest.toFixed(2)} ${isEl ? 'με απόδειξη' : 'on receipt'}`;
 }
 
@@ -12907,7 +12928,10 @@ function _setCashBtnState(btn, active) {
 const _SPLIT_HOSTS = {
   sale:       { amt: 'saleAmountInput', cashBtn: 'saleCashToggle',       gift: () => (window._saleGiftCard ? (parseFloat(window._saleGiftCard.use) || 0) : 0) },
   saleEdit:   { amt: 'saleEditAmt',     cashBtn: 'saleEditCashToggle',   gift: () => 0 },
-  repCollect: { amt: 'repFinalPrice',   cashBtn: 'repCollectCashToggle', gift: () => (window._repGiftCard ? (parseFloat(window._repGiftCard.use) || 0) : 0) }
+  repCollect: { amt: 'repFinalPrice',   cashBtn: 'repCollectCashToggle', gift: () => (window._repGiftCard ? (parseFloat(window._repGiftCard.use) || 0) : 0) },
+  // Whole-transaction editor: the amount is the transaction total (a hidden
+  // field, since it is not being edited here) and there is no toggle to hide.
+  grp:        { amt: 'grpTotalAmt',     cashBtn: null,                   gift: () => (parseFloat(window._grpSplitGift) || 0) }
 };
 
 // What is actually being handed over now — the amount less anything a gift
@@ -12924,7 +12948,7 @@ function _splitHtml(p) {
     <div id="${p}SplitBox" style="display:none;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:10px 12px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
         <span style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">💵 <span data-i18n="splitCashPart">${t('splitCashPart')}</span></span>
-        <button type="button" onclick="_splitClear('${p}')" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+        <button type="button" id="${p}SplitX" onclick="_splitClear('${p}')" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
       </div>
       <input type="number" id="${p}SplitCash" step="0.01" inputmode="decimal" oninput="_splitSync('${p}')"
         style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:8px 12px">
@@ -13001,41 +13025,125 @@ function _splitSet(p, cash) {
   _splitSync(p);
 }
 
-// Toggle cash for a WHOLE multi-item transaction from the combined sale view. Flips every
-// member record's cashSale flag together and re-derives each item's profit (cash → no VAT
-// removed), so the owner sets the payment method once instead of editing items one by one.
-async function _toggleGroupCash() {
-  const btn = document.getElementById('sdmGroupCashBtn');
-  const groupId = btn && btn.dataset.group;
+// ── Editing the payment split of a WHOLE transaction ─────────────────────────
+// The split of a cart sale lives spread across its lines (€200 over €100/€100/€50
+// is stored as 80/80/40), so correcting it line by line would mean dividing the
+// cash by hand and getting three records right. It is one fact about one
+// transaction, so it is edited once, here, and re-spread the same way
+// confirmSale spreads it in the first place.
+async function _openGroupSplit() {
+  const groupId = document.getElementById('sdmGroupPayBtn')?.dataset.group;
   if (!groupId) return;
   const sales = await getSales();
   const members = sales.filter(x => x.saleGroup === groupId);
-  if (members.length === 0) return;
-  const _vat = parseFloat(state.vat) || 0;
-  // A transaction that was split is shown with the toggle UNPRESSED, so the
-  // first press means "no — all of it was cash". Either way this is a deliberate
-  // whole-transaction answer, which replaces the split rather than sitting
-  // beside it and contradicting it.
-  const newCash = !(members[0].cashSale && !members.some(m => _saleIsSplit(m)));
-  members.forEach(m => {
-    m.cashSale = newCash;
-    delete m.cashAmt;
-    if (m.cost != null) {
-      // Only today's portion changes. The gift-certificate half was settled
-      // months ago under its own regime and must not be rewritten by this toggle.
-      const base = _saleExVat(m, _vat);
-      m.profit = parseFloat((base - parseFloat(m.cost)).toFixed(2));
+  if (!members.length) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const total = parseFloat(members.reduce((a, m) => a + (parseFloat(m.amount) || 0), 0).toFixed(2));
+  const gift = parseFloat(members.reduce((a, m) => a + Math.abs(parseFloat(m.giftCardAmt) || 0), 0).toFixed(2));
+  // Per line (_saleCashPart), so a line whose whole payable was cash — and which
+  // therefore carries no cashAmt — is still counted. Summing cashAmt would open
+  // the editor showing less cash than was taken, and saving would then destroy
+  // the difference.
+  const cash = parseFloat(members.reduce((a, m) => a + _saleCashPart(m), 0).toFixed(2));
+  const mode = members.some(m => _saleIsSplit(m)) ? 'split' : (members[0].cashSale ? 'cash' : 'receipt');
+
+  document.getElementById('groupSplitOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'groupSplitOverlay';
+  // Above the sale detail sheet it is opened from; top-anchored because it
+  // contains a field you type into.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));overflow-y:auto';
+  const _opt = (m, icon, label) => `<button type="button" id="grpMode_${m}" onclick="_grpPayMode('${m}')" style="width:100%;text-align:left;padding:12px;margin-bottom:8px;border-radius:10px;font-size:13px;font-family:var(--font-body);cursor:pointer;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted)">${icon} ${label}</button>`;
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px;margin:auto 0">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">💵/💳 ${isEl ? 'Πώς πληρώθηκε' : 'How it was paid'}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">${isEl
+        ? `Συνολικά ${cur}${total.toFixed(2)}${gift > 0 ? ` (${cur}${gift.toFixed(2)} με δωροεπιταγή)` : ''} · ${members.length} τεμάχια`
+        : `${cur}${total.toFixed(2)} in total${gift > 0 ? ` (${cur}${gift.toFixed(2)} on a certificate)` : ''} · ${members.length} items`}</div>
+      <input type="hidden" id="grpTotalAmt" value="${total}">
+      ${_opt('cash', '💵', isEl ? 'Όλα μετρητά' : 'All cash')}
+      ${_opt('receipt', '🧾', isEl ? 'Όλα με απόδειξη' : 'All on receipt')}
+      ${_opt('split', '💵/💳', isEl ? 'Μικτή — μέρος μετρητά' : 'Split — part cash')}
+      <div id="grpSplitWrap" style="margin-bottom:14px"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
+        ? 'Τα μετρητά μοιράζονται αναλογικά στα τεμάχια, όπως και κατά την πώληση — κάθε τεμάχιο κρατά το σωστό του κέρδος.'
+        : 'The cash is spread across the pieces in proportion, exactly as it is when the sale is recorded, so each one keeps its own correct profit.'}</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('groupSplitOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+        <button onclick="_saveGroupSplit('${groupId}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Αποθήκευση' : 'Save'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  window._grpSplitGift = gift;
+  _splitMount('grp', 'grpSplitWrap');
+  // The shared control's own open button and ✕ are redundant here — the three
+  // choices above drive it — and two ways to say the same thing is how a
+  // half-answered dialog happens.
+  const _b = document.getElementById('grpSplitBtn'); if (_b) _b.style.display = 'none';
+  const _x = document.getElementById('grpSplitX'); if (_x) _x.style.display = 'none';
+  document.getElementById('grpSplitCash').value = cash > 0 ? cash.toFixed(2) : '';
+  _grpPayMode(mode);
+}
+
+// Paint the three choices and show the cash field only for the split one.
+function _grpPayMode(mode) {
+  window._grpPayModeVal = mode;
+  ['cash', 'receipt', 'split'].forEach(m => {
+    const b = document.getElementById('grpMode_' + m);
+    if (!b) return;
+    const on = m === mode;
+    b.style.background = on ? 'rgba(201,168,76,0.25)' : 'rgba(201,168,76,0.08)';
+    b.style.border = '1px solid ' + (on ? 'rgba(201,168,76,0.8)' : 'rgba(201,168,76,0.3)');
+    b.style.color = on ? 'var(--gold-light)' : 'var(--text-muted)';
+  });
+  const box = document.getElementById('grpSplitBox');
+  if (!box) return;
+  if (mode === 'split') { _splitOpen('grp', true); _splitSync('grp'); }
+  else box.style.display = 'none';
+}
+
+async function _saveGroupSplit(groupId) {
+  const mode = window._grpPayModeVal || 'receipt';
+  // Only the split answer carries a figure; the other two are whole-transaction
+  // statements, and a leftover number must not quietly become one.
+  const typed = mode === 'split' ? _splitValue('grp') : null;
+  document.getElementById('groupSplitOverlay')?.remove();
+  const sales = await getSales();
+  const members = sales.filter(x => x.saleGroup === groupId);
+  if (!members.length) return;
+  const vat = parseFloat(state.vat) || 0;
+  const total = members.reduce((a, m) => a + (parseFloat(m.amount) || 0), 0);
+  // A whole-transaction answer applies to every line, so it must not fall back
+  // to each record's own old flag — a line that happened to be wholly cash would
+  // otherwise stay cash while the rest went on receipt: mixed again, with no
+  // split to show for it. Chosen "split" with nothing typed means the same as
+  // "all on receipt".
+  const uniform = mode === 'cash';
+  let left = typed == null ? null : Math.min(typed, Math.max(0, total));
+  members.forEach((m, i) => {
+    const gift = Math.abs(parseFloat(m.giftCardAmt) || 0);
+    let share = null;
+    if (left != null) {
+      // Proportional shares with the remainder absorbed by the last line, so
+      // the parts always add back to the figure that was typed.
+      share = (i === members.length - 1)
+        ? parseFloat(left.toFixed(2))
+        : parseFloat(Math.min(left, (typed * (parseFloat(m.amount) || 0) / total)).toFixed(2));
+      left = parseFloat((left - share).toFixed(2));
     }
+    const sp = _splitResolve(m.amount, gift, share, uniform);
+    m.cashSale = sp.cashSale;
+    if (sp.cashAmt != null) m.cashAmt = sp.cashAmt; else delete m.cashAmt;
+    // Re-derive from the record itself, so the stored profit and the figures
+    // the detail sheet shows can never disagree.
+    if (m.cost != null) m.profit = parseFloat((_saleExVat(m, vat) - parseFloat(m.cost)).toFixed(2));
   });
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
   await pushSalesToCloud(sales);
-  showToast(newCash
-    ? (lang === 'el' ? '💵 Ορίστηκε ως μετρητά (όλα τα τεμάχια)' : '💵 Set as cash (all items)')
-    : (lang === 'el' ? 'Ορίστηκε ως κάρτα' : 'Set as card'));
-  await showSaleDetail(members[0].id); // re-render the combined view with updated VAT/profit
+  showToast('✓ ' + (lang === 'el' ? 'Αποθηκεύτηκε' : 'Saved'));
+  await showSaleDetail(members[0].id);
   await renderSalesPanel();
-  if (can('sales_admin')) renderSalesDashboard();
 }
 
 function toggleManualCash(btnId) {
@@ -13240,27 +13348,27 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   // sets cash on EVERY item of the transaction at once and re-derives each item's profit — so the
   // owner never has to edit items one by one. When the toggle is shown it doubles as the cash
   // indicator (with a ✓ when active), so the passive badge is hidden to avoid a double marker.
-  const _grpCashBtn = document.getElementById('sdmGroupCashBtn');
   const _canEditCash = isOwnerMgr || s.employee === creds.userName;
-  // A transaction settled two ways was split proportionally across its lines, so
-  // the members share one split; sum it and show that instead of the toggle,
-  // which could only misreport it as all-or-nothing.
   const _grpSplit = members.some(m => _saleIsSplit(m));
-  const _showGrpToggle = !!(_grpCashBtn && _canEditCash);
-  if (_grpCashBtn) {
-    _grpCashBtn.style.display = _showGrpToggle ? '' : 'none';
-    if (_showGrpToggle) {
-      _grpCashBtn.dataset.group = s.saleGroup || '';
-      // Never shown as "all cash" while the transaction is split — pressing it
-      // is then an override that replaces the split, not a description of it.
-      _setCashBtnState(_grpCashBtn, !!s.cashSale && !_grpSplit);
-    }
+  // ONE button for "how was this paid?", opening an editor with all three
+  // answers. It replaced a plain CASH toggle: that could only ever say
+  // all-or-nothing, and standing next to a split badge it contradicted it —
+  // while a transaction's split, spread across its lines, had no editor at all.
+  // Offered on any transaction, not just an already-split one: "€200 of that
+  // was actually cash" is remembered after the fact at least as often as it is
+  // typed at the time.
+  const _grpPayBtn = document.getElementById('sdmGroupPayBtn');
+  if (_grpPayBtn) {
+    _grpPayBtn.style.display = _canEditCash ? '' : 'none';
+    _grpPayBtn.dataset.group = s.saleGroup || '';
+    _grpPayBtn.textContent = '✏️ ' + (lang === 'el' ? 'Πληρωμή' : 'Payment');
   }
-  // The badge appears only when it says something the toggle cannot.
+  // The badge says which answer is stored — for everyone, since the button no
+  // longer doubles as the indicator.
   if (_grpSplit) {
     cashBadge.style.display = '';
     cashBadge.textContent = '💵/💳 ' + (lang === 'el' ? 'ΜΙΚΤΗ' : 'SPLIT');
-  } else if (!_showGrpToggle && s.cashSale) {
+  } else if (s.cashSale) {
     cashBadge.style.display = '';
     cashBadge.textContent = '💵 ' + (lang === 'el' ? 'ΜΕΤΡΗΤΑ' : 'CASH');
   } else {
@@ -13291,9 +13399,10 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     if (_grpSplit) {
       mkRow(lang === 'el' ? 'Πληρωμή' : 'Payment', _splitLabel({
         amount: total,
-        cashAmt: members.reduce((a, x) => a + (parseFloat(x.cashAmt) || 0), 0),
+        // Per line, so a line that was wholly cash still contributes its cash.
+        cashAmt: members.reduce((a, x) => a + _saleCashPart(x), 0),
         giftCardAmt: members.reduce((a, x) => a + (parseFloat(x.giftCardAmt) || 0), 0)
-      }, cur), 'var(--gold-light)');
+      }, cur, true), 'var(--gold-light)');
     }
     mkRow(lang === 'el' ? 'Ποσό (χωρίς ΦΠΑ)' : 'Amount excl. VAT', cur + parseFloat(amtExVat.toFixed(2)).toFixed(2));
     if ((!s.cashSale || _grpSplit) && vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
@@ -13431,8 +13540,8 @@ async function showSaleDetail(id, forceSingle) {
 
   document.getElementById('sdmTitle').textContent = lang === 'el' ? '📋 Λεπτομέρειες Πώλησης' : '📋 Sale Details';
   document.getElementById('sdmAmt').textContent = fmtAmt(s.amount);
-  const _sgcb = document.getElementById('sdmGroupCashBtn');
-  if (_sgcb) _sgcb.style.display = 'none'; // group-only toggle; single sales edit cash via the Edit modal
+  const _sgcb = document.getElementById('sdmGroupPayBtn');
+  if (_sgcb) _sgcb.style.display = 'none'; // group-only; a single sale edits its payment in the Edit modal
   const cashBadge = document.getElementById('sdmCashBadge');
   if (s.cashSale) {
     cashBadge.style.display = '';
@@ -28586,6 +28695,7 @@ const ABOUT = {
         "💵/💳 Μικτή πληρωμή: ο πελάτης πληρώνει μέρος με μετρητά και μέρος με κάρτα. Νέο κουμπί «Μικτή πληρωμή» στην καταχώριση πώλησης — γράφετε ΜΟΝΟ τα μετρητά και το υπόλοιπο («με απόδειξη») υπολογίζεται μόνο του.",
         "📊 Ο ΦΠΑ και το κέρδος βγαίνουν σωστά: τα μετρητά μένουν ολόκληρα, μόνο από το μέρος της κάρτας αφαιρείται ΦΠΑ. Π.χ. €250 με €200 μετρητά + €50 κάρτα → κέρδος όπως πρέπει, ούτε σαν όλα μετρητά ούτε σαν όλα με απόδειξη.",
         "🛍 Δουλεύει και σε πολλαπλή πώληση από το καλάθι: τα μετρητά μοιράζονται αναλογικά σε κάθε κομμάτι, ώστε το κάθε ένα να έχει το σωστό του κέρδος.",
+        "🛍 Στην πολλαπλή πώληση, το «✏️ Πληρωμή» ρωτά με μια κίνηση πώς πληρώθηκε ΟΛΗ η συναλλαγή — όλα μετρητά, όλα με απόδειξη, ή μικτή με το ποσό — και μοιράζει τα μετρητά στα τεμάχια. (Αντικαθιστά το παλιό κουμπί ΜΕΤΡΗΤΑ, που μπορούσε να πει μόνο «όλα ή τίποτα».)",
         "🎁 Συνδυάζεται με δωροεπιταγή/πίστωση, και ακολουθεί σωστά σε επιστροφή χρημάτων.",
         "✏️ Διορθώνεται εκ των υστέρων από την Επεξεργασία πώλησης, και υπάρχει και στην Παραλαβή παραγγελίας/επισκευής.",
       ]},
@@ -28622,6 +28732,7 @@ const ABOUT = {
         "💵/💳 Split payment: the customer pays part in cash and part by card. A new «Split payment» button in the sale dialog — type ONLY the cash part and the rest («on receipt») works itself out.",
         "📊 VAT and profit come out right: the cash stays whole and VAT is taken off the card part only. E.g. €250 with €200 cash + €50 card → the profit it should be, neither all-cash nor all-receipt.",
         "🛍 Works for a whole cart too: the cash is spread proportionally across the pieces, so each one keeps its own correct profit.",
+        "🛍 On a multi-item sale, «✏️ Payment» asks in one place how the WHOLE transaction was paid — all cash, all on receipt, or split with the amount — and spreads the cash across the pieces. (It replaces the old CASH button, which could only ever say all-or-nothing.)",
         "🎁 Composes with a gift certificate or credit, and reverses correctly on a refund.",
         "✏️ Correctable afterwards from Edit sale, and available on order/repair collection as well.",
       ]},
