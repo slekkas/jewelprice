@@ -2665,16 +2665,20 @@
       <div id="sdmItemMeta" style="font-size:12px;color:var(--text-muted)"></div>
     </div>
     <div style="padding:0 18px 6px">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <!-- Centred, not baseline-aligned: the badge sat on the 28px amount's own
+           baseline while the button centred itself on the row, so the pair that
+           reads as one control (what was paid / change it) was visibly out of
+           line. Same padding and radius on both, so they match in height too. -->
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div id="sdmAmt" style="font-family:var(--font-heading);font-size:28px;font-weight:700;color:var(--gold-light)"></div>
-        <div id="sdmCashBadge" style="display:none;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--gold-light);font-family:var(--font-mono);letter-spacing:0.05em">💵 CASH</div>
+        <div id="sdmCashBadge" style="display:none;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:6px;padding:5px 11px;font-size:11px;color:var(--gold-light);font-family:var(--font-mono);letter-spacing:0.05em">💵 CASH</div>
         <!-- ONE control for "how was this paid?". It replaced a bare CASH toggle
              (v10.4), which could only ever say all-or-nothing — and a split
              lives spread across the transaction's lines, so a mixed cart could
              otherwise not be corrected at all except by editing every line by
              hand and dividing the cash across them yourself. The badge beside
              it says which answer is currently stored. -->
-        <button id="sdmGroupPayBtn" onclick="_openGroupSplit()" style="display:none;align-self:center;border-radius:6px;padding:5px 11px;font-size:11px;font-family:var(--font-mono);letter-spacing:0.05em;cursor:pointer;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted)"></button>
+        <button id="sdmGroupPayBtn" onclick="_openGroupSplit()" style="display:none;border-radius:6px;padding:5px 11px;font-size:11px;font-family:var(--font-mono);letter-spacing:0.05em;cursor:pointer;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted)"></button>
       </div>
       <div id="sdmDate" style="font-size:12px;color:var(--text-muted);margin-top:2px"></div>
     </div>
@@ -13187,6 +13191,182 @@ async function _saveGroupSplit(groupId) {
   await renderSalesPanel();
 }
 
+// ── Editing a WHOLE transaction ──────────────────────────────────────────────
+// A single sale has always had an Edit form; a cart sale had none — so a wrong
+// DATE, the field that decides which day and which month the money belongs to,
+// could not be corrected at all. These are the facts a cart's records genuinely
+// share (confirmSale writes the same date, note, vendor and salesperson onto
+// every line), so they are edited once here and written to every member.
+// Deliberately NOT here: the price of one piece (tap the piece — it opens on its
+// own with the form it already has) and the payment (its own button beside the
+// total; two controls for one fact is how a half-answered dialog happens).
+async function openGroupEdit(groupId) {
+  if (!groupId) return;
+  const sales = await getSales();
+  const members = sales.filter(x => x.saleGroup === groupId);
+  if (!members.length) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const s0 = members[0];
+  const total = parseFloat(members.reduce((a, m) => a + (parseFloat(m.amount) || 0), 0).toFixed(2));
+  const d = s0.date || todayStr();
+  // A returned line's negative record mirrors what this one stored, so the total
+  // is locked rather than refused after it has been typed — everything else on
+  // this form (the date above all) is still perfectly correctable.
+  const retLocked = members.some(m => _saleReturnRecord(m.id));
+
+  document.getElementById('groupEditOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'groupEditOverlay';
+  // Above the sale detail sheet it is opened from; top-anchored because it is a
+  // form you type into and a bottom sheet hides its own fields under the keyboard.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));overflow-y:auto';
+  const _lb = txt => `<label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${txt}</label>`;
+  const _fld = 'width:100%;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:9px 12px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px;margin:auto 0">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">✏️ ${isEl ? 'Επεξεργασία πώλησης' : 'Edit sale'}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">${isEl
+        ? `${members.length} τεμάχια · οι αλλαγές ισχύουν για όλη τη συναλλαγή`
+        : `${members.length} items · changes apply to the whole transaction`}</div>
+      <div style="margin-bottom:12px">
+        ${_lb(isEl ? 'Σύνολο (' + cur + ')' : 'Total (' + cur + ')')}
+        <input type="number" id="grpEdAmt" step="0.01" inputmode="decimal" value="${total.toFixed(2)}"${retLocked ? ' readonly' : ''} style="${_fld};font-size:17px${retLocked ? ';opacity:0.5' : ''}">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${retLocked
+          ? (isEl ? 'Κλειδωμένο — ένα τεμάχιο έχει επιστραφεί. Αναιρέστε πρώτα την επιστροφή.'
+                  : 'Locked — one of these pieces has been returned. Undo the return first.')
+          : (isEl ? 'Μοιράζεται αναλογικά στα τεμάχια.' : 'Spread across the items in proportion.')}</div>
+      </div>
+      <div style="margin-bottom:12px">
+        ${_lb(isEl ? 'Ημερομηνία' : 'Date')}
+        <div style="position:relative">
+          <div style="${_fld};cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span id="grpEdDateText">${fmtDate(d)}</span><span style="color:var(--text-muted);font-size:11px">▼</span>
+          </div>
+          <input type="date" id="grpEdDateInput" value="${d}" oninput="document.getElementById('grpEdDateText').textContent=fmtDate(this.value)"
+            style="position:absolute;opacity:0;top:0;left:0;width:100%;height:100%;cursor:pointer">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        ${_lb(isEl ? 'Πωλητής' : 'Salesperson')}
+        <select id="grpEdEmployee" style="${_fld};appearance:none;-webkit-appearance:none;cursor:pointer"></select>
+      </div>
+      <div style="margin-bottom:12px">
+        ${_lb(isEl ? 'Προμηθευτής' : 'Vendor')}
+        <input type="text" id="grpEdVendor" maxlength="60" value="${_gcEsc(s0.vendor || '')}" style="${_fld}">
+      </div>
+      <div style="margin-bottom:12px">
+        ${_lb(isEl ? 'Σημείωση' : 'Note')}
+        <input type="text" id="grpEdNote" maxlength="120" value="${_gcEsc(s0.note || '')}" style="${_fld}">
+      </div>
+      <div id="grpEdStatus" style="display:none;font-size:11px;color:#ff8a80;margin-bottom:10px;line-height:1.45"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
+        ? 'Η τιμή ενός τεμαχίου αλλάζει πατώντας το τεμάχιο. Ο τρόπος πληρωμής αλλάζει από το κουμπί «Πληρωμή».'
+        : 'The price of one piece is edited by tapping the piece. The payment is edited with the Payment button.'}</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('groupEditOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+        <button onclick="_saveGroupEdit('${groupId}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Αποθήκευση' : 'Save'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  await _fillSaleEmployeeSelect(document.getElementById('grpEdEmployee'), s0.employee, s0.employeeName);
+}
+
+async function _saveGroupEdit(groupId) {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const st = document.getElementById('grpEdStatus');
+  const say = m => { if (st) { st.textContent = m; st.style.display = ''; } };
+  const newTotal = parseFloat(document.getElementById('grpEdAmt').value);
+  if (!(newTotal > 0)) { say(isEl ? '⚠️ Εισάγετε έγκυρο ποσό.' : '⚠️ Enter a valid amount.'); return; }
+  const date = document.getElementById('grpEdDateInput').value || todayStr();
+  const vendor = document.getElementById('grpEdVendor').value.trim();
+  const note = document.getElementById('grpEdNote').value.trim();
+  const { slug: employee, name: employeeName } = _readSaleEmployee(document.getElementById('grpEdEmployee'));
+
+  const sales = await getSales();
+  const members = sales.filter(x => x.saleGroup === groupId);
+  if (!members.length) { say(isEl ? '⚠️ Η πώληση δεν βρέθηκε.' : '⚠️ Sale not found.'); return; }
+  const vat = parseFloat(state.vat) || 0;
+  const oldAmts = members.map(m => parseFloat(m.amount) || 0);
+  const oldTotal = parseFloat(oldAmts.reduce((a, v) => a + v, 0).toFixed(2));
+  const gift = parseFloat(members.reduce((a, m) => a + Math.abs(parseFloat(m.giftCardAmt) || 0), 0).toFixed(2));
+  const amtChanged = Math.abs(newTotal - oldTotal) >= 0.005;
+
+  if (amtChanged) {
+    // A certificate has already been drawn down by this transaction; a sale worth
+    // less than what the card paid for it would leave that money paying for
+    // nothing. Change the card, not the sale.
+    if (gift > 0 && newTotal < gift - 0.005) {
+      say(isEl
+        ? `⚠️ Δωροεπιταγή ${cur}${gift.toFixed(2)} έχει ήδη χρησιμοποιηθεί σε αυτή την πώληση — το σύνολο δεν μπορεί να είναι μικρότερο.`
+        : `⚠️ A certificate of ${cur}${gift.toFixed(2)} was already used on this sale — the total cannot be less than that.`);
+      return;
+    }
+    // A returned line's negative record mirrors what THIS record stored; moving
+    // the amount underneath it would leave the pair no longer netting to zero.
+    if (members.some(m => _saleReturnRecord(m.id))) {
+      say(isEl
+        ? '⚠️ Ένα τεμάχιο έχει επιστραφεί — το σύνολο δεν αλλάζει. Αναιρέστε πρώτα την επιστροφή.'
+        : '⚠️ One of these pieces has been returned — the total cannot change. Undo the return first.');
+      return;
+    }
+  }
+
+  if (amtChanged && oldTotal > 0) {
+    // Proportional shares with the remainder on the last line, exactly as
+    // confirmSale spreads a cart in the first place, so the parts always add
+    // back to the figure that was typed.
+    let left = newTotal;
+    const newAmts = oldAmts.map((v, i) => {
+      if (i === oldAmts.length - 1) return parseFloat(left.toFixed(2));
+      const share = parseFloat((newTotal * v / oldTotal).toFixed(2));
+      left = parseFloat((left - share).toFixed(2));
+      return share;
+    });
+    // The cash figure the owner recorded is a statement of fact about money that
+    // changed hands — it is kept as it is (only clamped to the new payable) and
+    // re-spread, so a corrected total takes the difference off the card side
+    // rather than silently rewriting how much cash was handed over.
+    const anyCash = members.some(m => m.cashSale || _saleIsSplit(m));
+    const cashTotal = parseFloat(members.reduce((a, m) => a + _saleCashPart(m), 0).toFixed(2));
+    const payable = Math.max(0, parseFloat((newTotal - gift).toFixed(2)));
+    const cashTyped = anyCash ? Math.min(cashTotal, payable) : null;
+    let cashLeft = cashTyped;
+    members.forEach((m, i) => {
+      m.amount = newAmts[i];
+      let share = null;
+      if (cashLeft != null) {
+        share = (i === members.length - 1)
+          ? parseFloat(Math.max(0, cashLeft).toFixed(2))
+          : parseFloat(Math.min(cashLeft, cashTyped * newAmts[i] / newTotal).toFixed(2));
+        cashLeft = parseFloat((cashLeft - share).toFixed(2));
+      }
+      const sp = _splitResolve(m.amount, Math.abs(parseFloat(m.giftCardAmt) || 0), share, false);
+      m.cashSale = sp.cashSale;
+      if (sp.cashAmt != null) m.cashAmt = sp.cashAmt; else delete m.cashAmt;
+      // Re-derive from the record itself, so the stored profit and the figures
+      // the detail sheet shows can never disagree.
+      if (m.cost != null) m.profit = parseFloat((_saleExVat(m, vat) - parseFloat(m.cost)).toFixed(2));
+    });
+  }
+
+  members.forEach(m => {
+    m.date = date;
+    m.vendor = vendor;
+    m.note = note;
+    m.employee = employee;
+    m.employeeName = employeeName;
+  });
+
+  document.getElementById('groupEditOverlay')?.remove();
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  await pushSalesToCloud(sales);
+  showToast('✓ ' + (isEl ? 'Αποθηκεύτηκε' : 'Saved'));
+  await showSaleDetail(members[0].id);
+  await renderSalesPanel();
+}
+
 function toggleManualCash(btnId) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
@@ -13276,6 +13456,43 @@ function openSaleModalFromQuote(id) {
   } catch(err) { console.warn('openSaleModalFromQuote error:', err); }
 }
 
+// Fill a salesperson <select> from the team list. Shared by the single-sale Edit
+// form and the whole-transaction one, so the two can never disagree about who is
+// offered (an inactive member is kept when the sale already names them, or
+// editing anything else would silently reassign the sale).
+async function _fillSaleEmployeeSelect(sel, curSlug, curName) {
+  if (!sel) return;
+  sel.innerHTML = '';
+  const blankTxt = lang === 'el' ? '— Χωρίς πωλητή —' : '— No salesperson —';
+  const add = (val, txt, on) => {
+    const o = document.createElement('option');
+    o.value = val; o.textContent = txt; if (on) o.selected = true;
+    sel.appendChild(o);
+  };
+  try {
+    const users = await getUsers();
+    const activeUsers = Object.entries(users || {})
+      .filter(([, u]) => u.active !== false)
+      .sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
+    add('', blankTxt, false);
+    activeUsers.forEach(([slug, u]) => add(slug, u.name + (u.nameEn ? ' / ' + u.nameEn : ''), slug === (curSlug || '')));
+    if (curSlug && !activeUsers.find(([slug]) => slug === curSlug)) add(curSlug, curName || curSlug, true);
+  } catch (e) {
+    // Fallback: keep whoever the record already names, so a failed load can't blank it.
+    add(curSlug || '', curName || curSlug || blankTxt, true);
+  }
+}
+
+// Read the chosen salesperson back out. The option text is "Greek / English";
+// only the Greek half is stored as employeeName.
+function _readSaleEmployee(sel) {
+  const slug = sel ? sel.value : '';
+  const opt = sel ? sel.options[sel.selectedIndex] : null;
+  const raw = opt ? opt.textContent : '';
+  const name = raw.includes(' / ') ? raw.split(' / ')[0].trim() : raw.trim();
+  return { slug, name: slug ? name : '' };
+}
+
 async function openSaleEditModal(s) {
   document.getElementById('saleEditId').value = s.id;
   document.getElementById('saleEditAmt').value = s.amount ? parseFloat(s.amount).toFixed(2) : '';
@@ -13285,42 +13502,7 @@ async function openSaleEditModal(s) {
   document.getElementById('saleEditDateInput').value = d;
   document.getElementById('saleEditDateText').textContent = fmtDate(d);
 
-  // Populate salesperson dropdown from team users
-  const sel = document.getElementById('saleEditEmployee');
-  sel.innerHTML = '';
-  try {
-    const users = await getUsers();
-    const activeUsers = Object.entries(users || {})
-      .filter(([, u]) => u.active !== false)
-      .sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
-    // Blank option for "unassigned"
-    const blankOpt = document.createElement('option');
-    blankOpt.value = '';
-    blankOpt.textContent = lang === 'el' ? '— Χωρίς πωλητή —' : '— No salesperson —';
-    sel.appendChild(blankOpt);
-    activeUsers.forEach(([slug, u]) => {
-      const opt = document.createElement('option');
-      opt.value = slug;
-      opt.textContent = u.name + (u.nameEn ? ' / ' + u.nameEn : '');
-      if (slug === (s.employee || '')) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    // If sale has an employee not in active users, add them anyway so we don't lose the value
-    if (s.employee && !activeUsers.find(([slug]) => slug === s.employee)) {
-      const opt = document.createElement('option');
-      opt.value = s.employee;
-      opt.textContent = s.employeeName || s.employee;
-      opt.selected = true;
-      sel.appendChild(opt);
-    }
-  } catch(e) {
-    // Fallback: just show current user
-    const opt = document.createElement('option');
-    opt.value = s.employee || '';
-    opt.textContent = s.employeeName || s.employee || (lang === 'el' ? '— Χωρίς πωλητή —' : '— No salesperson —');
-    opt.selected = true;
-    sel.appendChild(opt);
-  }
+  await _fillSaleEmployeeSelect(document.getElementById('saleEditEmployee'), s.employee, s.employeeName);
 
   // Pre-fill cash toggle from saved record
   const _editCashBtn = document.getElementById('saleEditCashToggle');
@@ -13532,6 +13714,17 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     retBtn.textContent = '↩️ ' + (lang === 'el' ? 'Επιστροφή Όλων' : 'Return All');
     retBtn.onclick = () => { closeSaleDetailModal(true); openReturnDialog(null, s.saleGroup); };
     acts.appendChild(retBtn);
+  }
+
+  // ✏️ Edit the whole transaction — the date above all, which decides the day
+  // and the month the money belongs to. A return group's money is derived from
+  // the sale it reverses, so it only offers Undo (same rule as a single record).
+  if (canDel && !_isRetGroup) {
+    const edBtn = document.createElement('button');
+    edBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    edBtn.textContent = '✏️ ' + (lang === 'el' ? 'Επεξεργασία' : 'Edit');
+    edBtn.onclick = () => openGroupEdit(s.saleGroup);
+    acts.appendChild(edBtn);
   }
 
   if (canDel) {
@@ -14412,12 +14605,7 @@ async function confirmSaleEdit() {
   const vendor = document.getElementById('saleEditVendor').value.trim();
   const note = document.getElementById('saleEditNote').value.trim();
   const date = document.getElementById('saleEditDateInput').value || todayStr();
-  const sel = document.getElementById('saleEditEmployee');
-  const employeeSlug = sel ? sel.value : '';
-  const employeeOpt = sel ? sel.options[sel.selectedIndex] : null;
-  // Extract just the Greek name (before ' / ') for employeeName
-  const employeeNameRaw = employeeOpt ? employeeOpt.textContent : '';
-  const employeeName = employeeNameRaw.includes(' / ') ? employeeNameRaw.split(' / ')[0].trim() : employeeNameRaw.trim();
+  const { slug: employeeSlug, name: employeeName } = _readSaleEmployee(document.getElementById('saleEditEmployee'));
   const sales = await getSales();
   const idx = sales.findIndex(s => s.id === id);
   if (idx === -1) { showToast(lang==='el'?'⚠️ Η πώληση δεν βρέθηκε.':'⚠️ Sale not found.'); return; }
@@ -28730,12 +28918,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.69', date: 'Αύγουστος 2026', items: [
-        "🛠 ΔΙΟΡΘΩΣΗ ΤΙΜΗΣ: σκανάροντας ορισμένες ετικέτες εμφανιζόταν η τιμή ΠΑΛΙΟΥ ΠΟΥΛΗΜΕΝΟΥ κομματιού με τον ίδιο κωδικό — π.χ. τα σκουλαρίκια ER0699 έδειχναν €50 αντί για €80 και το ER0698 €70 αντί για €90.",
-        "📦 Ο κανόνας τώρα: μετράει ΠΑΝΤΑ το κομμάτι που είναι στο ράφι. Ένα πουλημένο κομμάτι δεν δίνει ποτέ τιμή όσο υπάρχει διαθέσιμο με τον ίδιο κωδικό — η τιμή του είναι ιστορία.",
-        "🔍 Ελέγχθηκε ΟΛΟ το απόθεμα: 8 κωδικοί σε 2 προμηθευτές (Amaya, ΑΛΟΡΟ) το είχαν — 17 κομμάτια συνολικά. Όλοι διορθώθηκαν· κανένας άλλος από τους 954 κωδικούς δεν αλλάζει.",
-        "🏷️ Το όνομα στην απόδειξη πώλησης δείχνει πλέον το ΣΩΣΤΟ κομμάτι (πριν μπορούσε να γράψει το όνομα άλλου κομματιού με ίδιο κωδικό).",
-        "❓ Όταν δύο διαφορετικά κομμάτια στο ράφι μοιράζονται πραγματικά την ίδια ετικέτα, η εφαρμογή ρωτάει «ποιο κρατάτε;» αντί να διαλέξει σιωπηλά.",
+      { version: 'v12.70', date: 'Αύγουστος 2026', items: [
+        "✏️ ΕΠΕΞΕΡΓΑΣΙΑ ΣΕ ΠΩΛΗΣΗ ΜΕ ΠΟΛΛΑ ΤΕΜΑΧΙΑ: μέχρι τώρα μόνο οι μονές πωλήσεις είχαν κουμπί «Επεξεργασία». Τώρα το έχει και μια συναλλαγή με πολλά τεμάχια.",
+        "📅 Αλλάζετε ΗΜΕΡΟΜΗΝΙΑ, πωλητή, προμηθευτή, σημείωση και συνολικό ποσό — μία φορά, για όλη τη συναλλαγή.",
+        "➗ Αν αλλάξετε το σύνολο, μοιράζεται αναλογικά στα τεμάχια και το κέρδος του καθενός υπολογίζεται ξανά σωστά· τα μετρητά που είχατε καταγράψει μένουν ίδια.",
+        "🛡️ Δεν επιτρέπεται αλλαγή συνόλου αν έχει χρησιμοποιηθεί δωροεπιταγή μεγαλύτερη από το νέο ποσό ή αν κάποιο τεμάχιο έχει επιστραφεί — με εξήγηση, όχι σιωπηλά.",
+        "🎯 Μικρή διόρθωση εμφάνισης: η ένδειξη «ΜΙΚΤΗ» και το κουμπί «Πληρωμή» είναι πλέον ευθυγραμμισμένα.",
       ]},
       ]
   },
@@ -28766,12 +28954,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.69', date: 'Aug 2026', items: [
-        "🛠 PRICE FIX: scanning certain tags showed the price of an OLD SOLD piece that shared the same code — e.g. the ER0699 earrings read €50 instead of €80, and ER0698 read €70 instead of €90.",
-        "📦 The rule now: the piece ON THE SHELF always wins. A sold piece can never set the price while one sharing its code is still here — its price is history.",
-        "🔍 The whole stock was checked: 8 codes across 2 suppliers (Amaya, ΑΛΟΡΟ) were affected — 17 pieces in all. All fixed; none of the other 954 codes changes.",
-        "🏷️ A sale line now names the RIGHT piece (before it could show the name of a different piece sharing the code).",
-        "❓ When two genuinely different pieces on the shelf do share a tag, the app asks «which one are you holding?» instead of choosing silently.",
+      { version: 'v12.70', date: 'Aug 2026', items: [
+        "✏️ EDIT A MULTI-ITEM SALE: until now only single sales had an Edit button. A transaction with several pieces has one too.",
+        "📅 Change the DATE, salesperson, vendor, note and the total — once, for the whole transaction.",
+        "➗ Change the total and it is spread across the pieces in proportion, with each one's profit re-derived correctly; the cash you recorded stays as it is.",
+        "🛡️ The total is refused if a gift certificate larger than the new amount was used on it, or if a piece has been returned — with the reason, never silently.",
+        "🎯 Small display fix: the SPLIT badge and the Payment button now line up.",
       ]},
           ]
   }
@@ -33548,7 +33736,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.69';
+const APP_VERSION = '12.70';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
