@@ -10417,6 +10417,47 @@ function _qrKey(code) {
   return p === -1 ? s : (s.slice(0, p) + '-' + s.slice(p + 1));
 }
 
+// ── THE SHELF RULE — which piece did a descriptive code come from? ───────────
+// A descriptive code (vendor+karat+category+weight) is a DESCRIPTION, so it can sit
+// on many records: twins in a similar-items group, a batch, and old sold pieces whose
+// weight/vendor/category happened to match. Two rules, in this order:
+//
+//   1. A piece ON THE SHELF outranks one that is not. A sold piece's tag left the
+//      shop with it, so a scan today is about something still here — and for a
+//      PER-ITEM category the price lives on the record, so pricing off a sold piece
+//      quotes a price from months ago. That is not a display glitch: it is how a €80
+//      pair of Amaya earrings was scanned, shown at €50, and sold for €50.
+//   2. Only WITHIN the shelf does the ref-tag exclusion apply. A piece converted to a
+//      ref tag prints RG0110 now, so it cannot have produced a descriptive scan — but
+//      if every candidate on the shelf is converted, the exclusion has nothing left to
+//      choose from and must yield rather than send the scan off the shelf.
+//
+// Rule 2 used to run FIRST and over the whole match set, which is what let a lone
+// unconverted SOLD record beat every in-stock piece sharing its code. It also assumed
+// `tagRef` proves the physical tag prints a ref code — and that assumption was broken
+// by "Add similar items" before v12.07: it copied `tagRef` from the source piece via
+// Object.assign while printing the DESCRIPTIVE code in the QR, so those tags scan as a
+// descriptive code on records that claim to be ref tags. Rule 1 makes the app correct
+// for both kinds of tag, so no reprint is needed to be safe.
+//
+// Returns entries [[id, item], …], best candidate first; [] when nothing carries it.
+function _descCodePool(code, entries) {
+  const key = _qrKey(code);
+  if (!key) return [];
+  const all = (entries || Object.entries(_inventoryCache || {}))
+    .filter(([, it]) => it && _qrKey(it.qrCode || '') === key);
+  const stock = all.filter(([, it]) => it.status === 'in_stock');
+  if (!stock.length) return all;                    // genuinely sold / gone — say so
+  const unconverted = stock.filter(([, it]) => !it.tagRef);
+  return unconverted.length ? unconverted : stock;
+}
+
+// Single item form of the same rule, for the callers that just want "the piece".
+function _descCodeItem(code) {
+  const hit = _descCodePool(code)[0];
+  return hit ? hit[1] : null;
+}
+
 function buildLabelStrings() {
   const vendorIdx = parseInt(document.getElementById('vendorSelect').value);
   const catIdx = parseInt(document.getElementById('workType').value) || 0;
@@ -13420,12 +13461,13 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   }
   const gEl = document.getElementById('sdmGroupItems');
   const memberDesc = (m) => {
-    let desc = '';
-    if (m.invQr && _inventoryCache) {
-      const qn = m.invQr.trim().toUpperCase();
-      const match = Object.values(_inventoryCache).find(it => it.qrCode && it.qrCode.trim().toUpperCase() === qn);
-      if (match) desc = _itemDesc(match) || '';
-    }
+    // The record this line is about, exactly — a code is a description and several
+    // pieces can share one, so a plain .find() names whichever came first in the
+    // cache. That is how a sold ER0462 lent its name to a line whose ref said
+    // ER0699: the name and the ref were read from two different pieces.
+    let match = (m.invId && _inventoryCache) ? _inventoryCache[m.invId] : null;
+    if (!match && m.invQr) match = _descCodeItem(m.invQr);
+    const desc = match ? (_itemDesc(match) || '') : '';
     return desc || m.seqRef || m.invQr || (lang === 'el' ? 'Αντικείμενο' : 'Item');
   };
   gEl.innerHTML =
@@ -16393,9 +16435,8 @@ function calculate() {
       if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
         _inventoryCache = await loadInventory();
       }
-      match = Object.values(_inventoryCache).find(it =>
-        (it.qrCode && _qrKey(it.qrCode) === _qrKey(qrNorm))
-      );
+      // Shelf rule — show the piece that is here, not a sold one sharing the code.
+      match = _descCodeItem(qrNorm);
     }
     const url = (match && match.photoUrl) ? match.photoUrl : null;
     // Store photoUrl in lastCalcResult so quote modal can use it synchronously
@@ -18580,15 +18621,12 @@ async function _checkInvStatusForCalc(raw) {
   const _pinnedEntry = (_refPinnedInvId && _inventoryCache[_refPinnedInvId] && _refPinnedForCode === rawNorm)
     ? [_refPinnedInvId, _inventoryCache[_refPinnedInvId]] : null;
 
-  // A piece whose tag was reprinted as a REF tag no longer carries this descriptive code —
-  // its label says RG0110 now. So it CANNOT be the piece that produced a descriptive scan,
-  // and including it makes the app ask "which one?" about a piece that isn't a candidate.
-  // Converting the green clover leaves the blue as the only thing that still prints this
-  // code: scanning it is then unambiguous, and the question disappears by itself as the
-  // estate converts. Fall back to all matches if every one is converted (i.e. the code was
-  // typed by hand rather than scanned off a tag) so a manual lookup still resolves.
-  const _descPool = _matches.filter(([, it]) => !it.tagRef);
-  const _pool = _descPool.length ? _descPool : _matches;
+  // Which of those is the piece in hand? THE SHELF RULE decides — see _descCodePool.
+  // Shelf first, and only then drop the pieces converted to ref tags (which no longer
+  // print this code). The ref-tag exclusion used to run first, over the whole match set,
+  // so one unconverted SOLD record could beat every in-stock piece sharing its code and
+  // the calc quoted that sold piece's per-item price.
+  const _pool = _descCodePool(rawNorm, _matches);
   const found = _pinnedEntry || _pool.find(([, it]) => it.status === 'in_stock') || _pool[0];
   const isEl = lang === 'el';
   if (found) {
@@ -18956,9 +18994,10 @@ function lookupCode(raw, opts) {
         // be read we fall back to the formula, which is a DIFFERENT price (€100 instead of
         // the owner's €120) and looks perfectly normal. Say so rather than let it pass.
         const _lookFailed = _invLoadFailed;
-        const _invEntry = Object.values(_inventoryCache || {}).find(it =>
-          it.qrCode && it.qrCode.trim().toUpperCase() === _rawNorm && it.fixedRetail
-        );
+        // Same shelf rule as a metal piece: a manual price set on a piece that is no
+        // longer here must never be quoted while pieces sharing the code are on the
+        // shelf. (fixedRetail is per-record, so this is a price, not a label.)
+        const _invEntry = (_descCodePool(_rawNorm).find(([, it]) => it.fixedRetail) || [])[1] || null;
         if (!_invEntry && _lookFailed) _otherPriceUnverified = true;
         if (_invEntry && _invEntry.fixedRetail) {
           // Use the stored fixed retail price directly — skip cost recalculation
@@ -19155,9 +19194,9 @@ function lookupCode(raw, opts) {
               _inventoryCache = await loadInventory();
             }
             const _rawNorm = raw.trim().toUpperCase();
-            const _invMatch = Object.values(_inventoryCache || {}).find(it =>
-              it.qrCode && it.qrCode.trim().toUpperCase() === _rawNorm
-            );
+            // Shelf rule — stoneCost is part of the price, so it must come from a
+            // piece that is still here, not from a sold one sharing the code.
+            const _invMatch = _descCodeItem(_rawNorm);
             if (_invMatch && _invMatch.stoneCost > 0) {
               _invStoneCost = parseFloat(_invMatch.stoneCost);
             } else if (_invMatch) {
@@ -28691,13 +28730,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.68', date: 'Αύγουστος 2026', items: [
-        "💵/💳 Μικτή πληρωμή: ο πελάτης πληρώνει μέρος με μετρητά και μέρος με κάρτα. Νέο κουμπί «Μικτή πληρωμή» στην καταχώριση πώλησης — γράφετε ΜΟΝΟ τα μετρητά και το υπόλοιπο («με απόδειξη») υπολογίζεται μόνο του.",
-        "📊 Ο ΦΠΑ και το κέρδος βγαίνουν σωστά: τα μετρητά μένουν ολόκληρα, μόνο από το μέρος της κάρτας αφαιρείται ΦΠΑ. Π.χ. €250 με €200 μετρητά + €50 κάρτα → κέρδος όπως πρέπει, ούτε σαν όλα μετρητά ούτε σαν όλα με απόδειξη.",
-        "🛍 Δουλεύει και σε πολλαπλή πώληση από το καλάθι: τα μετρητά μοιράζονται αναλογικά σε κάθε κομμάτι, ώστε το κάθε ένα να έχει το σωστό του κέρδος.",
-        "🛍 Στην πολλαπλή πώληση, το «✏️ Πληρωμή» ρωτά με μια κίνηση πώς πληρώθηκε ΟΛΗ η συναλλαγή — όλα μετρητά, όλα με απόδειξη, ή μικτή με το ποσό — και μοιράζει τα μετρητά στα τεμάχια. (Αντικαθιστά το παλιό κουμπί ΜΕΤΡΗΤΑ, που μπορούσε να πει μόνο «όλα ή τίποτα».)",
-        "🎁 Συνδυάζεται με δωροεπιταγή/πίστωση, και ακολουθεί σωστά σε επιστροφή χρημάτων.",
-        "✏️ Διορθώνεται εκ των υστέρων από την Επεξεργασία πώλησης, και υπάρχει και στην Παραλαβή παραγγελίας/επισκευής.",
+      { version: 'v12.69', date: 'Αύγουστος 2026', items: [
+        "🛠 ΔΙΟΡΘΩΣΗ ΤΙΜΗΣ: σκανάροντας ορισμένες ετικέτες εμφανιζόταν η τιμή ΠΑΛΙΟΥ ΠΟΥΛΗΜΕΝΟΥ κομματιού με τον ίδιο κωδικό — π.χ. τα σκουλαρίκια ER0699 έδειχναν €50 αντί για €80 και το ER0698 €70 αντί για €90.",
+        "📦 Ο κανόνας τώρα: μετράει ΠΑΝΤΑ το κομμάτι που είναι στο ράφι. Ένα πουλημένο κομμάτι δεν δίνει ποτέ τιμή όσο υπάρχει διαθέσιμο με τον ίδιο κωδικό — η τιμή του είναι ιστορία.",
+        "🔍 Ελέγχθηκε ΟΛΟ το απόθεμα: 8 κωδικοί σε 2 προμηθευτές (Amaya, ΑΛΟΡΟ) το είχαν — 17 κομμάτια συνολικά. Όλοι διορθώθηκαν· κανένας άλλος από τους 954 κωδικούς δεν αλλάζει.",
+        "🏷️ Το όνομα στην απόδειξη πώλησης δείχνει πλέον το ΣΩΣΤΟ κομμάτι (πριν μπορούσε να γράψει το όνομα άλλου κομματιού με ίδιο κωδικό).",
+        "❓ Όταν δύο διαφορετικά κομμάτια στο ράφι μοιράζονται πραγματικά την ίδια ετικέτα, η εφαρμογή ρωτάει «ποιο κρατάτε;» αντί να διαλέξει σιωπηλά.",
       ]},
       ]
   },
@@ -28728,13 +28766,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.68', date: 'Aug 2026', items: [
-        "💵/💳 Split payment: the customer pays part in cash and part by card. A new «Split payment» button in the sale dialog — type ONLY the cash part and the rest («on receipt») works itself out.",
-        "📊 VAT and profit come out right: the cash stays whole and VAT is taken off the card part only. E.g. €250 with €200 cash + €50 card → the profit it should be, neither all-cash nor all-receipt.",
-        "🛍 Works for a whole cart too: the cash is spread proportionally across the pieces, so each one keeps its own correct profit.",
-        "🛍 On a multi-item sale, «✏️ Payment» asks in one place how the WHOLE transaction was paid — all cash, all on receipt, or split with the amount — and spreads the cash across the pieces. (It replaces the old CASH button, which could only ever say all-or-nothing.)",
-        "🎁 Composes with a gift certificate or credit, and reverses correctly on a refund.",
-        "✏️ Correctable afterwards from Edit sale, and available on order/repair collection as well.",
+      { version: 'v12.69', date: 'Aug 2026', items: [
+        "🛠 PRICE FIX: scanning certain tags showed the price of an OLD SOLD piece that shared the same code — e.g. the ER0699 earrings read €50 instead of €80, and ER0698 read €70 instead of €90.",
+        "📦 The rule now: the piece ON THE SHELF always wins. A sold piece can never set the price while one sharing its code is still here — its price is history.",
+        "🔍 The whole stock was checked: 8 codes across 2 suppliers (Amaya, ΑΛΟΡΟ) were affected — 17 pieces in all. All fixed; none of the other 954 codes changes.",
+        "🏷️ A sale line now names the RIGHT piece (before it could show the name of a different piece sharing the code).",
+        "❓ When two genuinely different pieces on the shelf do share a tag, the app asks «which one are you holding?» instead of choosing silently.",
       ]},
           ]
   }
@@ -33511,7 +33548,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.68';
+const APP_VERSION = '12.69';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
