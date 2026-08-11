@@ -21705,32 +21705,60 @@ function syncPublicDelete(id) {
   fetch(fbUrl(PUBLIC_FB_PATH + '/' + id + '.json'), { method: 'DELETE' }).catch(() => {});
 }
 
-// Self-healing full rebuild of the public feed from current inventory. Runs at
-// most once per session and only writes when the feed actually needs updating,
-// so steady state costs a single read and no writes. This also backfills the
-// feed the very first time and drops any stale (sold/removed) entries.
+// Self-healing rebuild of the public feed. Runs at most once per session and only
+// writes what actually differs, so steady state costs a single read and no writes.
+// It backfills the feed the first time and drops stale (sold/removed) entries.
+//
+// TWO RULES HERE ARE LOAD-BEARING — a real incident, v12.71:
+//
+//  1. IT MUST BE HANDED A FRESHLY LOADED INVENTORY, never `_inventoryCache`. The Stock
+//     tab's instant path (v10.23) draws from memory and refreshes BEHIND the list, so
+//     that cache can be minutes — or a whole session — old. This function used to run
+//     from renderInvList() against it.
+//  2. IT MUST NOT WRITE THE WHOLE NODE. A `PUT` of one device's view of the world
+//     DELETES every piece it has not heard of. Now it PATCHes only the ids that
+//     genuinely differ, so an item this device has never seen is never touched.
+//
+// Together those cost the shop 11 necklaces and earrings mid-share: they were added,
+// published fine, then a stale full-node PUT quietly wiped them from the showroom
+// while a customer was looking at the link. Same last-writer-wins disease v11.64 fixed
+// for sales/gift cards/reservations; the public feed was the one node still doing it.
 let _publicShowroomSynced = false;
-async function republishPublicShowroom() {
+async function republishPublicShowroom(freshInv) {
   if (_publicShowroomSynced) return;
   const base = invFbBase();
-  if (!base || !_inventoryCache) return;
+  // Rule 1: refuse to run on anything but a snapshot the caller has just loaded.
+  if (!base || !freshInv || typeof freshInv !== 'object') return;
   _publicShowroomSynced = true;
   try {
     const desired = {};
-    Object.entries(_inventoryCache).forEach(([id, item]) => {
+    Object.entries(freshInv).forEach(([id, item]) => {
       const pub = publicProjection(item, id);
       if (pub) desired[id] = pub;
     });
-    let current = null;
+    let current = null, readOk = false;
     try {
       const res = await fetch(fbUrl(PUBLIC_FB_PATH + '.json'), { cache: 'no-store' });
-      current = res.ok ? await res.json() : null;
+      if (res.ok) { current = await res.json(); readOk = true; }
     } catch (e) {}
-    if (JSON.stringify(current || {}) !== JSON.stringify(desired)) {
-      await fetch(fbUrl(PUBLIC_FB_PATH + '.json'), {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(desired)
-      });
-    }
+    // Couldn't read the feed → we have nothing to diff against, so we cannot know what
+    // to delete. Say nothing rather than guess (v11.62: an unchecked read is not data).
+    if (!readOk) { _publicShowroomSynced = false; return; }
+    const cur = (current && typeof current === 'object') ? current : {};
+    // "Publish nothing" is never a real shop state — it is what an unloaded inventory
+    // looks like. Refuse, exactly as the outbox refuses to empty a node (v11.65).
+    if (!Object.keys(desired).length && Object.keys(cur).length) { _publicShowroomSynced = false; return; }
+    // Rule 2: a per-id diff, sent as ONE patch. Keys set to null are deleted by Firebase.
+    const patch = {};
+    Object.entries(desired).forEach(([id, pub]) => {
+      if (JSON.stringify(cur[id]) !== JSON.stringify(pub)) patch[id] = pub;
+    });
+    Object.keys(cur).forEach(id => { if (!desired[id]) patch[id] = null; });
+    if (!Object.keys(patch).length) return;   // already in step — no write at all
+    const res = await fetch(fbUrl(PUBLIC_FB_PATH + '.json'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
+    });
+    if (!res.ok) _publicShowroomSynced = false;   // retry on the next Stock open
   } catch (e) { _publicShowroomSynced = false; } // allow a retry on the next render
 }
 
@@ -23111,12 +23139,15 @@ async function _renderInventoryNow() {
       // and draw "no items in stock" from a passing network blip. Keep the last good copy
       // (the v11.74 lesson, which fixed the scan path but left this one).
       if (!fresh || _invLoadFailed) return;
-      if (JSON.stringify(fresh) === JSON.stringify(_inventoryCache)) return; // no change → no redraw
-      _inventoryCache = fresh;
-      // Don't yank the list out from under a user who has scrolled down; the fresh
-      // cache is already stored, so the next open (or scroll-to-top) shows it.
-      const panel = document.getElementById('panel-inventory');
-      if (!panel || panel.scrollTop < 200) { renderInvList(); _invReapplyJump(); }
+      if (JSON.stringify(fresh) !== JSON.stringify(_inventoryCache)) {
+        _inventoryCache = fresh;
+        // Don't yank the list out from under a user who has scrolled down; the fresh
+        // cache is already stored, so the next open (or scroll-to-top) shows it.
+        const panel = document.getElementById('panel-inventory');
+        if (!panel || panel.scrollTop < 200) { renderInvList(); _invReapplyJump(); }
+      }
+      // Feed self-heal — here, not in renderInvList, and on THIS just-loaded snapshot.
+      republishPublicShowroom(fresh);
     }).catch(() => {});
     return;
   }
@@ -23124,6 +23155,7 @@ async function _renderInventoryNow() {
   const _fresh = await loadInventory();
   if (!_invLoadFailed || !_inventoryCache) _inventoryCache = _fresh;
   renderInvList();
+  if (!_invLoadFailed) republishPublicShowroom(_fresh);
 }
 
 function renderInvSummary(filteredItems) {
@@ -23376,8 +23408,10 @@ function renderInvList() {
   // without waiting for the repair above to reach the cloud. Built once per render.
   _resHeldMap = _resActiveByItem(); _ordHeldMap = _ordActiveByItem();
 
-  // Keep the public showroom feed backfilled / self-healed (once per session, no-op if unchanged)
-  republishPublicShowroom();
+  // NOTE: the public-showroom self-heal used to run from here. It must not — this render
+  // can be drawing a stale in-memory cache (v10.23's instant path), and the feed rebuild
+  // deletes what it cannot see. It now runs from _renderInventoryNow, handed the inventory
+  // it has just loaded from the cloud. See republishPublicShowroom.
 
   // Per-render price cache (v10.23). Computing an item's price walks its vendor /
   // category / weight-tier tables, and the sort comparator alone would otherwise
@@ -28918,12 +28952,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.70', date: 'Αύγουστος 2026', items: [
-        "✏️ ΕΠΕΞΕΡΓΑΣΙΑ ΣΕ ΠΩΛΗΣΗ ΜΕ ΠΟΛΛΑ ΤΕΜΑΧΙΑ: μέχρι τώρα μόνο οι μονές πωλήσεις είχαν κουμπί «Επεξεργασία». Τώρα το έχει και μια συναλλαγή με πολλά τεμάχια.",
-        "📅 Αλλάζετε ΗΜΕΡΟΜΗΝΙΑ, πωλητή, προμηθευτή, σημείωση και συνολικό ποσό — μία φορά, για όλη τη συναλλαγή.",
-        "➗ Αν αλλάξετε το σύνολο, μοιράζεται αναλογικά στα τεμάχια και το κέρδος του καθενός υπολογίζεται ξανά σωστά· τα μετρητά που είχατε καταγράψει μένουν ίδια.",
-        "🛡️ Δεν επιτρέπεται αλλαγή συνόλου αν έχει χρησιμοποιηθεί δωροεπιταγή μεγαλύτερη από το νέο ποσό ή αν κάποιο τεμάχιο έχει επιστραφεί — με εξήγηση, όχι σιωπηλά.",
-        "🎯 Μικρή διόρθωση εμφάνισης: η ένδειξη «ΜΙΚΤΗ» και το κουμπί «Πληρωμή» είναι πλέον ευθυγραμμισμένα.",
+      { version: 'v12.71', date: 'Αύγουστος 2026', items: [
+        "🖼️ ΔΙΟΡΘΩΣΗ — ΚΟΜΜΑΤΙΑ ΕΞΑΦΑΝΙΖΟΝΤΑΝ ΑΠΟ ΤΗ ΒΙΤΡΙΝΑ: μοιραστήκατε 19 κοσμήματα, ο πελάτης άνοιξε τον σύνδεσμο και είδε μόνο 8.",
+        "🔍 Η αιτία: όταν άνοιγε η καρτέλα «Απόθεμα», η εφαρμογή ξανάγραφε ΟΛΟΚΛΗΡΗ τη βιτρίνα από τη λίστα που είχε στη μνήμη της. Αν αυτή η λίστα ήταν λίγο παλιά (π.χ. σε άλλη συσκευή), όσα είχατε προσθέσει στο μεταξύ σβήνονταν από τη βιτρίνα — αθόρυβα.",
+        "✅ Τώρα ενημερώνει μόνο όσα κομμάτια πραγματικά άλλαξαν, και μόνο αφού κατεβάσει φρέσκο απόθεμα. Ένα κομμάτι που δεν γνωρίζει δεν το αγγίζει ποτέ.",
+        "🛡️ Αν δεν μπορεί να διαβάσει τη βιτρίνα ή το απόθεμα, δεν γράφει τίποτα — δοκιμάζει ξανά στο επόμενο άνοιγμα, αντί να μαντεύει.",
+        "↩️ Τα 11 κοσμήματα που έλειπαν επανέρχονται μόνα τους στη βιτρίνα με το επόμενο άνοιγμα της καρτέλας «Απόθεμα».",
       ]},
       ]
   },
@@ -28954,12 +28988,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.70', date: 'Aug 2026', items: [
-        "✏️ EDIT A MULTI-ITEM SALE: until now only single sales had an Edit button. A transaction with several pieces has one too.",
-        "📅 Change the DATE, salesperson, vendor, note and the total — once, for the whole transaction.",
-        "➗ Change the total and it is spread across the pieces in proportion, with each one's profit re-derived correctly; the cash you recorded stays as it is.",
-        "🛡️ The total is refused if a gift certificate larger than the new amount was used on it, or if a piece has been returned — with the reason, never silently.",
-        "🎯 Small display fix: the SPLIT badge and the Payment button now line up.",
+      { version: 'v12.71', date: 'Aug 2026', items: [
+        "🖼️ FIX — PIECES VANISHING FROM THE SHOWROOM: you shared 19 pieces, the customer opened the link and saw only 8.",
+        "🔍 The cause: opening the Stock tab rewrote the WHOLE showroom from the list the app happened to hold in memory. If that list was a little old (on another device, say), everything added since was deleted from the showroom — silently.",
+        "✅ It now updates only the pieces that actually changed, and only after fetching fresh stock. A piece it doesn't know about is never touched.",
+        "🛡️ If it cannot read the showroom or the stock, it writes nothing and tries again on the next open, instead of guessing.",
+        "↩️ The 11 missing pieces come back to the showroom by themselves the next time the Stock tab is opened.",
       ]},
           ]
   }
@@ -33736,7 +33770,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.70';
+const APP_VERSION = '12.71';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
