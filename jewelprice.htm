@@ -766,6 +766,7 @@
   .sb-tile { background:var(--wa04); border:1px solid rgba(212,175,55,0.16); border-radius:10px; padding:10px 8px; text-align:center; }
   .sb-tile-lbl { font-family:var(--font-body); font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
   .sb-tile-val { font-family:var(--font-mono); font-size:17px; font-weight:700; color:var(--gold-light); letter-spacing:-0.01em; }
+  .sb-tile-sub { font-family:var(--font-mono); font-size:9px; color:var(--text-muted); letter-spacing:0.06em; margin-top:3px; }
   .sb-sec { border-top:1px solid rgba(212,175,55,0.14); padding-top:11px; margin-top:11px; }
   .sb-sec-t { font-family:var(--font-body); font-size:9px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
   .sb-line { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-family:var(--font-mono); font-size:12px; padding:3px 0; }
@@ -15786,12 +15787,62 @@ function _sbRows(sales) {
         if (has(r.cost))   { cost   += parseFloat(r.cost);   hasCost = true; }
         if (has(r.profit)) { profit += parseFloat(r.profit); hasProfit = true; }
       });
-      return { e, recs, amount: e.amount || 0, cost: hasCost ? cost : null, profit: hasProfit ? profit : null };
+      return { e, recs, amount: e.amount || 0, cost: hasCost ? cost : null,
+               profit: hasProfit ? profit : null, segment: _sbSegment(recs) };
     })
     .sort((a, b) => {
       const dd = (b.e.date || '').localeCompare(a.e.date || '');
       return dd !== 0 ? dd : (b.e.ts || 0) - (a.e.ts || 0);
     });
+}
+
+// ── WHICH PART OF THE BUSINESS A TRANSACTION BELONGS TO ──────────────────────
+// Bullion is a small dealer spread on someone else's gold; a ring is retail
+// margin on your own work. Averaging the two percentages describes neither —
+// a £950 sovereign at 6% dragged a 59% jewelry day down to 48%. So the money
+// totals stay whole (they have to agree with the hero and with the till) and
+// the MARGIN is measured on jewelry alone, with everything else broken out.
+//
+// The same distortion runs the other way: a scrap gain or an expired gift
+// certificate is pure profit with no cost, which pushes a margin up just as
+// falsely. One rule covers both rather than a coin-shaped special case.
+const SB_SEGMENTS = {
+  jewelry: { icon: '💍', el: 'Κοσμήματα',   en: 'Jewelry' },
+  coin:    { icon: '🪙', el: 'Νομίσματα',   en: 'Coins' },
+  repair:  { icon: '🔧', el: 'Επισκευές',   en: 'Repairs' },
+  scrap:   { icon: '♻️', el: 'Παλαιό',      en: 'Scrap' },
+  card:    { icon: '🎟️', el: 'Ληγμένες επιταγές', en: 'Expired cards' },
+  gift:    { icon: '🎁', el: 'Δώρα',        en: 'Giveaways' }
+};
+
+// Is this record a coin? By the exact piece when the stock is loaded, else by
+// the reference code STAMPED ON THE RECORD at sale time (a coin's is GC####),
+// so it still answers correctly with no stock loaded and for a piece since
+// deleted. Never by the note, which is free text.
+function _sbIsCoinRec(rec) {
+  if (!rec) return false;
+  const it = (rec.invId && _inventoryCache) ? _inventoryCache[rec.invId] : null;
+  if (it) return !!(it.isCoin || it.jewelryType === 'coin');
+  if (/^GC\d/.test(String(rec.seqRef || '').trim().toUpperCase())) return true;
+  if (rec.invQr && _inventoryCache) {
+    const k = _qrKey(rec.invQr);
+    const m = Object.values(_inventoryCache).find(x => x && _qrKey(x.qrCode) === k);
+    if (m) return !!(m.isCoin || m.jewelryType === 'coin');
+  }
+  return false;
+}
+
+function _sbSegment(recs) {
+  const r = recs[0] || {};
+  if (r.scrapGain) return 'scrap';
+  if (r.repairIncome) return 'repair';
+  if (r.giftBreakage) return 'card';
+  if (r.giveaway) return 'gift';
+  // EVERY line must be a coin, not merely one of them: a jewelry cart that
+  // happens to include a sovereign would otherwise move the whole cart out of
+  // the jewelry margin, which is far worse than the coin staying in it.
+  if (recs.length && recs.every(_sbIsCoinRec)) return 'coin';
+  return 'jewelry';
 }
 
 // A short label for what a row IS, when it is not an ordinary sale.
@@ -15807,10 +15858,18 @@ function _sbKindTag(e, recs) {
   return '';
 }
 
-function openSalesBreakdown() {
+async function openSalesBreakdown() {
   if (!_sbSales || !can('see_cost')) return;
   const ov = document.getElementById('salesBreakdownOverlay');
   if (!ov) return;
+  // Coins are told apart by the exact piece when the stock is loaded. It usually
+  // is not on a fresh open of the Sales tab, so load it — _invEnsureForScan keeps
+  // the last good cache when the network is down instead of reporting an empty
+  // stock. If it cannot load, _sbIsCoinRec still answers from the reference code
+  // stored on the record itself, so the split degrades rather than disappearing.
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    try { await _invEnsureForScan(); } catch (e) {}
+  }
   // The Sales panel is position:fixed; z-index:100 and lives OUTSIDE `.app` (which is
   // position:relative; z-index:1), so an overlay nested in `.app` is trapped in that
   // stacking context and paints BEHIND the panel however high its z-index (same fix
@@ -15855,16 +15914,34 @@ function _sbRender() {
   // gain or an expired gift certificate legitimately has no cost and its profit is
   // still exact, so flagging those would cry wolf. A record with no profit stored
   // is the only kind genuinely absent from the figures below.
-  let tAmt = 0, tCost = 0, tProfit = 0, unknown = 0, knownAmt = 0;
+  let tAmt = 0, tCost = 0, tProfit = 0, unknown = 0;
+  const seg = {};   // per activity: { amt, cost, profit, knownAmt }
   rows.forEach(r => {
     tAmt += r.amount;
     if (r.cost !== null) tCost += r.cost;
-    if (r.profit !== null) { tProfit += r.profit; knownAmt += r.amount; } else unknown++;
+    if (r.profit === null) unknown++;
+    const k = r.segment;
+    const s = seg[k] || (seg[k] = { amt: 0, cost: 0, profit: 0, knownAmt: 0 });
+    s.amt += r.amount;
+    if (r.cost !== null) s.cost += r.cost;
+    if (r.profit !== null) { s.profit += r.profit; tProfit += r.profit; s.knownAmt += r.amount; }
   });
   // Margin is measured over the sales whose cost is actually known. Dividing the
   // profit by the WHOLE revenue would quietly read low, because a sale with no
   // recorded cost adds to the bottom of the fraction but nothing to the top.
-  const margin = knownAmt !== 0 ? (tProfit / knownAmt) * 100 : null;
+  const segMargin = k => {
+    const s = seg[k];
+    return (s && s.knownAmt !== 0) ? (s.profit / s.knownAmt) * 100 : null;
+  };
+  // The headline margin is JEWELRY's. When the period holds nothing but other
+  // activity (a day of only coins) there is no jewelry margin to show, so it
+  // falls back to the blended one rather than printing a dash.
+  const segKeys = Object.keys(SB_SEGMENTS).filter(k => seg[k]);
+  const splitOut = segKeys.length > 1;
+  const jewelryOnly = splitOut && !!seg.jewelry;
+  const knownAmtAll = segKeys.reduce((a, k) => a + seg[k].knownAmt, 0);
+  const margin = jewelryOnly ? segMargin('jewelry')
+    : (knownAmtAll !== 0 ? (tProfit / knownAmtAll) * 100 : null);
 
   // Payment regimes, over the raw records (a transaction can be mixed line by line).
   let pCash = 0, pRec = 0, pGift = 0;
@@ -15878,17 +15955,33 @@ function _sbRender() {
   const money = n => cur + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const signed = n => (n < 0 ? '−' : '') + money(n);
 
-  const tile = (lbl, val, col) =>
+  const tile = (lbl, val, col, sub) =>
     '<div class="sb-tile"><div class="sb-tile-lbl">' + lbl + '</div>' +
-    '<div class="sb-tile-val"' + (col ? ' style="color:' + col + '"' : '') + '>' + val + '</div></div>';
+    '<div class="sb-tile-val"' + (col ? ' style="color:' + col + '"' : '') + '>' + val + '</div>' +
+    (sub ? '<div class="sb-tile-sub">' + sub + '</div>' : '') + '</div>';
 
   let html = '<div class="sb-tiles">' +
     tile(isEl ? 'Πωλήσεις' : 'Sales', signed(tAmt)) +
     tile(isEl ? 'Κόστος' : 'Cost', signed(tCost), 'var(--text)') +
     tile(isEl ? 'Κέρδος' : 'Profit', signed(tProfit), tProfit < 0 ? '#ff8a80' : '#4CAF50') +
     tile(isEl ? 'Περιθώριο' : 'Margin', margin === null ? '—' : margin.toFixed(1) + '%',
-         margin !== null && margin < 0 ? '#ff8a80' : '#4CAF50') +
+         margin !== null && margin < 0 ? '#ff8a80' : '#4CAF50',
+         jewelryOnly ? (isEl ? 'μόνο κοσμήματα' : 'jewelry only') : '') +
     '</div>';
+
+  // What the period is made of. Only drawn when there is more than one activity —
+  // an ordinary day of jewelry shows nothing extra. The lines add back to the
+  // totals above, so the split is complete rather than a set of exceptions.
+  if (splitOut) {
+    html += '<div class="sb-sec"><div class="sb-sec-t">' + (isEl ? 'Ανά δραστηριότητα' : 'By activity') + '</div>' +
+      segKeys.map(k => {
+        const s = seg[k], d = SB_SEGMENTS[k], mg = segMargin(k);
+        const pCol = s.profit < 0 ? '#ff8a80' : '#4CAF50';
+        return '<div class="sb-line"><span>' + d.icon + ' ' + (isEl ? d.el : d.en) + '</span>' +
+          '<span>' + signed(s.amt) + ' · <span style="color:' + pCol + '">' + signed(s.profit) +
+          (mg === null ? '' : ' (' + mg.toFixed(1) + '%)') + '</span></span></div>';
+      }).join('') + '</div>';
+  }
 
   // How the money came in — which is what decides the VAT.
   html += '<div class="sb-sec"><div class="sb-sec-t">' + (isEl ? 'Πώς πληρώθηκαν' : 'How it was paid') + '</div>' +
@@ -15912,6 +16005,11 @@ function _sbRender() {
   html += rows.map(r => {
     const e = r.e;
     const m = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    // The meta line names WHAT was sold and nothing else. Customer, vendor and
+    // salesperson were deliberately dropped: they are one tap away in the sale
+    // itself and in the CSV, and on a busy day they crowded the numbers — which
+    // are the whole point of this screen. The piece's reference code stands in
+    // where there is no note, so a row is still identifiable at a glance.
     const metaBits = [];
     if (!oneDay) metaBits.push(fmtDate(e.date));
     const tag = _sbKindTag(e, r.recs);
@@ -15920,14 +16018,15 @@ function _sbRender() {
     // because that part carries its own (older) VAT regime.
     const gcNo = (r.recs.find(x => x.giftCardNo) || {}).giftCardNo;
     if (gcNo) metaBits.push('<span style="color:var(--gold)">🎟️ ' + _gcEsc(gcNo) + '</span>');
-    if (e.customer) metaBits.push('👤 ' + _gcEsc(e.customer));
-    if (e.vendor) metaBits.push(_gcEsc(e.vendor));
+    // Only for a single-record row: the members of a transaction have different
+    // reference codes, and the note already names them together.
+    if (!e.isGroup && r.recs[0] && r.recs[0].seqRef) metaBits.push('<span style="color:var(--gold-light)">' + _gcEsc(r.recs[0].seqRef) + '</span>');
     if (e.note) metaBits.push(_gcEsc(e.note));
-    if (e.employeeName) metaBits.push('🧑‍💼 ' + _gcEsc(e.employeeName));
     const neg = r.amount < 0;
+    const metaTxt = metaBits.join(' · ');
     return '<div class="sb-row" onclick="_sbOpenSale(' + e.id + ')">' +
-      '<div class="sb-meta" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' +
-        metaBits.join(' · ') + '</div>' +
+      (metaTxt ? '<div class="sb-meta" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' +
+        metaTxt + '</div>' : '') +
       '<div class="sb-grid">' +
         '<div class="sb-num' + (neg ? ' sb-n' : '') + '">' + signed(r.amount) + '</div>' +
         '<div class="sb-num' + (r.cost === null ? ' sb-dim' : '') + '">' + (r.cost === null ? '—' : signed(r.cost)) + '</div>' +
@@ -15972,27 +16071,37 @@ function _sbExport() {
   const rows = _sbRows(_sbSales || []);
   if (!rows.length) return;
   const esc = s => { s = String(s == null ? '' : s); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const head = [isEl ? 'Ημερομηνία' : 'Date', isEl ? 'Περιγραφή' : 'Description', isEl ? 'Πελάτης' : 'Customer',
+  // The customer/vendor/salesperson columns stay HERE even though they were taken
+  // off the screen: on paper there is room, and they are what the accountant sorts by.
+  const head = [isEl ? 'Ημερομηνία' : 'Date', isEl ? 'Δραστηριότητα' : 'Activity',
+                isEl ? 'Κωδικός' : 'Ref', isEl ? 'Περιγραφή' : 'Description', isEl ? 'Πελάτης' : 'Customer',
                 isEl ? 'Προμηθευτής' : 'Vendor', isEl ? 'Πωλητής' : 'Salesperson',
                 isEl ? 'Σύνολο' : 'Total', isEl ? 'Κόστος' : 'Cost', isEl ? 'Κέρδος' : 'Profit',
                 isEl ? 'Περιθώριο %' : 'Margin %', isEl ? 'Πληρωμή' : 'Payment'];
   const lines = [head.join(',')];
-  let tAmt = 0, tCost = 0, tProfit = 0, knownAmt = 0;
+  let tAmt = 0, tCost = 0, tProfit = 0, jAmt = 0, jProfit = 0, knownAmt = 0;
   rows.forEach(r => {
     const e = r.e;
     let cash = 0, rec = 0;
     r.recs.forEach(s => { const p = _sbPayParts(s); cash += p.cash; rec += p.receipt; });
     const pay = (cash !== 0 && rec !== 0) ? (isEl ? 'Μικτή' : 'Split') : (rec !== 0 ? (isEl ? 'Με απόδειξη' : 'Receipt') : (isEl ? 'Μετρητά' : 'Cash'));
     const m = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    const d = SB_SEGMENTS[r.segment] || SB_SEGMENTS.jewelry;
     tAmt += r.amount; if (r.cost !== null) tCost += r.cost;
-    if (r.profit !== null) { tProfit += r.profit; knownAmt += r.amount; }
-    lines.push([esc(fmtDate(e.date)), esc(e.note || ''), esc(e.customer || ''), esc(e.vendor || ''),
+    if (r.profit !== null) {
+      tProfit += r.profit; knownAmt += r.amount;
+      if (r.segment === 'jewelry') { jProfit += r.profit; jAmt += r.amount; }
+    }
+    lines.push([esc(fmtDate(e.date)), esc(isEl ? d.el : d.en), esc((r.recs[0] || {}).seqRef || ''),
+      esc(e.note || ''), esc(e.customer || ''), esc(e.vendor || ''),
       esc(e.employeeName || ''), r.amount.toFixed(2), r.cost === null ? '' : r.cost.toFixed(2),
       r.profit === null ? '' : r.profit.toFixed(2), m === null ? '' : m.toFixed(1), esc(pay)].join(','));
   });
-  // Same margin rule as the sheet: measured over the sales whose profit is known.
-  lines.push([esc(isEl ? 'ΣΥΝΟΛΟ' : 'TOTAL'), '', '', '', '', tAmt.toFixed(2), tCost.toFixed(2), tProfit.toFixed(2),
-    knownAmt !== 0 ? ((tProfit / knownAmt) * 100).toFixed(1) : '', ''].join(','));
+  // Same margin as the sheet's headline: jewelry only, over the sales whose
+  // profit is known. The Activity column lets the rest be totalled separately.
+  lines.push([esc(isEl ? 'ΣΥΝΟΛΟ' : 'TOTAL'), '', '', '', '', '', '', tAmt.toFixed(2), tCost.toFixed(2), tProfit.toFixed(2),
+    jAmt !== 0 ? ((jProfit / jAmt) * 100).toFixed(1)
+      : (knownAmt !== 0 ? ((tProfit / knownAmt) * 100).toFixed(1) : ''), ''].join(','));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -29370,14 +29479,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.73', date: 'Αύγουστος 2026', items: [
-        "📊 ΑΝΑΛΥΣΗ ΠΩΛΗΣΕΩΝ: πάτησε το μεγάλο σύνολο στην καρτέλα «Πωλήσεις» και δες από πού βγήκαν τα λεφτά.",
-        "🧾 Μία γραμμή ανά συναλλαγή: Σύνολο · Κόστος · Κέρδος · Περιθώριο %, με σύνολα στο τέλος.",
-        "💰 Επάνω, τέσσερα νούμερα με μια ματιά: πωλήσεις, κόστος, κέρδος και περιθώριο κέρδους.",
-        "💵 «Πώς πληρώθηκαν»: πόσα ήρθαν μετρητά, πόσα με απόδειξη, πόσα από δωροεπιταγές — και ο ΦΠΑ που αναλογεί.",
-        "👆 Πάτησε οποιαδήποτε γραμμή για να ανοίξει η πώληση· το ✕ σε γυρίζει πίσω στην ανάλυση.",
-        "⚠️ Αν κάποια πώληση δεν έχει καταγεγραμμένο κόστος, σου το λέει καθαρά αντί να δείξει λάθος κέρδος.",
-        "📄 Κουμπί «Εξαγωγή CSV» για τον λογιστή.",
+      { version: 'v12.74', date: 'Αύγουστος 2026', items: [
+        "🪙 ΤΑ ΝΟΜΙΣΜΑΤΑ ΔΕΝ ΧΑΛΑΝΕ ΠΛΕΟΝ ΤΟ ΠΕΡΙΘΩΡΙΟ: ένας χρυσός λίρα με 6% κέρδος έριχνε μια μέρα 59% στο 48%.",
+        "💍 Το «Περιθώριο» μετριέται τώρα ΜΟΝΟ στα κοσμήματα — το πραγματικό νούμερο της δουλειάς σου.",
+        "📊 Νέα γραμμή «Ανά δραστηριότητα»: Κοσμήματα · Νομίσματα · Επισκευές · Παλαιό · Ληγμένες επιταγές · Δώρα, το καθένα με το δικό του κέρδος και ποσοστό.",
+        "💶 Τα σύνολα (πωλήσεις, κόστος, κέρδος) μένουν ακέραια — συμφωνούν πάντα με το ταμείο και με το μεγάλο νούμερο.",
+        "🧹 Πιο καθαρή οθόνη: έφυγαν το όνομα πελάτη, ο προμηθευτής και ο πωλητής από τις γραμμές — μπαίνει ο κωδικός του κομματιού (π.χ. NK0801).",
+        "📄 Στο CSV μπήκαν στήλες «Δραστηριότητα» και «Κωδικός»· πελάτης, προμηθευτής και πωλητής παραμένουν εκεί για τον λογιστή.",
       ]},
       ]
   },
@@ -29408,14 +29516,13 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.73', date: 'Aug 2026', items: [
-        "📊 SALES BREAKDOWN: tap the big total on the Sales tab to see where the money came from.",
-        "🧾 One line per transaction: Total · Cost · Profit · Margin %, with totals at the bottom.",
-        "💰 Four figures at a glance up top: sales, cost, profit and profit margin.",
-        "💵 \"How it was paid\": how much came in cash, how much with a receipt, how much from gift cards — and the VAT on it.",
-        "👆 Tap any line to open that sale; the ✕ brings you straight back to the breakdown.",
-        "⚠️ If a sale has no recorded cost it says so plainly, instead of showing a profit that is short.",
-        "📄 An \"Export CSV\" button for the accountant.",
+      { version: 'v12.74', date: 'Aug 2026', items: [
+        "🪙 COINS NO LONGER SPOIL YOUR MARGIN: one sovereign at 6% was dragging a 59% day down to 48%.",
+        "💍 The Margin tile is now measured on JEWELRY ONLY — the number that actually describes your work.",
+        "📊 New \"By activity\" line: Jewelry · Coins · Repairs · Scrap · Expired cards · Giveaways, each with its own profit and %.",
+        "💶 The totals (sales, cost, profit) stay whole — they always agree with the till and with the big number above.",
+        "🧹 A cleaner screen: customer, vendor and salesperson are gone from the rows, replaced by the piece's reference code (e.g. NK0801).",
+        "📄 The CSV gained \"Activity\" and \"Ref\" columns; customer, vendor and salesperson are still there for the accountant.",
       ]},
           ]
   }
@@ -34192,7 +34299,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.73';
+const APP_VERSION = '12.74';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
