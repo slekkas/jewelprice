@@ -2621,6 +2621,9 @@
         style="width:100%;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:8px 12px"
         data-i18n-ph="saleNotePh">
     </div>
+    <!-- Same customer block as the whole-transaction edit form, mounted here so a
+         name that was never typed at the counter can be added afterwards. -->
+    <div id="saleEditCustWrap"></div>
     <div style="margin-bottom:14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleEditEmployee">Πωλητής</label>
       <select id="saleEditEmployee"
@@ -13191,6 +13194,74 @@ async function _saveGroupSplit(groupId) {
   await renderSalesPanel();
 }
 
+// ── The customer, added afterwards ───────────────────────────────────────────
+// Small sales are routinely recorded with no customer, and the name is often
+// known perfectly well — it just never got typed. Both edit forms (one sale,
+// and a whole cart transaction) therefore carry the SAME customer block, built
+// here once so the two can never drift apart.
+// The sale record stores the NAME and the EMAIL only; the phone is used to fill
+// in the Clients book, which is where a contact belongs. `p` is the host form's
+// prefix ('saleEd' / 'grpEd'), so the two sets of fields never collide.
+function _saleCustBlockHtml(p, o) {
+  const isEl = lang === 'el';
+  const _o = o || {};
+  const fld = _o.fld || 'width:100%;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:9px 12px';
+  const lbl = _o.lbl || 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px';
+  return `<div style="margin-bottom:12px">
+      <label style="${lbl}">${isEl ? 'Πελάτης (προαιρετικό)' : 'Customer (optional)'}</label>
+      <div style="position:relative;margin-bottom:8px">
+        <input type="text" id="${p}CustName" autocomplete="off" maxlength="60" value="${_gcEsc(_o.name || '')}"
+          oninput="_saleCustAuto('${p}',this.value)" onblur="setTimeout(function(){_saleCustHide('${p}')},200)"
+          placeholder="${isEl ? 'Όνομα' : 'Name'}" style="${fld}">
+        <div id="${p}CustSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--dark-2);border:1px solid rgba(212,175,55,0.4);border-radius:6px;z-index:20;max-height:170px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+      </div>
+      <div style="margin-bottom:8px">${_phoneFieldHtml(p + 'CustPhoneCode', p + 'CustPhone', '', isEl ? 'Τηλέφωνο' : 'Phone')}</div>
+      <input type="email" id="${p}CustEmail" autocomplete="off" maxlength="80" value="${_gcEsc(_o.email || '')}" placeholder="Email" style="${fld}">
+    </div>`;
+}
+
+function _saleCustAuto(p, val) {
+  const box = document.getElementById(p + 'CustSug'); if (!box) return;
+  const q = (val || '').trim().toLowerCase();
+  if (q.length < 1) { box.style.display = 'none'; return; }
+  const matches = getClients().filter(c => (c.name || '').toLowerCase().startsWith(q)).slice(0, 5);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(c => `<div onclick="_saleCustPick('${p}','${c.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--wa05);font-family:'DM Mono',monospace;font-size:12px"><span style="color:var(--gold-light)">${_gcEsc(c.name)}</span>${c.phone ? `<span style="color:var(--text-muted);margin-left:8px">${_gcEsc(c.phone)}</span>` : ''}</div>`).join('');
+  box.style.display = 'block';
+}
+
+function _saleCustPick(p, id) {
+  const c = getClients().find(cl => cl.id === id); if (!c) return;
+  const nm = document.getElementById(p + 'CustName'); if (nm) nm.value = c.name || '';
+  _setPhoneField(p + 'CustPhoneCode', p + 'CustPhone', c.phone || '');
+  const em = document.getElementById(p + 'CustEmail'); if (em) em.value = c.email || '';
+  _saleCustHide(p);
+}
+
+function _saleCustHide(p) { const b = document.getElementById(p + 'CustSug'); if (b) b.style.display = 'none'; }
+
+function _saleCustRead(p) {
+  return {
+    name: (document.getElementById(p + 'CustName')?.value || '').trim(),
+    phone: _readPhoneField(p + 'CustPhoneCode', p + 'CustPhone'),
+    email: (document.getElementById(p + 'CustEmail')?.value || '').trim()
+  };
+}
+
+// The sale record has no phone on it, so pull one from the client book when we
+// already know this customer — saves re-typing what the shop already has.
+function _saleCustFromBook(p, name) {
+  if (!name) return;
+  try {
+    const c = getClients().find(x => x && x.name &&
+      x.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (!c) return;
+    _setPhoneField(p + 'CustPhoneCode', p + 'CustPhone', c.phone || '');
+    const em = document.getElementById(p + 'CustEmail');
+    if (em && !em.value) em.value = c.email || '';
+  } catch (e) {}
+}
+
 // ── Editing a WHOLE transaction ──────────────────────────────────────────────
 // A single sale has always had an Edit form; a cart sale had none — so a wrong
 // DATE, the field that decides which day and which month the money belongs to,
@@ -13258,6 +13329,7 @@ async function openGroupEdit(groupId) {
         ${_lb(isEl ? 'Σημείωση' : 'Note')}
         <input type="text" id="grpEdNote" maxlength="120" value="${_gcEsc(s0.note || '')}" style="${_fld}">
       </div>
+      ${_saleCustBlockHtml('grpEd', { name: s0.customer, email: s0.email, fld: _fld })}
       <div id="grpEdStatus" style="display:none;font-size:11px;color:#ff8a80;margin-bottom:10px;line-height:1.45"></div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
         ? 'Η τιμή ενός τεμαχίου αλλάζει πατώντας το τεμάχιο. Ο τρόπος πληρωμής αλλάζει από το κουμπί «Πληρωμή».'
@@ -13268,6 +13340,7 @@ async function openGroupEdit(groupId) {
       </div>
     </div>`;
   document.body.appendChild(ov);
+  _saleCustFromBook('grpEd', s0.customer);
   await _fillSaleEmployeeSelect(document.getElementById('grpEdEmployee'), s0.employee, s0.employeeName);
 }
 
@@ -13281,6 +13354,7 @@ async function _saveGroupEdit(groupId) {
   const date = document.getElementById('grpEdDateInput').value || todayStr();
   const vendor = document.getElementById('grpEdVendor').value.trim();
   const note = document.getElementById('grpEdNote').value.trim();
+  const cust = _saleCustRead('grpEd');
   const { slug: employee, name: employeeName } = _readSaleEmployee(document.getElementById('grpEdEmployee'));
 
   const sales = await getSales();
@@ -13354,9 +13428,14 @@ async function _saveGroupEdit(groupId) {
     m.date = date;
     m.vendor = vendor;
     m.note = note;
+    m.customer = cust.name;
+    m.email = cust.email;
     m.employee = employee;
     m.employeeName = employeeName;
   });
+  // A name typed here should reach the Clients book too, exactly as it would
+  // have done had it been typed while the sale was being recorded.
+  if (cust.name) { try { await upsertClientFromSale(cust.name, cust.phone, cust.email); } catch (e) {} }
 
   document.getElementById('groupEditOverlay')?.remove();
   _salesCache = sales;
@@ -13498,6 +13577,16 @@ async function openSaleEditModal(s) {
   document.getElementById('saleEditAmt').value = s.amount ? parseFloat(s.amount).toFixed(2) : '';
   document.getElementById('saleEditVendor').value = s.vendor || '';
   document.getElementById('saleEditNote').value = s.note || '';
+  // Built fresh each open (the country picker and the suggestion box carry state),
+  // then topped up with the phone from the Clients book if we know this customer.
+  const _secWrap = document.getElementById('saleEditCustWrap');
+  if (_secWrap) {
+    _secWrap.innerHTML = _saleCustBlockHtml('saleEd', {
+      name: s.customer, email: s.email,
+      fld: 'width:100%;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:8px 12px'
+    });
+    _saleCustFromBook('saleEd', s.customer);
+  }
   const d = s.date || todayStr();
   document.getElementById('saleEditDateInput').value = d;
   document.getElementById('saleEditDateText').textContent = fmtDate(d);
@@ -14596,6 +14685,7 @@ function openSaleDocPicker(saleId, groupId) {
 function closeSaleEditModal() {
   document.getElementById('saleEditModal').style.display = 'none';
   hideSaleEditVendorSuggestions();
+  _saleCustHide('saleEd');
 }
 
 async function confirmSaleEdit() {
@@ -14604,6 +14694,7 @@ async function confirmSaleEdit() {
   if (!amt || amt <= 0) { showToast(lang==='el'?'⚠️ Εισάγετε έγκυρο ποσό':'⚠️ Enter a valid amount'); return; }
   const vendor = document.getElementById('saleEditVendor').value.trim();
   const note = document.getElementById('saleEditNote').value.trim();
+  const _cust = _saleCustRead('saleEd');
   const date = document.getElementById('saleEditDateInput').value || todayStr();
   const { slug: employeeSlug, name: employeeName } = _readSaleEmployee(document.getElementById('saleEditEmployee'));
   const sales = await getSales();
@@ -14636,7 +14727,10 @@ async function confirmSaleEdit() {
     if (_uploaded) { _editImgUrl = _uploaded.url; _editImgName = _uploaded.name; }
     _pendingSaleEditPhoto = null;
   }
-  sales[idx] = { ...sales[idx], amount: amt, vendor, note, date, employee: employeeSlug, employeeName: employeeSlug ? employeeName : '', cashSale: _editSplit.cashSale, profit: _editProfit, salePhotoUrl: _editImgUrl, salePhotoName: _editImgName };
+  // A name typed here should reach the Clients book too, exactly as it would
+  // have done had it been typed while the sale was being recorded.
+  if (_cust.name) { try { await upsertClientFromSale(_cust.name, _cust.phone, _cust.email); } catch (e) {} }
+  sales[idx] = { ...sales[idx], customer: _cust.name, email: _cust.email, amount: amt, vendor, note, date, employee: employeeSlug, employeeName: employeeSlug ? employeeName : '', cashSale: _editSplit.cashSale, profit: _editProfit, salePhotoUrl: _editImgUrl, salePhotoName: _editImgName };
   // Removed when the split was cleared (or the whole amount became cash/card),
   // so a corrected record is left in exactly the shape a fresh one would have.
   if (_editSplit.cashAmt != null) sales[idx].cashAmt = _editSplit.cashAmt;
@@ -28952,12 +29046,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.71', date: 'Αύγουστος 2026', items: [
-        "🖼️ ΔΙΟΡΘΩΣΗ — ΚΟΜΜΑΤΙΑ ΕΞΑΦΑΝΙΖΟΝΤΑΝ ΑΠΟ ΤΗ ΒΙΤΡΙΝΑ: μοιραστήκατε 19 κοσμήματα, ο πελάτης άνοιξε τον σύνδεσμο και είδε μόνο 8.",
-        "🔍 Η αιτία: όταν άνοιγε η καρτέλα «Απόθεμα», η εφαρμογή ξανάγραφε ΟΛΟΚΛΗΡΗ τη βιτρίνα από τη λίστα που είχε στη μνήμη της. Αν αυτή η λίστα ήταν λίγο παλιά (π.χ. σε άλλη συσκευή), όσα είχατε προσθέσει στο μεταξύ σβήνονταν από τη βιτρίνα — αθόρυβα.",
-        "✅ Τώρα ενημερώνει μόνο όσα κομμάτια πραγματικά άλλαξαν, και μόνο αφού κατεβάσει φρέσκο απόθεμα. Ένα κομμάτι που δεν γνωρίζει δεν το αγγίζει ποτέ.",
-        "🛡️ Αν δεν μπορεί να διαβάσει τη βιτρίνα ή το απόθεμα, δεν γράφει τίποτα — δοκιμάζει ξανά στο επόμενο άνοιγμα, αντί να μαντεύει.",
-        "↩️ Τα 11 κοσμήματα που έλειπαν επανέρχονται μόνα τους στη βιτρίνα με το επόμενο άνοιγμα της καρτέλας «Απόθεμα».",
+      { version: 'v12.72', date: 'Αύγουστος 2026', items: [
+        "👤 ΠΡΟΣΘΗΚΗ ΠΕΛΑΤΗ ΣΕ ΠΕΡΑΣΜΕΝΗ ΠΩΛΗΣΗ: ξέχασες να γράψεις το όνομα τη στιγμή της πώλησης; Τώρα μπορείς να το προσθέσεις μετά.",
+        "✏️ Στην επεξεργασία πώλησης υπάρχει πλέον πεδίο «Πελάτης» — όνομα (με αυτόματη συμπλήρωση από τους πελάτες σου), τηλέφωνο και email.",
+        "🛍️ Το ίδιο και στην επεξεργασία ολόκληρης συναλλαγής με πολλά κομμάτια — το όνομα μπαίνει σε όλες τις γραμμές μαζί.",
+        "📇 Ό,τι γράψεις αποθηκεύεται και στην καρτέλα «Πελάτες», όπως ακριβώς αν το είχες γράψει την ώρα της πώλησης.",
+        "🖨️ Έτσι η προσφορά ή το πιστοποιητικό που θα εκτυπώσεις μετά από την πώληση βγαίνει με το όνομα του πελάτη.",
       ]},
       ]
   },
@@ -28988,12 +29082,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.71', date: 'Aug 2026', items: [
-        "🖼️ FIX — PIECES VANISHING FROM THE SHOWROOM: you shared 19 pieces, the customer opened the link and saw only 8.",
-        "🔍 The cause: opening the Stock tab rewrote the WHOLE showroom from the list the app happened to hold in memory. If that list was a little old (on another device, say), everything added since was deleted from the showroom — silently.",
-        "✅ It now updates only the pieces that actually changed, and only after fetching fresh stock. A piece it doesn't know about is never touched.",
-        "🛡️ If it cannot read the showroom or the stock, it writes nothing and tries again on the next open, instead of guessing.",
-        "↩️ The 11 missing pieces come back to the showroom by themselves the next time the Stock tab is opened.",
+      { version: 'v12.72', date: 'Aug 2026', items: [
+        "👤 ADD THE CUSTOMER TO A SALE AFTERWARDS: forgot to type the name at the counter? You can add it later.",
+        "✏️ The Edit Sale form now has a Customer block — name (with autocomplete from your clients), phone and email.",
+        "🛍️ Same on the whole-transaction edit form for a multi-item sale — the name goes onto every line at once.",
+        "📇 Whatever you type is saved to the Clients tab too, exactly as if it had been typed while recording the sale.",
+        "🖨️ So a quote or certificate printed after the sale now comes out with the customer's name on it.",
       ]},
           ]
   }
@@ -33770,7 +33864,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.71';
+const APP_VERSION = '12.72';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
