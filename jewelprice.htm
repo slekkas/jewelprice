@@ -758,6 +758,30 @@
   .sp-hero-label { font-family: var(--font-body); font-size: 9px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
   .sp-hero-amount { font-family: var(--font-heading); font-size: 42px; font-weight: 700; color: var(--gold-light); line-height: 1; letter-spacing: -0.01em; }
   .sp-hero-sub { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.08em; }
+  .sp-hero-tap { cursor: pointer; }
+  .sp-hero-tap:active { transform: scale(0.995); }
+
+  /* Sales breakdown sheet */
+  .sb-tiles { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .sb-tile { background:var(--wa04); border:1px solid rgba(212,175,55,0.16); border-radius:10px; padding:10px 8px; text-align:center; }
+  .sb-tile-lbl { font-family:var(--font-body); font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
+  .sb-tile-val { font-family:var(--font-mono); font-size:17px; font-weight:700; color:var(--gold-light); letter-spacing:-0.01em; }
+  .sb-sec { border-top:1px solid rgba(212,175,55,0.14); padding-top:11px; margin-top:11px; }
+  .sb-sec-t { font-family:var(--font-body); font-size:9px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
+  .sb-line { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-family:var(--font-mono); font-size:12px; padding:3px 0; }
+  .sb-line span:first-child { color:var(--text-muted); min-width:0; }
+  .sb-line span:last-child { color:var(--text); flex-shrink:0; }
+  .sb-grid { display:grid; grid-template-columns:1fr 1fr 1fr 42px; gap:4px; align-items:baseline; }
+  .sb-head { font-family:var(--font-body); font-size:8.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); text-align:right; padding-bottom:6px; border-bottom:1px solid rgba(212,175,55,0.18); }
+  .sb-row { border-bottom:1px solid rgba(255,255,255,0.05); padding:7px 0; cursor:pointer; }
+  .sb-row:active { background:rgba(212,175,55,0.06); }
+  .sb-meta { font-family:var(--font-mono); font-size:10.5px; color:var(--text-muted); margin-bottom:3px; overflow-wrap:anywhere; }
+  .sb-num { font-family:var(--font-mono); font-size:12.5px; text-align:right; color:var(--text); }
+  .sb-num.sb-p { color:#4CAF50; }
+  .sb-num.sb-n { color:#ff8a80; }
+  .sb-num.sb-dim { color:var(--text-muted); }
+  .sb-tot { padding-top:9px; margin-top:2px; border-top:2px solid rgba(212,175,55,0.35); }
+  .sb-tot .sb-num { font-size:14px; font-weight:700; color:var(--gold-light); }
 
   .sp-back-btn {
     background: rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.3); color:var(--gold);
@@ -1636,6 +1660,18 @@
     <div id="sfsPure" style="font-family:var(--font-mono);font-size:clamp(16px,4.8vw,24px);color:var(--gold);letter-spacing:0.04em;text-align:center"></div>
     <div id="sfsRows" style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:360px;margin-top:18px"></div>
     <div style="position:absolute;bottom:40px;font-family:var(--font-mono);font-size:11px;color:var(--wa20);letter-spacing:0.1em">TAP TO CLOSE</div>
+  </div>
+
+  <!-- SALES BREAKDOWN — total / cost / profit per transaction for the period the hero shows -->
+  <div id="salesBreakdownOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:999996;align-items:flex-start;justify-content:center;overflow-y:auto;padding:0" onclick="if(event.target===this)closeSalesBreakdown()">
+    <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-radius:0 0 16px 16px;width:100%;max-width:560px;padding:calc(16px + env(safe-area-inset-top)) 14px 20px;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
+        <div style="font-family:var(--font-heading);font-size:19px;color:var(--gold-light);font-weight:600" id="sbTitle">Sales Breakdown</div>
+        <button onclick="closeSalesBreakdown()" style="background:transparent;border:1px solid rgba(212,175,55,0.3);color:var(--gold);border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;flex-shrink:0">✕</button>
+      </div>
+      <div id="sbPeriod" style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:14px"></div>
+      <div id="sbBody"></div>
+    </div>
   </div>
 
   <!-- VENDORS -->
@@ -3147,11 +3183,12 @@
     </div>
 
     <!-- Hero total (updates per level) -->
-    <div class="sp-hero">
+    <div class="sp-hero" id="spHero" onclick="openSalesBreakdown()">
       <div class="sp-hero-label" id="spHeroLabel" data-i18n="totalSales">TOTAL SALES</div>
       <div class="sp-hero-amount" id="spHeroTotal">€0</div>
       <div class="sp-hero-sub" id="spHeroSub"></div>
       <div id="spHeroProfit" style="font-family:var(--font-mono);font-size:11px;color:#4CAF50;margin-top:4px;letter-spacing:0.08em;display:none"></div>
+      <div id="spHeroHint" data-i18n="sbTapHint" style="font-family:var(--font-body);font-size:10px;letter-spacing:0.12em;color:rgba(212,175,55,0.55);margin-top:8px;display:none">Tap for the breakdown ›</div>
     </div>
 
     <!-- View toggle: By Date / By Vendor -->
@@ -3682,6 +3719,7 @@ const T = {
     saleVendorLabel:'Προμηθευτής (αυτόματο)', saleVendorPh:'π.χ. Goldsmith Italia',
     saleEditTitle:'Επεξεργασία Πώλησης', saleEditHint:'Επεξεργαστείτε τα στοιχεία της πώλησης.', saleEditEmployee:'Πωλητής',
     salesTitle:'Πωλήσεις', salesToday:'Σήμερα', salesMonth:'Μήνας', salesYear:'Έτος', totalSales:'Συνολικές Πωλήσεις',
+    sbTapHint:'Πατήστε για ανάλυση ›', sbTitle:'Ανάλυση Πωλήσεων',
     editName:'Αλλαγή Ονόματος', yourName:'Ελληνικά', nameEnLabel:'Αγγλικά — προαιρετικό',
     teamTitle:'👥 Ομάδα', teamTitleShort:'Ομάδα', teamDesc:'Προσθέστε τα άτομα της ομάδας σας και στείλτε τους τον προσωπικό τους σύνδεσμο εγκατάστασης. Ο ρόλος καθορίζει τι βλέπει ο καθένας.', addPerson:'Πρόσθεσε', saveUser:'Αποθήκευση',
     userDisplayName:'Πλήρες Όνομα', userSlugLabel:'Username (για το link)',
@@ -4180,6 +4218,7 @@ const T = {
     saleVendorLabel:'Vendor (auto-filled)', saleVendorPh:'e.g. Goldsmith Italia',
     saleEditTitle:'Edit Sale', saleEditHint:'Update the sale details.', saleEditEmployee:'Salesperson',
     salesTitle:'Sales', salesToday:'Today', salesMonth:'Month', salesYear:'Year', totalSales:'Total Sales',
+    sbTapHint:'Tap for the breakdown ›', sbTitle:'Sales Breakdown',
     editName:'Change Name', yourName:'Greek', nameEnLabel:'English — optional',
     teamTitle:'👥 Team', teamTitleShort:'Team', teamDesc:'Add the people who work with you and send each of them their own install link. Their role decides what they can see.', addPerson:'Add Person', saveUser:'Save',
     userDisplayName:'Full Name', userSlugLabel:'Username (for the link)',
@@ -5547,6 +5586,7 @@ function showPanel(name) {
   if (_pfsOv && _pfsOv.style.display !== 'none') _pfsOv.style.display = 'none';
   const _sfsOv = document.getElementById('statFullscreenOverlay');
   if (_sfsOv && _sfsOv.style.display !== 'none') closeStatFullscreen();
+  closeSalesBreakdown();
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -13849,9 +13889,10 @@ async function showSaleDetail(id, forceSingle) {
   const s = sales.find(x => x.id === id);
   if (!s) return;
   // A sale opened fresh (from the list, a search, a scan) has nothing above it —
-  // never inherit a stale "go back to" target. _sdmOpenMember re-arms it after
-  // this returns, which is the only way in that legitimately has one.
+  // never inherit a stale "go back to" target. _sdmOpenMember / _sbOpenSale re-arm
+  // theirs after this returns, which are the only ways in that legitimately have one.
   window._sdmReturnToGroup = null;
+  window._sdmReturnToBreakdown = null;
   const cur = state.currency || '€';
   const vat = parseFloat(state.vat) || 0;
   const isOwnerMgr = can('see_cost');
@@ -14140,7 +14181,10 @@ function closeSaleDetailModal(navigating) {
   if (_back && !navigating) { try { openGiftCardDetail(_back); } catch (e) {} return; }
   const _cli = window._sdmReturnToClient;
   window._sdmReturnToClient = null;
-  if (_cli && !navigating) { try { showClientPurchases(_cli); } catch (e) {} }
+  if (_cli && !navigating) { try { showClientPurchases(_cli); } catch (e) {} return; }
+  const _brk = window._sdmReturnToBreakdown;
+  window._sdmReturnToBreakdown = null;
+  if (_brk && !navigating) { try { openSalesBreakdown(); } catch (e) {} }
 }
 
 // ─── QUOTE / CERTIFICATE FOR A SALE THAT HAS ALREADY HAPPENED ────────────────
@@ -15609,11 +15653,15 @@ async function renderSalesPanel() {
   const spViewVendorBtn = document.getElementById('spViewVendorBtn');
   if (spViewDateBtn) spViewDateBtn.style.display = isEmp ? 'none' : '';
   if (spViewVendorBtn) spViewVendorBtn.style.display = isEmp ? 'none' : '';
+  // The vendor/employee views never write the hero, so it keeps whatever the date
+  // view last put there — clear the breakdown source so it can't open on a stale set.
   if (_spView === 'vendor') {
+    _sbSetSource(null, '');
     await renderVendorView(ownSales);
     return;
   }
   if (_spView === 'employee') {
+    _sbSetSource(null, '');
     await renderEmployeeView(allSales);
     return;
   }
@@ -15636,6 +15684,7 @@ async function renderSalesPanel() {
     document.getElementById('spHeroTotal').textContent = fmtAmt(yearTotal);
     document.getElementById('spHeroSub').textContent = _txCount(yearSales) + ' ' + t('salesCount');
     _showProfit('spHeroProfit', _calcSalesProfit(yearSales));
+    _sbSetSource(yearSales, String(_spYear));
     const monthTotals = Array(12).fill(0);
     yearSales.forEach(s => {
       const m = parseInt((s.date||'').slice(5,7),10) - 1;
@@ -15653,6 +15702,7 @@ async function renderSalesPanel() {
     document.getElementById('spHeroSub').textContent = _txCount(selMonthSales) + ' ' + t('salesCount');
     _showProfit('spHeroProfit', _calcSalesProfit(selMonthSales));
     _showProfit('spDetailProfit', _calcSalesProfit(selMonthSales));
+    _sbSetSource(selMonthSales, spMonthFull(_spMonth) + ' ' + _spYear);
     _spRenderCalendar(selMonthSales, null);
     document.getElementById('spDetailHeader').style.display = 'flex';
     document.getElementById('spDetailName').textContent = spMonthFull(_spMonth) + ' ' + _spYear;
@@ -15669,6 +15719,7 @@ async function renderSalesPanel() {
     document.getElementById('spHeroSub').textContent = _txCount(selDaySales) + ' ' + t('salesCount');
     _showProfit('spHeroProfit', _calcSalesProfit(selDaySales));
     _showProfit('spDetailProfit', _calcSalesProfit(selDaySales));
+    _sbSetSource(selDaySales, fmtDate(selDayStr));
     document.getElementById('spDetailHeader').style.display = 'flex';
     document.getElementById('spDetailName').textContent = fmtDate(selDayStr);
     document.getElementById('spDetailTotal').textContent = fmtAmt(selDayTotal);
@@ -15676,6 +15727,279 @@ async function renderSalesPanel() {
     _spRenderSalesList('spSalesList', selDaySales);
     spSetDate('spManualDate2', 'spManualDate2Text', selDayStr);
   }
+}
+
+// ─── SALES BREAKDOWN ──────────────────────────────────────────────────────────
+// Tapping the "Total Sales" hero opens the money behind it: one row per
+// TRANSACTION (a multi-item sale collapses into one row, exactly as the list
+// below it does), with total / cost / profit / margin and a totals row.
+//
+// Every figure is READ BACK from the sale records, never recomputed. The stored
+// `profit` already knows the cash / receipt / gift-certificate / split-payment
+// rules (_saleExVat is the one place that knows them), so a breakdown that
+// re-derived its own would eventually disagree with the sale detail beside it.
+let _sbSales = null;   // the exact set the hero is showing (null ⇒ hero not tappable)
+let _sbLabel = '';
+
+// Point the breakdown at what the hero currently shows. Called from the three
+// date-view branches only: the vendor/employee views never write the hero, so it
+// is left showing whatever it last had and must not open a breakdown for it.
+function _sbSetSource(sales, label) {
+  _sbSales = sales || null;
+  _sbLabel = label || '';
+  const on = !!_sbSales && can('see_cost');
+  const hero = document.getElementById('spHero');
+  const hint = document.getElementById('spHeroHint');
+  if (hero) hero.classList.toggle('sp-hero-tap', on);
+  if (hint) hint.style.display = on ? '' : 'none';
+}
+
+// How a record's money splits by VAT REGIME — which is the split that matters,
+// because it decides what VAT is owed. Derived exactly as _saleExVatRaw derives
+// it: a gift-certificate portion follows the regime it was settled under months
+// ago, and what is handed over now may itself be part cash / part card.
+// Signed, so a return nets against the sale it reverses.
+function _sbPayParts(s) {
+  const amt = parseFloat(s.amount) || 0;
+  const sgn = amt < 0 ? -1 : 1;
+  const gift = Math.min(Math.abs(parseFloat(s.giftCardAmt) || 0), Math.abs(amt));
+  const payable = Math.abs(amt) - gift;
+  const cashNow = _saleCashPart(s);          // magnitude, already clamped to payable
+  const giftCash = !!s.giftCardWasCash;
+  return {
+    cash:    sgn * (cashNow + (giftCash ? gift : 0)),
+    receipt: sgn * ((payable - cashNow) + (giftCash ? 0 : gift)),
+    gift:    sgn * gift
+  };
+}
+
+// One row per transaction. Cost and profit are summed over the members that
+// actually STORE them; a transaction with none is reported as unknown ("—"),
+// never as zero — a short total has to say it is short.
+function _sbRows(sales) {
+  const has = v => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v));
+  return _groupSalesForDisplay(sales)
+    .map(e => {
+      const recs = e.isGroup ? e.items : [e.sale];
+      let cost = 0, hasCost = false, profit = 0, hasProfit = false;
+      recs.forEach(r => {
+        if (has(r.cost))   { cost   += parseFloat(r.cost);   hasCost = true; }
+        if (has(r.profit)) { profit += parseFloat(r.profit); hasProfit = true; }
+      });
+      return { e, recs, amount: e.amount || 0, cost: hasCost ? cost : null, profit: hasProfit ? profit : null };
+    })
+    .sort((a, b) => {
+      const dd = (b.e.date || '').localeCompare(a.e.date || '');
+      return dd !== 0 ? dd : (b.e.ts || 0) - (a.e.ts || 0);
+    });
+}
+
+// A short label for what a row IS, when it is not an ordinary sale.
+function _sbKindTag(e, recs) {
+  const isEl = lang === 'el';
+  if (e.isReturn) return '<span style="color:#ff8a80">↩️ ' + (isEl ? 'ΕΠΙΣΤΡΟΦΗ' : 'RETURN') + '</span>';
+  if (e.giveaway) return '<span style="color:var(--gold)">🎁 ' + (isEl ? 'ΔΩΡΟ' : 'GIFT') + '</span>';
+  const r = recs[0] || {};
+  if (r.scrapGain)    return '<span style="color:var(--gold)">♻️ ' + (isEl ? 'ΚΕΡΔΟΣ ΠΑΛΑΙΟΥ' : 'SCRAP GAIN') + '</span>';
+  if (r.repairIncome) return '<span style="color:#7aa8ff">🔧 ' + (isEl ? 'ΕΠΙΣΚΕΥΗ/ΠΑΡΑΓΓΕΛΙΑ' : 'REPAIR/ORDER') + '</span>';
+  if (r.giftBreakage) return '<span style="color:var(--gold)">🎟️ ' + (isEl ? 'ΛΗΞΗ ΕΠΙΤΑΓΗΣ' : 'CARD EXPIRED') + '</span>';
+  if (e.isGroup) return '<span style="color:#7aa8ff">🛍 ' + recs.length + (isEl ? ' τεμ.' : ' items') + '</span>';
+  return '';
+}
+
+function openSalesBreakdown() {
+  if (!_sbSales || !can('see_cost')) return;
+  const ov = document.getElementById('salesBreakdownOverlay');
+  if (!ov) return;
+  // The Sales panel is position:fixed; z-index:100 and lives OUTSIDE `.app` (which is
+  // position:relative; z-index:1), so an overlay nested in `.app` is trapped in that
+  // stacking context and paints BEHIND the panel however high its z-index (same fix
+  // as the ☰ More menu, v11.06). Idempotent.
+  if (ov.parentElement !== document.body) document.body.appendChild(ov);
+  _sbRender();
+  ov.style.display = 'flex';
+  ov.scrollTop = 0;
+}
+
+function closeSalesBreakdown() {
+  const ov = document.getElementById('salesBreakdownOverlay');
+  if (ov) ov.style.display = 'none';
+}
+
+// Open one transaction from the breakdown, remembering the breakdown so the ✕
+// hands the owner back to it instead of dumping him on the Sales list (the same
+// return-target pattern the sale detail already uses for groups/clients/cards).
+async function _sbOpenSale(id) {
+  closeSalesBreakdown();
+  await showSaleDetail(id);
+  window._sdmReturnToBreakdown = true;
+}
+
+function _sbRender() {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const vat = parseFloat(state.vat) || 0;
+  const rows = _sbRows(_sbSales || []);
+  document.getElementById('sbTitle').textContent = t('sbTitle');
+  document.getElementById('sbPeriod').textContent = _sbLabel;
+  const body = document.getElementById('sbBody');
+
+  if (!rows.length) {
+    body.innerHTML = '<div class="sp-empty">' + t('salesNoSales') + '</div>';
+    return;
+  }
+
+  // Totals. Cost/profit count only what is actually recorded; `unknown` is the
+  // number of transactions that carry no cost, reported openly beneath.
+  // `unknown` counts what is missing from the PROFIT, not from the cost: a scrap
+  // gain or an expired gift certificate legitimately has no cost and its profit is
+  // still exact, so flagging those would cry wolf. A record with no profit stored
+  // is the only kind genuinely absent from the figures below.
+  let tAmt = 0, tCost = 0, tProfit = 0, unknown = 0, knownAmt = 0;
+  rows.forEach(r => {
+    tAmt += r.amount;
+    if (r.cost !== null) tCost += r.cost;
+    if (r.profit !== null) { tProfit += r.profit; knownAmt += r.amount; } else unknown++;
+  });
+  // Margin is measured over the sales whose cost is actually known. Dividing the
+  // profit by the WHOLE revenue would quietly read low, because a sale with no
+  // recorded cost adds to the bottom of the fraction but nothing to the top.
+  const margin = knownAmt !== 0 ? (tProfit / knownAmt) * 100 : null;
+
+  // Payment regimes, over the raw records (a transaction can be mixed line by line).
+  let pCash = 0, pRec = 0, pGift = 0;
+  (_sbSales || []).forEach(s => {
+    const p = _sbPayParts(s);
+    pCash += p.cash; pRec += p.receipt; pGift += p.gift;
+  });
+  const vatOwed = vat > 0 ? pRec - (pRec / (1 + vat / 100)) : 0;
+  const exVat = pCash + (pRec / (1 + vat / 100));
+
+  const money = n => cur + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const signed = n => (n < 0 ? '−' : '') + money(n);
+
+  const tile = (lbl, val, col) =>
+    '<div class="sb-tile"><div class="sb-tile-lbl">' + lbl + '</div>' +
+    '<div class="sb-tile-val"' + (col ? ' style="color:' + col + '"' : '') + '>' + val + '</div></div>';
+
+  let html = '<div class="sb-tiles">' +
+    tile(isEl ? 'Πωλήσεις' : 'Sales', signed(tAmt)) +
+    tile(isEl ? 'Κόστος' : 'Cost', signed(tCost), 'var(--text)') +
+    tile(isEl ? 'Κέρδος' : 'Profit', signed(tProfit), tProfit < 0 ? '#ff8a80' : '#4CAF50') +
+    tile(isEl ? 'Περιθώριο' : 'Margin', margin === null ? '—' : margin.toFixed(1) + '%',
+         margin !== null && margin < 0 ? '#ff8a80' : '#4CAF50') +
+    '</div>';
+
+  // How the money came in — which is what decides the VAT.
+  html += '<div class="sb-sec"><div class="sb-sec-t">' + (isEl ? 'Πώς πληρώθηκαν' : 'How it was paid') + '</div>' +
+    '<div class="sb-line"><span>💵 ' + (isEl ? 'Μετρητά (χωρίς απόδειξη)' : 'Cash (no receipt)') + '</span><span>' + signed(pCash) + '</span></div>' +
+    '<div class="sb-line"><span>🧾 ' + (isEl ? 'Με απόδειξη' : 'With receipt') + '</span><span>' + signed(pRec) + '</span></div>' +
+    (pGift !== 0 ? '<div class="sb-line"><span>🎟️ ' + (isEl ? 'από επιταγές/πιστώσεις' : 'from cards/credit') + '</span><span>' + signed(pGift) + '</span></div>' : '') +
+    (vat > 0 ? '<div class="sb-line"><span>' + (isEl ? 'ΦΠΑ ' + vat + '% στο ποσό με απόδειξη' : 'VAT ' + vat + '% on the receipt part') + '</span><span>' + signed(vatOwed) + '</span></div>' : '') +
+    '<div class="sb-line"><span>' + (isEl ? 'Καθαρά έσοδα (χωρίς ΦΠΑ)' : 'Net revenue (ex-VAT)') + '</span><span style="color:var(--gold-light)">' + signed(exVat) + '</span></div>' +
+    '</div>';
+
+  // Per-transaction table. The date is dropped when every row shares one (a day view).
+  const dates = [...new Set(rows.map(r => r.e.date || ''))];
+  const oneDay = dates.length <= 1;
+
+  html += '<div class="sb-sec"><div class="sb-grid sb-head">' +
+    '<div>' + (isEl ? 'Σύνολο' : 'Total') + '</div>' +
+    '<div>' + (isEl ? 'Κόστος' : 'Cost') + '</div>' +
+    '<div>' + (isEl ? 'Κέρδος' : 'Profit') + '</div>' +
+    '<div>%</div></div>';
+
+  html += rows.map(r => {
+    const e = r.e;
+    const m = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    const metaBits = [];
+    if (!oneDay) metaBits.push(fmtDate(e.date));
+    const tag = _sbKindTag(e, r.recs);
+    if (tag) metaBits.push(tag);
+    // Part-paid by a gift certificate or a return credit — worth seeing here,
+    // because that part carries its own (older) VAT regime.
+    const gcNo = (r.recs.find(x => x.giftCardNo) || {}).giftCardNo;
+    if (gcNo) metaBits.push('<span style="color:var(--gold)">🎟️ ' + _gcEsc(gcNo) + '</span>');
+    if (e.customer) metaBits.push('👤 ' + _gcEsc(e.customer));
+    if (e.vendor) metaBits.push(_gcEsc(e.vendor));
+    if (e.note) metaBits.push(_gcEsc(e.note));
+    if (e.employeeName) metaBits.push('🧑‍💼 ' + _gcEsc(e.employeeName));
+    const neg = r.amount < 0;
+    return '<div class="sb-row" onclick="_sbOpenSale(' + e.id + ')">' +
+      '<div class="sb-meta" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' +
+        metaBits.join(' · ') + '</div>' +
+      '<div class="sb-grid">' +
+        '<div class="sb-num' + (neg ? ' sb-n' : '') + '">' + signed(r.amount) + '</div>' +
+        '<div class="sb-num' + (r.cost === null ? ' sb-dim' : '') + '">' + (r.cost === null ? '—' : signed(r.cost)) + '</div>' +
+        '<div class="sb-num ' + (r.profit === null ? 'sb-dim' : (r.profit < 0 ? 'sb-n' : 'sb-p')) + '">' +
+          (r.profit === null ? '—' : signed(r.profit)) + '</div>' +
+        '<div class="sb-num sb-dim">' + (m === null ? '—' : Math.round(m) + '%') + '</div>' +
+      '</div></div>';
+  }).join('');
+
+  html += '<div class="sb-grid sb-tot">' +
+    '<div class="sb-num">' + signed(tAmt) + '</div>' +
+    '<div class="sb-num">' + signed(tCost) + '</div>' +
+    '<div class="sb-num">' + signed(tProfit) + '</div>' +
+    '<div class="sb-num" style="font-size:12px">' + (margin === null ? '—' : margin.toFixed(1) + '%') + '</div>' +
+    '</div>';
+
+  // Say it plainly when part of the cost is missing, rather than quietly
+  // reporting a profit that is really only most of one.
+  if (unknown > 0) {
+    html += '<div style="font-family:var(--font-mono);font-size:10.5px;color:#e0b050;margin-top:10px;line-height:1.5">⚠️ ' +
+      (isEl
+        ? (unknown === 1
+            ? '1 πώληση δεν έχει καταγεγραμμένο κόστος — το κέρδος της δεν μετριέται εδώ.'
+            : unknown + ' πωλήσεις δεν έχουν καταγεγραμμένο κόστος — το κέρδος τους δεν μετριέται εδώ.')
+        : (unknown === 1
+            ? '1 sale has no recorded cost — its profit is not counted here.'
+            : unknown + ' sales have no recorded cost — their profit is not counted here.')) +
+      '</div>';
+  }
+  html += '</div>';
+
+  html += '<button onclick="_sbExport()" style="width:100%;margin-top:16px;padding:11px;background:var(--wa06);border:1px solid rgba(212,175,55,0.3);color:var(--gold);border-radius:10px;font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0.08em;cursor:pointer">📊 ' +
+    (isEl ? 'Εξαγωγή CSV' : 'Export CSV') + '</button>';
+
+  body.innerHTML = html;
+}
+
+// Same CSV conventions as every other export in the app: comma-delimited,
+// decimal POINT, UTF-8 BOM — the format the owner's Excel actually reads.
+function _sbExport() {
+  const isEl = lang === 'el';
+  const rows = _sbRows(_sbSales || []);
+  if (!rows.length) return;
+  const esc = s => { s = String(s == null ? '' : s); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = [isEl ? 'Ημερομηνία' : 'Date', isEl ? 'Περιγραφή' : 'Description', isEl ? 'Πελάτης' : 'Customer',
+                isEl ? 'Προμηθευτής' : 'Vendor', isEl ? 'Πωλητής' : 'Salesperson',
+                isEl ? 'Σύνολο' : 'Total', isEl ? 'Κόστος' : 'Cost', isEl ? 'Κέρδος' : 'Profit',
+                isEl ? 'Περιθώριο %' : 'Margin %', isEl ? 'Πληρωμή' : 'Payment'];
+  const lines = [head.join(',')];
+  let tAmt = 0, tCost = 0, tProfit = 0, knownAmt = 0;
+  rows.forEach(r => {
+    const e = r.e;
+    let cash = 0, rec = 0;
+    r.recs.forEach(s => { const p = _sbPayParts(s); cash += p.cash; rec += p.receipt; });
+    const pay = (cash !== 0 && rec !== 0) ? (isEl ? 'Μικτή' : 'Split') : (rec !== 0 ? (isEl ? 'Με απόδειξη' : 'Receipt') : (isEl ? 'Μετρητά' : 'Cash'));
+    const m = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    tAmt += r.amount; if (r.cost !== null) tCost += r.cost;
+    if (r.profit !== null) { tProfit += r.profit; knownAmt += r.amount; }
+    lines.push([esc(fmtDate(e.date)), esc(e.note || ''), esc(e.customer || ''), esc(e.vendor || ''),
+      esc(e.employeeName || ''), r.amount.toFixed(2), r.cost === null ? '' : r.cost.toFixed(2),
+      r.profit === null ? '' : r.profit.toFixed(2), m === null ? '' : m.toFixed(1), esc(pay)].join(','));
+  });
+  // Same margin rule as the sheet: measured over the sales whose profit is known.
+  lines.push([esc(isEl ? 'ΣΥΝΟΛΟ' : 'TOTAL'), '', '', '', '', tAmt.toFixed(2), tCost.toFixed(2), tProfit.toFixed(2),
+    knownAmt !== 0 ? ((tProfit / knownAmt) * 100).toFixed(1) : '', ''].join(','));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sales-' + (_sbLabel || '').replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '').toLowerCase() + '.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
 // Sets a hidden date input + its formatted display span together
@@ -29046,12 +29370,14 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.72', date: 'Αύγουστος 2026', items: [
-        "👤 ΠΡΟΣΘΗΚΗ ΠΕΛΑΤΗ ΣΕ ΠΕΡΑΣΜΕΝΗ ΠΩΛΗΣΗ: ξέχασες να γράψεις το όνομα τη στιγμή της πώλησης; Τώρα μπορείς να το προσθέσεις μετά.",
-        "✏️ Στην επεξεργασία πώλησης υπάρχει πλέον πεδίο «Πελάτης» — όνομα (με αυτόματη συμπλήρωση από τους πελάτες σου), τηλέφωνο και email.",
-        "🛍️ Το ίδιο και στην επεξεργασία ολόκληρης συναλλαγής με πολλά κομμάτια — το όνομα μπαίνει σε όλες τις γραμμές μαζί.",
-        "📇 Ό,τι γράψεις αποθηκεύεται και στην καρτέλα «Πελάτες», όπως ακριβώς αν το είχες γράψει την ώρα της πώλησης.",
-        "🖨️ Έτσι η προσφορά ή το πιστοποιητικό που θα εκτυπώσεις μετά από την πώληση βγαίνει με το όνομα του πελάτη.",
+      { version: 'v12.73', date: 'Αύγουστος 2026', items: [
+        "📊 ΑΝΑΛΥΣΗ ΠΩΛΗΣΕΩΝ: πάτησε το μεγάλο σύνολο στην καρτέλα «Πωλήσεις» και δες από πού βγήκαν τα λεφτά.",
+        "🧾 Μία γραμμή ανά συναλλαγή: Σύνολο · Κόστος · Κέρδος · Περιθώριο %, με σύνολα στο τέλος.",
+        "💰 Επάνω, τέσσερα νούμερα με μια ματιά: πωλήσεις, κόστος, κέρδος και περιθώριο κέρδους.",
+        "💵 «Πώς πληρώθηκαν»: πόσα ήρθαν μετρητά, πόσα με απόδειξη, πόσα από δωροεπιταγές — και ο ΦΠΑ που αναλογεί.",
+        "👆 Πάτησε οποιαδήποτε γραμμή για να ανοίξει η πώληση· το ✕ σε γυρίζει πίσω στην ανάλυση.",
+        "⚠️ Αν κάποια πώληση δεν έχει καταγεγραμμένο κόστος, σου το λέει καθαρά αντί να δείξει λάθος κέρδος.",
+        "📄 Κουμπί «Εξαγωγή CSV» για τον λογιστή.",
       ]},
       ]
   },
@@ -29082,12 +29408,14 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.72', date: 'Aug 2026', items: [
-        "👤 ADD THE CUSTOMER TO A SALE AFTERWARDS: forgot to type the name at the counter? You can add it later.",
-        "✏️ The Edit Sale form now has a Customer block — name (with autocomplete from your clients), phone and email.",
-        "🛍️ Same on the whole-transaction edit form for a multi-item sale — the name goes onto every line at once.",
-        "📇 Whatever you type is saved to the Clients tab too, exactly as if it had been typed while recording the sale.",
-        "🖨️ So a quote or certificate printed after the sale now comes out with the customer's name on it.",
+      { version: 'v12.73', date: 'Aug 2026', items: [
+        "📊 SALES BREAKDOWN: tap the big total on the Sales tab to see where the money came from.",
+        "🧾 One line per transaction: Total · Cost · Profit · Margin %, with totals at the bottom.",
+        "💰 Four figures at a glance up top: sales, cost, profit and profit margin.",
+        "💵 \"How it was paid\": how much came in cash, how much with a receipt, how much from gift cards — and the VAT on it.",
+        "👆 Tap any line to open that sale; the ✕ brings you straight back to the breakdown.",
+        "⚠️ If a sale has no recorded cost it says so plainly, instead of showing a profit that is short.",
+        "📄 An \"Export CSV\" button for the accountant.",
       ]},
           ]
   }
@@ -33864,7 +34192,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.72';
+const APP_VERSION = '12.73';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
