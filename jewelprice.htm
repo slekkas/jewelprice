@@ -29479,13 +29479,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.74', date: 'Αύγουστος 2026', items: [
-        "🪙 ΤΑ ΝΟΜΙΣΜΑΤΑ ΔΕΝ ΧΑΛΑΝΕ ΠΛΕΟΝ ΤΟ ΠΕΡΙΘΩΡΙΟ: ένας χρυσός λίρα με 6% κέρδος έριχνε μια μέρα 59% στο 48%.",
-        "💍 Το «Περιθώριο» μετριέται τώρα ΜΟΝΟ στα κοσμήματα — το πραγματικό νούμερο της δουλειάς σου.",
-        "📊 Νέα γραμμή «Ανά δραστηριότητα»: Κοσμήματα · Νομίσματα · Επισκευές · Παλαιό · Ληγμένες επιταγές · Δώρα, το καθένα με το δικό του κέρδος και ποσοστό.",
-        "💶 Τα σύνολα (πωλήσεις, κόστος, κέρδος) μένουν ακέραια — συμφωνούν πάντα με το ταμείο και με το μεγάλο νούμερο.",
-        "🧹 Πιο καθαρή οθόνη: έφυγαν το όνομα πελάτη, ο προμηθευτής και ο πωλητής από τις γραμμές — μπαίνει ο κωδικός του κομματιού (π.χ. NK0801).",
-        "📄 Στο CSV μπήκαν στήλες «Δραστηριότητα» και «Κωδικός»· πελάτης, προμηθευτής και πωλητής παραμένουν εκεί για τον λογιστή.",
+      { version: 'v12.75', date: 'Αύγουστος 2026', items: [
+        "👥 ΟΙ ΠΕΛΑΤΕΣ ΜΠΑΙΝΟΥΝ ΞΑΝΑ ΣΤΗ ΣΩΣΤΗ ΣΕΙΡΑ: το «Πιο πρόσφατοι» έδειχνε λάθος σειρά και ημερομηνίες του έτους 58.500.",
+        "📅 Κάθε πελάτης δείχνει τώρα την πραγματική ημερομηνία που προστέθηκε — η παλιά έβγαινε από τον εσωτερικό κωδικό, που άλλαξε μορφή.",
+        "✏️ Η επεξεργασία πελάτη δεν σβήνει πια την ημερομηνία προσθήκης, τις σημειώσεις και το ποιος τον καταχώρησε.",
+        "🗓️ Διορθώθηκαν και τα «τσιπάκια σεζόν» και το φίλτρο ημερομηνίας, που έβγαζαν φανταστικές χρονιές.",
       ]},
       ]
   },
@@ -29516,13 +29514,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.74', date: 'Aug 2026', items: [
-        "🪙 COINS NO LONGER SPOIL YOUR MARGIN: one sovereign at 6% was dragging a 59% day down to 48%.",
-        "💍 The Margin tile is now measured on JEWELRY ONLY — the number that actually describes your work.",
-        "📊 New \"By activity\" line: Jewelry · Coins · Repairs · Scrap · Expired cards · Giveaways, each with its own profit and %.",
-        "💶 The totals (sales, cost, profit) stay whole — they always agree with the till and with the big number above.",
-        "🧹 A cleaner screen: customer, vendor and salesperson are gone from the rows, replaced by the piece's reference code (e.g. NK0801).",
-        "📄 The CSV gained \"Activity\" and \"Ref\" columns; customer, vendor and salesperson are still there for the accountant.",
+      { version: 'v12.75', date: 'Aug 2026', items: [
+        "👥 CLIENTS SORT PROPERLY AGAIN: \"Newest first\" was out of order, with dates in the year 58,500.",
+        "📅 Every client now shows the real date they were added — the old one was read off the internal id, whose format changed.",
+        "✏️ Editing a client no longer wipes their date added, notes and who entered them.",
+        "🗓️ The season chips and the date filter, which produced impossible years, are fixed too.",
       ]},
           ]
   }
@@ -30712,7 +30708,7 @@ function autoSaveClientFromQuote(name, email) {
     }
   } else {
     // New client — save silently
-    const newClient = { id: String(_stampId()), name, email: email || '', phone: '', notes: '', addedBy: creds.userName || '', addedByName: creds.displayName || '' };
+    const newClient = { id: String(_stampId()), name, email: email || '', phone: '', notes: '', dateAdded: Date.now(), addedBy: creds.userName || '', addedByName: creds.displayName || '' };
     saveClient(newClient); // fire-and-forget
   }
 }
@@ -32004,11 +32000,21 @@ async function upsertClientFromSale(name, phone, email) {
   }
 }
 
-// A client's id is its creation time (String(Date.now())); use dateAdded if present, else the numeric id.
+// Use dateAdded when the record has it; otherwise fall back to the id, which is
+// minted from the clock.
+//
+// Two id shapes exist. Older clients carry a plain String(Date.now()) (~1.78e12,
+// i.e. milliseconds). Since v11.64 ids come from _stampId() = Date.now()*1000 +
+// device salt (~1.78e15), which is NOT milliseconds — reading one as a timestamp
+// lands in the year 58,000 and sorts that client above every real date, which is
+// exactly what "Newest first" was getting wrong (v12.75). Divide it back down.
+// The 1e14 boundary is unambiguous: a plain ms timestamp does not reach it until
+// the year 5138, and a stamped id has been above it since 1970.
 function getClientDate(c) {
   if (c && c.dateAdded) return c.dateAdded;
   const n = c ? Number(c.id) : 0;
-  return (Number.isFinite(n) && n > 1e12) ? n : 0; // guard against non-timestamp legacy ids
+  if (!Number.isFinite(n) || n <= 1e12) return 0;   // guard against non-timestamp legacy ids
+  return n > 1e14 ? Math.floor(n / 1000) : n;
 }
 
 function toggleClientDateFilter() {
@@ -32180,13 +32186,20 @@ function closeClientEditModal() {
 async function saveClientEdit() {
   const name = document.getElementById('clientEditName').value.trim();
   if (!name) { showToast(lang==='el'?'⚠️ Απαιτείται όνομα':'⚠️ Name is required'); return; }
-  const id = document.getElementById('clientEditId').value || String(Date.now());
-  const client = {
+  const existingId = document.getElementById('clientEditId').value;
+  const id = existingId || String(_stampId());
+  // Merge onto the stored record, never replace it: rebuilding the object from
+  // the form fields alone dropped dateAdded (and addedBy/addedByName) on every
+  // edit, so an edited client fell back to its id for its date — which is how a
+  // 20/07 customer ended up dated 58,518 and pinned to the top of the list.
+  const prev = existingId ? (getClients().find(c => String(c.id) === String(existingId)) || {}) : {};
+  const client = Object.assign({}, prev, {
     id, name,
     email: document.getElementById('clientEditEmail').value.trim(),
     phone: _readPhoneField('clientEditPhoneCode', 'clientEditPhone'),
     notes: document.getElementById('clientEditNotes').value.trim()
-  };
+  });
+  if (!client.dateAdded) client.dateAdded = existingId ? getClientDate(prev) || Date.now() : Date.now();
   await saveClient(client);
   closeClientEditModal();
   renderClients();
@@ -34299,7 +34312,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.74';
+const APP_VERSION = '12.75';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
