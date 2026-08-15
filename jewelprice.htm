@@ -22533,6 +22533,34 @@ function calcInvItemPrice(item) {
   return { retail, metalValue, preVat, baseCost, laborCost, isPerItemLabor, secMetalCost, wastageAmt };
 }
 
+// ── Per-item pricing: a target retail → the stored laborCost + itemMargin ─────────────
+// A per-item category has no €/g rate. The owner types the price he wants (VAT included)
+// and the app stores it as (labour €) + (margin %) so the piece still floats with metal
+// afterwards. This is the SAME arithmetic the label form (_saveToInventoryFromLabel) and
+// Edit Item already do inline — extracted so a third caller cannot drift from them.
+//   labour = purchaseCost − metal − stones   (clamped at 0: the real workmanship)
+//   margin = target ex-VAT / (metal + stones + labour) − 1
+// The margin is taken against the base cost calcInvItemPrice will apply it to, NOT against
+// purchaseCost — the two are equal in the normal case but diverge when the metal costs more
+// than the piece did, where dividing by purchaseCost overshoots the target (v10.54).
+// Mutates `item` and returns whether it could. The item must already carry its final
+// weight/karat/metal, since the metal cost is read from it.
+function _perItemSetFromTarget(item, targetRetail) {
+  if (!item || !(targetRetail > 0)) return false;
+  const p = calcInvItemPrice(item);
+  if (!p) return false;
+  const vat = parseFloat(state.vat) || 0;
+  const metalCost = (p.metalValue || 0) + (p.secMetalCost || 0);
+  const stoneCost = parseFloat(item.stoneCost) || 0;
+  const purchase = parseFloat(item.purchaseCost) || 0;
+  const labor = purchase > 0 ? Math.max(0, purchase - metalCost - stoneCost) : 0;
+  const baseCost = metalCost + stoneCost + labor;
+  if (!(baseCost > 0)) return false;
+  item.laborCost = labor;
+  item.itemMargin = ((targetRetail / (1 + vat / 100)) / baseCost - 1) * 100;
+  return true;
+}
+
 let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
 // Show the "Total Cost" summary card? Off by default (keeps the comfortable 3-card layout);
 // the owner flips it on via a toggle in the Filter sheet. A view preference, not a filter,
@@ -28472,6 +28500,36 @@ function invAddSimilar(sourceId) {
     return _latinBase + w.toString() + (ns ? _buildStoneQRSuffix(ns) : _stoneSuffix);
   };
 
+  // ── Per-item: a heavier twin pays for its extra METAL, not a bigger margin ──────────
+  // A per-item category's price is a target retail with the margin baked in, so copying
+  // that margin onto a heavier piece scales the WHOLE price by weight: the evil-eye
+  // necklace went 6.20g €65.00 → 8.30g €80.17, where the extra 2.10g of silver is only
+  // €3.50 of metal. The vendor charges ONE price per piece — the labour and the margin
+  // are per PIECE, only the metal is per gram. So a clone of a different weight gets its
+  // own target: the source's price today, plus its extra metal at cost. It is then stored
+  // exactly as if that target had been typed into the form, so the piece is indistinguish-
+  // able from a hand-created one and still floats with metal afterwards.
+  // Per-gram categories are deliberately untouched — there the rate IS per gram.
+  const _srcCat = getItemCat(source);   // canonical resolver (handles duplicate cat names)
+  const _isPerItem = source.metal !== 'other' && (_srcCat?.rateType === 'peritem');
+  // Mutates `newItem`; returns the breakdown for the preview, or null when it does not
+  // apply (per-gram, same weight, or no spot price to work the metal out with).
+  function _applyPerItemWeightPrice(newItem) {
+    if (!_isPerItem) return null;
+    const srcW = parseFloat(source.weight) || 0;
+    const newW = parseFloat(newItem.weight) || 0;
+    // An identical-weight batch is left byte-identical to how this flow always behaved.
+    if (!(srcW > 0) || Math.abs(newW - srcW) < 0.0001) return null;
+    const sp = calcInvItemPrice(source), np = calcInvItemPrice(newItem);
+    if (!sp || !np) return null;
+    // metalValue is the raw metal (per-item categories never carry wastage), and the
+    // secondary metal is copied unchanged, so this difference is exactly the extra silver.
+    const extraMetal = (np.metalValue || 0) - (sp.metalValue || 0);
+    const target = sp.retail + extraMetal;
+    if (!(target > 0) || !_perItemSetFromTarget(newItem, target)) return null;
+    return { from: sp.retail, extraMetal, target };
+  }
+
   const typeStr = source.jewelryType ? invTypeLabel(source.jewelryType) : '';
   const summary = [typeStr, _itemDesc(source)].filter(Boolean).join(' · ') || (source.qrCode || '—');
   const refStr = source.seqId ? itemRefCode(source) : '';
@@ -28503,6 +28561,7 @@ function invAddSimilar(sourceId) {
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Φωτογραφία':'Photo'} <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδια με την ομάδα':'blank = same as group'}</span></div>
       <div id="invAddSimPhotoWrap" style="margin-bottom:12px"></div>
       <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
+      <div id="invAddSimPriceNote" style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);margin-bottom:6px"></div>
       <div id="invAddSimCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:6px;font-family:var(--font-body);font-weight:600"></div>
       <div id="invAddSimStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:14px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -28537,6 +28596,30 @@ function invAddSimilar(sourceId) {
     const ns = _newStones();
     previewEl.textContent = (!isNaN(w) && w > 0) ? buildQR(w, ns) : (_existingQR || '—');
     previewEl.style.color = 'var(--gold)';
+    // Show the price the new piece will carry BEFORE it is added — for a per-item piece
+    // the weight changes it, and the owner is entitled to see that before he prints a tag.
+    const priceEl = document.getElementById('invAddSimPriceNote');
+    if (priceEl) {
+      priceEl.textContent = '';
+      if (source.metal !== 'other' && !isNaN(w) && w > 0) {
+        const probeItem = Object.assign({}, source, { weight: w });
+        if (ns) probeItem.stonesDesc = buildStoneDescription(ns);
+        const applied = _applyPerItemWeightPrice(probeItem);   // mutates the COPY only
+        const pp = calcInvItemPrice(probeItem);
+        if (pp) {
+          const cur = state.currency || '€';
+          let txt = '💶 ' + cur + pp.retail.toFixed(2);
+          if (applied) {
+            // A lighter piece costs LESS metal — show a minus, never "+ €-3.67".
+            txt += '  =  ' + cur + applied.from.toFixed(2)
+                 + (applied.extraMetal < 0 ? '  −  ' : '  +  ')
+                 + cur + Math.abs(applied.extraMetal).toFixed(2)
+                 + ' ' + (lang === 'el' ? 'μέταλλο' : 'metal');
+          }
+          priceEl.textContent = txt;
+        }
+      }
+    }
     // Say up front which number these pieces will carry — the owner is deciding whether
     // he is extending a group or starting a variant, and that is what the printed tag
     // will say. Uses the same identity test the save path applies, so the note can never
@@ -28649,6 +28732,9 @@ function invAddSimilar(sourceId) {
       // Its own number when it differs from the source; refType is dropped so the fresh
       // number takes its prefix from this piece's own type (same rule as a restock).
       if (_batchSeq) { newItem.seqId = _batchSeq; delete newItem.refType; }
+      // A per-item piece of a different weight is repriced to (source's price + its extra
+      // metal) — must run BEFORE the baseline below, which reads the price back.
+      _applyPerItemWeightPrice(newItem);
       // Keep seqId + refType (shared reference code) — copied by Object.assign above.
       // Re-baseline initialRetail to THIS piece's own retail so its gain % starts at 0
       // (never inherit the source's baseline, which would be wrong for per-gram pricing).
@@ -29498,11 +29584,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.76', date: 'Αύγουστος 2026', items: [
-        "🎁 ΤΟ ΔΩΡΟ ΓΡΑΦΕΤΑΙ ΣΤΟ ΟΝΟΜΑ ΤΟΥ ΠΕΛΑΤΗ: η οθόνη «Δώρο σε πελάτη» έχει τώρα όνομα (με αναζήτηση από τους πελάτες σας), τηλέφωνο και email.",
-        "👤 ΟΛΟΚΛΗΡΟ ΤΟ ΙΣΤΟΡΙΚΟ ΤΟΥ ΠΕΛΑΤΗ ΣΕ ΜΙΑ ΟΘΟΝΗ: αγορές, δώρα, παραγγελίες, επισκευές, κρατήσεις και δωροεπιταγές/πιστώσεις, το καθένα στη δική του ενότητα.",
-        "🔎 Μια γραμμή σύνοψης στην κορυφή απαντά αμέσως «τον έχω ξαναδεί;» — πόσες αγορές και τι σύνολο, πόσα δώρα, πόσες παραγγελίες και επισκευές.",
-        "↩️ Ανοίγοντας μια επισκευή, κράτηση ή επιταγή από το ιστορικό, το ✕ σας γυρίζει πίσω στον πελάτη.",
+      { version: 'v12.77', date: 'Αύγουστος 2026', items: [
+        "⚖️ ΟΜΟΙΟ ΚΟΜΜΑΤΙ ΜΕ ΑΛΛΟ ΒΑΡΟΣ — ΠΛΗΡΩΝΕΙ ΜΟΝΟ ΤΟ ΕΠΙΠΛΕΟΝ ΜΕΤΑΛΛΟ: στις κατηγορίες «ανά τεμάχιο», ένα βαρύτερο όμοιο κομμάτι έπαιρνε ολόκληρη την τιμή πολλαπλασιασμένη με το βάρος (6,20γρ €65 → 8,30γρ €80,17, ενώ τα 2,10γρ ασήμι είναι μόνο €3,50). Τώρα παίρνει την τιμή του πρώτου συν το δικό του μέταλλο: €68,50.",
+        "💶 Η οθόνη «Προσθήκη όμοιων ειδών» δείχνει την τιμή ΠΡΙΝ προσθέσετε: «€68,50 = €65,00 + €3,50 μέταλλο».",
+        "🔗 Οι κατηγορίες «ανά γραμμάριο» δεν αλλάζουν καθόλου — εκεί η χρέωση ΕΙΝΑΙ ανά γραμμάριο. Ίδιο βάρος = ακριβώς όπως πριν.",
       ]},
       ]
   },
@@ -29533,11 +29618,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.76', date: 'Aug 2026', items: [
-        "🎁 A GIFT IS NOW RECORDED UNDER THE CLIENT'S NAME: the \"Give as a gift\" screen has a name (searching your client list), phone and email.",
-        "👤 A CLIENT'S WHOLE HISTORY ON ONE SCREEN: purchases, gifts, orders, repairs, reservations and gift cards/credit, each in its own section.",
-        "🔎 A summary line at the top answers \"have I seen this person before?\" at a glance — purchases and total, gifts, orders and repairs.",
-        "↩️ Opening a repair, reservation or gift card from the history, the ✕ brings you back to the client.",
+      { version: 'v12.77', date: 'Aug 2026', items: [
+        "⚖️ A SIMILAR ITEM OF A DIFFERENT WEIGHT NOW PAYS ONLY FOR ITS EXTRA METAL: on \"per item\" categories a heavier twin had its whole price scaled by weight (6.20g €65 → 8.30g €80.17, when the extra 2.10g of silver is only €3.50). It now takes the first piece's price plus its own metal: €68.50.",
+        "💶 The \"Add similar items\" screen shows the price BEFORE you add: \"€68.50 = €65.00 + €3.50 metal\".",
+        "🔗 Per-gram categories are completely unchanged — there the charge IS per gram. Same weight = exactly as before.",
       ]},
           ]
   }
@@ -34331,7 +34415,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.76';
+const APP_VERSION = '12.77';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
