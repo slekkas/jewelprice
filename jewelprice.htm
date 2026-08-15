@@ -6270,7 +6270,10 @@ function closeGiftCardDetail(navigating) {
   document.getElementById('giftDetailOverlay')?.remove();
   const back = _gcDetailReturnToNotif;
   _gcDetailReturnToNotif = false;
-  if (back && !navigating) { try { openNotifPanel(); } catch (e) {} }
+  const _cli = _clientBackTo; _clientBackTo = null;
+  if (navigating) return;
+  if (back) { try { openNotifPanel(); } catch (e) {} return; }
+  if (_cli) { try { showClientPurchases(_cli); } catch (e) {} }
 }
 
 async function _gcOpenFromNotif(gcId) {
@@ -6281,6 +6284,7 @@ async function _gcOpenFromNotif(gcId) {
 
 async function openGiftCardDetail(id) {
   _gcDetailReturnToNotif = false;
+  _clientBackTo = null;
   const g = gcFindById(id); if (!g) return;
   // Sales carry the item descriptions the redemption statement below resolves.
   // Sales carry the redemption→sale link; inventory carries the ref code and
@@ -7714,6 +7718,7 @@ function invReserveOrView(id) {
 }
 
 function openReservationDetail(id) {
+  _clientBackTo = null;
   const r = getReservations().find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const bal = resBalance(r), paid = resPaid(r), active = r.status === 'active';
@@ -7727,7 +7732,7 @@ function openReservationDetail(id) {
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="contactFromRecord('res','${r.id}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
       <div style="display:flex;gap:7px;align-items:center;flex-shrink:0">
         ${_resCanEdit(r) ? `<button onclick="openResEdit('${r.id}')" class="modal-x" title="${isEl ? 'Επεξεργασία' : 'Edit'}" style="font-size:14px">✏️</button>` : ''}
-        <button onclick="document.getElementById('reservationDetailOverlay').remove()" class="modal-x">✕</button>
+        <button onclick="_clientCloseDetail('reservationDetailOverlay')" class="modal-x">✕</button>
       </div>
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
@@ -8191,6 +8196,7 @@ function shareReservationForm(id) {
 // /jewelprice_repairs (never published). Photo + branded claim form + WhatsApp
 // "ready" notify. Cancel/delete = owner/manager only.
 let _repairs = null;
+let _repLoaded = false; // true once pulled from cloud this session
 let _repPendingPhoto = null, _repPendingPhotoHi = null; // captured in the modal, uploaded on save
 const _repEsc = _resEsc;
 
@@ -8214,6 +8220,7 @@ async function pullRepairsFromCloud() {
     _snapRecord('/jewelprice_repairs', _repCloud, r => r.id);
     _repairs = _applyOutbox('/jewelprice_repairs', _repCloud, r => r.id);
     saveRepairsLocal(_repairs);
+    _repLoaded = true;
   } catch (e) {}
 }
 // ── Ticket kinds ─────────────────────────────────────────────────────────────
@@ -8487,6 +8494,7 @@ async function _repairSave() {
 
 // ── Detail ──
 function openRepairDetail(id) {
+  _clientBackTo = null;
   const r = getRepairs().find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const owner = can('see_cost');
@@ -8515,7 +8523,7 @@ function openRepairDetail(id) {
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_repEsc(r.clientName || '—')}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${repNoFmt(r)} · ${repTypeLabel(r)} · ${statusLabel}</div></div>
       <div style="display:flex;gap:7px;align-items:center;flex-shrink:0">
         ${_repCanEdit(r) ? `<button onclick="openRepairEdit('${r.id}')" class="modal-x" title="${isEl ? 'Επεξεργασία' : 'Edit'}" style="font-size:14px">✏️</button>` : ''}
-        <button onclick="document.getElementById('repairDetailOverlay').remove()" class="modal-x">✕</button>
+        <button onclick="_clientCloseDetail('repairDetailOverlay')" class="modal-x">✕</button>
       </div>
     </div>
     ${phoneBtn ? `<div style="margin-bottom:8px">${phoneBtn}</div>` : ''}
@@ -27296,6 +27304,10 @@ function invGiveaway(id) {
   const refStr = item.seqId ? itemRefCode(item) : (item.qrCode || '');
   const existing = document.getElementById('invGiveawayOverlay');
   if (existing) existing.remove();
+  // Same field styling as the rest of this dialog, handed to the SHARED customer
+  // block so the gift asks for a customer exactly the way every other form does.
+  const _gFld = 'width:100%;padding:11px 12px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:9px;font-size:14px;box-sizing:border-box';
+  const _gLbl = 'display:block;font-size:11px;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px';
   const overlay = document.createElement('div');
   overlay.id = 'invGiveawayOverlay';
   // Top-anchored: the note is a typing field, so it must stay above the keyboard.
@@ -27309,8 +27321,10 @@ function invGiveaway(id) {
       </div>
       <div style="font-size:13px;color:var(--text)">${nameStr}</div>
       <div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin:2px 0 14px">${refStr}</div>
-      <label style="display:block;font-size:11px;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px">${isEl ? 'Σημείωση (προαιρετικά)' : 'Note (optional)'}</label>
-      <input id="invGiveawayNote" type="text" placeholder="${isEl ? 'π.χ. κόρη της Μαρίας' : "e.g. Maria's daughter"}" style="width:100%;padding:11px 12px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:9px;font-size:14px;box-sizing:border-box;margin-bottom:14px">
+      ${_saleCustBlockHtml('gift', { fld: _gFld, lbl: _gLbl })}
+      <div style="font-size:11px;color:var(--text-dim);margin:-6px 0 14px">${isEl ? 'Με όνομα, το δώρο μπαίνει στο ιστορικό του πελάτη.' : 'With a name, the gift appears in that client\'s history.'}</div>
+      <label style="${_gLbl}">${isEl ? 'Σημείωση (προαιρετικά)' : 'Note (optional)'}</label>
+      <input id="invGiveawayNote" type="text" placeholder="${isEl ? 'π.χ. για την κόρη της' : 'e.g. for her daughter'}" style="${_gFld};margin-bottom:14px">
       <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.22);border-radius:10px;padding:11px 13px;margin-bottom:16px">
         <div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Κόστος (χρεώνεται ως έξοδο καλής θέλησης)' : 'Cost (booked as a goodwill expense)'}</div>
         <div style="font-size:18px;color:var(--gold-light);font-weight:700;font-family:'DM Mono',monospace;margin-top:2px">${cur}${cost.toFixed(2)}</div>
@@ -27319,7 +27333,7 @@ function invGiveaway(id) {
       <button onclick="_invGiveawayConfirm('${id}')" style="width:100%;padding:14px;background:linear-gradient(135deg,#c9a84c,#b8973c);border:none;border-radius:11px;color:var(--ink);font-family:var(--font-body);font-size:15px;font-weight:800;cursor:pointer">🎁 ${isEl ? 'Δώσε το δώρο' : 'Give the gift'}</button>
     </div>`;
   document.body.appendChild(overlay);
-  setTimeout(() => { const n = document.getElementById('invGiveawayNote'); if (n) n.focus(); }, 50);
+  setTimeout(() => { const n = document.getElementById('giftCustName'); if (n) n.focus(); }, 50);
 }
 
 async function _invGiveawayConfirm(id) {
@@ -27328,6 +27342,8 @@ async function _invGiveawayConfirm(id) {
   const isEl = lang === 'el';
   const noteEl = document.getElementById('invGiveawayNote');
   const userNote = noteEl ? noteEl.value.trim() : '';
+  // Who it went to. Read BEFORE the overlay is removed, or the fields are gone.
+  const _cust = _saleCustRead('gift');
   const ov = document.getElementById('invGiveawayOverlay');
   if (ov) ov.remove();
   const cost = _invGiveawayCost(item);
@@ -27360,7 +27376,7 @@ async function _invGiveawayConfirm(id) {
   const rec = {
     id: _nextSaleId(sales),
     amount: 0, note, date: todayStr(), ts: Date.now(),
-    vendor: '', customer: '', email: '',
+    vendor: '', customer: _cust.name || '', email: _cust.email || '',
     employee: creds.userName || '', employeeName: creds.displayName || '',
     bonusAmt: 0, bonusPct: 0,
     invQr: item.qrCode || item.code || '', invId: id,
@@ -27372,6 +27388,9 @@ async function _invGiveawayConfirm(id) {
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
   _outboxAdd('/jewelprice_sales', rec.id, 'put', JSON.stringify(rec));
+  // A gift to someone you know is part of that person's history, so the name goes
+  // in the client book exactly as a sale's would — a phone typed here is not lost.
+  if (_cust.name) { try { await upsertClientFromSale(_cust.name, _cust.phone, _cust.email); } catch (e) {} }
   const _sent = await pushSalesToCloud(sales);
   showToast('🎁 ' + (isEl
     ? (_sent ? 'Το δώρο καταχωρήθηκε' : 'Το δώρο καταχωρήθηκε — θα συγχρονιστεί μόλις υπάρξει σύνδεση')
@@ -29479,11 +29498,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.75', date: 'Αύγουστος 2026', items: [
-        "👥 ΟΙ ΠΕΛΑΤΕΣ ΜΠΑΙΝΟΥΝ ΞΑΝΑ ΣΤΗ ΣΩΣΤΗ ΣΕΙΡΑ: το «Πιο πρόσφατοι» έδειχνε λάθος σειρά και ημερομηνίες του έτους 58.500.",
-        "📅 Κάθε πελάτης δείχνει τώρα την πραγματική ημερομηνία που προστέθηκε — η παλιά έβγαινε από τον εσωτερικό κωδικό, που άλλαξε μορφή.",
-        "✏️ Η επεξεργασία πελάτη δεν σβήνει πια την ημερομηνία προσθήκης, τις σημειώσεις και το ποιος τον καταχώρησε.",
-        "🗓️ Διορθώθηκαν και τα «τσιπάκια σεζόν» και το φίλτρο ημερομηνίας, που έβγαζαν φανταστικές χρονιές.",
+      { version: 'v12.76', date: 'Αύγουστος 2026', items: [
+        "🎁 ΤΟ ΔΩΡΟ ΓΡΑΦΕΤΑΙ ΣΤΟ ΟΝΟΜΑ ΤΟΥ ΠΕΛΑΤΗ: η οθόνη «Δώρο σε πελάτη» έχει τώρα όνομα (με αναζήτηση από τους πελάτες σας), τηλέφωνο και email.",
+        "👤 ΟΛΟΚΛΗΡΟ ΤΟ ΙΣΤΟΡΙΚΟ ΤΟΥ ΠΕΛΑΤΗ ΣΕ ΜΙΑ ΟΘΟΝΗ: αγορές, δώρα, παραγγελίες, επισκευές, κρατήσεις και δωροεπιταγές/πιστώσεις, το καθένα στη δική του ενότητα.",
+        "🔎 Μια γραμμή σύνοψης στην κορυφή απαντά αμέσως «τον έχω ξαναδεί;» — πόσες αγορές και τι σύνολο, πόσα δώρα, πόσες παραγγελίες και επισκευές.",
+        "↩️ Ανοίγοντας μια επισκευή, κράτηση ή επιταγή από το ιστορικό, το ✕ σας γυρίζει πίσω στον πελάτη.",
       ]},
       ]
   },
@@ -29514,11 +29533,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.75', date: 'Aug 2026', items: [
-        "👥 CLIENTS SORT PROPERLY AGAIN: \"Newest first\" was out of order, with dates in the year 58,500.",
-        "📅 Every client now shows the real date they were added — the old one was read off the internal id, whose format changed.",
-        "✏️ Editing a client no longer wipes their date added, notes and who entered them.",
-        "🗓️ The season chips and the date filter, which produced impossible years, are fixed too.",
+      { version: 'v12.76', date: 'Aug 2026', items: [
+        "🎁 A GIFT IS NOW RECORDED UNDER THE CLIENT'S NAME: the \"Give as a gift\" screen has a name (searching your client list), phone and email.",
+        "👤 A CLIENT'S WHOLE HISTORY ON ONE SCREEN: purchases, gifts, orders, repairs, reservations and gift cards/credit, each in its own section.",
+        "🔎 A summary line at the top answers \"have I seen this person before?\" at a glance — purchases and total, gifts, orders and repairs.",
+        "↩️ Opening a repair, reservation or gift card from the history, the ✕ brings you back to the client.",
       ]},
           ]
   }
@@ -34312,7 +34331,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.75';
+const APP_VERSION = '12.76';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -37846,19 +37865,198 @@ async function salesSearchGoToInventory(invId, status) {
 
 // ─── CLIENT PURCHASE HISTORY ──────────────────────────────────────────────────
 
+// ── A client's WHOLE history ─────────────────────────────────────────────────
+// A tourist who walks back in after three years is one person with one history:
+// what they bought, what was made or repaired for them, what is on hold, what
+// certificate they still hold — and any gift given. The only key all those
+// records share is the NAME, so each list is matched on it.
+//
+// The money and the rest are kept in separate sections on purpose: a €0 gift
+// counted among the "purchases" would misstate both the count and the total,
+// and a repair is not a sale.
+//
+// The piece behind a sale record: by its own id first, else by the code. A code
+// is a description and several pieces legitimately share one, so the id wins.
+function _chInvItem(s) {
+  if (!s || !_inventoryCache) return null;
+  if (s.invId && _inventoryCache[s.invId]) return _inventoryCache[s.invId];
+  if (s.invQr) { try { return _descCodeItem(s.invQr); } catch (e) {} }
+  return null;
+}
+function _chPieceName(s) {
+  const it = _chInvItem(s);
+  if (!it) return '';
+  return [it.jewelryType ? invTypeLabel(it.jewelryType) : '', _itemDesc(it)].filter(Boolean).join(' · ');
+}
+// One row shape for every kind, so the sections read as one list.
+function _chRow(onclick, main, sub, tag, color) {
+  const c = color || 'var(--gold)';
+  return `<div onclick="${onclick}" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer">
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;color:var(--gold-light)">${main}</div>
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5">${sub}</div>
+      </div>
+      <span style="flex-shrink:0;padding:7px 10px;background:rgba(212,175,55,0.12);border:1px solid ${c};border-radius:8px;color:${c};font-family:var(--font-body);font-size:10px;font-weight:700;white-space:nowrap">${tag} ›</span>
+    </div>`;
+}
+function _chSection(icon, title, n, rows) {
+  if (!rows) return '';
+  return `<div style="margin:18px 0 8px;font-size:11px;color:var(--text-muted);letter-spacing:0.09em;text-transform:uppercase">${icon} ${title} <span style="color:var(--gold-light)">(${n})</span></div>${rows}`;
+}
+
+// Opening one of the Desk records from here: the client sheet sits ABOVE those
+// detail overlays, so it has to close first — and the ✕ then brings it back,
+// the same one-step-back rule the sale detail follows (v11.79).
+let _clientBackTo = null;
+function _clientOpenRecord(kind, id) {
+  const ov = document.getElementById('clientPurchasesOverlay');
+  const name = ov ? (ov.dataset.client || '') : '';
+  if (ov) ov.remove();
+  if (kind === 'rep') openRepairDetail(id);
+  else if (kind === 'res') openReservationDetail(id);
+  else if (kind === 'gc') openGiftCardDetail(id);
+  _clientBackTo = name || null;
+}
+// Consumed on a PLAIN close only; every opener clears it, so a detail reached
+// any other way never bounces back to a client sheet.
+function _clientBackConsume() {
+  const n = _clientBackTo; _clientBackTo = null;
+  if (n) { try { showClientPurchases(n); } catch (e) {} }
+}
+function _clientCloseDetail(overlayId) {
+  document.getElementById(overlayId)?.remove();
+  _clientBackConsume();
+}
+
 async function showClientPurchases(clientName) {
-  const sales = await getSales();
-  const q = clientName.toLowerCase();
-  const matches = sales.filter(s => (s.customer || '').toLowerCase() === q)
-    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
-
+  const isEl = lang === 'el';
   const cur = state.currency || '€';
-  const total = matches.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+  const q = (clientName || '').trim().toLowerCase();
+  const _is = v => (v || '').trim().toLowerCase() === q;
 
-  // Load inventory for cross-referencing
+  const sales = await getSales();
+
+  // The Desk lists are pulled once at boot; pull them here if this device has not
+  // seen them yet, so an empty section means "none" and not "never loaded".
+  try {
+    await Promise.all([
+      ensureGiftCards(),
+      (!_resLoaded && creds.binId) ? pullReservationsFromCloud() : null,
+      (!_repLoaded && creds.binId) ? pullRepairsFromCloud() : null
+    ]);
+  } catch (e) {}
+
   if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
-    try { _inventoryCache = await loadInventory(); } catch(e) {}
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
+
+  const mine = sales.filter(s => _is(s.customer))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0));
+  const gifts = mine.filter(s => s.giveaway);
+  const money = mine.filter(s => !s.giveaway);
+  const total = money.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+
+  const _byNewest = (a, b) => (b.dateCreated || 0) - (a.dateCreated || 0);
+  const tickets = getRepairs().filter(r => _is(r.clientName)).sort(_byNewest);
+  const orders = tickets.filter(r => repIsOrder(r));
+  const repairs = tickets.filter(r => !repIsOrder(r));
+  const holds = getReservations().filter(r => _is(r.clientName)).sort(_byNewest);
+  const cards = getGiftCards().filter(g => _is(g.buyerName) || _is(g.redeemerName)).sort(_byNewest);
+
+  // Collapse multi-item transactions (shared saleGroup) into one row each — matching
+  // how the Sales list shows them. Tapping opens the sale detail (combined view for a
+  // group), from which "View Item" jumps to the sold piece.
+  const entries = _groupSalesForDisplay(money)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0));
+
+  const buyRows = entries.map(e => {
+    const parts = [fmtDate(e.date)];
+    if (e.vendor) parts.push(e.vendor);
+    if (e.note) parts.push(e.note);
+    if (!e.isGroup) {
+      const it = _chInvItem(e.sale);
+      if (it && it.vendorCode) parts.push('🏷️ ' + it.vendorCode);
+      if (it && it.stonesDesc) parts.push('💎 ' + stonesDescDisplay(it.stonesDesc));
+    }
+    const tags = e.isGroup
+      ? `<span style="margin-left:6px;background:rgba(120,170,255,0.12);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${isEl ? 'τεμ.' : 'items'}</span>`
+      : (e.isReturn ? `<span style="margin-left:6px;background:rgba(255,90,90,0.12);border:1px solid rgba(255,90,90,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#ff8080">↩️ ${isEl ? 'ΕΠΙΣΤΡΟΦΗ' : 'RETURN'}</span>` : '');
+    return _chRow(`_sdmOpenFromClient(${e.id})`,
+      `${fmtAmt(parseFloat(e.amount) || 0)}${tags}`,
+      parts.filter(Boolean).join(' · '),
+      '📋 ' + (isEl ? 'Πώληση' : 'Sale'));
+  }).join('');
+
+  const giftRows = gifts.map(s => {
+    // The note already opens with "🎁 Gift — ", so strip it in the fallback (a
+    // piece since deleted) or the row reads "Gift · Gift — Ring".
+    const name = _chPieceName(s) || (s.note || '').replace(/^🎁\s*(Δώρο|Gift)\s*—\s*/, '');
+    const sub = [fmtDate(s.date), s.seqRef].filter(Boolean).join(' · ');
+    return _chRow(`_sdmOpenFromClient(${s.id})`,
+      `🎁 ${isEl ? 'Δώρο' : 'Gift'}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${_gcEsc(name)}</span>`,
+      sub, '📋 ' + (isEl ? 'Εγγραφή' : 'Record'), '#e0a85a');
+  }).join('');
+
+  const ticketRow = r => {
+    const _amt = (r.finalPrice != null && r.finalPrice !== '')
+      ? fmtAmt(parseFloat(r.finalPrice) || 0)
+      : (parseFloat(r.estLow) > 0
+          ? (parseFloat(r.estHigh) > 0 ? `${cur}${(+r.estLow).toFixed(0)}–${(+r.estHigh).toFixed(0)}` : fmtAmt(parseFloat(r.estLow) || 0))
+          : '—');
+    const sub = [fmtDate(new Date(r.dateCreated || Date.now())), r.description].filter(Boolean).join(' · ');
+    return _chRow(`_clientOpenRecord('rep','${r.id}')`,
+      `${repNoFmt(r)}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${_amt}</span>`,
+      sub, repStatusLabel(r), repStatusColor(r));
+  };
+
+  const holdRows = holds.map(r => {
+    const st = r.status === 'active' ? (isEl ? 'Ενεργή' : 'Active')
+      : r.status === 'completed' ? (isEl ? 'Ολοκληρώθηκε' : 'Completed')
+      : r.status === 'expired' ? (isEl ? 'Έληξε' : 'Expired')
+      : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
+    const n = (r.items || []).length;
+    const sub = [fmtDate(new Date(r.dateCreated || Date.now())),
+      n ? `${n} ${isEl ? 'τεμ.' : 'items'}` : '',
+      r.status === 'active' ? `${isEl ? 'Υπόλοιπο' : 'Balance'} ${fmtAmt(resBalance(r))}` : ''].filter(Boolean).join(' · ');
+    return _chRow(`_clientOpenRecord('res','${r.id}')`,
+      `${resNoFmt(r)}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${fmtAmt(parseFloat(r.agreedTotal) || 0)}</span>`,
+      sub, st, r.status === 'active' ? '#7fd6b0' : 'var(--text-dim)');
+  }).join('');
+
+  const cardRows = cards.map(g => {
+    const bal = gcBalance(g);
+    const st = g.status === 'active' ? (isEl ? 'Ενεργή' : 'Active')
+      : g.status === 'redeemed' ? (isEl ? 'Εξαργυρώθηκε' : 'Redeemed')
+      : g.status === 'expired' ? (isEl ? 'Έληξε' : 'Expired')
+      : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
+    const sub = [fmtDate(new Date(g.dateCreated || Date.now())), gcKindLabel(g),
+      bal > 0 ? `${isEl ? 'Υπόλοιπο' : 'Balance'} ${fmtAmt(bal)}` : ''].filter(Boolean).join(' · ');
+    return _chRow(`_clientOpenRecord('gc','${g.id}')`,
+      `${gcKindIcon(g)} ${gcNoFmt(g)}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${fmtAmt(parseFloat(g.amount) || 0)}</span>`,
+      sub, st, g.status === 'active' ? '#7fd6b0' : 'var(--text-dim)');
+  }).join('');
+
+  const nothing = !entries.length && !gifts.length && !tickets.length && !holds.length && !cards.length;
+  const content = nothing
+    ? `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px">${isEl ? 'Δεν βρέθηκε ιστορικό για αυτόν τον πελάτη' : 'No history found for this client'}</div>`
+    : _chSection('🛍', isEl ? 'Αγορές' : 'Purchases', entries.length, buyRows)
+      + _chSection('🎁', isEl ? 'Δώρα' : 'Gifts', gifts.length, giftRows)
+      + _chSection('📦', isEl ? 'Παραγγελίες' : 'Orders', orders.length, orders.map(ticketRow).join(''))
+      + _chSection('🔧', isEl ? 'Επισκευές' : 'Repairs', repairs.length, repairs.map(ticketRow).join(''))
+      + _chSection('🔒', isEl ? 'Κρατήσεις' : 'Reservations', holds.length, holdRows)
+      + _chSection('🎁', isEl ? 'Επιταγές & Πιστώσεις' : 'Gift Cards & Credit', cards.length, cardRows);
+
+  // A one-line summary of everything, so the answer to "have I seen this person
+  // before?" is on screen before any scrolling.
+  const chip = (txt, c) => `<span style="display:inline-block;background:rgba(212,175,55,0.08);border:1px solid ${c};border-radius:10px;padding:2px 8px;margin:0 6px 6px 0;font-family:var(--font-mono);font-size:10px;color:${c}">${txt}</span>`;
+  const chips = [
+    entries.length ? chip(`🛍 ${entries.length} · ${fmtAmt(total)}`, 'rgba(212,175,55,0.5)') : '',
+    gifts.length ? chip(`🎁 ${gifts.length} ${isEl ? (gifts.length === 1 ? 'δώρο' : 'δώρα') : (gifts.length === 1 ? 'gift' : 'gifts')}`, '#e0a85a') : '',
+    orders.length ? chip(`📦 ${orders.length}`, '#c9a0e0') : '',
+    repairs.length ? chip(`🔧 ${repairs.length}`, '#e0a85a') : '',
+    holds.length ? chip(`🔒 ${holds.length}`, '#7fd6b0') : '',
+    cards.length ? chip(`🎟️ ${cards.length}`, '#7aa8ff') : ''
+  ].filter(Boolean).join('');
 
   const existing = document.getElementById('clientPurchasesOverlay');
   if (existing) existing.remove();
@@ -37870,51 +38068,14 @@ async function showClientPurchases(clientName) {
   overlay.dataset.client = clientName;
   overlay.style.cssText = 'position:fixed;inset:0;z-index:999995;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center';
 
-  // Collapse multi-item transactions (shared saleGroup) into one row each — matching how
-  // the Sales list/search show them. Tapping a row opens the sale detail (combined view for
-  // a group), from which the "View Item" button jumps to the sold inventory item.
-  const entries = _groupSalesForDisplay(matches)
-    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0));
-
-  const content = matches.length === 0
-    ? `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px">${lang==='el'?'Δεν βρέθηκαν αγορές για αυτόν τον πελάτη':'No purchases found for this client'}</div>`
-    : entries.map(e => {
-        const parts = [fmtDate(e.date)];
-        if (e.vendor) parts.push(e.vendor);
-        if (e.note) parts.push(e.note);
-        if (!e.isGroup) {
-          // Single-item row: enrich with the linked inventory item's details.
-          const s = e.sale;
-          if (s.invQr && _inventoryCache) {
-            const entry = Object.entries(_inventoryCache).find(([k,i]) => (i.qrCode||i.invQr||'') === s.invQr);
-            if (entry) {
-              const invItem = entry[1];
-              if (invItem?.vendorCode) parts.push('🏷️ ' + invItem.vendorCode);
-              if (invItem?.stonesDesc) parts.push('💎 ' + stonesDescDisplay(invItem.stonesDesc));
-            }
-          }
-        }
-        const groupTag = e.isGroup
-          ? `<span style="margin-left:6px;background:rgba(120,170,255,0.12);border:1px solid rgba(120,170,255,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#7aa8ff">🛍 ${e.items.length} ${lang==='el'?'τεμ.':'items'}</span>`
-          : '';
-
-        return `<div onclick="_sdmOpenFromClient(${e.id})" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer">
-          <div style="flex:1;min-width:0">
-            <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;color:var(--gold-light)">${cur}${parseFloat(e.amount).toFixed(2)}${groupTag}</div>
-            <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5">${parts.filter(Boolean).join(' · ')}</div>
-          </div>
-          <span style="flex-shrink:0;padding:7px 10px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--gold);font-family:var(--font-body);font-size:10px;font-weight:700;white-space:nowrap">📋 ${lang==='el'?'Πώληση':'Sale'} ›</span>
-        </div>`;
-      }).join('');
-
   overlay.innerHTML = `
     <div style="background:var(--dark-2);border-radius:20px 20px 0 0;border-top:1px solid var(--card-border);padding:20px 16px 44px;max-width:480px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto">
       <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 16px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-        <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);font-weight:600">👤 ${clientName}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);font-weight:600">👤 ${_gcEsc(clientName)}</div>
         <button onclick="document.getElementById('clientPurchasesOverlay').remove()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px">✕</button>
       </div>
-      ${matches.length > 0 ? `<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:16px">${entries.length} ${lang==='el'?'αγορές':'purchases'} · ${lang==='el'?'Σύνολο':'Total'}: ${cur}${total.toFixed(2)}</div>` : ''}
+      ${chips ? `<div style="margin-bottom:6px">${chips}</div>` : ''}
       ${content}
     </div>`;
 
