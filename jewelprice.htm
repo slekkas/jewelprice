@@ -22,6 +22,10 @@
     --text: #F7F0E0; --text-muted: #A89060; --text-dim: #6B5C3A;
     --silver: #B0B8C8; --silver-light: #D8E0EC;
     --danger: #E05050; --success: #3DAA6A;
+    /* Money a customer owes. A pale salmon reads well on the dark ground but
+       measures 1.7:1 on the light theme's ivory — unreadable — so it is a token
+       rather than a literal, and the light theme darkens it. */
+    --debt: #ff8a80;
     --glow-gold: rgba(212,175,55,0.22); --glow-gold-strong: rgba(212,175,55,0.38);
     --font-heading: 'Playfair Display', 'Cormorant Garamond', serif;
     --font-body: 'Inter', sans-serif;
@@ -44,6 +48,7 @@
     --text: #2A2416; --text-muted: #6E5F38; --text-dim: #9C8E64;
     --silver: #6B7688; --silver-light: #8A94A6;
     --danger: #C0392B; --success: #2E8B57;
+    --debt: #9B2314;
     --glow-gold: rgba(184,149,46,0.14); --glow-gold-strong: rgba(184,149,46,0.26);
     --wa02:rgba(45,36,14,0.03); --wa03:rgba(45,36,14,0.04); --wa04:rgba(45,36,14,0.05);
     --wa05:rgba(45,36,14,0.055); --wa06:rgba(45,36,14,0.06); --wa07:rgba(45,36,14,0.07);
@@ -2546,6 +2551,11 @@
          only how it was settled is recorded, so the VAT and the profit follow
          the money that actually went through the till. -->
     <div id="saleSplitWrap" style="margin-bottom:14px"></div>
+    <!-- OWED. The goods leave today, the money follows on Monday. A timing
+         fact, not a payment regime: the amount above and the VAT treatment are
+         unchanged, so the profit is booked correctly on the day the piece left
+         — this only records how much of it has not arrived yet. -->
+    <div id="saleOwedWrap" style="margin-bottom:14px"></div>
     <!-- "It's a gift" — issues an EXCHANGE CARD (κάρτα αλλαγής) with the sale.
          The card names the piece but NEVER its price: the person unwrapping it
          must not learn what was paid. It is not money — it just identifies this
@@ -2642,6 +2652,9 @@
     <!-- Same mixed-payment control as the sale dialog, so a split can be
          corrected afterwards instead of having to delete and re-record. -->
     <div id="saleEditSplitWrap" style="margin-bottom:14px"></div>
+    <!-- Same owed control, so a debt can be added or corrected after the fact —
+         the customer who says "can I pay you Monday" as they are leaving. -->
+    <div id="saleEditOwedWrap" style="margin-bottom:14px"></div>
     <div style="margin-bottom:14px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px" data-i18n="saleVendorLabel">Προμηθευτής</label>
       <div style="position:relative">
@@ -3192,6 +3205,22 @@
       <div id="spHeroHint" data-i18n="sbTapHint" style="font-family:var(--font-body);font-size:10px;letter-spacing:0.12em;color:rgba(212,175,55,0.55);margin-top:8px;display:none">Tap for the breakdown ›</div>
     </div>
 
+    <!-- MONEY OWED. Deliberately NOT scoped to the period on screen: a debt is
+         outstanding now whoever's day you happen to be looking at, and one that
+         only appeared when you navigated back to the right day would be useless
+         — you would have to already remember it to find it. Hidden entirely
+         when nothing is owed. -->
+    <div id="spOwedBar" onclick="openOwedList()" style="display:none;align-items:center;justify-content:space-between;gap:10px;background:rgba(231,76,60,0.10);border:1px solid rgba(231,76,60,0.35);border-radius:10px;padding:11px 14px;margin-bottom:16px;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <span style="font-size:15px;flex-shrink:0">🕐</span>
+        <span id="spOwedCount" style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);letter-spacing:0.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <span id="spOwedTotal" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--debt)"></span>
+        <span style="color:rgba(231,76,60,0.6);font-size:14px">›</span>
+      </div>
+    </div>
+
     <!-- View toggle: By Date / By Vendor -->
     <div id="spViewToggle" style="display:flex;gap:0;margin-bottom:16px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.18);border-radius:8px;overflow:hidden">
       <button id="spViewDateBtn" onclick="spSetView('date')" style="flex:1;padding:9px 0;font-family:var(--font-body);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border:none;cursor:pointer;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);transition:all 0.2s" data-i18n="spViewByDate">ΑΝΑ ΗΜΕΡΟΜΗΝΙΑ</button>
@@ -3437,6 +3466,9 @@
   <button class="nav-btn" id="nav-sales" onclick="showPanel('sales')" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     <span data-i18n="navSales">Πωλ.</span>
+    <!-- How many customers owe money — so it is visible from anywhere in the
+         app, not only after opening Sales. -->
+    <span id="navOwedBadge" class="nav-notif-badge" style="display:none"></span>
   </button>
   <button class="nav-btn" id="nav-clients" onclick="showPanel('clients')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -3837,6 +3869,22 @@ const T = {
     splitPayBtn:'Μικτή πληρωμή (μετρητά + κάρτα)',
     splitCashPart:'Μετρητά (χωρίς απόδειξη)',
     splitRestPart:'Με απόδειξη / κάρτα',
+    owedBtn:'Οφειλή — δεν πληρώθηκε ακόμα',
+    owedAmtLbl:'Ποσό που οφείλεται',
+    owedDueLbl:'Να πληρωθεί έως',
+    owedPaidNow:'Πληρώνει τώρα',
+    owedNeedName:'Γράψτε όνομα πελάτη — μια οφειλή δεν μένει ανώνυμη',
+    owedBarOne:'οφειλή',
+    owedBarMany:'οφειλές',
+    owedListTitle:'Οφειλές πελατών',
+    owedTag:'ΟΦΕΙΛΕΤΑΙ',
+    owedOverdue:'ΕΚΠΡΟΘΕΣΜΗ',
+    owedPayBtn:'Καταγραφή πληρωμής',
+    owedWriteOff:'Διαγραφή οφειλής',
+    owedNone:'Καμία εκκρεμής οφειλή',
+    owedRow:'Οφειλή',
+    owedDueOn:'έως',
+    owedPaidOf:'πληρώθηκαν από',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
     repSearchPh:'Αναζήτηση — πελάτης, δελτίο…',
@@ -4382,6 +4430,22 @@ const T = {
     splitPayBtn:'Split payment (cash + card)',
     splitCashPart:'Cash (no receipt)',
     splitRestPart:'On receipt / card',
+    owedBtn:'Owed — not paid yet',
+    owedAmtLbl:'Amount owed',
+    owedDueLbl:'To be paid by',
+    owedPaidNow:'Paying now',
+    owedNeedName:'Enter a customer name — a debt is never anonymous',
+    owedBarOne:'debt',
+    owedBarMany:'debts',
+    owedListTitle:'Money owed to you',
+    owedTag:'OWED',
+    owedOverdue:'OVERDUE',
+    owedPayBtn:'Record a payment',
+    owedWriteOff:'Write off the debt',
+    owedNone:'Nothing outstanding',
+    owedRow:'Owed',
+    owedDueOn:'by',
+    owedPaidOf:'paid of',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
     repSearchPh:'Search — customer, ticket…',
@@ -5160,6 +5224,11 @@ async function autoSync() {
   if (creds.binId) {
     try { await pullSalesFromCloud(); } catch(e) { /* silent */ }
   }
+  // Money customers owe: refresh the tab count and raise a bell notification for
+  // anything now past the date it was promised. Runs AFTER the sales pull, or it
+  // would judge a debt against a stale list.
+  try { _owedUpdateNavBadge(); } catch(e) { /* silent */ }
+  try { await _owedCheckOverdue(); } catch(e) { /* silent */ }
   // Automatic daily backup (owner/manager devices only) — fire-and-forget.
   autoBackupIfDue();
   // Reflect any active end-of-season inventory-check session (banner for all roles).
@@ -5588,6 +5657,9 @@ function showPanel(name) {
   const _sfsOv = document.getElementById('statFullscreenOverlay');
   if (_sfsOv && _sfsOv.style.display !== 'none') closeStatFullscreen();
   closeSalesBreakdown();
+  // A debt is outstanding wherever you are in the app, so the Sales tab's count
+  // is refreshed on every navigation (it reads the cache, so it costs nothing).
+  try { _owedUpdateNavBadge(); } catch (e) {}
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -11679,6 +11751,126 @@ function _splitLabel(s, cur, compact) {
   return `💵 ${c}${cash.toFixed(2)} ${isEl ? 'μετρητά' : 'cash'} + 🧾 ${c}${rest.toFixed(2)} ${isEl ? 'με απόδειξη' : 'on receipt'}`;
 }
 
+// ── MONEY OWED ON A SALE («οφειλή» — the goods left, the money has not) ──────
+// The customer takes the piece today and pays on Monday. That is a TIMING fact,
+// NOT a payment regime: how the sale will be settled (cash / receipt / split) is
+// declared when it is recorded and is what decides the VAT and therefore the
+// profit — exactly as before — while owedAmt records how much of that declared
+// amount has not physically arrived yet. The two are orthogonal, which is why
+// _saleExVatRaw needs no change at all and every stored profit stays right.
+//
+// Written ONLY when there is genuinely a debt, so an ordinary sale is
+// byte-identical to one recorded before this existed.
+//   owedAmt  — still outstanding on THIS record (counts down as payments land)
+//   owedOrig — what was owed to begin with, so "€300 of €620" can be shown
+//   owedDue  — YYYY-MM-DD, when it was promised
+//   owedLog  — this record's share of each payment: [{amt, date, method, at}]
+//
+// A cart's debt is spread across its lines in proportion, exactly like a gift
+// certificate and a mixed payment, so every record is self-describing and
+// deleting one line can never strand a balance on another.
+function saleOwed(s) { const v = parseFloat(s && s.owedAmt) || 0; return v > 0 ? v : 0; }
+function saleOwedOrig(s) {
+  const o = parseFloat(s && s.owedOrig) || 0;
+  return o > 0 ? o : saleOwed(s);
+}
+// True once a debt exists on the record at all, paid off or not — so a settled
+// credit sale still reads as one in its own history.
+function saleWasOwed(s) { return !!s && (parseFloat(s.owedOrig) || parseFloat(s.owedAmt) || 0) > 0; }
+function _owedIsOverdue(due, today) {
+  if (!due) return false;
+  return String(due) < (today || todayStr());
+}
+
+// Every record with money still outstanding, from ANY date. A debt is
+// outstanding NOW regardless of the period being viewed, so this deliberately
+// never filters by date — that is the whole point of the bar it feeds.
+function _owedRecords(sales) { return (sales || []).filter(s => saleOwed(s) > 0 && !s.isReturn); }
+function _owedTotal(sales) {
+  return parseFloat(_owedRecords(sales).reduce((a, s) => a + saleOwed(s), 0).toFixed(2));
+}
+
+// One entry per TRANSACTION, so a cart owed as a whole reads as one debt — the
+// same collapse the sales list and the breakdown use. Sorted soonest-due first,
+// with a debt that carries no due date last (it is not "due soonest"; the same
+// rule _deskCmpDue follows).
+function _owedGroups(sales) {
+  const recs = _owedRecords(sales);
+  const byKey = {};
+  recs.forEach(s => {
+    const k = s.saleGroup || ('one_' + s.id);
+    if (!byKey[k]) byKey[k] = { key: k, groupId: s.saleGroup || '', saleId: s.id, records: [],
+                                customer: s.customer || '', email: s.email || '',
+                                date: s.date || '', due: s.owedDue || '', owed: 0, orig: 0, amount: 0 };
+    const g = byKey[k];
+    g.records.push(s);
+    g.owed  = parseFloat((g.owed  + saleOwed(s)).toFixed(2));
+    g.orig  = parseFloat((g.orig  + saleOwedOrig(s)).toFixed(2));
+    g.amount = parseFloat((g.amount + (parseFloat(s.amount) || 0)).toFixed(2));
+    if (!g.customer && s.customer) g.customer = s.customer;
+    if (!g.due && s.owedDue) g.due = s.owedDue;
+    if ((s.date || '') < (g.date || '￿')) g.date = s.date || '';
+    if (s.id < g.saleId) g.saleId = s.id;
+  });
+  const today = todayStr();
+  return Object.values(byKey).sort((a, b) => {
+    const ad = a.due || '', bd = b.due || '';
+    if (!ad && !bd) return (b.date || '').localeCompare(a.date || '');
+    if (!ad) return 1;
+    if (!bd) return -1;
+    return ad.localeCompare(bd) || (b.date || '').localeCompare(a.date || '');
+  }).map(g => Object.assign(g, { overdue: _owedIsOverdue(g.due, today) }));
+}
+
+// Apply a payment against a transaction's debt, spread across its records in
+// proportion to what each still owes (the last one absorbing the rounding), so
+// the parts always add back to what was paid. Each record keeps its OWN share in
+// its own log — self-describing, so deleting one line can never strand a payment
+// on another. Mutates the passed records; the caller persists.
+function _owedApplyPayment(records, amount, method, date) {
+  const recs = (records || []).filter(s => saleOwed(s) > 0);
+  const total = parseFloat(recs.reduce((a, s) => a + saleOwed(s), 0).toFixed(2));
+  const pay = Math.min(Math.max(parseFloat(amount) || 0, 0), total);
+  if (!(pay > 0) || !recs.length) return 0;
+  const at = Date.now();
+  const d = date || todayStr();
+  let spread = 0;
+  recs.forEach((s, i) => {
+    const share = (i === recs.length - 1)
+      ? parseFloat((pay - spread).toFixed(2))
+      : parseFloat((pay * saleOwed(s) / total).toFixed(2));
+    spread = parseFloat((spread + share).toFixed(2));
+    const applied = Math.min(share, saleOwed(s));
+    if (applied <= 0) return;
+    s.owedAmt = parseFloat(Math.max(0, saleOwed(s) - applied).toFixed(2));
+    if (!Array.isArray(s.owedLog)) s.owedLog = [];
+    s.owedLog.push({ amt: applied, date: d, method: method || 'cash', at });
+  });
+  return pay;
+}
+
+// The one-line description of a debt used by both the single-sale and the
+// whole-transaction detail sheets, so the two can never word it differently.
+function _owedMetaText(owed, orig, due, cur) {
+  const isEl = lang === 'el';
+  const c = cur || state.currency || '€';
+  const late = _owedIsOverdue(due);
+  let s = c + (parseFloat(owed) || 0).toFixed(2);
+  if (due) s += ' · ' + (late ? t('owedOverdue') + ' ' : t('owedDueOn') + ' ') + fmtDate(due);
+  else s += ' · ' + (isEl ? 'χωρίς προθεσμία' : 'no date set');
+  const paid = parseFloat(((parseFloat(orig) || 0) - (parseFloat(owed) || 0)).toFixed(2));
+  // Rendered through innerHTML by mkMeta, so the second line needs a <br>.
+  if (paid > 0) s += '<br><span style="opacity:0.75">' + c + paid.toFixed(2) + ' ' + t('owedPaidOf') + ' ' + c + (parseFloat(orig) || 0).toFixed(2) + '</span>';
+  return s;
+}
+
+function _owedMethodLabel(m) {
+  const isEl = lang === 'el';
+  if (m === 'card') return isEl ? '💳 Κάρτα' : '💳 Card';
+  if (m === 'bank') return isEl ? '🏦 Τραπεζική' : '🏦 Bank';
+  return isEl ? '💵 Μετρητά' : '💵 Cash';
+}
+
 // Sale ids are Date.now(), which collides when several records are written in
 // the same millisecond — and an id is what every lookup, delete and return keys
 // on, so a collision silently corrupts all of them. Returns the timestamp unless
@@ -11744,6 +11936,17 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
   // Only stamped when the payment was genuinely split, so an all-cash or
   // all-card sale is byte-identical to one written before this existed.
   if (_sp.cashAmt != null) rec.cashAmt = _sp.cashAmt;
+  // Money still to come. Capped by what is actually being handed over (the
+  // amount less anything a certificate already covered) — you cannot be owed
+  // money that was paid months ago. Timing only: the profit above is unaffected.
+  const _owed = Math.min(Math.max(parseFloat(_o.owedAmt) || 0, 0),
+                         Math.max(0, parseFloat((Math.abs(_amt) - _giftPart).toFixed(2))));
+  if (_owed > 0) {
+    rec.owedAmt = parseFloat(_owed.toFixed(2));
+    rec.owedOrig = rec.owedAmt;
+    rec.owedDue = _o.owedDue || '';
+    rec.owedLog = [];
+  }
   // Only stamped when a certificate was actually used, so existing records and
   // ordinary sales are byte-identical to before.
   if (_giftPart > 0) {
@@ -12007,12 +12210,39 @@ async function processReturn(origId, opts) {
   if (_origCash > 0) rec.cashAmt = -Math.min(parseFloat((_origCash * r).toFixed(2)), refund);
   else delete rec.cashAmt;
 
+  // ── Money still owed on the sale being returned ──
+  // The piece comes back before it was ever paid for, so there is nothing to
+  // hand over — the DEBT is what is cancelled. Without this the app would refund
+  // (or issue credit for) money it never received, inventing it out of nothing.
+  //
+  // The debt reduces in proportion to the refund, which makes what remains
+  // exactly what the customer actually paid: refund = (paid + owed) × r, so
+  // taking owed × r off it leaves paid × r. A full return therefore clears the
+  // whole debt and refunds nothing; a half return clears half and refunds half
+  // of what was handed over.
+  const _origOwed = saleOwed(orig);
+  const _debtCleared = parseFloat(Math.min(_origOwed, _origOwed * r).toFixed(2));
+  const _refundable = parseFloat(Math.max(0, refund - _debtCleared).toFixed(2));
+  if (_debtCleared > 0) {
+    orig.owedAmt = parseFloat(Math.max(0, _origOwed - _debtCleared).toFixed(2));
+    if (!Array.isArray(orig.owedLog)) orig.owedLog = [];
+    orig.owedLog.push({ amt: _debtCleared, date: rec.date, method: 'return', at: Date.now() });
+    rec.debtCleared = _debtCleared;      // so undoing the return can put it back
+  }
+  // A return NEVER owes money — but rec is a spread of the original, so the
+  // debt fields have to be stripped or the return would show up in the debt list
+  // as a second copy of the same money.
+  delete rec.owedAmt; delete rec.owedOrig; delete rec.owedDue;
+  delete rec.owedLog; delete rec.owedWarned; delete rec.owedWrittenOff;
+
   // ── Store credit ──
   // A sale part-paid by a certificate can only refund THAT portion as credit —
   // handing back cash the customer never paid would invent money.
   const giftPart = _origGift > 0
     ? Math.min(parseFloat((_origGift * r).toFixed(2)), refund) : 0;
-  const creditAmt = (rec.refundMethod === 'credit') ? refund : giftPart;
+  // Only what was actually PAID can come back — a debt cancelled above was never
+  // money in hand, so it must not become a credit card the customer can spend.
+  const creditAmt = Math.min((rec.refundMethod === 'credit') ? refund : giftPart, _refundable);
   let card = null;
   // deferCredit: a multi-item return issues ONE card for the whole transaction
   // (processReturnGroup), not one per line — three cards for one return would be
@@ -12288,6 +12518,22 @@ async function _undoReturn(retId) {
     }
   }
   const filtered = sales.filter(s => s.id !== retId);
+  // The return cancelled a debt; undoing it puts that debt back, or the money
+  // would quietly stop being owed because a return was made and then reversed.
+  const _dc = parseFloat(rec.debtCleared) || 0;
+  if (_dc > 0) {
+    const _orig = filtered.find(s => s.id === rec.returnOfSaleId);
+    if (_orig) {
+      _orig.owedAmt = parseFloat((saleOwed(_orig) + _dc).toFixed(2));
+      _orig.owedOrig = Math.max(parseFloat(_orig.owedOrig) || 0, _orig.owedAmt);
+      if (Array.isArray(_orig.owedLog)) {
+        // Drop the entry the return itself wrote, so the history does not claim
+        // a payment that has just been undone.
+        const _i = _orig.owedLog.map(l => l && l.method).lastIndexOf('return');
+        if (_i !== -1) _orig.owedLog.splice(_i, 1);
+      }
+    }
+  }
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
   await pushSalesToCloud(filtered, { allowEmpty: true });
@@ -12627,6 +12873,12 @@ async function openReturnDialog(saleId, groupId) {
   </div>`;
   document.body.appendChild(ov);
   ov.dataset.gift = String(gift);
+  // Money still owed on the sale being returned — the refund cancels that first,
+  // and the dialog has to say so before the owner presses Record.
+  ov.dataset.owed = String(groupId
+    ? sales.filter(x => x.saleGroup === groupId).reduce((a, m) => a + saleOwed(m), 0)
+    : saleOwed(s));
+  ov.dataset.total = String(amt);
   // The sale record has no phone on it, so pull one from the client book if we
   // already know this customer — saves re-typing what the shop already has.
   if (s.customer) {
@@ -12706,6 +12958,17 @@ function _retHideClientSug() { const b = document.getElementById('retClientSug')
 function _retWillIssueCredit() {
   const ov = document.getElementById('returnDlgOverlay');
   if (!ov || !_retDlg) return false;
+  // A debt cancelled by the return was never money in hand, so it can never
+  // become a credit — and a piece returned before it was paid for at all leaves
+  // NOTHING to issue. Without this the dialog would demand a customer name to
+  // guarantee a card it is not going to create.
+  const owed = parseFloat(ov.dataset.owed) || 0;
+  const tot = parseFloat(ov.dataset.total) || 0;
+  const refund = parseFloat(document.getElementById('retAmount')?.value) || 0;
+  if (owed > 0 && tot > 0) {
+    const cleared = Math.min(owed, owed * (Math.min(refund, tot) / tot));
+    if (refund - cleared <= 0.004) return false;
+  }
   if (_retDlg.method === 'credit') return true;
   const gift = parseFloat(ov.dataset.gift) || 0;
   return gift > 0;
@@ -12737,6 +13000,22 @@ function _retSyncNotice() {
         ? '📇 Χωρίς τηλέφωνο ή email δεν θα μπορείτε να τον ειδοποιήσετε πριν λήξει η πίστωση.'
         : '📇 With no phone or email you won\'t be able to warn them before the credit expires.');
     }
+  }
+  // A piece coming back before it was paid for: there is nothing to hand over,
+  // the DEBT is what is cancelled. Said plainly here because otherwise the
+  // refund figure on screen looks like money about to leave the till.
+  const _owed = parseFloat(ov.dataset.owed) || 0;
+  const _tot = parseFloat(ov.dataset.total) || 0;
+  if (_owed > 0 && refund > 0 && _tot > 0) {
+    const cleared = Math.min(_owed, parseFloat((_owed * (Math.min(refund, _tot) / _tot)).toFixed(2)));
+    const back = parseFloat(Math.max(0, refund - cleared).toFixed(2));
+    msgs.push(isEl
+      ? `🕐 ${cur}${cleared.toFixed(2)} δεν είχαν πληρωθεί ακόμα, οπότε <strong>διαγράφεται η οφειλή</strong>` + (back > 0
+          ? ` και επιστρέφονται μόνο ${cur}${back.toFixed(2)}.`
+          : ' — δεν επιστρέφονται χρήματα.')
+      : `🕐 ${cur}${cleared.toFixed(2)} of this was never paid, so the <strong>debt is cancelled</strong>` + (back > 0
+          ? ` and only ${cur}${back.toFixed(2)} goes back.`
+          : ' — no money goes back.'));
   }
   if (gift > 0 && _retDlg.method !== 'credit') {
     const part = Math.min(gift, refund);
@@ -13122,6 +13401,453 @@ function _splitSet(p, cash) {
   _splitSync(p);
 }
 
+// ── OWED CONTROL (the goods left, the money follows) ─────────────────────────
+// Deliberately SEPARATE from the split control above, because it answers a
+// different question. The split says under what REGIME the sale arrives (which
+// decides the VAT); this says how much of it has not ARRIVED yet. The two are
+// orthogonal — €300 by card now and €320 in cash on Monday is a split sale AND
+// a debt — so interlocking them would only make both harder to answer.
+//
+// Capped by _splitPayable for the same reason the split is: a gift-certificate
+// portion was settled long ago, so it can never be part of what is owed.
+const OWED_DEFAULT_DAYS = 7;
+
+function _owedHtml(p) {
+  const dflt = dateStrInDays(OWED_DEFAULT_DAYS);
+  return `<button type="button" id="${p}OwedBtn" onclick="_owedOpen('${p}')"
+      style="width:100%;margin-top:6px;padding:9px;background:rgba(231,76,60,0.06);border:1px dashed rgba(231,76,60,0.45);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🕐 <span data-i18n="owedBtn">${t('owedBtn')}</span></button>
+    <div id="${p}OwedBox" style="display:none;margin-top:6px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.35);border-radius:6px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">🕐 <span data-i18n="owedAmtLbl">${t('owedAmtLbl')}</span></span>
+        <button type="button" id="${p}OwedX" onclick="_owedClear('${p}')" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+      </div>
+      <input type="number" id="${p}OwedAmt" step="0.01" inputmode="decimal" oninput="_owedSync('${p}')"
+        style="width:100%;background:var(--dark-3);border:1px solid rgba(231,76,60,0.5);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:8px 12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(231,76,60,0.2)">
+        <span style="color:var(--text-muted)">💶 <span data-i18n="owedPaidNow">${t('owedPaidNow')}</span></span>
+        <span id="${p}OwedNow" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin:10px 0 4px"><span data-i18n="owedDueLbl">${t('owedDueLbl')}</span></div>
+      <div style="position:relative">
+        <div id="${p}OwedDueDisp" style="background:var(--dark-3);border:1px solid rgba(231,76,60,0.5);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:15px;padding:8px 12px">${fmtDate(dflt)}</div>
+        <input type="date" id="${p}OwedDue" value="${dflt}" onchange="var _d=document.getElementById('${p}OwedDueDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+      </div>
+    </div>`;
+}
+
+function _owedMount(p, wrapId) {
+  const w = document.getElementById(wrapId);
+  if (w && !w.dataset.mounted) { w.innerHTML = _owedHtml(p); w.dataset.mounted = '1'; }
+}
+
+function _owedOpen(p, noFocus) {
+  const box = document.getElementById(p + 'OwedBox'); if (!box) return;
+  box.style.display = '';
+  const btn = document.getElementById(p + 'OwedBtn'); if (btn) btn.style.display = 'none';
+  // Nothing paid yet is by far the common case — the customer walks out with the
+  // piece and the whole amount follows — so it opens on the full payable rather
+  // than an empty box the owner has to fill in to say "all of it".
+  const inp = document.getElementById(p + 'OwedAmt');
+  if (inp && !inp.value) inp.value = _splitPayable(p).toFixed(2);
+  _owedSync(p);
+  if (inp && !noFocus) inp.select();
+}
+
+function _owedClear(p) {
+  const box = document.getElementById(p + 'OwedBox'); if (box) box.style.display = 'none';
+  const btn = document.getElementById(p + 'OwedBtn'); if (btn) btn.style.display = '';
+  const inp = document.getElementById(p + 'OwedAmt'); if (inp) inp.value = '';
+  // The control is mounted once and lives in the DOM for the whole session, so
+  // without this the date sticks: "pay me by Monday" typed for one customer
+  // would still be sitting there for the next one three weeks later.
+  _owedResetDue(p);
+}
+
+function _owedResetDue(p) {
+  const d = dateStrInDays(OWED_DEFAULT_DAYS);
+  const inp = document.getElementById(p + 'OwedDue');
+  const disp = document.getElementById(p + 'OwedDueDisp');
+  if (inp) inp.value = d;
+  if (disp) disp.textContent = fmtDate(d);
+}
+
+// Keeps "paying now" in step and stops the debt exceeding the sale — you cannot
+// be owed more than the piece was sold for.
+function _owedSync(p) {
+  const box = document.getElementById(p + 'OwedBox');
+  if (!box || box.style.display === 'none') return;
+  const inp = document.getElementById(p + 'OwedAmt'); if (!inp) return;
+  const payable = _splitPayable(p);
+  let v = parseFloat(inp.value);
+  if (!isFinite(v) || v < 0) v = 0;
+  if (v > payable) { v = payable; inp.value = payable.toFixed(2); }
+  const cur = state.currency || '€';
+  const now = document.getElementById(p + 'OwedNow');
+  if (now) now.textContent = cur + Math.max(0, parseFloat((payable - v).toFixed(2))).toFixed(2);
+}
+
+// The amount to store, or 0 when no debt is being recorded.
+function _owedValue(p) {
+  const box = document.getElementById(p + 'OwedBox');
+  if (!box || box.style.display === 'none') return 0;
+  const raw = parseFloat(document.getElementById(p + 'OwedAmt')?.value);
+  if (!isFinite(raw) || raw <= 0) return 0;
+  return Math.min(parseFloat(raw.toFixed(2)), _splitPayable(p));
+}
+
+function _owedDueValue(p) {
+  const box = document.getElementById(p + 'OwedBox');
+  if (!box || box.style.display === 'none') return '';
+  return document.getElementById(p + 'OwedDue')?.value || '';
+}
+
+// Re-open the control on a record already saved with a debt.
+function _owedSet(p, amt, due) {
+  const v = parseFloat(amt) || 0;
+  if (v <= 0) { _owedClear(p); return; }
+  _owedOpen(p, true);
+  const inp = document.getElementById(p + 'OwedAmt');
+  if (inp) inp.value = v.toFixed(2);
+  if (due) {
+    const d = document.getElementById(p + 'OwedDue');
+    const disp = document.getElementById(p + 'OwedDueDisp');
+    if (d) d.value = due;
+    if (disp) disp.textContent = fmtDate(due);
+  }
+  _owedSync(p);
+}
+
+// ── RECORDING A PAYMENT AGAINST A DEBT ───────────────────────────────────────
+// The customer comes back on Monday with the money. Partial payments are
+// allowed, because that is how it actually happens.
+//
+// The payment does NOT move the sale: the revenue and profit were booked on the
+// day the pieces left and stay there. This only clears what is outstanding —
+// the same principle a return follows (never rewrite a past day).
+let _owedPayMethod = 'cash';
+
+async function openOwedPayment(saleId) {
+  const sales = await getSales();
+  const g = _owedGroups(sales).find(x => x.records.some(r => r.id === saleId) || x.saleId === saleId);
+  if (!g) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν υπάρχει οφειλή' : 'Nothing is owed')); return; }
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  _owedPayMethod = 'cash';
+  const today = todayStr();
+  document.getElementById('owedPayOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'owedPayOverlay';
+  // Top-anchored: it contains fields you type into, so a bottom sheet would put
+  // the amount behind the keyboard.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));overflow-y:auto';
+  const _m = (v, label) => `<button type="button" id="owedPayM_${v}" onclick="_owedSetPayMethod('${v}')" style="flex:1;padding:10px 4px;border-radius:8px;font-size:12px;font-family:var(--font-body);cursor:pointer;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--text-muted)">${label}</button>`;
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px;margin:auto 0">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">💰 ${isEl ? 'Καταγραφή πληρωμής' : 'Record a payment'}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${_gcEsc(g.customer || (isEl ? 'Πελάτης' : 'Customer'))} · ${isEl ? 'οφείλει' : 'owes'} <span style="color:var(--debt);font-family:var(--font-mono);font-weight:700">${cur}${g.owed.toFixed(2)}</span>${g.orig > g.owed ? ` <span style="opacity:0.7">(${isEl ? 'από' : 'of'} ${cur}${g.orig.toFixed(2)})</span>` : ''}</div>
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl ? 'Ποσό' : 'Amount'}</label>
+      <input type="number" id="owedPayAmt" step="0.01" inputmode="decimal" value="${g.owed.toFixed(2)}"
+        style="width:100%;box-sizing:border-box;background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:17px;padding:10px 12px;margin-bottom:12px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl ? 'Τρόπος' : 'Method'}</label>
+      <div style="display:flex;gap:6px;margin-bottom:12px">${_m('cash', isEl ? '💵 Μετρητά' : '💵 Cash')}${_m('card', isEl ? '💳 Κάρτα' : '💳 Card')}${_m('bank', isEl ? '🏦 Τράπεζα' : '🏦 Bank')}</div>
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${isEl ? 'Ημερομηνία' : 'Date'}</label>
+      <div style="position:relative;margin-bottom:14px">
+        <div id="owedPayDateDisp" style="background:var(--dark-3);border:1px solid rgba(201,168,76,0.4);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:15px;padding:9px 12px">${fmtDate(today)}</div>
+        <input type="date" id="owedPayDate" value="${today}" onchange="var _d=document.getElementById('owedPayDateDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+      </div>
+      <div id="owedPayStatus" style="font-size:12px;min-height:16px;text-align:center;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button onclick="document.getElementById('owedPayOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+        <button onclick="_owedPayConfirm(${g.records[0].id})" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Πληρώθηκε' : 'Paid'}</button>
+      </div>
+      <button onclick="_owedWriteOff(${g.records[0].id})" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(231,76,60,0.4);color:var(--debt);border-radius:8px;font-size:12px;cursor:pointer">🚫 ${t('owedWriteOff')}</button>
+    </div>`;
+  document.body.appendChild(ov);
+  _owedSetPayMethod('cash');
+  setTimeout(() => document.getElementById('owedPayAmt')?.select(), 100);
+}
+
+function _owedSetPayMethod(m) {
+  _owedPayMethod = m;
+  ['cash', 'card', 'bank'].forEach(v => {
+    const b = document.getElementById('owedPayM_' + v);
+    if (!b) return;
+    const on = v === m;
+    b.style.background = on ? 'rgba(201,168,76,0.25)' : 'rgba(201,168,76,0.08)';
+    b.style.borderColor = on ? 'rgba(201,168,76,0.8)' : 'rgba(201,168,76,0.3)';
+    b.style.color = on ? 'var(--gold-light)' : 'var(--text-muted)';
+  });
+}
+
+async function _owedPayConfirm(saleId) {
+  const st = document.getElementById('owedPayStatus');
+  const isEl = lang === 'el';
+  const amt = parseFloat(document.getElementById('owedPayAmt')?.value);
+  if (!isFinite(amt) || amt <= 0) {
+    if (st) { st.style.color = 'var(--debt)'; st.textContent = isEl ? 'Εισάγετε έγκυρο ποσό' : 'Enter a valid amount'; }
+    return;
+  }
+  const sales = await getSales();
+  const g = _owedGroups(sales).find(x => x.records.some(r => r.id === saleId));
+  if (!g) { document.getElementById('owedPayOverlay')?.remove(); return; }
+  const paid = _owedApplyPayment(g.records, amt, _owedPayMethod,
+    document.getElementById('owedPayDate')?.value || todayStr());
+  if (!(paid > 0)) { document.getElementById('owedPayOverlay')?.remove(); return; }
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  g.records.forEach(r => _outboxAdd('/jewelprice_sales', r.id, 'put', JSON.stringify(r)));
+  await pushSalesToCloud(sales);
+  document.getElementById('owedPayOverlay')?.remove();
+  const left = parseFloat(g.records.reduce((a, r) => a + saleOwed(r), 0).toFixed(2));
+  const cur = state.currency || '€';
+  showToast('✓ ' + (isEl
+    ? `Καταγράφηκε ${cur}${paid.toFixed(2)}` + (left > 0 ? ` — υπόλοιπο ${cur}${left.toFixed(2)}` : ' — εξοφλήθηκε')
+    : `${cur}${paid.toFixed(2)} recorded` + (left > 0 ? ` — ${cur}${left.toFixed(2)} left` : ' — settled in full')));
+  await _owedRefreshSurfaces();
+}
+
+// ── WRITING OFF A DEBT ───────────────────────────────────────────────────────
+// The customer never pays. The profit was booked when the goods left, so the
+// loss has to be booked too — and, following the rule the whole app uses for
+// money that has already been recorded, as a NEW record dated today rather than
+// by rewriting the original sale. Same shape as a giveaway: no revenue, a
+// negative profit, so the day's takings are untouched and the profit falls by
+// exactly what was lost.
+async function _owedWriteOff(saleId) {
+  const sales = await getSales();
+  const g = _owedGroups(sales).find(x => x.records.some(r => r.id === saleId));
+  if (!g) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const vat = parseFloat(state.vat) || 0;
+  // The loss is the ex-VAT value of what was never received — the same basis the
+  // profit was booked on, so writing off exactly reverses that part of it.
+  let loss = 0;
+  g.records.forEach(r => {
+    const a = Math.abs(parseFloat(r.amount) || 0);
+    if (a <= 0) return;
+    loss += _saleExVat(r, vat) * (saleOwed(r) / a);
+  });
+  loss = parseFloat(loss.toFixed(2));
+  showConfirm(
+    (isEl
+      ? `Διαγραφή της οφειλής ${cur}${g.owed.toFixed(2)} του πελάτη ${g.customer || '—'};\n\nΗ πώληση παραμένει όπως είναι. Θα καταγραφεί ζημιά ${cur}${loss.toFixed(2)} στα σημερινά κέρδη.`
+      : `Write off ${cur}${g.owed.toFixed(2)} owed by ${g.customer || '—'}?\n\nThe sale itself stays exactly as it is. A loss of ${cur}${loss.toFixed(2)} is booked against today's profit.`),
+    async () => {
+      document.getElementById('owedPayOverlay')?.remove();
+      const fresh = await getSales();
+      const recs = fresh.filter(r => g.records.some(x => x.id === r.id));
+      const wrote = parseFloat(recs.reduce((a, r) => a + saleOwed(r), 0).toFixed(2));
+      if (!(wrote > 0)) return;
+      recs.forEach(r => {
+        r.owedAmt = 0;
+        if (!Array.isArray(r.owedLog)) r.owedLog = [];
+        r.owedLog.push({ amt: 0, date: todayStr(), method: 'writeoff', at: Date.now() });
+        r.owedWrittenOff = true;
+      });
+      const rec = {
+        id: _nextSaleId(fresh),
+        amount: 0,
+        note: '🚫 ' + (isEl ? 'Διαγραφή οφειλής' : 'Debt written off')
+              + (g.customer ? ' — ' + g.customer : ''),
+        date: todayStr(), ts: Date.now(),
+        vendor: '', customer: g.customer || '', email: g.email || '',
+        employee: creds.userName || '', employeeName: creds.displayName || '',
+        bonusAmt: 0, bonusPct: 0, invQr: '',
+        cost: null, profit: -loss, cashSale: true,
+        salePhotoUrl: '', salePhotoName: '', seqRef: '',
+        debtWriteOff: true, debtOfSaleId: g.records[0].id, debtWrittenAmt: wrote
+      };
+      fresh.push(rec);
+      _salesCache = fresh;
+      localStorage.setItem('jpro_sales', JSON.stringify(fresh));
+      _outboxAdd('/jewelprice_sales', rec.id, 'put', JSON.stringify(rec));
+      recs.forEach(r => _outboxAdd('/jewelprice_sales', r.id, 'put', JSON.stringify(r)));
+      await pushSalesToCloud(fresh);
+      showToast('🚫 ' + (isEl ? `Διαγράφηκε οφειλή ${cur}${wrote.toFixed(2)}` : `${cur}${wrote.toFixed(2)} written off`));
+      await _owedRefreshSurfaces();
+    });   // showConfirm is danger-styled by default, which is right here
+}
+
+// ── OVERDUE SWEEP ────────────────────────────────────────────────────────────
+// The real risk with a credit sale is not the bookkeeping, it is that Monday
+// becomes Friday becomes next month. Once a debt is past the date that was
+// promised it raises ONE bell notification, the same mechanism gift-certificate
+// expiry uses.
+//
+// Marked as warned only if the push actually landed, so an offline device can
+// never swallow the warning — and re-armed when the due date is pushed back, so
+// a debt that comes due a second time is flagged a second time.
+async function _owedCheckOverdue() {
+  if (!creds.binId || !can('see_cost')) return;
+  const sales = _salesCache || [];
+  const groups = _owedGroups(sales).filter(g => g.overdue);
+  if (!groups.length) return;
+  let changed = false;
+  for (const g of groups) {
+    const stamp = 'od:' + (g.due || '');
+    if (g.records.every(r => r.owedWarned === stamp)) continue;
+    const ok = await _owedPushOverdueNotif(g);
+    if (!ok) continue;                       // try again next time, never silently drop it
+    g.records.forEach(r => { r.owedWarned = stamp; });
+    changed = true;
+  }
+  if (changed) {
+    _salesCache = sales;
+    localStorage.setItem('jpro_sales', JSON.stringify(sales));
+    await pushSalesToCloud(sales);
+  }
+}
+
+async function _owedPushOverdueNotif(g) {
+  const users = await getUsers() || {};
+  const targets = Object.keys(users).filter(slug => {
+    const u = users[slug];
+    return u && u.active !== false && (u.role === 'owner' || u.role === 'manager');
+  });
+  if (!targets.length) return false;
+  const notifId = 'owed_' + g.records[0].id;
+  const payload = {
+    kind: 'debt_overdue',
+    saleId: g.records[0].id,
+    customer: g.customer || '',
+    owed: g.owed,
+    due: g.due || '',
+    sentAt: new Date().toISOString()
+  };
+  let delivered = 0;
+  for (const slug of targets) {
+    try {
+      const r = await fetch(fbUrl(`/jewelprice_notifications/${slug}/${notifId}.json`), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      if (r.ok) delivered++;
+    } catch (e) {}
+  }
+  return delivered > 0;
+}
+
+// Opening the sale from the bell: dismiss the panel first so the detail sheet
+// is not left behind it.
+async function _owedOpenFromNotif(saleId) {
+  try { closeNotifPanel(); } catch (e) {}
+  await showSaleDetail(parseInt(saleId));
+}
+
+// ── WHERE DEBTS ARE SEEN ─────────────────────────────────────────────────────
+// An employee sees only debts from sales they made themselves — the same rule
+// renderSalesPanel already applies to the sales list. That keeps the shop's
+// whole book private while still letting whoever made the credit sale take the
+// money when the customer comes back with it.
+function _owedVisibleSales(sales) {
+  if (can('see_cost')) return sales || [];
+  return (sales || []).filter(s => s.employee === creds.userName);
+}
+
+// The bar above the sales list. Shown whenever ANY money is outstanding, from
+// any date; absent entirely when nothing is.
+function renderOwedBar(allSales) {
+  const bar = document.getElementById('spOwedBar');
+  if (!bar) return;
+  const groups = _owedGroups(_owedVisibleSales(allSales));
+  if (!groups.length) { bar.style.display = 'none'; return; }
+  const isEl = lang === 'el';
+  const total = parseFloat(groups.reduce((a, g) => a + g.owed, 0).toFixed(2));
+  const overdue = groups.filter(g => g.overdue).length;
+  const n = groups.length;
+  const word = n === 1 ? t('owedBarOne') : t('owedBarMany');
+  let txt = n + ' ' + word;
+  // One debt is almost always one person, so name them — it is more use than a
+  // count of one.
+  if (n === 1 && groups[0].customer) txt = groups[0].customer;
+  if (overdue > 0) txt += ' · ' + (isEl ? `${overdue} εκπρόθεσμη${overdue > 1 ? 'ς' : ''}` : `${overdue} overdue`);
+  document.getElementById('spOwedCount').textContent = txt;
+  document.getElementById('spOwedTotal').textContent = fmtAmt(total);
+  bar.style.display = 'flex';
+  // Overdue money reads louder than money merely not yet due.
+  bar.style.background = overdue > 0 ? 'rgba(231,76,60,0.18)' : 'rgba(231,76,60,0.10)';
+  bar.style.borderColor = overdue > 0 ? 'rgba(231,76,60,0.6)' : 'rgba(231,76,60,0.35)';
+}
+
+// The count on the Sales tab itself, so a debt is visible from anywhere in the
+// app. Reads the cache rather than forcing a load — it is called on every tab
+// change and must cost nothing.
+function _owedUpdateNavBadge() {
+  const el = document.getElementById('navOwedBadge');
+  if (!el) return;
+  const n = _salesCache ? _owedGroups(_owedVisibleSales(_salesCache)).length : 0;
+  if (n > 0) { el.textContent = n > 99 ? '99+' : String(n); el.style.display = ''; }
+  else el.style.display = 'none';
+}
+
+// The list behind the bar: who owes what, soonest due first.
+async function openOwedList() {
+  const sales = await getSales();
+  const groups = _owedGroups(_owedVisibleSales(sales));
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const today = todayStr();
+  document.getElementById('owedListOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'owedListOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999995;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const total = parseFloat(groups.reduce((a, g) => a + g.owed, 0).toFixed(2));
+  const rows = groups.map(g => {
+    const what = g.records.map(r => r.seqRef || '').filter(Boolean).join(' · ')
+      || (g.records[0] && g.records[0].note) || '';
+    const dueTxt = g.due
+      ? (g.overdue
+          ? `<span style="color:var(--debt);font-weight:700">${t('owedOverdue')} · ${fmtDate(g.due)}</span>`
+          : `${t('owedDueOn')} ${fmtDate(g.due)}`)
+      : (isEl ? 'χωρίς προθεσμία' : 'no date set');
+    const paid = g.orig > g.owed
+      ? ` · ${cur}${(g.orig - g.owed).toFixed(2)} ${t('owedPaidOf')} ${cur}${g.orig.toFixed(2)}`
+      : '';
+    return `<div style="border:1px solid ${g.overdue ? 'rgba(231,76,60,0.45)' : 'var(--card-border)'};background:${g.overdue ? 'rgba(231,76,60,0.07)' : 'var(--dark-3)'};border-radius:10px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+          <div style="min-width:0;flex:1">
+            <div style="font-family:var(--font-body);font-size:14px;color:var(--gold-light);overflow:hidden;text-overflow:ellipsis">${_gcEsc(g.customer || (isEl ? '— χωρίς όνομα —' : '— no name —'))}</div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-top:3px">${fmtDate(g.date)} · ${dueTxt}</div>
+            ${what ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_gcEsc(what)}</div>` : ''}
+            ${paid ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-top:2px">${paid.slice(3)}</div>` : ''}
+          </div>
+          <div style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--debt);flex-shrink:0">${cur}${g.owed.toFixed(2)}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="_owedOpenSale(${g.records[0].id})" style="flex:1;padding:9px;background:transparent;border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;cursor:pointer">📋 ${isEl ? 'Η πώληση' : 'The sale'}</button>
+          <button onclick="openOwedPayment(${g.records[0].id})" style="flex:1;padding:9px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💰 ${isEl ? 'Πληρωμή' : 'Payment'}</button>
+        </div>
+      </div>`;
+  }).join('');
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-top-left-radius:18px;border-top-right-radius:18px;padding:18px;width:100%;max-width:480px;max-height:88vh;max-height:88dvh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">🕐 ${t('owedListTitle')}</div>
+        <button onclick="document.getElementById('owedListOverlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+      </div>
+      ${groups.length ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--debt);margin-bottom:14px">${cur}${total.toFixed(2)} ${isEl ? 'συνολικά' : 'in total'}</div>` : ''}
+      ${groups.length ? rows : `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:26px 0">${t('owedNone')}</div>`}
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+// Opening the sale behind a debt closes the list first — the sale detail sheet
+// sits BELOW this one, so it would otherwise open out of sight behind it.
+async function _owedOpenSale(saleId) {
+  document.getElementById('owedListOverlay')?.remove();
+  await showSaleDetail(saleId);
+}
+
+// Repaint everything a debt appears on, wherever the change was made from.
+async function _owedRefreshSurfaces() {
+  try { _owedUpdateNavBadge(); } catch (e) {}
+  try {
+    if (document.getElementById('owedListOverlay')) await openOwedList();
+    if (document.getElementById('panel-sales')?.classList.contains('active')) await renderSalesPanel();
+    const _sdm = document.getElementById('saleDetailModal');
+    if (_sdm && _sdm.style.display !== 'none' && window._sdmOpenId) await showSaleDetail(window._sdmOpenId, window._sdmOpenForceSingle);
+  } catch (e) {}
+}
+
 // ── Editing the payment split of a WHOLE transaction ─────────────────────────
 // The split of a cart sale lives spread across its lines (€200 over €100/€100/€50
 // is stored as 80/80/40), so correcting it line by line would mean dividing the
@@ -13425,6 +14151,16 @@ async function _saveGroupEdit(groupId) {
         : `⚠️ A certificate of ${cur}${gift.toFixed(2)} was already used on this sale — the total cannot be less than that.`);
       return;
     }
+    // Money is still owed on this transaction; a total below it would leave the
+    // customer owing more than the sale was worth. Take the payment, or correct
+    // the debt in the sale itself, before moving the total.
+    const _owedNow = parseFloat(members.reduce((a, m) => a + saleOwed(m), 0).toFixed(2));
+    if (_owedNow > 0 && newTotal < _owedNow - 0.005) {
+      say(isEl
+        ? `⚠️ Οφείλονται ακόμα ${cur}${_owedNow.toFixed(2)} σε αυτή την πώληση — το σύνολο δεν μπορεί να είναι μικρότερο.`
+        : `⚠️ ${cur}${_owedNow.toFixed(2)} is still owed on this sale — the total cannot be less than that.`);
+      return;
+    }
     // A returned line's negative record mirrors what THIS record stored; moving
     // the amount underneath it would leave the pair no longer netting to zero.
     if (members.some(m => _saleReturnRecord(m.id))) {
@@ -13555,6 +14291,9 @@ function closeSaleModal() {
   _updateSaleGiftDisplay();
   // Nor a mixed payment, which would silently split the NEXT customer's sale.
   _splitClear('sale');
+  // Nor a debt — leaving this armed would record the next customer, who paid in
+  // full and walked out, as owing money.
+  _owedClear('sale');
   // Nor a "this one's a gift" flag, which would print a card for the next sale.
   _saleWantsExCard = false;
   _syncSaleExCardBtn();
@@ -13662,6 +14401,9 @@ async function openSaleEditModal(s) {
   // A sale settled two ways reopens with its split showing (which also hides the
   // all-or-nothing toggle above); anything else opens with the split closed.
   _splitSet('saleEdit', _saleIsSplit(s) ? Math.abs(parseFloat(s.cashAmt) || 0) : 0);
+  // A sale with money still owed reopens showing the debt, so a mistyped amount
+  // or date is corrected here rather than by deleting and re-recording.
+  _owedSet('saleEdit', saleOwed(s), s.owedDue || '');
   // Photo picker — show existing salePhotoUrl if any
   _pendingSaleEditPhoto = null;
   const _sepPicker = document.getElementById('saleEditPhotoPicker');
@@ -13822,6 +14564,17 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
       '<div style="font-size:13px;color:var(--text);margin-top:1px">' + val + '</div></div>';
     mt.appendChild(row);
   };
+  // A cart's debt is spread across its lines, so the transaction owes their sum.
+  const _grpOwed = parseFloat(members.reduce((a, m) => a + saleOwed(m), 0).toFixed(2));
+  const _grpOwedOrig = parseFloat(members.reduce((a, m) => a + saleOwedOrig(m), 0).toFixed(2));
+  const _grpOwedDue = (members.find(m => m.owedDue) || {}).owedDue || '';
+  if (_grpOwed > 0) {
+    mkMeta('🕐', t('owedRow'), _owedMetaText(_grpOwed, _grpOwedOrig, _grpOwedDue, cur));
+  } else if (members.some(m => m.owedWrittenOff)) {
+    mkMeta('🚫', t('owedRow'), lang === 'el' ? 'Η οφειλή διαγράφηκε' : 'The debt was written off');
+  } else if (members.some(saleWasOwed)) {
+    mkMeta('🕐', t('owedRow'), (lang === 'el' ? 'Εξοφλήθηκε — ' : 'Settled in full — ') + cur + _grpOwedOrig.toFixed(2));
+  }
   if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
   if (s.email) mkMeta('✉️', 'Email', s.email);
   if (s.vendor) mkMeta('🏷️', lang === 'el' ? 'Προμηθευτής' : 'Vendor', s.vendor);
@@ -13832,6 +14585,16 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   acts.innerHTML = '';
   const canDel = isOwnerMgr || s.employee === creds.userName;
   const _isRetGroup = !!s.isReturn;
+
+  // 💰 One payment settles the whole transaction, spread back across its lines —
+  // the same reason the payment editor exists rather than editing each line.
+  if (_grpOwed > 0 && canDel) {
+    const payBtn = document.createElement('button');
+    payBtn.style.cssText = 'flex:1;padding:11px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    payBtn.textContent = '💰 ' + t('owedPayBtn');
+    payBtn.onclick = () => openOwedPayment(members[0].id);
+    acts.appendChild(payBtn);
+  }
 
   // 🖨️ Quote / certificate for the whole transaction — the paper a customer
   // asks for after the fact (splitting the cost, insurance, a present).
@@ -13897,6 +14660,10 @@ async function showSaleDetail(id, forceSingle) {
   const sales = await getSales();
   const s = sales.find(x => x.id === id);
   if (!s) return;
+  // Remembered so a debt payment made from inside this sheet can repaint it
+  // in place, rather than leaving a stale "owes €620" on screen.
+  window._sdmOpenId = id;
+  window._sdmOpenForceSingle = !!forceSingle;
   // A sale opened fresh (from the list, a search, a scan) has nothing above it —
   // never inherit a stale "go back to" target. _sdmOpenMember / _sbOpenSale re-arm
   // theirs after this returns, which are the only ways in that legitimately have one.
@@ -13992,6 +14759,15 @@ async function showSaleDetail(id, forceSingle) {
     mkMeta('🎁', lang === 'el' ? 'Δώρο' : 'Gift',
       lang === 'el' ? 'Δόθηκε ως δώρο σε πελάτη — καμία είσπραξη' : 'Given away as a gift — no payment taken');
   }
+  // Money still to come. Stated before the customer, because on an unpaid sale
+  // it is the first thing you need to know when you open it.
+  if (saleOwed(s) > 0) {
+    mkMeta('🕐', t('owedRow'), _owedMetaText(saleOwed(s), saleOwedOrig(s), s.owedDue, cur));
+  } else if (s.owedWrittenOff) {
+    mkMeta('🚫', t('owedRow'), lang === 'el' ? 'Η οφειλή διαγράφηκε' : 'The debt was written off');
+  } else if (saleWasOwed(s)) {
+    mkMeta('🕐', t('owedRow'), (lang === 'el' ? 'Εξοφλήθηκε — ' : 'Settled in full — ') + cur + saleOwedOrig(s).toFixed(2));
+  }
   if (s.customer) mkMeta('👤', lang === 'el' ? 'Πελάτης' : 'Customer', s.customer);
   if (s.email) mkMeta('✉️', 'Email', s.email);
   // Spell out a split payment rather than showing one misleading cash badge.
@@ -14063,6 +14839,16 @@ async function showSaleDetail(id, forceSingle) {
   const acts = document.getElementById('sdmActions');
   acts.innerHTML = '';
   const canEdit = creds.role !== 'employee' || s.employee === creds.userName;
+
+  // 💰 Take the money when the customer comes back with it. First in the row on
+  // an unpaid sale, because it is the only reason you opened it.
+  if (saleOwed(s) > 0 && canEdit) {
+    const payBtn = document.createElement('button');
+    payBtn.style.cssText = 'flex:1;padding:11px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    payBtn.textContent = '💰 ' + t('owedPayBtn');
+    payBtn.onclick = () => openOwedPayment(s.id);
+    acts.appendChild(payBtn);
+  }
 
   // View linked inventory item (if the sale names a piece at all)
   if (s.invId || s.invQr) {
@@ -14748,6 +15534,12 @@ async function confirmSaleEdit() {
   const vendor = document.getElementById('saleEditVendor').value.trim();
   const note = document.getElementById('saleEditNote').value.trim();
   const _cust = _saleCustRead('saleEd');
+  // A debt is never anonymous — same rule as the sale dialog and a return credit.
+  if (_owedValue('saleEdit') > 0 && !_cust.name) {
+    showToast('⚠️ ' + t('owedNeedName'));
+    document.getElementById('saleEdCustName')?.focus();
+    return;
+  }
   const date = document.getElementById('saleEditDateInput').value || todayStr();
   const { slug: employeeSlug, name: employeeName } = _readSaleEmployee(document.getElementById('saleEditEmployee'));
   const sales = await getSales();
@@ -14788,6 +15580,22 @@ async function confirmSaleEdit() {
   // so a corrected record is left in exactly the shape a fresh one would have.
   if (_editSplit.cashAmt != null) sales[idx].cashAmt = _editSplit.cashAmt;
   else delete sales[idx].cashAmt;
+  // ── Money owed ──
+  // Capped by what is actually being handed over, so a corrected amount can
+  // never leave a debt larger than the sale. The payment history (owedLog) is
+  // deliberately KEPT when the outstanding figure is edited — those payments
+  // genuinely happened — but clearing the control removes the debt entirely,
+  // which is how a mistake ("this was never on credit") is undone.
+  const _editOwed = Math.min(_owedValue('saleEdit'), Math.max(0, parseFloat((amt - _editGift).toFixed(2))));
+  if (_editOwed > 0) {
+    sales[idx].owedAmt = parseFloat(_editOwed.toFixed(2));
+    sales[idx].owedOrig = Math.max(parseFloat(sales[idx].owedOrig) || 0, sales[idx].owedAmt);
+    sales[idx].owedDue = _owedDueValue('saleEdit') || sales[idx].owedDue || '';
+    if (!Array.isArray(sales[idx].owedLog)) sales[idx].owedLog = [];
+  } else {
+    delete sales[idx].owedAmt; delete sales[idx].owedOrig;
+    delete sales[idx].owedDue; delete sales[idx].owedLog;
+  }
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
   await pushSalesToCloud(sales);
@@ -14799,6 +15607,19 @@ async function confirmSaleEdit() {
 async function confirmSale() {
   const amt = parseFloat(document.getElementById('saleAmountInput').value);
   if (!amt || amt <= 0) { showToast(lang==='el'?'⚠️ Εισάγετε έγκυρο ποσό':'⚠️ Enter a valid amount'); return; }
+
+  // ── Money owed ──
+  // Read up front for the same reason the split is: closeSaleModal() runs
+  // mid-function and clears the control.
+  const _owedTyped = _owedValue('sale');
+  const _owedDue = _owedDueValue('sale');
+  // A debt is never anonymous — the same rule a return credit follows. Without a
+  // name you have a number and nobody to ask for it.
+  if (_owedTyped > 0 && !document.getElementById('saleCustomerName').value.trim()) {
+    showToast('⚠️ ' + t('owedNeedName'));
+    document.getElementById('saleCustomerName')?.focus();
+    return;
+  }
 
   // For multi-item sales, distribute the final amount proportionally across items.
   // Snapshot the cart list into a local so a mid-function closeSaleModal() (which clears
@@ -14933,12 +15754,23 @@ async function confirmSale() {
   // each line's VAT and profit are right and the parts still sum to the whole.
   const _cashShare = v => (_cashTotal == null || amt <= 0) ? null
     : parseFloat(Math.min(_cashTotal * (parseFloat(v) || 0) / amt, parseFloat(v) || 0).toFixed(2));
+  // ── Money owed ──
+  // Clamped to what is actually being handed over, then spread across the cart
+  // in proportion exactly like the certificate and the cash split — so every
+  // record carries its own share of the debt and no line can be left holding a
+  // balance that belongs to another.
+  const _owedTotalAmt = _owedTyped > 0
+    ? Math.min(_owedTyped, parseFloat((amt - _gcUsable).toFixed(2))) : 0;
+  const _owedShare = v => (_owedTotalAmt <= 0 || amt <= 0) ? 0
+    : parseFloat(Math.min(_owedTotalAmt * (parseFloat(v) || 0) / amt, parseFloat(v) || 0).toFixed(2));
   const _gcOpts = v => {
     const o = _gcUsable > 0
       ? { giftAmt: _gcShare(v), giftWasCash: _gcWasCash, giftCardId: _gcCard.id, giftCardNo: _gcCard.cardNo }
       : {};
     const c = _cashShare(v);
     if (c != null) o.cashAmt = c;
+    const w = _owedShare(v);
+    if (w > 0) { o.owedAmt = w; o.owedDue = _owedDue; }
     return Object.keys(o).length ? o : undefined;
   };
   // Upload sale photo if captured
@@ -15633,6 +16465,11 @@ async function renderSalesPanel() {
   }
   // For date/vendor views, employees see only their own sales
   const ownSales = isEmp ? allSales.filter(s => s.employee === creds.userName) : allSales;
+  // Money owed is drawn BEFORE the view branches below (which return early for
+  // the vendor and employee views): a debt is not a property of the period or
+  // the view being looked at, so it shows in all of them.
+  renderOwedBar(allSales);
+  _owedUpdateNavBadge();
   const now = new Date();
   const curYear = now.getFullYear();
 
@@ -15959,6 +16796,8 @@ function _sbRender() {
   });
   const vatOwed = vat > 0 ? pRec - (pRec / (1 + vat / 100)) : 0;
   const exVat = pCash + (pRec / (1 + vat / 100));
+  // Of the sales in THIS period, how much is still outstanding.
+  const _sbOwed = parseFloat((_sbSales || []).reduce((a, s) => a + saleOwed(s), 0).toFixed(2));
 
   const money = n => cur + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const signed = n => (n < 0 ? '−' : '') + money(n);
@@ -15998,6 +16837,11 @@ function _sbRender() {
     (pGift !== 0 ? '<div class="sb-line"><span>🎟️ ' + (isEl ? 'από επιταγές/πιστώσεις' : 'from cards/credit') + '</span><span>' + signed(pGift) + '</span></div>' : '') +
     (vat > 0 ? '<div class="sb-line"><span>' + (isEl ? 'ΦΠΑ ' + vat + '% στο ποσό με απόδειξη' : 'VAT ' + vat + '% on the receipt part') + '</span><span>' + signed(vatOwed) + '</span></div>' : '') +
     '<div class="sb-line"><span>' + (isEl ? 'Καθαρά έσοδα (χωρίς ΦΠΑ)' : 'Net revenue (ex-VAT)') + '</span><span style="color:var(--gold-light)">' + signed(exVat) + '</span></div>' +
+    // Money from THIS period that has not physically arrived. Deliberately kept
+    // OUT of the cash/receipt split above, which is a VAT-regime breakdown whose
+    // parts must keep reconciling to the net revenue — this is a timing fact, so
+    // it is stated separately and honestly rather than mixed into either bucket.
+    (_sbOwed > 0 ? '<div class="sb-line" style="border-top:1px solid var(--wa08);margin-top:4px;padding-top:6px"><span>🕐 ' + (isEl ? 'Δεν έχει εισπραχθεί ακόμα' : 'Not yet received') + '</span><span style="color:var(--debt)">' + money(_sbOwed) + '</span></div>' : '') +
     '</div>';
 
   // Per-transaction table. The date is dropped when every row shares one (a day view).
@@ -16235,6 +17079,10 @@ function _groupSalesForDisplay(salesArr) {
         vendor: items[0].vendor, note: items[0].note, customer: items[0].customer,
         employee: items[0].employee, employeeName: items[0].employeeName,
         cashSale: items[0].cashSale,
+        // A cart's debt is spread across its lines, so the transaction's debt is
+        // their sum; the due date is one fact about the whole sale.
+        owedAmt: parseFloat(items.reduce((a, x) => a + saleOwed(x), 0).toFixed(2)),
+        owedDue: (items.find(x => x.owedDue) || {}).owedDue || '',
         isReturn: !!items[0].isReturn   // a return group is returns all the way down
       });
     } else {
@@ -16242,6 +17090,7 @@ function _groupSalesForDisplay(salesArr) {
         isGroup: false, sale: s, id: s.id, date: s.date, ts: s.ts, amount: s.amount,
         bonusAmt: s.bonusAmt, vendor: s.vendor, note: s.note, customer: s.customer,
         employee: s.employee, employeeName: s.employeeName,
+        owedAmt: saleOwed(s), owedDue: s.owedDue || '',
         isReturn: !!s.isReturn, giveaway: !!s.giveaway
       });
     }
@@ -16293,12 +17142,19 @@ function _spRenderSalesList(elId, salesArr) {
     const giveTag = e.giveaway
       ? `<span style="margin-left:6px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--gold)">🎁 ${lang==='el'?'ΔΩΡΟ':'GIFT'}</span>`
       : '';
+    // Money still to come on this transaction. Red, and louder once it is past
+    // the date that was promised.
+    const _owe = parseFloat(e.owedAmt) || 0;
+    const _owedLate = _owe > 0 && _owedIsOverdue(e.owedDue);
+    const owedTag = _owe > 0
+      ? `<span style="margin-left:6px;background:rgba(231,76,60,${_owedLate ? '0.22' : '0.12'});border:1px solid rgba(231,76,60,${_owedLate ? '0.6' : '0.35'});border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--debt)">🕐 ${_owedLate ? t('owedOverdue') : t('owedTag')} ${fmtAmt(_owe)}</span>`
+      : '';
     const amtStyle = e.isReturn ? ' style="color:#ff8a80"' : '';
     // A group opens the combined detail; inline edit is hidden (edit items from inside it).
     // Delete on a group removes the whole transaction.
     const delAttrs = e.isGroup ? ('data-group-id="' + e.groupId + '"') : ('data-sale-id="' + safeId + '"');
     return '<div class="sp-sale-row" style="cursor:pointer" onclick="showSaleDetail(' + safeId + ')">' +
-      '<div class="sp-sale-info"><div class="sp-sale-amt"' + amtStyle + '>' + fmtAmt(e.amount) + retTag + giveTag + groupTag + bonusTag + '</div>' +
+      '<div class="sp-sale-info"><div class="sp-sale-amt"' + amtStyle + '>' + fmtAmt(e.amount) + retTag + giveTag + owedTag + groupTag + bonusTag + '</div>' +
       '<div class="sp-sale-meta">' + meta + '</div></div>' +
       '<div style="display:flex;gap:6px;flex-shrink:0">' +
       (canEdit && !e.isGroup ? '<button class="sp-sale-edit btn-icon" data-sale-id="' + safeId + '" title="' + (lang==='el'?'Επεξεργασία':'Edit') + '" style="width:30px;height:30px;font-size:14px" onclick="event.stopPropagation()">✏️</button>' : '') +
@@ -17961,6 +18817,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mixed-payment controls: one template, mounted into both static dialogs.
   _splitMount('sale', 'saleSplitWrap');
   _splitMount('saleEdit', 'saleEditSplitWrap');
+  _owedMount('sale', 'saleOwedWrap');
+  _owedMount('saleEdit', 'saleEditOwedWrap');
   _jpInitBackGuard();
   _requestPersistentStorage();
 });
@@ -29584,10 +30442,14 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.77', date: 'Αύγουστος 2026', items: [
-        "⚖️ ΟΜΟΙΟ ΚΟΜΜΑΤΙ ΜΕ ΑΛΛΟ ΒΑΡΟΣ — ΠΛΗΡΩΝΕΙ ΜΟΝΟ ΤΟ ΕΠΙΠΛΕΟΝ ΜΕΤΑΛΛΟ: στις κατηγορίες «ανά τεμάχιο», ένα βαρύτερο όμοιο κομμάτι έπαιρνε ολόκληρη την τιμή πολλαπλασιασμένη με το βάρος (6,20γρ €65 → 8,30γρ €80,17, ενώ τα 2,10γρ ασήμι είναι μόνο €3,50). Τώρα παίρνει την τιμή του πρώτου συν το δικό του μέταλλο: €68,50.",
-        "💶 Η οθόνη «Προσθήκη όμοιων ειδών» δείχνει την τιμή ΠΡΙΝ προσθέσετε: «€68,50 = €65,00 + €3,50 μέταλλο».",
-        "🔗 Οι κατηγορίες «ανά γραμμάριο» δεν αλλάζουν καθόλου — εκεί η χρέωση ΕΙΝΑΙ ανά γραμμάριο. Ίδιο βάρος = ακριβώς όπως πριν.",
+      { version: 'v12.78', date: 'Αύγουστος 2026', items: [
+        "🕐 ΠΟΥΛΑΤΕ ΤΩΡΑ, ΠΛΗΡΩΝΕΣΤΕ ΑΡΓΟΤΕΡΑ: όταν καταχωρείτε μια πώληση μπορείτε πλέον να δηλώσετε πόσα ΔΕΝ έχουν πληρωθεί ακόμα και μέχρι πότε. Η πώληση ολοκληρώνεται κανονικά — τα κομμάτια φεύγουν από το απόθεμα και το κέρδος καταγράφεται την ημέρα που έφυγαν — αλλά τα χρήματα μένουν καταγεγραμμένα ως οφειλή.",
+        "📋 Μια κόκκινη μπάρα στην κορυφή των Πωλήσεων δείχνει κάθε εκκρεμή οφειλή από ΟΠΟΙΑΔΗΠΟΤΕ ημερομηνία (όχι μόνο από τη μέρα που βλέπετε), και η καρτέλα Πωλήσεις έχει μετρητή ώστε να το βλέπετε από παντού. Και τα δύο εξαφανίζονται μόλις δεν οφείλεται τίποτα.",
+        "💰 Πατήστε μια οφειλή για να καταγράψετε πληρωμή — ολόκληρη ή μέρος της, σε μετρητά, με κάρτα ή τραπεζικά. Μια πώληση με πολλά είδη εξοφλείται με μία κίνηση και μοιράζεται αυτόματα στα κομμάτια της.",
+        "🔔 Αν περάσει η ημερομηνία που συμφωνήθηκε, η οφειλή γίνεται κόκκινη και έρχεται ειδοποίηση.",
+        "↩️ Η επιστροφή κομματιού που δεν είχε πληρωθεί ΑΚΥΡΩΝΕΙ ΤΗΝ ΟΦΕΙΛΗ αντί να επιστρέφει χρήματα — και δεν εκδίδει πίστωση για χρήματα που δεν εισπράξατε ποτέ.",
+        "🚫 Αν ο πελάτης δεν πληρώσει ποτέ, η «Διαγραφή οφειλής» καταγράφει τη ζημιά στα σημερινά κέρδη χωρίς να πειράξει την αρχική πώληση.",
+        "🔒 Μια πώληση με οφειλή απαιτεί πάντα όνομα πελάτη — μια οφειλή δεν μένει ανώνυμη.",
       ]},
       ]
   },
@@ -29618,10 +30480,14 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.77', date: 'Aug 2026', items: [
-        "⚖️ A SIMILAR ITEM OF A DIFFERENT WEIGHT NOW PAYS ONLY FOR ITS EXTRA METAL: on \"per item\" categories a heavier twin had its whole price scaled by weight (6.20g €65 → 8.30g €80.17, when the extra 2.10g of silver is only €3.50). It now takes the first piece's price plus its own metal: €68.50.",
-        "💶 The \"Add similar items\" screen shows the price BEFORE you add: \"€68.50 = €65.00 + €3.50 metal\".",
-        "🔗 Per-gram categories are completely unchanged — there the charge IS per gram. Same weight = exactly as before.",
+      { version: 'v12.78', date: 'Aug 2026', items: [
+        "🕐 SELL NOW, GET PAID LATER: when you record a sale you can now say how much of it has NOT been paid yet, and by when. The sale is complete — the pieces leave stock and the profit is booked on the day they left — but the money stays on the books as owed.",
+        "📋 A red bar at the top of Sales shows every outstanding debt from ANY date (not just the day you are looking at), and the Sales tab carries a count so you see it from anywhere in the app. Both disappear the moment nothing is owed.",
+        "💰 Tap a debt to record a payment — the whole amount or part of it, in cash, by card or by bank. A multi-item sale is settled in one go and split back across its pieces automatically.",
+        "🔔 If a debt passes the date that was agreed, it turns red and raises a notification.",
+        "↩️ Returning a piece that was never paid for cancels the DEBT instead of handing money back — and issues no store credit for money you never received.",
+        "🚫 If a customer never pays, \"Write off the debt\" books the loss against today's profit without touching the original sale.",
+        "🔒 A sale on credit always needs a customer name — a debt is never anonymous.",
       ]},
           ]
   }
@@ -34415,7 +35281,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.77';
+const APP_VERSION = '12.78';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -35248,7 +36114,10 @@ async function notifCheckAndUpdateBadge() {
     // expiries are GREEN and badge Desk (see _gcUpdateBadges). The bell shows
     // the total and takes its colour from what's in it — red as soon as a
     // message is waiting, since a person expecting a reply outranks a date.
-    const msgCount = _all.filter(n => n && n.kind !== 'gift_expiry').length;
+    // A debt reminder is not an employee message either — it badges the SALES
+    // tab (_owedUpdateNavBadge), so counting it here would put a red message
+    // badge on Stock for something that has nothing to do with stock.
+    const msgCount = _all.filter(n => n && n.kind !== 'gift_expiry' && n.kind !== 'debt_overdue').length;
     // Nav tab badge — messages only
     const badge = document.getElementById('navNotifBadge');
     if (badge) {
@@ -35332,6 +36201,28 @@ function openNotifPanel() {
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
               <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${dt}</div>
               <button onclick="_gcOpenFromNotif('${n.giftCardId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(46,158,99,0.25),rgba(46,158,99,0.1));border:1px solid rgba(46,158,99,0.45);border-radius:8px;color:#7fd6b0;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
+            </div>
+          </div>`;
+        }
+        // Money a customer owes, past the date it was promised. Red, because it
+        // is late — unlike the green "expiring soon" card above it.
+        if (n.kind === 'debt_overdue') {
+          const _isEl = lang === 'el';
+          const _cur = state.currency || '€';
+          return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid rgba(231,76,60,0.45);border-radius:12px;padding:14px;margin-bottom:10px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
+              <div>
+                <div style="font-family:var(--font-mono);font-size:12px;color:var(--debt);font-weight:600">🕐 ${_cur}${(parseFloat(n.owed) || 0).toFixed(2)}</div>
+                <div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-top:2px">${_gcEsc(n.customer || '')}</div>
+              </div>
+              <button onclick="notifDismissOne('${id}')" style="flex-shrink:0;background:transparent;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">✕</button>
+            </div>
+            <div style="background:rgba(231,76,60,0.1);border-left:3px solid #e74c3c;border-radius:0 6px 6px 0;padding:8px 10px;font-family:var(--font-body);font-size:13px;color:var(--text);margin-bottom:10px;line-height:1.5">${_isEl
+              ? `Η πληρωμή είχε συμφωνηθεί για ${fmtDate(n.due)} και δεν έχει εισπραχθεί.`
+              : `Payment was due on ${fmtDate(n.due)} and has not been received.`}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${dt}</div>
+              <button onclick="_owedOpenFromNotif('${n.saleId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(231,76,60,0.25),rgba(231,76,60,0.1));border:1px solid rgba(231,76,60,0.45);border-radius:8px;color:var(--debt);font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
             </div>
           </div>`;
         }
