@@ -8612,6 +8612,7 @@ function openRepairDetail(id) {
     </div>
     ${r.notes ? `<div style="font-size:12px;color:var(--text-muted);margin:0 0 10px;padding:9px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;white-space:pre-wrap;line-height:1.5">${_repEsc(r.notes)}</div>` : ''}
     ${_ordPiecesBlock(r)}
+    ${_ordMaterialsBlock(r)}
     ${_isQ ? `<button onclick="_repairQuoteOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:12px;background:rgba(201,160,224,0.12);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✏️ ${isEl ? 'Τιμή & στοιχεία προσφοράς' : 'Edit the quote'}</button>` : ''}
     ${notifyRow}
     <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${_isQ ? (isEl ? 'Προσφορά (εκτύπωση / αποστολή)' : 'Quote (print / share)') : repIsOrder(r) ? (isEl ? 'Παραγγελία (εκτύπωση / αποστολή)' : 'Order form (print / share)') : (isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)')}</button>
@@ -8975,6 +8976,12 @@ function _repairCollectOpen(id) {
   const r = getRepairs().find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el';
   const suggested = (parseFloat(r.estHigh) || parseFloat(r.estLow) || 0);
+  // Stock that went into the job. Its cost is added automatically, so the Cost box asks
+  // only for what you paid on top (the goldsmith, a stone you bought in) — nothing to
+  // work out in your head, and the pendant's own cost can never be forgotten.
+  const _mcost = _ordMaterialsCost(r);
+  const _repEx = (r.extraCost != null) ? parseFloat(r.extraCost)
+    : (!_mcost.lines.length && r.finalCost != null) ? parseFloat(r.finalCost) : null;
   document.getElementById('repCollectOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'repCollectOverlay';
@@ -8987,10 +8994,22 @@ function _repairCollectOpen(id) {
         <input id="repFinalPrice" type="number" step="0.01" inputmode="decimal" oninput="_repUpdateGiftDisplay()" value="${suggested > 0 ? suggested.toFixed(2) : ''}" style="${_resInp}">
       </div>
       <div style="flex:1 1 0;min-width:0">
-        <div style="${_resLbl}">${isEl ? 'Κόστος' : 'Cost'} (€)</div>
-        <input id="repFinalCost" type="number" step="0.01" inputmode="decimal" value="${r.finalCost != null ? parseFloat(r.finalCost).toFixed(2) : ''}" placeholder="${isEl ? 'π.χ. 10' : 'e.g. 10'}" style="${_resInp}">
+        <div style="${_resLbl}">${_mcost.lines.length ? (isEl ? 'Δικό σας κόστος' : 'Your cost') : (isEl ? 'Κόστος' : 'Cost')} (€)</div>
+        <input id="repFinalCost" type="number" step="0.01" inputmode="decimal" oninput="_repUpdateCostTotal()" value="${_repEx != null ? _repEx.toFixed(2) : ''}" placeholder="${isEl ? 'π.χ. 10' : 'e.g. 10'}" style="${_resInp}">
       </div>
     </div>
+    ${_mcost.lines.length ? `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span style="color:var(--text-muted)">🧩 ${isEl ? `Υλικά από το απόθεμα (${_mcost.lines.length})` : `Materials from stock (${_mcost.lines.length})`}</span>
+        <span style="color:var(--gold-light);font-family:var(--font-mono)">${state.currency || '€'}${_mcost.total.toFixed(2)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:5px">${_mcost.lines.map(l => _ordEsc(_ordPieceLine(l.item)) + (l.mat.bulk ? ` · ${(parseFloat(l.mat.grams) || 0).toFixed(1)}g` : '') + (l.cost == null ? ' · ' + (isEl ? 'άγνωστο κόστος' : 'cost unknown') : '')).join('<br>')}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${isEl ? 'Φεύγουν από το απόθεμα με την παραλαβή.' : 'They leave stock when you collect.'}</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;padding-top:8px;border-top:1px solid var(--card-border)">
+        <span style="color:var(--text-muted)">${isEl ? 'Συνολικό κόστος' : 'Total cost'}</span>
+        <span id="repCostTotal" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
+      </div>
+    </div>` : ''}
     <div style="margin-bottom:12px">${_cashToggleHtml('repCollectCashToggle')}</div>
     <!-- A €2000 order is exactly the kind that gets settled part cash, part
          card, so it takes the same split as a sale. -->
@@ -9022,7 +9041,17 @@ function _repairCollectOpen(id) {
   // must never be inherited from the previous ticket.
   _splitMount('repCollect', 'repCollectSplitWrap');
   ov.dataset.log = '1';  // default: log as income
+  ov.dataset.mat = String(_mcost.total);
   window._repGiftCard = null; // never inherit a certificate from a previous ticket
+  _repUpdateCostTotal();
+}
+// Materials + what you typed. Read from the overlay so the figure shown and the figure
+// booked are the same number.
+function _repUpdateCostTotal() {
+  const el = document.getElementById('repCostTotal'); if (!el) return;
+  const mat = parseFloat(document.getElementById('repCollectOverlay')?.dataset.mat) || 0;
+  const typed = parseFloat(document.getElementById('repFinalCost')?.value) || 0;
+  el.textContent = (state.currency || '€') + (mat + typed).toFixed(2);
 }
 function _repCollectToggleLog() {
   const ov = document.getElementById('repCollectOverlay'); if (!ov) return;
@@ -9038,17 +9067,29 @@ async function _repairCollectConfirm(id) {
   const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
   const ov = document.getElementById('repCollectOverlay');
   const price = parseFloat(document.getElementById('repFinalPrice')?.value) || 0;
-  const cost = parseFloat(document.getElementById('repFinalCost')?.value) || 0;
+  const typedCost = parseFloat(document.getElementById('repFinalCost')?.value) || 0;
+  // Recomputed here rather than read off the screen, so a stale dialog cannot book a
+  // cost the materials never had.
+  const _mcost = _ordMaterialsCost(r);
+  const cost = parseFloat((typedCost + _mcost.total).toFixed(2));
   const cashSale = _isCashBtn('repCollectCashToggle');
   // Read before the overlay is removed below.
   const splitCash = _splitValue('repCollect');
   const logIt = ov?.dataset.log === '1';
   r.status = 'collected'; r.dateCollected = Date.now();
   r.finalPrice = price > 0 ? parseFloat(price.toFixed(2)) : null;
-  r.finalCost = cost > 0 ? parseFloat(cost.toFixed(2)) : null;
+  r.finalCost = cost > 0 ? cost : null;
+  r.extraCost = typedCost > 0 ? parseFloat(typedCost.toFixed(2)) : null;
+  r.materialsCost = _mcost.total > 0 ? _mcost.total : null;
   r.cashSale = cashSale;
   saveRepairsLocal(list); pushRepairsToCloud(list);
   ov?.remove();
+  // The stock that went into the job leaves now. Each write is checked; anything that
+  // failed is named rather than quietly left in stock.
+  if ((r.materials || []).length) {
+    const _cm = await _ordConsumeMaterials(r);
+    if (_cm.failed) showToast('⚠️ ' + (isEl ? `${_cm.failed} υλικά δεν ενημερώθηκαν — δείτε το απόθεμα` : `${_cm.failed} material(s) not updated — check Stock`));
+  }
   // Gift certificate (custom orders only) — re-derived from the card, not the
   // on-screen figure, so a stale dialog can't overdraw it.
   const _rgSel = window._repGiftCard || null;
@@ -9328,25 +9369,170 @@ function _ordPiecesBlock(r) {
   </div>`;
 }
 
-// A ticket holds its linked pieces while it is live. Derived from the ticket record —
-// there is deliberately NO second flag on the item to lose (item.reservationId belongs
-// to reservations and is left alone), so cancelling or collecting releases by itself.
-// invId -> live order ticket, for a whole-inventory pass.
+// ── MATERIALS: stock that goes INTO the job (v12.80) ─────────────────────────
+// The opposite of a product, and the difference is what happens at collection.
+// A PRODUCT arrives from a vendor and is sold as it is. A MATERIAL is already yours
+// and is CONSUMED — the pendant a customer asks you to turn into a ring, or a length
+// off a by-the-gram chain. It is held exactly like a product (🔒, off the showroom,
+// refused for sale), but collecting does not sell it: it leaves stock and its cost
+// becomes part of what the job cost you, which is what makes the profit true.
+//
+// Stored as {invId, grams, bulk, done} — a RECORD ID, never a code string, because a
+// code is a description and several pieces may legitimately share one. Materials are
+// allowed on EVERY ticket kind: a repair on the customer's own necklace may still take
+// 3g of your chain, and that metal is a real cost of the job.
+function _ordMaterialEntries(r) {
+  const out = [];
+  for (const mt of ((r && r.materials) || [])) {
+    const it = (mt && mt.invId) ? (_inventoryCache || {})[mt.invId] : null;
+    if (it) out.push([mt.invId, it, mt]);
+  }
+  return out;
+}
+
+// What the materials cost you. Every line goes through the SAME single source of truth
+// the sale path uses — _invSaleCost (an other-type piece keeps its cost in the QR, so
+// purchaseCost||baseCost would report €0, v12.45) and _bulkSoldCost for grams off a
+// batch — so a job's cost can never disagree with what that same piece would have cost
+// had it been sold on its own. A line whose cost cannot be worked out (no spot price)
+// is counted as UNKNOWN and said so, never silently as zero.
+function _ordMaterialsCost(r) {
+  let total = 0, unknown = 0;
+  const lines = [];
+  for (const [id, it, mt] of _ordMaterialEntries(r)) {
+    let c = null;
+    try { c = mt.bulk ? _bulkSoldCost(it, parseFloat(mt.grams) || 0) : _invSaleCost(it); } catch (e) { c = null; }
+    const ok = (c != null && isFinite(c) && c > 0);
+    if (ok) total += c; else unknown++;
+    lines.push({ id: id, item: it, mat: mt, cost: ok ? parseFloat(c.toFixed(2)) : null });
+  }
+  return { total: parseFloat(total.toFixed(2)), unknown: unknown, lines: lines };
+}
+
+// Grams of a by-the-gram batch promised to live tickets — shown on the batch card so
+// the last of a chain is not sold out from under a job already under way.
+function _ordBulkPromised(batchId) {
+  let g = 0;
+  for (const r of getRepairs()) {
+    if (!_ordLive(r)) continue;
+    for (const mt of (r.materials || [])) {
+      if (mt && mt.bulk && !mt.done && mt.invId === batchId) g += parseFloat(mt.grams) || 0;
+    }
+  }
+  return parseFloat(g.toFixed(2));
+}
+
+// Take the materials out of stock. Called once, at collection, from BOTH collect paths.
+// Each write is checked and rolled back on failure (v11.62) — an unchecked failure here
+// does not look like an error, it looks like success. `done` makes it idempotent, which
+// matters most for a bulk deduction: subtracting the same grams twice is unrecoverable.
+async function _ordConsumeMaterials(r) {
+  const out = { ok: 0, failed: 0 };
+  if (!r || !(r.materials || []).length) return out;
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  for (const mt of (r.materials || [])) {
+    if (!mt || !mt.invId || mt.done) continue;
+    const it = (_inventoryCache || {})[mt.invId]; if (!it) continue;
+    const snap = JSON.parse(JSON.stringify(it));
+    if (mt.bulk) {
+      const g = parseFloat(mt.grams) || 0;
+      if (!(g > 0) || !it.isBulk) continue;
+      it.weight = parseFloat(Math.max(0, (parseFloat(it.weight) || 0) - g).toFixed(2));
+    } else {
+      if (it.status !== 'in_stock') continue;      // already gone — never take it twice
+      it.status = 'sold';
+      it.dateSold = Date.now();
+      it.usedInOrder = r.id;                        // so its card says where it went
+    }
+    _inventoryCache[mt.invId] = it;
+    let ok = false;
+    try { ok = await saveInventoryItem(mt.invId, it); } catch (e) { ok = false; }
+    if (ok) { mt.done = true; out.ok++; }
+    else { _inventoryCache[mt.invId] = snap; out.failed++; }
+  }
+  if (out.ok) { const list = getRepairs(); saveRepairsLocal(list); pushRepairsToCloud(list); }
+  return out;
+}
+
+// The block in the ticket detail. Shown for every kind of live ticket except a quote —
+// nothing is committed until the customer has, so a quote holds no stock.
+function _ordMaterialsBlock(r) {
+  if (!r || _repIsQuote(r)) return '';
+  const isEl = lang === 'el';
+  const live = _ordLive(r);
+  const rows = _ordMaterialEntries(r);
+  if (!rows.length && !live) return '';
+  const seeCost = can('see_cost');
+  const mc = _ordMaterialsCost(r);
+  const cur = state.currency || '€';
+  const list = rows.map(([id, it, mt]) => {
+    const line = mc.lines.find(l => l.id === id && l.mat === mt);
+    const used = mt.done;
+    return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+      <span style="flex:1;min-width:0;font-size:12px;color:${used ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${mt.bulk ? ` · <b>${(parseFloat(mt.grams) || 0).toFixed(1)}g</b>` : ''}${used ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
+      ${seeCost ? `<span style="flex:0 0 auto;font-size:11px;font-family:var(--font-mono);color:var(--text-dim)">${line && line.cost != null ? cur + line.cost.toFixed(2) : '—'}</span>` : ''}
+      ${live && !used ? `<button onclick="_ordUnlinkMaterial('${r.id}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>` : ''}
+    </div>`;
+  }).join('');
+  const totalRow = (seeCost && rows.length) ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:6px;padding-top:6px;border-top:1px solid var(--card-border)">
+      <span style="color:var(--text-muted)">${isEl ? 'Κόστος υλικών' : 'Materials cost'}</span>
+      <span style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700">${cur}${mc.total.toFixed(2)}</span>
+    </div>` : '';
+  return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+    <div style="${_resLbl};margin-top:0">🧩 ${rows.length ? (isEl ? `Υλικά από το απόθεμα (${rows.length})` : `Materials from stock (${rows.length})`) : (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock')}</div>
+    ${list || `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια ή αλυσίδα που μπαίνουν σε αυτή τη δουλειά. Κρατούνται για τον πελάτη και το κόστος τους μπαίνει στην παραλαβή.' : 'Your own pieces or chain that go into this job. They are held for the customer and their cost is added at collection.'}</div>`}
+    ${totalRow}
+    ${live ? `<button onclick="openOrderAddPieces('${r.id}','material')" style="width:100%;margin-top:8px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">🧩 ${rows.length ? (isEl ? 'Προσθήκη κι άλλων' : 'Add more') : (isEl ? 'Προσθήκη από το απόθεμα' : 'Add from stock')}</button>` : ''}
+  </div>`;
+}
+
+// The line the Stock card shows for a piece tied to a job: grams promised off a batch,
+// or where a consumed piece went (so a sold piece with no sale record never looks like
+// a bug — and never offers the "restore to stock?" prompt meant for a lost sale).
+function _ordMaterialCardLine(id, item) {
+  const isEl = lang === 'el';
+  if (item && item.usedInOrder) {
+    const r = getRepairs().find(x => x.id === item.usedInOrder);
+    if (!r) return '';
+    return `<div onclick="event.stopPropagation();openRepairDetail('${r.id}')" style="font-size:11px;color:var(--gold-light);font-family:'DM Mono',monospace;margin-bottom:4px;cursor:pointer">🧩 ${isEl ? 'Χρησιμοποιήθηκε' : 'Used in'} ${repNoFmt(r)}${r.clientName ? ' · ' + _ordEsc(r.clientName) : ''}</div>`;
+  }
+  if (!item || !item.isBulk || item.status !== 'in_stock') return '';
+  const g = _ordBulkPromised(id);
+  if (!(g > 0)) return '';
+  return `<div style="font-size:11px;color:var(--gold-light);font-family:'DM Mono',monospace;margin-bottom:4px">🔒 ${g.toFixed(1)}g ${isEl ? 'δεσμευμένα σε δουλειά' : 'promised to a job'}</div>`;
+}
+
+// A ticket holds its stock while it is live. Derived from the ticket record — there is
+// deliberately NO second flag on the item to lose (item.reservationId belongs to
+// reservations and is left alone), so cancelling or collecting releases by itself.
+function _ordLive(r) { return !!r && (r.status === 'in_progress' || r.status === 'ready'); }
+// The ids a ticket holds: the products it is waiting for (orders only) and the materials
+// taken out of stock for it (any kind). A by-the-gram batch is a QUANTITY, not a piece,
+// so it is never held — its grams show as promised on the card and come off at
+// collection; holding the whole batch would block selling a chain you still have.
+function _ordHeldIds(r) {
+  const out = [];
+  if (repIsOrder(r)) for (const id of (r.invIds || [])) if (id) out.push(id);
+  for (const mt of (r.materials || [])) if (mt && mt.invId && !mt.bulk && !mt.done) out.push(mt.invId);
+  return out;
+}
+// invId -> live ticket, for a whole-inventory pass.
 function _ordActiveByItem() {
   const m = new Map();
   for (const r of getRepairs()) {
-    if (!r || !repIsOrder(r)) continue;
-    if (r.status !== 'in_progress' && r.status !== 'ready') continue;
-    for (const id of (r.invIds || [])) if (id && !m.has(id)) m.set(id, r);
+    if (!_ordLive(r)) continue;
+    for (const id of _ordHeldIds(r)) if (!m.has(id)) m.set(id, r);
   }
   return m;
 }
 function _ordHoldFor(id) {
   if (!id) return null;
   for (const r of getRepairs()) {
-    if (!r || !repIsOrder(r)) continue;
-    if (r.status !== 'in_progress' && r.status !== 'ready') continue;
-    if ((r.invIds || []).indexOf(id) !== -1) return r;
+    if (!_ordLive(r)) continue;
+    if (_ordHeldIds(r).indexOf(id) !== -1) return r;
   }
   return null;
 }
@@ -9359,7 +9545,10 @@ function _holdFor(id) {
   const r = (typeof _resHoldFor === 'function') ? _resHoldFor(id) : null;
   if (r) return { kind: 'res', id: r.id, clientName: r.clientName || '', no: resNoFmt(r) };
   const t = _ordHoldFor(id);
-  if (t) return { kind: 'order', id: t.id, clientName: t.clientName || '', no: repNoFmt(t) };
+  // `kind` says which sheet opens it; `openLabel` says what to CALL it — a repair
+  // holding a material is not an order, and the button must not say it is.
+  if (t) return { kind: 'order', id: t.id, clientName: t.clientName || '', no: repNoFmt(t),
+    openLabel: (lang === 'el' ? 'Άνοιγμα · ' : 'Open ') + repTypeLabel(t) };
   return null;
 }
 function _holdOpen(h) {
@@ -9376,16 +9565,18 @@ let _ordAdd = { ticketId: null, stream: null, interval: null, scanning: false, p
 let _ordAddSeq = 0;
 function _ordEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-async function openOrderAddPieces(ticketId) {
+async function openOrderAddPieces(ticketId, mode) {
   const r = getRepairs().find(x => x.id === ticketId); if (!r) return;
   const isEl = lang === 'el';
+  // 'material' = stock going INTO the job; 'product' = pieces that arrived to be sold.
+  const _mat = (mode === 'material');
   // The sheet resolves scans against the stock, so it must be loaded — opening straight
   // from Desk without ever visiting Stock would otherwise make every scan "not found".
   if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
     try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
   closeOrderAddPieces();
-  _ordAdd = { ticketId, stream: null, interval: null, scanning: false, paused: false, session: ++_ordAddSeq };
+  _ordAdd = { ticketId, mode: _mat ? 'material' : 'product', stream: null, interval: null, scanning: false, paused: false, session: ++_ordAddSeq };
   const ov = document.createElement('div');
   ov.id = 'ordAddOverlay';
   // Top-anchored: there is a field to type into (the v11.53 rule).
@@ -9395,29 +9586,35 @@ async function openOrderAddPieces(ticketId) {
     <div style="background:var(--dark-2);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
         <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">📥 ${isEl ? 'Σύνδεση κομματιών' : 'Link the pieces'}</div>
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">${_mat ? '🧩 ' + (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock') : '📥 ' + (isEl ? 'Σύνδεση κομματιών' : 'Link the pieces')}</div>
           <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:2px">${repNoFmt(r)} · ${_ordEsc(r.clientName || '')}</div>
         </div>
         <button onclick="closeOrderAddPieces(true)" class="modal-x">✕</button>
       </div>
-      <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin:8px 0 12px">${isEl ? 'Προσθέστε πρώτα τα κομμάτια στο απόθεμα ως συνήθως, μετά σαρώστε την ετικέτα του καθενός εδώ. Θα κρατηθούν για τον πελάτη μέχρι την παραλαβή.' : 'Add the pieces to stock as usual first, then scan each new tag here. They will be held for the customer until collection.'}</div>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin:8px 0 12px">${_mat
+        ? (isEl ? 'Σαρώστε την ετικέτα ή αναζητήστε το κομμάτι. Κρατείται για τον πελάτη· στην παραλαβή φεύγει από το απόθεμα και το κόστος του μπαίνει στη δουλειά. Για αλυσίδα με το γραμμάριο θα ζητηθούν τα γραμμάρια.' : 'Scan the tag or search for the piece. It is held for the customer; at collection it leaves stock and its cost is added to the job. A by-the-gram chain will ask you how many grams.')
+        : (isEl ? 'Προσθέστε πρώτα τα κομμάτια στο απόθεμα ως συνήθως, μετά σαρώστε την ετικέτα του καθενός εδώ. Θα κρατηθούν για τον πελάτη μέχρι την παραλαβή.' : 'Add the pieces to stock as usual first, then scan each new tag here. They will be held for the customer until collection.')}</div>
       <div id="ordAddVideoWrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px">
         <video id="ordAddVideo" playsinline muted style="width:100%;display:block;max-height:38vh;object-fit:cover"></video>
       </div>
       <div id="ordAddStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:10px;min-height:15px"></div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <input id="ordAddManual" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
-          placeholder="${isEl ? 'π.χ. RG0110' : 'e.g. RG0110'}"
-          style="flex:1;min-width:0;padding:11px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:var(--font-mono);font-size:14px;letter-spacing:0.08em;box-sizing:border-box">
-        <button onclick="_ordAddManualSubmit()" style="flex:0 0 auto;background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:10px;padding:0 16px;font-size:14px;font-weight:700;cursor:pointer">➕</button>
+        <input id="ordAddManual" type="text" autocomplete="off" autocapitalize="${_mat ? 'none' : 'characters'}" spellcheck="false"
+          ${_mat ? 'oninput="_ordAddSearchRender()"' : ''}
+          placeholder="${_mat ? (isEl ? 'Κωδικός ή περιγραφή…' : 'Code or description…') : (isEl ? 'π.χ. RG0110' : 'e.g. RG0110')}"
+          style="flex:1;min-width:0;padding:11px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:var(--font-mono);font-size:14px;letter-spacing:${_mat ? '0.02em' : '0.08em'};box-sizing:border-box">
+        ${_mat ? '' : `<button onclick="_ordAddManualSubmit()" style="flex:0 0 auto;background:rgba(201,168,76,0.16);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:10px;padding:0 16px;font-size:14px;font-weight:700;cursor:pointer">➕</button>`}
       </div>
+      <div id="ordAddSearch"></div>
       <div id="ordAddFeedback" style="font-size:12px;line-height:1.5;min-height:18px;margin-bottom:8px"></div>
       <div id="ordAddList"></div>
       <button onclick="closeOrderAddPieces(true)" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:10px;padding:13px;color:var(--ink);font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${isEl ? 'Τέλος' : 'Done'}</button>
     </div>`;
   document.body.appendChild(ov);
   const mi = document.getElementById('ordAddManual');
-  if (mi) mi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); _ordAddManualSubmit(); } });
+  // In material mode the field is a SEARCH box, not a code box: you tap a result. A code
+  // typed into it appears among the results anyway, so there is nothing to submit.
+  if (mi && !_mat) mi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); _ordAddManualSubmit(); } });
   _ordAddRenderList();
   const status = document.getElementById('ordAddStatus');
   if (canDecodeQr()) {
@@ -9426,7 +9623,8 @@ async function openOrderAddPieces(ticketId) {
     _ordAddStartCamera();
   } else {
     // iOS/Safari cannot decode a QR, and a laptop has no tag to point at anyway.
-    if (status) status.textContent = isEl ? 'Πληκτρολογήστε τον κωδικό αναφοράς' : 'Type the reference code';
+    if (status) status.textContent = _mat ? (isEl ? 'Αναζητήστε το κομμάτι' : 'Search for the piece')
+      : (isEl ? 'Πληκτρολογήστε τον κωδικό αναφοράς' : 'Type the reference code');
     setTimeout(() => { try { mi.focus(); } catch (e) {} }, 200);
   }
 }
@@ -9492,6 +9690,7 @@ function _ordAddSay(html, color) {
 // from a broken scanner, and this one writes to a customer's order.
 async function _ordAddOnCode(raw) {
   const tid = _ordAdd.ticketId; if (!tid) return;
+  if (_ordAdd.mode === 'material') return _ordAddMaterialCode(raw);
   const isEl = lang === 'el';
   const list = getRepairs(); const r = list.find(x => x.id === tid); if (!r) return;
   const res = resolveCodeToInvEntry(raw);
@@ -9534,6 +9733,158 @@ async function _ordAddOnCode(raw) {
   if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
 }
 
+// A scanned tag, in material mode. Same rule as the product branch: every outcome is
+// NAMED — a scan that silently does nothing is indistinguishable from a broken scanner.
+async function _ordAddMaterialCode(raw) {
+  const tid = _ordAdd.ticketId; if (!tid) return;
+  const isEl = lang === 'el';
+  const r = getRepairs().find(x => x.id === tid); if (!r) return;
+  const res = resolveCodeToInvEntry(raw);
+  const code = _ordEsc(res.code);
+  const buzz = p => { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} };
+  if (!res.matches.length) {
+    _ordAddSay('⚠️ ' + (isEl ? `Δεν βρέθηκε κομμάτι με κωδικό <b>${code}</b>` : `No piece found for <b>${code}</b>`), '#e57373');
+    buzz([60, 40, 60]); return;
+  }
+  // A code may name several pieces (identical grouped pieces, a coin batch). Take one
+  // that is on the shelf and not already committed somewhere.
+  const linked = new Set(((r.materials || []).map(m => m.invId)));
+  let pick = null, sawSold = false, sawLinked = false, blockedBy = null, sawMetal = false;
+  for (const [id, it] of res.matches) {
+    if (linked.has(id)) { sawLinked = true; continue; }
+    if (it.isMetal) { sawMetal = true; continue; }
+    if (it.status !== 'in_stock') { sawSold = true; continue; }
+    if (!it.isBulk) { const h = _holdFor(id); if (h) { blockedBy = h; continue; } }
+    pick = [id, it]; break;
+  }
+  if (!pick) {
+    if (sawLinked) _ordAddSay('ℹ️ ' + (isEl ? `Το <b>${code}</b> είναι ήδη σε αυτή τη δουλειά` : `<b>${code}</b> is already on this job`), 'var(--text-muted)');
+    // Raw metal has its own "− Remove" action on the lot, which keeps the pile's average
+    // fineness right; taking grams from here would quietly get that wrong.
+    else if (sawMetal) _ordAddSay('⚠️ ' + (isEl ? 'Το ακατέργαστο μέταλλο αφαιρείται από την ίδια την παρτίδα (− Αφαίρεση)' : 'Raw metal is taken off the lot itself (− Remove)'), '#e57373');
+    else if (blockedBy) _ordAddSay('⚠️ ' + (isEl ? `Το <b>${code}</b> είναι κρατημένο${blockedBy.clientName ? ' για ' + _ordEsc(blockedBy.clientName) : ''} (${blockedBy.no})` : `<b>${code}</b> is held${blockedBy.clientName ? ' for ' + _ordEsc(blockedBy.clientName) : ''} (${blockedBy.no})`), '#e57373');
+    else if (sawSold) _ordAddSay('⚠️ ' + (isEl ? `Το <b>${code}</b> δεν είναι στο απόθεμα` : `<b>${code}</b> is not in stock`), '#e57373');
+    else _ordAddSay('⚠️ ' + (isEl ? 'Δεν μπορεί να προστεθεί' : 'Cannot be added'), '#e57373');
+    buzz([60, 40, 60]); return;
+  }
+  if (pick[1].isBulk) { _ordGramsAsk(pick[0]); return; }
+  _ordMaterialAdd(pick[0], null);
+}
+
+// Search the stock by code or description — the way a chain batch is found, since its
+// tag is not something you scan at the counter.
+function _ordAddSearchRender() {
+  if (_ordAdd.mode !== 'material') return;
+  const box = document.getElementById('ordAddSearch'); if (!box) return;
+  const q = (document.getElementById('ordAddManual')?.value || '').trim().toLowerCase();
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  const r = getRepairs().find(x => x.id === _ordAdd.ticketId);
+  const linked = new Set((((r && r.materials) || []).map(m => m.invId)));
+  const terms = q.split(/[\s,]+/).filter(Boolean);
+  const isEl = lang === 'el';
+  const rows = [];
+  for (const [id, it] of Object.entries(_inventoryCache || {})) {
+    if (!it || it.status !== 'in_stock' || it.isMetal) continue;
+    if (linked.has(id)) continue;
+    if (!it.isBulk && _holdFor(id)) continue;          // promised elsewhere
+    const hay = [it.seqId ? itemRefCode(it) : '', it.qrCode || '', _itemDesc(it) || '',
+      it.jewelryType ? invTypeLabel(it.jewelryType) : '', it.vendorName || ''].join(' ').toLowerCase();
+    if (!terms.every(tm => hay.indexOf(tm) !== -1)) continue;
+    rows.push([id, it]);
+    if (rows.length >= 12) break;
+  }
+  if (!rows.length) { box.innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${isEl ? 'Κανένα κομμάτι' : 'No match'}</div>`; return; }
+  box.innerHTML = rows.map(([id, it]) => `
+    <div onclick="_ordMaterialPick('${id}')" style="display:flex;align-items:center;gap:9px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;margin-bottom:6px;cursor:pointer">
+      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+      <span style="flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${it.isBulk ? ` · <b style="color:var(--gold-light)">${(parseFloat(it.weight) || 0).toFixed(1)}g</b>` : ''}</span>
+      <span style="flex:0 0 auto;color:var(--gold-light);font-size:15px">＋</span>
+    </div>`).join('');
+}
+
+// Tapped a search result: a batch asks for grams first, a piece goes straight on.
+function _ordMaterialPick(invId) {
+  const it = (_inventoryCache || {})[invId]; if (!it) return;
+  if (it.isBulk) { _ordGramsAsk(invId); return; }
+  _ordMaterialAdd(invId, null);
+}
+
+function _ordMaterialAdd(invId, grams) {
+  const list = getRepairs(); const r = list.find(x => x.id === _ordAdd.ticketId); if (!r) return false;
+  const it = (_inventoryCache || {})[invId]; if (!it) return false;
+  const entry = (grams != null)
+    ? { invId: invId, grams: parseFloat(parseFloat(grams).toFixed(2)), bulk: true }
+    : { invId: invId };
+  r.materials = (r.materials || []).concat([entry]);
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)) + (grams != null ? ` · ${parseFloat(grams).toFixed(1)}g` : ''), '#7fd6b0');
+  try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
+  const mi = document.getElementById('ordAddManual'); if (mi) mi.value = '';
+  _ordAddSearchRender();
+  _ordAddRenderList();
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+  return true;
+}
+
+// How much of a by-the-gram batch goes into the job. Asked when it is added (not at
+// collection) so the card can warn that the chain is spoken for.
+function _ordGramsAsk(invId) {
+  const it = (_inventoryCache || {})[invId]; if (!it) return;
+  const isEl = lang === 'el';
+  const have = parseFloat(it.weight) || 0;
+  const promised = _ordBulkPromised(invId);
+  const free = parseFloat(Math.max(0, have - promised).toFixed(2));
+  document.getElementById('ordGramsOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'ordGramsOverlay';
+  // Top-anchored, above the add sheet: there is a field to type into (the v11.53 rule).
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding:16px;padding-top:calc(env(safe-area-inset-top,0px) + 16px);overflow-y:auto';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:360px">
+    <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);margin-bottom:4px">${isEl ? 'Πόσα γραμμάρια;' : 'How many grams?'}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${_ordEsc(_ordPieceLine(it))}</div>
+    <div style="${_resLbl}">${isEl ? 'Γραμμάρια για αυτή τη δουλειά' : 'Grams for this job'}</div>
+    <input id="ordGramsInput" type="number" step="0.01" inputmode="decimal" style="${_resInp}">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${isEl ? 'Διαθέσιμα' : 'Available'}: <b style="color:var(--gold-light)">${free.toFixed(1)}g</b>${promised > 0 ? ` (${have.toFixed(1)}g ${isEl ? 'σύνολο, ' : 'total, '}${promised.toFixed(1)}g ${isEl ? 'δεσμευμένα' : 'promised'})` : ''}</div>
+    <div id="ordGramsStatus" style="font-size:12px;color:#e57373;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('ordGramsOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+      <button onclick="_ordGramsConfirm('${invId}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">${isEl ? 'Προσθήκη' : 'Add'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const gi = document.getElementById('ordGramsInput');
+  if (gi) {
+    gi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); _ordGramsConfirm(invId); } });
+    setTimeout(() => { try { gi.focus(); } catch (e) {} }, 120);
+  }
+}
+
+function _ordGramsConfirm(invId) {
+  const isEl = lang === 'el';
+  const it = (_inventoryCache || {})[invId]; if (!it) return;
+  const st = document.getElementById('ordGramsStatus');
+  const g = parseFloat(document.getElementById('ordGramsInput')?.value) || 0;
+  const free = parseFloat(Math.max(0, (parseFloat(it.weight) || 0) - _ordBulkPromised(invId)).toFixed(2));
+  if (!(g > 0)) { if (st) st.textContent = isEl ? '⚠️ Βάλτε γραμμάρια' : '⚠️ Enter the grams'; return; }
+  if (g > free + 0.001) { if (st) st.textContent = (isEl ? '⚠️ Η παρτίδα έχει μόνο ' : '⚠️ The batch only has ') + free.toFixed(1) + 'g'; return; }
+  document.getElementById('ordGramsOverlay')?.remove();
+  _ordMaterialAdd(invId, g);
+}
+
+function _ordUnlinkMaterial(ticketId, invId) {
+  const list = getRepairs(); const r = list.find(x => x.id === ticketId); if (!r) return;
+  let dropped = false;
+  r.materials = (r.materials || []).filter(m => {
+    if (!dropped && m && m.invId === invId && !m.done) { dropped = true; return false; }
+    return true;
+  });
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  if (document.getElementById('ordAddOverlay')) { _ordAddRenderList(); _ordAddSearchRender(); }
+  if (document.getElementById('repairDetailOverlay')) openRepairDetail(ticketId);
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+}
+
 function _ordPieceLine(it) {
   const bits = [];
   if (it.seqId) bits.push(itemRefCode(it));
@@ -9546,8 +9897,19 @@ function _ordPieceLine(it) {
 function _ordAddRenderList() {
   const box = document.getElementById('ordAddList'); if (!box) return;
   const r = getRepairs().find(x => x.id === _ordAdd.ticketId);
-  const rows = _ordLinkedEntries(r);
   const isEl = lang === 'el';
+  if (_ordAdd.mode === 'material') {
+    const mats = _ordMaterialEntries(r);
+    if (!mats.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div style="${_resLbl}">${isEl ? `Υλικά (${mats.length})` : `Materials (${mats.length})`}</div>` + mats.map(([id, it, mt]) => `
+      <div style="display:flex;align-items:center;gap:9px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;margin-bottom:6px">
+        ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+        <span style="flex:1;min-width:0;font-size:12px;color:${mt.done ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${mt.bulk ? ` · <b style="color:var(--gold-light)">${(parseFloat(mt.grams) || 0).toFixed(1)}g</b>` : ''}${mt.done ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
+        ${mt.done ? '' : `<button onclick="_ordUnlinkMaterial('${_ordAdd.ticketId}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1">✕</button>`}
+      </div>`).join('');
+    return;
+  }
+  const rows = _ordLinkedEntries(r);
   if (!rows.length) { box.innerHTML = ''; return; }
   box.innerHTML = `<div style="${_resLbl}">${isEl ? `Συνδεδεμένα (${rows.length})` : `Linked (${rows.length})`}</div>` + rows.map(([id, it]) => {
     const sold = it.status === 'sold';
@@ -9625,12 +9987,30 @@ async function _ordCompleteSale(id) {
 
 // Called from confirmSale once the sale is recorded. Books NO income of its own — the
 // sale records already carry the money; doing both would count the order twice.
-async function _ordFinalizeCollect(tid, total) {
+async function _ordFinalizeCollect(tid, total, firstRec) {
   const list = getRepairs(); const r = list.find(x => x.id === tid); if (!r) return;
+  const _mcost = _ordMaterialsCost(r);      // measured before the stock is taken out
   r.status = 'collected';
   r.dateCollected = Date.now();
   if (parseFloat(total) > 0) r.finalPrice = parseFloat(parseFloat(total).toFixed(2));
+  if (_mcost.total > 0) r.materialsCost = _mcost.total;
   saveRepairsLocal(list); pushRepairsToCloud(list);
+  if ((r.materials || []).length) {
+    const _cm = await _ordConsumeMaterials(r);
+    if (_cm.failed) showToast('⚠️ ' + (lang === 'el' ? `${_cm.failed} υλικά δεν ενημερώθηκαν — δείτε το απόθεμα` : `${_cm.failed} material(s) not updated — check Stock`));
+  }
+  // The sale records carry the money, but stock you put INTO the job is a real cost of
+  // it — left off, the profit reads high by exactly what that stock was worth. It goes
+  // onto the first record of the transaction, and the profit is re-derived through
+  // _saleExVat, the one place that knows the cash / receipt / certificate rule.
+  if (_mcost.total > 0 && firstRec) {
+    try {
+      firstRec.cost = parseFloat(((parseFloat(firstRec.cost) || 0) + _mcost.total).toFixed(2));
+      firstRec.profit = parseFloat((_saleExVat(firstRec, parseFloat(state.vat) || 0) - firstRec.cost).toFixed(2));
+      localStorage.setItem('jpro_sales', JSON.stringify(_salesCache));
+      await pushSalesToCloud(_salesCache);
+    } catch (e) {}
+  }
   if (document.getElementById('panel-desk')?.classList.contains('active')) renderRepairs();
 }
 
@@ -16081,7 +16461,7 @@ async function confirmSale() {
   // here — these sale records ARE the money; _recordRepairIncome must not also run.
   if (window._completingOrderTicketId) {
     const _tid = window._completingOrderTicketId; window._completingOrderTicketId = null;
-    try { await _ordFinalizeCollect(_tid, amt); } catch (e) {}
+    try { await _ordFinalizeCollect(_tid, amt, _firstSaleRec); } catch (e) {}
   }
 }
 
@@ -25458,7 +25838,9 @@ function renderInvList() {
       </div>` : isSold ? `
       <div class="inv-card-actions">
         ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light)" onclick="invRestock('${id}')">${t('invRestock')}</button>`}
-        <button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}','${id}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>
+        ${item.usedInOrder
+          ? `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="openRepairDetail('${item.usedInOrder}')">🧩 ${lang==='el'?'Δες Δουλειά':'View Job'}</button>`
+          : `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}','${id}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>`}
       </div>` : `
       <div class="inv-card-actions">
         <button class="inv-action-btn inv-action-sell" onclick="invMarkSold('${id}')">${t('invMarkSold')}</button>
@@ -25491,6 +25873,7 @@ function renderInvList() {
         ${item.isCoin ? coinPriceHtml : (_isEmpInv ? '' : `<div class="inv-card-price">${priceStr}</div>`)}
         ${appreciationHtml}
         ${_consignCardLine(id, item)}
+        ${_ordMaterialCardLine(id, item)}
         ${actionsHtml}
       </div>`;
   };
@@ -28193,7 +28576,7 @@ async function invMarkSold(id) {
       (lang === 'el' ? `Αυτό το είδος είναι κρατημένο${_who ? ' για ' + _who : ''} (${_r.no}). Άνοιγμα για ολοκλήρωση;` : `This item is held${_who ? ' for ' + _who : ''} (${_r.no}). Open it to complete the sale?`),
       () => { if (_r) _holdOpen(_r); },
       () => openSaleModalFromInventory(id),
-      { okLabel: (lang === 'el' ? (_r.kind === 'order' ? 'Άνοιγμα παραγγελίας' : 'Άνοιγμα κράτησης') : (_r.kind === 'order' ? 'Open the order' : 'Open reservation')), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
+      { okLabel: _r.openLabel || (lang === 'el' ? 'Άνοιγμα κράτησης' : 'Open reservation'), cancelLabel: (lang === 'el' ? 'Πώληση ούτως ή άλλως' : 'Sell anyway') }
     );
     return;
   }
@@ -30514,11 +30897,13 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.79', date: 'Αύγουστος 2026', items: [
-        "🏷️ ΤΙΜΗ ΚΑΤΑΛΟΓΟΥ ΣΤΙΣ ΛΕΠΤΟΜΕΡΕΙΕΣ ΠΩΛΗΣΗΣ: ανοίγοντας μια πώληση βλέπετε πλέον για πόσα ήταν το κόσμημα στο απόθεμα και πόση έκπτωση δώσατε — π.χ. «Τιμή Καταλόγου €811.91 · Έκπτωση −€121.91 (−15.0%)» — ακριβώς πάνω από το ποσό χωρίς ΦΠΑ.",
-        "🛍 Σε πώληση με πολλά είδη εμφανίζεται το άθροισμα των τιμών καταλόγου και η συνολική έκπτωση.",
-        "📌 Η τιμή γράφεται πάνω στην πώληση τη στιγμή που γίνεται και ΚΛΕΙΔΩΝΕΙ εκεί — μένει η πραγματική τιμή εκείνης της ημέρας ακόμα κι όταν αλλάξει η τιμή του χρυσού, και δεν αλλάζει ούτε αν διορθώσετε την πώληση αργότερα.",
-        "ℹ️ Στις πωλήσεις που έγιναν πριν από αυτή την έκδοση δεν εμφανίζεται τιμή καταλόγου: δεν είχε καταγραφεί τότε, και μια τιμή υπολογισμένη με τον σημερινό χρυσό θα έδειχνε έκπτωση που δεν δώσατε ποτέ.",
+      { version: 'v12.80', date: 'Αύγουστος 2026', items: [
+        "🧩 ΥΛΙΚΑ ΑΠΟ ΤΟ ΑΠΟΘΕΜΑ ΣΕ ΜΙΑ ΔΟΥΛΕΙΑ: όταν ένας πελάτης σας ζητά να μετατρέψετε ένα δικό σας κόσμημα (π.χ. ένα μενταγιόν σε δαχτυλίδι), ανοίγετε την παραγγελία και πατάτε «🧩 Προσθήκη από το απόθεμα» — σαρώνετε την ετικέτα ή αναζητάτε το κομμάτι.",
+        "🔒 Από εκείνη τη στιγμή το κομμάτι είναι ΚΡΑΤΗΜΕΝΟ: δείχνει 🔒 στο απόθεμα, φεύγει από τη βιτρίνα και δεν μπορεί να πουληθεί κατά λάθος. Αν ακυρώσετε την παραγγελία, ελευθερώνεται μόνο του.",
+        "⛓️ Λειτουργεί και με αλυσίδα με το γραμμάριο: δηλώνετε πόσα γραμμάρια θα μπουν, η κάρτα της παρτίδας γράφει «δεσμευμένα σε δουλειά» ώστε να μην πουλήσετε τα τελευταία γραμμάρια, και αφαιρούνται στην παραλαβή.",
+        "💶 Στην παραλαβή το κόστος των υλικών μπαίνει ΑΥΤΟΜΑΤΑ στο κόστος της δουλειάς: «Υλικά €X + Δικό σας κόστος ___ = Συνολικό κόστος», ώστε το κέρδος να είναι σωστό χωρίς υπολογισμούς.",
+        "📦 Με την παραλαβή τα υλικά φεύγουν από το απόθεμα και η κάρτα τους γράφει σε ποια δουλειά χρησιμοποιήθηκαν.",
+        "🔧 Ισχύει και για επισκευές — αν βάλετε 3 γραμμάρια δική σας αλυσίδα σε μια επισκευή, μετράει κι αυτό στο κόστος.",
       ]},
       ]
   },
@@ -30549,11 +30934,13 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.79', date: 'Aug 2026', items: [
-        "🏷️ LIST PRICE IN THE SALE DETAILS: open a sale and you now see what the piece was on the shelf for and how much discount you gave — e.g. \"List Price €811.91 · Discount −€121.91 (−15.0%)\" — right above the amount excluding VAT.",
-        "🛍 On a multi-item sale it shows the pieces' list prices summed, and the discount on the whole transaction.",
-        "📌 The price is written onto the sale as it is recorded and LOCKED there — it stays the real price of that day even after the gold price moves, and it does not change if you correct the sale later.",
-        "ℹ️ Sales made before this version show no list price: it was never recorded at the time, and a figure worked out at today's gold price would report a discount you never gave.",
+      { version: 'v12.80', date: 'Aug 2026', items: [
+        "🧩 MATERIALS FROM STOCK ON A JOB: when a customer asks you to turn a piece of your own stock into something else (a pendant into a ring), open the order and press \"🧩 Add from stock\" — scan the tag or search for the piece.",
+        "🔒 From that moment it is HELD: 🔒 on the Stock card, off the public showroom, and it cannot be sold by mistake. Cancel the order and it is released by itself.",
+        "⛓️ By-the-gram chains too: you say how many grams go in, the batch card reads \"promised to a job\" so you do not sell the last of it, and the grams come off at collection.",
+        "💶 At collection the materials' cost is added to the job AUTOMATICALLY: \"Materials €X + Your cost ___ = Total cost\", so the profit is right with nothing to work out.",
+        "📦 Collecting takes the materials out of stock, and their card says which job they went into.",
+        "🔧 Repairs too — 3 grams of your own chain used on a repair is a real cost, and now it counts.",
       ]},
           ]
   }
@@ -35347,7 +35734,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.79';
+const APP_VERSION = '12.80';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
