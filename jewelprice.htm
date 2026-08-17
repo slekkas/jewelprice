@@ -11707,52 +11707,28 @@ function _saleExVatRaw(s, vat) {
 }
 function _saleExVat(s, vat) { return parseFloat(_saleExVatRaw(s, vat).toFixed(2)); }
 
-// The piece a sale record is about. The exact record id first — a code is a
-// description and several pieces can legitimately share one. Falling back to the
-// code, a SOLD match outranks an in-stock twin: this record is about a piece that
-// left the shop, the opposite of the shelf rule a scan follows.
-function _saleItemOf(s) {
-  if (!s || !_inventoryCache) return null;
-  if (s.invId && _inventoryCache[s.invId]) return _inventoryCache[s.invId];
-  const qr = _qrKey(s.invQr);
-  if (!qr) return null;
-  const ms = Object.values(_inventoryCache).filter(it => it.qrCode && _qrKey(it.qrCode) === qr);
-  return ms.find(it => it.status === 'sold') || ms[0] || null;
-}
-
-// What the piece was on the shelf for — the figure the Stock card shows — so the
-// sale detail can say how much came off it. Two sources, in order:
-//   1. `listPrice`, stored on the record at sale time. Exact: it is the price
-//      that was actually on the card the day the customer paid.
-//   2. the linked piece, priced NOW. Every sale written before this existed has
-//      no stored figure, and a retail price floats with the metal price — so this
-//      is flagged `live` and labelled as today's price, never passed off as the
-//      historical one.
-// A bulk chain is skipped: the batch's retail covers its whole remaining weight,
-// not the grams that were sold, so it would name a number that means nothing here.
+// What the piece was on the shelf for, so the sale detail can say how much came
+// off it. ONE source: `listPrice`, stamped on the record at sale time — the price
+// that was actually on the card the day the customer paid, frozen there for good.
+//
+// There is deliberately NO fallback to pricing the linked piece now. A retail
+// figure floats with the metal price, so a derived one would keep moving after the
+// piece had left the shop and quietly report a discount that was never given.
+// Sales recorded before this existed simply show no list price: it was never
+// written down, and the app keeps no gold-price history to reconstruct it from.
 function _saleListPrice(s) {
-  if (!s) return null;
-  const stored = parseFloat(s.listPrice);
-  if (stored > 0) return { price: stored, live: false };
-  if (s.bulkInvId) return null;
-  const item = _saleItemOf(s);
-  if (!item || item.isBulk) return null;
-  try {
-    const p = calcInvItemPrice(item);
-    if (p && p.retail > 0) return { price: parseFloat(p.retail.toFixed(2)), live: true };
-  } catch (e) {}
-  return null;
+  const stored = s ? parseFloat(s.listPrice) : NaN;
+  return stored > 0 ? stored : null;
 }
 
 // The "List Price / Discount" rows for the sale detail, drawn through the caller's
 // own row builder so the single and the transaction view can never look different.
-// Silent on a return (its amount is a negative mirror) and on a giveaway (nothing
-// was paid, so "100% discount" would be nonsense), and on a premium — a live figure
-// above the sale price is gold-price drift, not a markup the owner gave.
-function _saleListPriceRows(listPrice, live, amount, cur, mkRow) {
+// Silent on a return (its amount is a negative mirror), on a giveaway (nothing was
+// paid, so "100% discount" would be nonsense), and on a premium — a sale above the
+// asking price is a rounding, not a markup worth its own row.
+function _saleListPriceRows(listPrice, amount, cur, mkRow) {
   if (!(listPrice > 0)) return;
-  mkRow(t('rListPrice') + (live ? (lang === 'el' ? ' (σήμερα)' : ' (today)') : ''),
-        cur + listPrice.toFixed(2));
+  mkRow(t('rListPrice'), cur + listPrice.toFixed(2));
   const disc = parseFloat((listPrice - (parseFloat(amount) || 0)).toFixed(2));
   if (disc > 0.01) {
     const pct = (disc / listPrice * 100).toFixed(1);
@@ -12289,6 +12265,10 @@ async function processReturn(origId, opts) {
   // as a second copy of the same money.
   delete rec.owedAmt; delete rec.owedOrig; delete rec.owedDue;
   delete rec.owedLog; delete rec.owedWarned; delete rec.owedWrittenOff;
+  // Same reason: the asking price belongs to the sale, not to its reversal. The
+  // detail sheet already stays silent on a return, but an inherited figure here
+  // would be a second copy of it on a record that never asked anything.
+  delete rec.listPrice;
 
   // ── Store credit ──
   // A sale part-paid by a certificate can only refund THAT portion as credit —
@@ -14546,16 +14526,12 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   };
   if (isOwnerMgr) {
     // What the pieces were on the shelf for, summed — but ONLY when every line
-    // yields one. A partial sum would look like the transaction's asking price and
+    // carries one. A partial sum would look like the transaction's asking price and
     // silently under-state it, which is worse than saying nothing.
     if (!s.isReturn) {
-      if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
-        try { const _d = await loadInventory(); if (!_invLoadFailed) _inventoryCache = _d; } catch (e) {}
-      }
       const _lps = members.map(m => (m.giveaway ? null : _saleListPrice(m)));
       if (_lps.every(Boolean)) {
-        _saleListPriceRows(parseFloat(_lps.reduce((a, x) => a + x.price, 0).toFixed(2)),
-                           _lps.some(x => x.live), total, cur, mkRow);
+        _saleListPriceRows(parseFloat(_lps.reduce((a, x) => a + x, 0).toFixed(2)), total, cur, mkRow);
       }
     }
     const amtExVat = members.reduce((a, x) => a + _saleExVat(x, vat), 0);
@@ -14778,15 +14754,7 @@ async function showSaleDetail(id, forceSingle) {
     // What the piece was on the shelf for, and what came off it — the first thing
     // you want when you open a sale you have just made.
     if (!s.isReturn && !s.giveaway) {
-      // The stock has to be loaded before the piece can be priced, and this runs
-      // before the item lookup further down. A failed load keeps whatever cache we
-      // already had — never replace it with the empty object loadInventory returns
-      // on failure, or the rest of the sheet loses the piece too (v11.74).
-      if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
-        try { const _d = await loadInventory(); if (!_invLoadFailed) _inventoryCache = _d; } catch (e) {}
-      }
-      const _lp = _saleListPrice(s);
-      if (_lp) _saleListPriceRows(_lp.price, _lp.live, s.amount, cur, mkRow);
+      _saleListPriceRows(_saleListPrice(s), s.amount, cur, mkRow);
     }
     // Mirror addSaleRecord's portion split, or the ex-VAT shown here would
     // contradict the profit stored on a certificate-part-paid sale.
@@ -30549,7 +30517,8 @@ const ABOUT = {
       { version: 'v12.79', date: 'Αύγουστος 2026', items: [
         "🏷️ ΤΙΜΗ ΚΑΤΑΛΟΓΟΥ ΣΤΙΣ ΛΕΠΤΟΜΕΡΕΙΕΣ ΠΩΛΗΣΗΣ: ανοίγοντας μια πώληση βλέπετε πλέον για πόσα ήταν το κόσμημα στο απόθεμα και πόση έκπτωση δώσατε — π.χ. «Τιμή Καταλόγου €811.91 · Έκπτωση −€121.91 (−15.0%)» — ακριβώς πάνω από το ποσό χωρίς ΦΠΑ.",
         "🛍 Σε πώληση με πολλά είδη εμφανίζεται το άθροισμα των τιμών καταλόγου και η συνολική έκπτωση.",
-        "📌 Η τιμή καταλόγου αποθηκεύεται πλέον πάνω στην πώληση τη στιγμή που γίνεται, ώστε να μένει η πραγματική τιμή της ημέρας ακόμα κι όταν αλλάξει η τιμή του χρυσού. Στις παλιότερες πωλήσεις υπολογίζεται από το κομμάτι και γράφει «(σήμερα)», για να ξέρετε ότι είναι η σημερινή τιμή.",
+        "📌 Η τιμή γράφεται πάνω στην πώληση τη στιγμή που γίνεται και ΚΛΕΙΔΩΝΕΙ εκεί — μένει η πραγματική τιμή εκείνης της ημέρας ακόμα κι όταν αλλάξει η τιμή του χρυσού, και δεν αλλάζει ούτε αν διορθώσετε την πώληση αργότερα.",
+        "ℹ️ Στις πωλήσεις που έγιναν πριν από αυτή την έκδοση δεν εμφανίζεται τιμή καταλόγου: δεν είχε καταγραφεί τότε, και μια τιμή υπολογισμένη με τον σημερινό χρυσό θα έδειχνε έκπτωση που δεν δώσατε ποτέ.",
       ]},
       ]
   },
@@ -30583,7 +30552,8 @@ const ABOUT = {
       { version: 'v12.79', date: 'Aug 2026', items: [
         "🏷️ LIST PRICE IN THE SALE DETAILS: open a sale and you now see what the piece was on the shelf for and how much discount you gave — e.g. \"List Price €811.91 · Discount −€121.91 (−15.0%)\" — right above the amount excluding VAT.",
         "🛍 On a multi-item sale it shows the pieces' list prices summed, and the discount on the whole transaction.",
-        "📌 The list price is now stored on the sale as it is recorded, so it stays the real price of that day even after the gold price moves. Older sales work it out from the piece and say \"(today)\", so you know it is today's figure.",
+        "📌 The price is written onto the sale as it is recorded and LOCKED there — it stays the real price of that day even after the gold price moves, and it does not change if you correct the sale later.",
+        "ℹ️ Sales made before this version show no list price: it was never recorded at the time, and a figure worked out at today's gold price would report a discount you never gave.",
       ]},
           ]
   }
