@@ -9004,7 +9004,11 @@ function _repairCollectOpen(id) {
         <span style="color:var(--gold-light);font-family:var(--font-mono)">${state.currency || '€'}${_mcost.total.toFixed(2)}</span>
       </div>
       <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:5px">${_mcost.lines.map(l => _ordEsc(_ordPieceLine(l.item)) + (l.mat.bulk ? ` · ${(parseFloat(l.mat.grams) || 0).toFixed(1)}g` : '') + (l.cost == null ? ' · ' + (isEl ? 'άγνωστο κόστος' : 'cost unknown') : '')).join('<br>')}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${isEl ? 'Φεύγουν από το απόθεμα με την παραλαβή.' : 'They leave stock when you collect.'}</div>
+      ${_mcost.retail > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px solid var(--card-border)">
+        <span style="color:var(--text-dim)">${isEl ? 'Θα πουλιόνταν προς' : 'Would have sold for'}</span>
+        <span style="color:var(--text-dim);font-family:var(--font-mono)">${state.currency || '€'}${_mcost.retail.toFixed(2)}</span>
+      </div>` : ''}
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${isEl ? 'Φεύγουν από το απόθεμα με την παραλαβή. Το κόστος είναι αυτό που σας κόστισαν — το κέρδος σας από αυτά μένει στα βιβλία.' : 'They leave stock when you collect. The cost is what they cost YOU, so the margin you had on them stays in your books.'}</div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;padding-top:8px;border-top:1px solid var(--card-border)">
         <span style="color:var(--text-muted)">${isEl ? 'Συνολικό κόστος' : 'Total cost'}</span>
         <span id="repCostTotal" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
@@ -9396,17 +9400,30 @@ function _ordMaterialEntries(r) {
 // batch — so a job's cost can never disagree with what that same piece would have cost
 // had it been sold on its own. A line whose cost cannot be worked out (no spot price)
 // is counted as UNKNOWN and said so, never silently as zero.
+// It also reports what the same stock would have SOLD for (`retail`). That is NOT the
+// cost and is never booked as one — costing the pendant at its selling price would
+// quietly delete the margin you had already earned on it from your books. It is shown
+// beside the cost so the price of the job can be judged against the sale given up.
+// A cut of chain is priced per gram exactly as the bulk-sell modal prices it.
 function _ordMaterialsCost(r) {
-  let total = 0, unknown = 0;
+  let total = 0, unknown = 0, retail = 0;
   const lines = [];
   for (const [id, it, mt] of _ordMaterialEntries(r)) {
-    let c = null;
+    let c = null, rt = null;
     try { c = mt.bulk ? _bulkSoldCost(it, parseFloat(mt.grams) || 0) : _invSaleCost(it); } catch (e) { c = null; }
+    try {
+      const p = calcInvItemPrice(it);
+      if (p && p.retail > 0) {
+        const w = parseFloat(it.weight) || 0;
+        rt = mt.bulk ? (w > 0 ? (p.retail / w) * (parseFloat(mt.grams) || 0) : null) : p.retail;
+      }
+    } catch (e) { rt = null; }
     const ok = (c != null && isFinite(c) && c > 0);
     if (ok) total += c; else unknown++;
-    lines.push({ id: id, item: it, mat: mt, cost: ok ? parseFloat(c.toFixed(2)) : null });
+    if (rt != null && isFinite(rt) && rt > 0) retail += rt; else rt = null;
+    lines.push({ id: id, item: it, mat: mt, cost: ok ? parseFloat(c.toFixed(2)) : null, retail: rt != null ? parseFloat(rt.toFixed(2)) : null });
   }
-  return { total: parseFloat(total.toFixed(2)), unknown: unknown, lines: lines };
+  return { total: parseFloat(total.toFixed(2)), retail: parseFloat(retail.toFixed(2)), unknown: unknown, lines: lines };
 }
 
 // Grams of a by-the-gram batch promised to live tickets — shown on the batch card so
@@ -9477,9 +9494,15 @@ function _ordMaterialsBlock(r) {
       ${live && !used ? `<button onclick="_ordUnlinkMaterial('${r.id}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>` : ''}
     </div>`;
   }).join('');
-  const totalRow = (seeCost && rows.length) ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:6px;padding-top:6px;border-top:1px solid var(--card-border)">
-      <span style="color:var(--text-muted)">${isEl ? 'Κόστος υλικών' : 'Materials cost'}</span>
-      <span style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700">${cur}${mc.total.toFixed(2)}</span>
+  const totalRow = (seeCost && rows.length) ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--card-border)">
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span style="color:var(--text-muted)">${isEl ? 'Κόστος υλικών' : 'Materials cost'}</span>
+        <span style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700">${cur}${mc.total.toFixed(2)}</span>
+      </div>
+      ${mc.retail > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px">
+        <span style="color:var(--text-dim)">${isEl ? 'Θα πουλιόνταν προς' : 'Would have sold for'}</span>
+        <span style="color:var(--text-dim);font-family:var(--font-mono)">${cur}${mc.retail.toFixed(2)}</span>
+      </div>` : ''}
     </div>` : '';
   return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
     <div style="${_resLbl};margin-top:0">🧩 ${rows.length ? (isEl ? `Υλικά από το απόθεμα (${rows.length})` : `Materials from stock (${rows.length})`) : (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock')}</div>
@@ -30897,13 +30920,14 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.80', date: 'Αύγουστος 2026', items: [
+      { version: 'v12.81', date: 'Αύγουστος 2026', items: [
         "🧩 ΥΛΙΚΑ ΑΠΟ ΤΟ ΑΠΟΘΕΜΑ ΣΕ ΜΙΑ ΔΟΥΛΕΙΑ: όταν ένας πελάτης σας ζητά να μετατρέψετε ένα δικό σας κόσμημα (π.χ. ένα μενταγιόν σε δαχτυλίδι), ανοίγετε την παραγγελία και πατάτε «🧩 Προσθήκη από το απόθεμα» — σαρώνετε την ετικέτα ή αναζητάτε το κομμάτι.",
         "🔒 Από εκείνη τη στιγμή το κομμάτι είναι ΚΡΑΤΗΜΕΝΟ: δείχνει 🔒 στο απόθεμα, φεύγει από τη βιτρίνα και δεν μπορεί να πουληθεί κατά λάθος. Αν ακυρώσετε την παραγγελία, ελευθερώνεται μόνο του.",
         "⛓️ Λειτουργεί και με αλυσίδα με το γραμμάριο: δηλώνετε πόσα γραμμάρια θα μπουν, η κάρτα της παρτίδας γράφει «δεσμευμένα σε δουλειά» ώστε να μην πουλήσετε τα τελευταία γραμμάρια, και αφαιρούνται στην παραλαβή.",
         "💶 Στην παραλαβή το κόστος των υλικών μπαίνει ΑΥΤΟΜΑΤΑ στο κόστος της δουλειάς: «Υλικά €X + Δικό σας κόστος ___ = Συνολικό κόστος», ώστε το κέρδος να είναι σωστό χωρίς υπολογισμούς.",
         "📦 Με την παραλαβή τα υλικά φεύγουν από το απόθεμα και η κάρτα τους γράφει σε ποια δουλειά χρησιμοποιήθηκαν.",
         "🔧 Ισχύει και για επισκευές — αν βάλετε 3 γραμμάρια δική σας αλυσίδα σε μια επισκευή, μετράει κι αυτό στο κόστος.",
+        "💰 Δίπλα στο κόστος γράφει και «Θα πουλιόνταν προς €X» — τι θα έπαιρνε το κομμάτι αν το πουλούσατε κανονικά, για να κρίνετε αν η τιμή της δουλειάς το καλύπτει. Στα βιβλία μπαίνει το πραγματικό κόστος, ώστε το κέρδος που είχατε ήδη πάνω στο κομμάτι να μη χαθεί.",
       ]},
       ]
   },
@@ -30934,13 +30958,14 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.80', date: 'Aug 2026', items: [
+      { version: 'v12.81', date: 'Aug 2026', items: [
         "🧩 MATERIALS FROM STOCK ON A JOB: when a customer asks you to turn a piece of your own stock into something else (a pendant into a ring), open the order and press \"🧩 Add from stock\" — scan the tag or search for the piece.",
         "🔒 From that moment it is HELD: 🔒 on the Stock card, off the public showroom, and it cannot be sold by mistake. Cancel the order and it is released by itself.",
         "⛓️ By-the-gram chains too: you say how many grams go in, the batch card reads \"promised to a job\" so you do not sell the last of it, and the grams come off at collection.",
         "💶 At collection the materials' cost is added to the job AUTOMATICALLY: \"Materials €X + Your cost ___ = Total cost\", so the profit is right with nothing to work out.",
         "📦 Collecting takes the materials out of stock, and their card says which job they went into.",
         "🔧 Repairs too — 3 grams of your own chain used on a repair is a real cost, and now it counts.",
+        "💰 Beside the cost it also shows \"Would have sold for €X\" — what the piece would have brought in if you had simply sold it, so you can judge whether the job's price covers it. The books still use the real cost, so the margin you had already earned on the piece is not lost.",
       ]},
           ]
   }
@@ -35734,7 +35759,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.80';
+const APP_VERSION = '12.81';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
