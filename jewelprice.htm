@@ -11707,6 +11707,61 @@ function _saleExVatRaw(s, vat) {
 }
 function _saleExVat(s, vat) { return parseFloat(_saleExVatRaw(s, vat).toFixed(2)); }
 
+// The piece a sale record is about. The exact record id first — a code is a
+// description and several pieces can legitimately share one. Falling back to the
+// code, a SOLD match outranks an in-stock twin: this record is about a piece that
+// left the shop, the opposite of the shelf rule a scan follows.
+function _saleItemOf(s) {
+  if (!s || !_inventoryCache) return null;
+  if (s.invId && _inventoryCache[s.invId]) return _inventoryCache[s.invId];
+  const qr = _qrKey(s.invQr);
+  if (!qr) return null;
+  const ms = Object.values(_inventoryCache).filter(it => it.qrCode && _qrKey(it.qrCode) === qr);
+  return ms.find(it => it.status === 'sold') || ms[0] || null;
+}
+
+// What the piece was on the shelf for — the figure the Stock card shows — so the
+// sale detail can say how much came off it. Two sources, in order:
+//   1. `listPrice`, stored on the record at sale time. Exact: it is the price
+//      that was actually on the card the day the customer paid.
+//   2. the linked piece, priced NOW. Every sale written before this existed has
+//      no stored figure, and a retail price floats with the metal price — so this
+//      is flagged `live` and labelled as today's price, never passed off as the
+//      historical one.
+// A bulk chain is skipped: the batch's retail covers its whole remaining weight,
+// not the grams that were sold, so it would name a number that means nothing here.
+function _saleListPrice(s) {
+  if (!s) return null;
+  const stored = parseFloat(s.listPrice);
+  if (stored > 0) return { price: stored, live: false };
+  if (s.bulkInvId) return null;
+  const item = _saleItemOf(s);
+  if (!item || item.isBulk) return null;
+  try {
+    const p = calcInvItemPrice(item);
+    if (p && p.retail > 0) return { price: parseFloat(p.retail.toFixed(2)), live: true };
+  } catch (e) {}
+  return null;
+}
+
+// The "List Price / Discount" rows for the sale detail, drawn through the caller's
+// own row builder so the single and the transaction view can never look different.
+// Silent on a return (its amount is a negative mirror) and on a giveaway (nothing
+// was paid, so "100% discount" would be nonsense), and on a premium — a live figure
+// above the sale price is gold-price drift, not a markup the owner gave.
+function _saleListPriceRows(listPrice, live, amount, cur, mkRow) {
+  if (!(listPrice > 0)) return;
+  mkRow(t('rListPrice') + (live ? (lang === 'el' ? ' (σήμερα)' : ' (today)') : ''),
+        cur + listPrice.toFixed(2));
+  const disc = parseFloat((listPrice - (parseFloat(amount) || 0)).toFixed(2));
+  if (disc > 0.01) {
+    const pct = (disc / listPrice * 100).toFixed(1);
+    // A theme token, not a literal — this box is read in both light and dark, and
+    // gold-light is what the Payment row above already uses for emphasis here.
+    mkRow(t('rDiscount'), '−' + cur + disc.toFixed(2) + ' (−' + pct + '%)', 'var(--gold-light)');
+  }
+}
+
 // Decide what a record should STORE for a payment that may be split.
 // `cashTyped` is null when no split is in use, in which case the plain cash
 // toggle decides as it always has. cashAmt is written ONLY when the sale is
@@ -14490,6 +14545,19 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     bk.appendChild(row);
   };
   if (isOwnerMgr) {
+    // What the pieces were on the shelf for, summed — but ONLY when every line
+    // yields one. A partial sum would look like the transaction's asking price and
+    // silently under-state it, which is worse than saying nothing.
+    if (!s.isReturn) {
+      if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+        try { const _d = await loadInventory(); if (!_invLoadFailed) _inventoryCache = _d; } catch (e) {}
+      }
+      const _lps = members.map(m => (m.giveaway ? null : _saleListPrice(m)));
+      if (_lps.every(Boolean)) {
+        _saleListPriceRows(parseFloat(_lps.reduce((a, x) => a + x.price, 0).toFixed(2)),
+                           _lps.some(x => x.live), total, cur, mkRow);
+      }
+    }
     const amtExVat = members.reduce((a, x) => a + _saleExVat(x, vat), 0);
     const vatAmt = parseFloat((total - amtExVat).toFixed(2));
     const anyCost = members.some(x => x.cost != null);
@@ -14707,6 +14775,19 @@ async function showSaleDetail(id, forceSingle) {
     bk.appendChild(row);
   };
   if (isOwnerMgr) {
+    // What the piece was on the shelf for, and what came off it — the first thing
+    // you want when you open a sale you have just made.
+    if (!s.isReturn && !s.giveaway) {
+      // The stock has to be loaded before the piece can be priced, and this runs
+      // before the item lookup further down. A failed load keeps whatever cache we
+      // already had — never replace it with the empty object loadInventory returns
+      // on failure, or the rest of the sheet loses the piece too (v11.74).
+      if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+        try { const _d = await loadInventory(); if (!_invLoadFailed) _inventoryCache = _d; } catch (e) {}
+      }
+      const _lp = _saleListPrice(s);
+      if (_lp) _saleListPriceRows(_lp.price, _lp.live, s.amount, cur, mkRow);
+    }
     // Mirror addSaleRecord's portion split, or the ex-VAT shown here would
     // contradict the profit stored on a certificate-part-paid sale.
     const amtExVat = _saleExVat(s, vat);
@@ -15801,6 +15882,20 @@ async function confirmSale() {
       _firstSaleRec.invId = _firstInvId || _scanInvId;
       _linkChanged = true;
     }
+    // The piece's own asking price, captured NOW. A retail figure floats with the
+    // metal price, so re-deriving it months later would name a number the customer
+    // was never quoted. Skipped for a bulk chain: the batch's retail is its whole
+    // remaining weight, not the grams that were sold.
+    if (!_firstBulkInfo) {
+      const _lpId = _firstInvId || _scanInvId;
+      const _lpItem = (_lpId && _inventoryCache) ? _inventoryCache[_lpId] : null;
+      if (_lpItem && !_lpItem.isBulk) {
+        try {
+          const _lpP = calcInvItemPrice(_lpItem);
+          if (_lpP && _lpP.retail > 0) { _firstSaleRec.listPrice = parseFloat(_lpP.retail.toFixed(2)); _linkChanged = true; }
+        } catch (e) {}
+      }
+    }
     if (_linkChanged) {
       const _bi = (_salesCache || []).findIndex(s => s.id === _firstSaleRec.id);
       if (_bi !== -1) { _salesCache[_bi] = _firstSaleRec; localStorage.setItem('jpro_sales', JSON.stringify(_salesCache)); await pushSalesToCloud(_salesCache); }
@@ -15969,7 +16064,16 @@ async function confirmSale() {
         // Link to the exact record so a later delete restores THIS piece (identical same-QR
         // group members are otherwise indistinguishable by QR alone). Persisted by the
         // shared-saleGroup push below (_stdRec lives in _salesCache).
-        if (_stdRec) { _stdRec.invId = id; _groupRecs.push(_stdRec); }
+        if (_stdRec) {
+          _stdRec.invId = id;
+          // Its own asking price, same reason as the first record above. Persisted
+          // by the shared-saleGroup push below (_stdRec lives in _salesCache).
+          try {
+            const _rp = calcInvItemPrice((_inventoryCache && _inventoryCache[id]) || item);
+            if (_rp && _rp.retail > 0) _stdRec.listPrice = parseFloat(_rp.retail.toFixed(2));
+          } catch (e) {}
+          _groupRecs.push(_stdRec);
+        }
       } catch(e) { console.warn('Multi-sale item error:', e); }
     }
     // Stamp every record of this transaction with the shared saleGroup id, then persist once
@@ -30442,14 +30546,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.78', date: 'Αύγουστος 2026', items: [
-        "🕐 ΠΟΥΛΑΤΕ ΤΩΡΑ, ΠΛΗΡΩΝΕΣΤΕ ΑΡΓΟΤΕΡΑ: όταν καταχωρείτε μια πώληση μπορείτε πλέον να δηλώσετε πόσα ΔΕΝ έχουν πληρωθεί ακόμα και μέχρι πότε. Η πώληση ολοκληρώνεται κανονικά — τα κομμάτια φεύγουν από το απόθεμα και το κέρδος καταγράφεται την ημέρα που έφυγαν — αλλά τα χρήματα μένουν καταγεγραμμένα ως οφειλή.",
-        "📋 Μια κόκκινη μπάρα στην κορυφή των Πωλήσεων δείχνει κάθε εκκρεμή οφειλή από ΟΠΟΙΑΔΗΠΟΤΕ ημερομηνία (όχι μόνο από τη μέρα που βλέπετε), και η καρτέλα Πωλήσεις έχει μετρητή ώστε να το βλέπετε από παντού. Και τα δύο εξαφανίζονται μόλις δεν οφείλεται τίποτα.",
-        "💰 Πατήστε μια οφειλή για να καταγράψετε πληρωμή — ολόκληρη ή μέρος της, σε μετρητά, με κάρτα ή τραπεζικά. Μια πώληση με πολλά είδη εξοφλείται με μία κίνηση και μοιράζεται αυτόματα στα κομμάτια της.",
-        "🔔 Αν περάσει η ημερομηνία που συμφωνήθηκε, η οφειλή γίνεται κόκκινη και έρχεται ειδοποίηση.",
-        "↩️ Η επιστροφή κομματιού που δεν είχε πληρωθεί ΑΚΥΡΩΝΕΙ ΤΗΝ ΟΦΕΙΛΗ αντί να επιστρέφει χρήματα — και δεν εκδίδει πίστωση για χρήματα που δεν εισπράξατε ποτέ.",
-        "🚫 Αν ο πελάτης δεν πληρώσει ποτέ, η «Διαγραφή οφειλής» καταγράφει τη ζημιά στα σημερινά κέρδη χωρίς να πειράξει την αρχική πώληση.",
-        "🔒 Μια πώληση με οφειλή απαιτεί πάντα όνομα πελάτη — μια οφειλή δεν μένει ανώνυμη.",
+      { version: 'v12.79', date: 'Αύγουστος 2026', items: [
+        "🏷️ ΤΙΜΗ ΚΑΤΑΛΟΓΟΥ ΣΤΙΣ ΛΕΠΤΟΜΕΡΕΙΕΣ ΠΩΛΗΣΗΣ: ανοίγοντας μια πώληση βλέπετε πλέον για πόσα ήταν το κόσμημα στο απόθεμα και πόση έκπτωση δώσατε — π.χ. «Τιμή Καταλόγου €811.91 · Έκπτωση −€121.91 (−15.0%)» — ακριβώς πάνω από το ποσό χωρίς ΦΠΑ.",
+        "🛍 Σε πώληση με πολλά είδη εμφανίζεται το άθροισμα των τιμών καταλόγου και η συνολική έκπτωση.",
+        "📌 Η τιμή καταλόγου αποθηκεύεται πλέον πάνω στην πώληση τη στιγμή που γίνεται, ώστε να μένει η πραγματική τιμή της ημέρας ακόμα κι όταν αλλάξει η τιμή του χρυσού. Στις παλιότερες πωλήσεις υπολογίζεται από το κομμάτι και γράφει «(σήμερα)», για να ξέρετε ότι είναι η σημερινή τιμή.",
       ]},
       ]
   },
@@ -30480,14 +30580,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.78', date: 'Aug 2026', items: [
-        "🕐 SELL NOW, GET PAID LATER: when you record a sale you can now say how much of it has NOT been paid yet, and by when. The sale is complete — the pieces leave stock and the profit is booked on the day they left — but the money stays on the books as owed.",
-        "📋 A red bar at the top of Sales shows every outstanding debt from ANY date (not just the day you are looking at), and the Sales tab carries a count so you see it from anywhere in the app. Both disappear the moment nothing is owed.",
-        "💰 Tap a debt to record a payment — the whole amount or part of it, in cash, by card or by bank. A multi-item sale is settled in one go and split back across its pieces automatically.",
-        "🔔 If a debt passes the date that was agreed, it turns red and raises a notification.",
-        "↩️ Returning a piece that was never paid for cancels the DEBT instead of handing money back — and issues no store credit for money you never received.",
-        "🚫 If a customer never pays, \"Write off the debt\" books the loss against today's profit without touching the original sale.",
-        "🔒 A sale on credit always needs a customer name — a debt is never anonymous.",
+      { version: 'v12.79', date: 'Aug 2026', items: [
+        "🏷️ LIST PRICE IN THE SALE DETAILS: open a sale and you now see what the piece was on the shelf for and how much discount you gave — e.g. \"List Price €811.91 · Discount −€121.91 (−15.0%)\" — right above the amount excluding VAT.",
+        "🛍 On a multi-item sale it shows the pieces' list prices summed, and the discount on the whole transaction.",
+        "📌 The list price is now stored on the sale as it is recorded, so it stays the real price of that day even after the gold price moves. Older sales work it out from the piece and say \"(today)\", so you know it is today's figure.",
       ]},
           ]
   }
@@ -35281,7 +35377,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.78';
+const APP_VERSION = '12.79';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
