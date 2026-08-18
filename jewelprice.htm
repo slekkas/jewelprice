@@ -30827,6 +30827,11 @@ function invAddSimilar(sourceId) {
   const _cats = _vendor ? getVendorCategories(_vendor) : [];
   const _catIdx = _vendor ? (source.catName ? _cats.findIndex(c => c.name === source.catName) : (source.catIdx ?? -1)) : -1;
   const _canRegenQR = source.metal !== 'other' && !!_vendor && _catIdx >= 0;
+  // An "other"-type piece (×multiplier fashion jewelry) has NO weight — its cost is
+  // encoded in the QR and its price never depends on grams. Asking for a weight here
+  // blocked the whole flow ("Enter a weight") for a piece that has none, so the field
+  // is not shown and not required; the clone inherits whatever the source stores.
+  const _isOtherSrc = source.metal === 'other';
   const _latinBase = _canRegenQR ? getLatinCodeForCat(_vendor, _catIdx, state.vendors) : '';
   const _existingQR = (source.qrCode || source.code || '');
   let _stoneSuffix = '';
@@ -30908,10 +30913,10 @@ function invAddSimilar(sourceId) {
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">🔗 ${lang==='el'?'Προσθήκη όμοιων ειδών':'Add similar items'}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">${summary}</div>
       <div id="invAddSimRefNote" style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:14px"></div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}${(parseFloat(source.weight)>0)?` <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδιο με ομάδα':'blank = same as group'}</span>`:''}</div>
+      ${_isOtherSrc ? '' : `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Βάρος (g)':'Weight (g)'}${(parseFloat(source.weight)>0)?` <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδιο με ομάδα':'blank = same as group'}</span>`:''}</div>
       <input id="invAddSimWeight" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${(parseFloat(source.weight)>0)?((lang==='el'?'ίδιο με ομάδα (':'same as group (')+parseFloat(source.weight)+'g)'):''}"
-        style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Ποσότητα (ίδιο βάρος)':'Quantity (same weight)'}</div>
+        style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">`}
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?(_isOtherSrc?'Ποσότητα':'Ποσότητα (ίδιο βάρος)'):(_isOtherSrc?'Quantity':'Quantity (same weight)')}</div>
       <input id="invAddSimQty" type="number" step="1" min="1" max="50" value="1" inputmode="numeric"
         style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:16px;margin-bottom:12px">
       ${_canSwapStone ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Πέτρα':'Stone'} <span style="color:var(--text-dim)">· ${lang==='el'?'αλλάζει τον κωδικό QR':'changes the QR code'}</span></div>
@@ -30923,6 +30928,11 @@ function invAddSimilar(sourceId) {
       <select id="invAddSimGoldColor" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${GOLD_COLORS.map(c => `<option value="${c.value}"${(source.goldColor||'gold')===c.value?' selected':''}>${lang==='el'?c.el:c.en}</option>`).join('')}</select>` : ''}
       ${source.metal === 'silver' ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Επιχρύσωση':'Plating'}</div>
       <select id="invAddSimPlating" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;margin-bottom:12px">${silverPlatingOptionsHtml(source.silverPlating)}</select>` : ''}
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('vendorCodeLabel')} <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = χωρίς κωδικό':'blank = none'}</span></div>
+      <input id="invAddSimVendorCode" type="text" autocomplete="off" autocorrect="off" spellcheck="false"
+        value="${(source.vendorCode || '').replace(/"/g, '&quot;')}" placeholder="${t('vendorCodePh')}"
+        oninput="this.value=this.value.toUpperCase()"
+        style="width:100%;box-sizing:border-box;padding:12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);color:var(--text);border-radius:8px;font-family:var(--font-mono);font-size:14px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='el'?'Φωτογραφία':'Photo'} <span style="color:var(--text-dim)">· ${lang==='el'?'κενό = ίδια με την ομάδα':'blank = same as group'}</span></div>
       <div id="invAddSimPhotoWrap" style="margin-bottom:12px"></div>
       <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
@@ -30953,7 +30963,7 @@ function invAddSimilar(sourceId) {
   // Effective weight for a new piece: the typed value, or — when the box is left
   // blank — the group's own weight (so identical pieces just need a quantity).
   const _effWeight = () => {
-    const w = parseFloat(wEl().value);
+    const w = parseFloat(wEl()?.value);
     return (!isNaN(w) && w > 0) ? w : parseFloat(source.weight);
   };
   function updatePreview() {
@@ -30994,7 +31004,7 @@ function invAddSimilar(sourceId) {
     if (!refStr) { noteEl.textContent = ''; return; }
     const _w = (!isNaN(w) && w > 0) ? w : parseFloat(source.weight);
     const probe = {
-      weight: _w, qrCode: buildQR(_w, ns),
+      weight: _isOtherSrc ? source.weight : _w, qrCode: buildQR(_w, ns),
       color: document.getElementById('invAddSimColor')?.value || null,
       goldColor: (source.metal === 'gold')
         ? (document.getElementById('invAddSimGoldColor')?.value || 'gold')
@@ -31011,7 +31021,7 @@ function invAddSimilar(sourceId) {
                        : '🔗 identical — shares code <b>' + refStr + '</b>');
     noteEl.style.color = diff ? '#7fc8ff' : 'var(--text-dim)';
   }
-  wEl().addEventListener('input', updatePreview);
+  wEl()?.addEventListener('input', updatePreview);
   // Every field that feeds the identity test re-evaluates the note.
   ['invAddSimStone', 'invAddSimColor', 'invAddSimGoldColor', 'invAddSimPlating'].forEach(id =>
     document.getElementById(id)?.addEventListener('change', updatePreview));
@@ -31023,7 +31033,8 @@ function invAddSimilar(sourceId) {
     // Blank weight → use the group's weight (the common case: identical pieces). Only
     // block if neither the box nor the source has a usable weight.
     const w = _effWeight();
-    if (isNaN(w) || w <= 0) { showToast(lang==='el'?'⚠️ Βάλτε βάρος':'⚠️ Enter a weight'); wEl().focus(); return; }
+    // An "other"-type piece has no weight at all, so there is nothing to ask for.
+    if (!_isOtherSrc && (isNaN(w) || w <= 0)) { showToast(lang==='el'?'⚠️ Βάλτε βάρος':'⚠️ Enter a weight'); wEl()?.focus(); return; }
     let qty = parseInt(document.getElementById('invAddSimQty').value) || 1;
     qty = Math.max(1, Math.min(50, qty));
     const colorVal = document.getElementById('invAddSimColor').value || null;
@@ -31032,6 +31043,11 @@ function invAddSimilar(sourceId) {
     const platingVal = (source.metal === 'silver')
       ? (document.getElementById('invAddSimPlating')?.value || null)
       : (source.silverPlating || null);
+    // The supplier's own article number — a different colour of the same design is a
+    // different article to the vendor, so it is editable here rather than copied blindly.
+    // Read once for the whole batch, like the stone, so a field touched mid-save cannot
+    // give two pieces of one batch different codes. Blank means the piece has none.
+    const _vCode = (document.getElementById('invAddSimVendorCode')?.value || '').trim().toUpperCase();
     // Read the stone ONCE for the whole batch (null when unchanged), so every piece in it
     // gets the same code and description even if the select were touched mid-save.
     const _swapped = _newStones();
@@ -31051,7 +31067,9 @@ function invAddSimilar(sourceId) {
     // each other — only the source is being diverged from. An unchanged batch keeps the
     // source's number and stays a true group, which is what "12 identical rings, one
     // code, N copies of one label" needs.
-    const _probe = { weight: w, qrCode: buildQR(w, _swapped), color: colorVal, goldColor: goldColorVal, silverPlating: platingVal };
+    // An "other" piece keeps the source's stored weight (usually none) — never NaN.
+    const _newW = _isOtherSrc ? source.weight : w;
+    const _probe = { weight: _newW, qrCode: buildQR(w, _swapped), color: colorVal, goldColor: goldColorVal, silverPlating: platingVal };
     const _differs = _refIdentityKey(_probe) !== _refIdentityKey(source);
     let _batchSeq = null;
     if (_differs && source.seqId) {
@@ -31085,10 +31103,13 @@ function invAddSimilar(sourceId) {
     for (let i = 0; i < qty; i++) {
       const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
       const newItem = Object.assign({}, source, {
-        weight: w, color: colorVal, goldColor: goldColorVal, silverPlating: platingVal, groupId: gid, status: 'in_stock',
+        weight: _newW, color: colorVal, goldColor: goldColorVal, silverPlating: platingVal, groupId: gid, status: 'in_stock',
         dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || '', dateSold: null
       });
       if (_photoUrl) { newItem.photoUrl = _photoUrl; newItem.photoUrlHi = _photoUrlHi || _photoUrl; }
+      // Cleared on purpose → the piece carries no vendor code, rather than inheriting one
+      // that belongs to a different article.
+      if (_vCode) newItem.vendorCode = _vCode; else delete newItem.vendorCode;
       delete newItem.dateSold;
       // A swapped stone has to reach the DESCRIPTION as well as the code, or the piece
       // would price and read as the source's stone while its QR said otherwise.
@@ -31117,7 +31138,7 @@ function invAddSimilar(sourceId) {
       lastItem = newItem; lastId = newId; createdIds.push(newId);
     }
     counterEl.textContent = (lang==='el'?'Προστέθηκαν: ':'Added: ') + _added;
-    wEl().value = ''; document.getElementById('invAddSimQty').value = '1'; updatePreview(); wEl().focus();
+    if (wEl()) wEl().value = ''; document.getElementById('invAddSimQty').value = '1'; updatePreview(); wEl()?.focus();
     if (doPrint && lastItem) {
       const statusEl = document.getElementById('invAddSimStatus');
       const qr = lastItem.qrCode || lastItem.code || '';
@@ -31148,7 +31169,8 @@ function invAddSimilar(sourceId) {
     overlay.remove();
     if (_added > 0) { showToast((lang==='el'?'✅ Προστέθηκαν ':'✅ Added ') + _added + (lang==='el'?' όμοια είδη':' similar items')); renderInvList(); }
   });
-  setTimeout(() => { try { wEl().focus(); } catch(e) {} }, 60);
+  // No weight field for an "other" piece → land on the quantity instead.
+  setTimeout(() => { try { (wEl() || document.getElementById('invAddSimQty'))?.focus(); } catch(e) {} }, 60);
 }
 
 // ── Inventory: Restore to Stock (mistake / return) ───────────────────────────
@@ -31949,9 +31971,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.86', date: 'Αύγουστος 2026', items: [
-        "🔒 Το ποσοστό δεν φαίνεται πλέον πουθενά — ούτε στον «Χρυσό πελάτη» ούτε στην πώληση. Γυρίζετε το τηλέφωνο στον πελάτη χωρίς να δείχνετε το περιθώριό σας.",
-        "⚙️ Οι δύο εκπτώσεις αλλάζουν μόνο από τις Ρυθμίσεις και ισχύουν παντού. Το ποσό «Για τον χρυσό» παραμένει επεξεργάσιμο — αν συμφωνήσετε άλλη τιμή, την γράφετε κατευθείαν.",
+      { version: 'v12.87', date: 'Αύγουστος 2026', items: [
+        "🔧 Διόρθωση: η «Προσθήκη όμοιων ειδών» ζητούσε βάρος και σε είδη τύπου «Άλλο», που δεν έχουν βάρος καθόλου — έβγαζε «Βάλτε βάρος» και δεν προσθέτονταν τίποτα. Τώρα το πεδίο του βάρους δεν εμφανίζεται σε αυτά τα είδη· βάζετε ποσότητα και χρώμα και προστίθενται κανονικά.",
+        "🏷️ Στην «Προσθήκη όμοιων ειδών» μπορείτε πλέον να αλλάξετε τον Κωδικό Προμηθευτή. Άλλο χρώμα σημαίνει συνήθως άλλο κωδικό στον προμηθευτή — πριν αντιγραφόταν ο κωδικός του πρώτου κομματιού χωρίς να μπορείτε να τον πειράξετε.",
       ]},
       ]
   },
@@ -31982,9 +32004,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.86', date: 'Aug 2026', items: [
-        "🔒 The percentage is no longer shown anywhere — not on \"Customer's gold\" and not in the sale. You can turn the phone towards the customer without showing them your margin.",
-        "⚙️ Both deductions are changed in Settings only, and apply everywhere. The \"For the gold\" amount stays editable — if you agree a different price, just type it.",
+      { version: 'v12.87', date: 'Aug 2026', items: [
+        "🔧 Fix: \"Add similar items\" asked for a weight on \"Other\"-type pieces, which have no weight at all — it showed \"Enter a weight\" and added nothing. The weight box is no longer shown for those pieces; set a quantity and a colour and they add normally.",
+        "🏷️ \"Add similar items\" now lets you change the Vendor Code. A different colour usually has a different code at the supplier — before, the first piece's code was copied with no way to edit it.",
       ]},
           ]
   }
@@ -36781,7 +36803,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.86';
+const APP_VERSION = '12.87';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
