@@ -1365,6 +1365,11 @@
         </div>
       </div>
     </div>
+    <!-- The other direction: a customer walks in with gold and asks what they
+         will GET for it — before choosing anything. Sits under the live prices
+         because that is the same question from the other side of the counter. -->
+    <button type="button" id="goldCheckBtn" onclick="openGoldCheck()"
+      style="width:100%;margin:0 0 10px;padding:9px;background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.4);border-radius:8px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);cursor:pointer">🧱 <span data-i18n="gcheckBtn">Χρυσός πελάτη</span></button>
     <div class="code-lookup-wrap">
       <input type="text" id="codeInput" data-i18n-ph="codePlaceholder" maxlength="40" onkeydown="handleCodeKey(event)" oninput="scheduleLookup(this.value)" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text">
       <button class="cam-btn" onclick="openQrScanner()" title="Scan QR">
@@ -1772,7 +1777,8 @@
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
       <div class="field"><label data-i18n="refiningLossLbl">Απώλεια καθαρισμού μετάλλου (%)</label><input type="number" id="refiningLossInput" placeholder="3" step="0.1" inputmode="decimal"><div class="hint" data-i18n="refiningLossHint">Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.</div></div>
-      <div class="field"><label data-i18n="tiDeductLbl">Έκπτωση αξίας χρυσού (%)</label><input type="number" id="tradeInDeductInput" placeholder="10" step="0.5" inputmode="decimal"><div class="hint" data-i18n="tiDeductHint">Όταν ο πελάτης δίνει χρυσό ως μέρος της πληρωμής, πόσο κάτω από την αξία του μετάλλου τον παίρνετε. 10% σε αξία 85,04 € σημαίνει πίστωση 76,54 €. Μπορείτε να το αλλάξετε και σε κάθε πώληση χωριστά. 0 = πλήρης αξία.</div></div>
+      <div class="field"><label data-i18n="tiDeductLbl">Έκπτωση χρυσού — ανταλλαγή (%)</label><input type="number" id="tradeInDeductInput" placeholder="10" step="0.5" inputmode="decimal"><div class="hint" data-i18n="tiDeductHint">Όταν ο πελάτης δίνει χρυσό για να πάρει κόσμημα, πόσο κάτω από την αξία του μετάλλου τον παίρνετε. 10% σε αξία 85,04 € σημαίνει πίστωση 76,54 €. Μπορείτε να το αλλάξετε και σε κάθε πώληση χωριστά. 0 = πλήρης αξία.</div></div>
+      <div class="field"><label data-i18n="cashBuyLbl">Έκπτωση χρυσού — μετρητά (%)</label><input type="number" id="cashBuyDeductInput" placeholder="20" step="0.5" inputmode="decimal"><div class="hint" data-i18n="cashBuyHint">Όταν ο πελάτης θέλει ΧΡΗΜΑΤΑ αντί για κόσμημα. Πάντα μεγαλύτερη από την ανταλλαγή — στην ανταλλαγή κερδίζετε και από το κόσμημα που πουλάτε, ενώ εδώ βγάζετε μόνο από το μέταλλο. Στην αγορά: 10–15% για ανταλλαγή, 20–40% για μετρητά.</div></div>
       <div class="field"><label data-i18n="myCoinsLbl">Τα νομίσματά μου</label><div class="hint" data-i18n="myCoinsHint">Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.</div><div id="customCoinsList" style="margin-top:8px"></div></div>
       <div class="field">
         <label data-i18n="weightTiers">Βάρος → Περιθώριο (έως 5 επίπεδα)</label>
@@ -3535,8 +3541,8 @@ const T = {
     coinMarkupSilverHint:'0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.',
     refiningLossLbl:'Απώλεια καθαρισμού μετάλλου (%)',
     refiningLossHint:'Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.',
-    tiDeductLbl:'Έκπτωση αξίας χρυσού (%)',
-    tiDeductHint:'Όταν ο πελάτης δίνει χρυσό ως μέρος της πληρωμής, πόσο κάτω από την αξία του μετάλλου τον παίρνετε. 10% σε αξία 85,04 € σημαίνει πίστωση 76,54 €. Μπορείτε να το αλλάξετε και σε κάθε πώληση χωριστά. 0 = πλήρης αξία.',
+    tiDeductLbl:'Έκπτωση χρυσού — ανταλλαγή (%)',
+    tiDeductHint:'Όταν ο πελάτης δίνει χρυσό για να πάρει κόσμημα, πόσο κάτω από την αξία του μετάλλου τον παίρνετε. 10% σε αξία 85,04 € σημαίνει πίστωση 76,54 €. Μπορείτε να το αλλάξετε και σε κάθε πώληση χωριστά. 0 = πλήρης αξία.',
     tiBtn:'Χρυσός',
     tiRowLbl:'Χρυσός',
     tiKaratLbl:'Καράτια',
@@ -3546,6 +3552,20 @@ const T = {
     tiNetLbl:'Αξίζει',
     tiGainRow:'Κέρδος στον χρυσό',
     tiGainTotalRow:'Σύνολο από τη συναλλαγή',
+    cashBuyLbl:'Έκπτωση χρυσού — μετρητά (%)',
+    cashBuyHint:'Όταν ο πελάτης θέλει ΧΡΗΜΑΤΑ αντί για κόσμημα. Πάντα μεγαλύτερη από την ανταλλαγή — στην ανταλλαγή κερδίζετε και από το κόσμημα που πουλάτε, ενώ εδώ βγάζετε μόνο από το μέταλλο. Στην αγορά: 10–15% για ανταλλαγή, 20–40% για μετρητά.',
+    gcheckBtn:'Χρυσός πελάτη',
+    gcheckTitle:'Χρυσός πελάτη',
+    gcheckExchange:'Για ανταλλαγή',
+    gcheckCash:'Για μετρητά',
+    gcheckHold:'Κράτησέ το για την πώληση',
+    gcheckPay:'Πληρωμή & στο απόθεμα',
+    gcheckArmed:'θα μπει στην επόμενη πώληση',
+    gcheckHint:'Πείτε του και τα δύο. «Ανταλλαγή» κρατά το ποσό για την επόμενη πώληση — δεν καταγράφεται τίποτα αν δεν αγοράσει. «Μετρητά» τον πληρώνετε τώρα και ο χρυσός μπαίνει στο απόθεμα μετάλλου.',
+    gcheckHintEmp:'Πείτε του και τα δύο. Για αγορά με μετρητά χρειάζεται ο ιδιοκτήτης.',
+    gcheckPayAsk:'Πληρώνετε {amt} για {g}g {m}; Ο χρυσός μπαίνει στο απόθεμα μετάλλου και το κέρδος στις σημερινές πωλήσεις.',
+    gcheckPayOk:'Πληρωμή',
+    gcheckCashNote:'Αγορά χρυσού από πελάτη',
     tiCreditLbl:'Για τον χρυσό',
     tiNeedWeight:'Συμπληρώστε καράτια & βάρος',
     tiTooMuch:'Ο χρυσός αξίζει περισσότερο από την πώληση, οπότε η πίστωση περιορίστηκε στο ποσό της πώλησης. Σωστό, αν ο πελάτης το δέχεται — η διαφορά μένει ως κέρδος στο μέταλλο. Αν πρέπει να του δώσετε ρέστα, καταχωρίστε τον χρυσό με το «🧱 Προσθήκη μετάλλου».',
@@ -4088,8 +4108,8 @@ const T = {
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
     refiningLossLbl:'Metal refining loss (%)',
     refiningLossHint:'How much is lost when you melt/refine scrap into pure gold/silver. Used for the gain when you buy metal below its value.',
-    tiDeductLbl:'Gold value deduction (%)',
-    tiDeductHint:'When a customer hands over gold as part of the payment, how far below the metal value you take it at. 10% on a €85.04 value means a €76.54 credit. You can also change it on any individual sale. 0 = full value.',
+    tiDeductLbl:'Gold deduction — exchange (%)',
+    tiDeductHint:'When a customer hands over gold to get jewelry, how far below the metal value you take it at. 10% on a €85.04 value means a €76.54 credit. You can also change it on any individual sale. 0 = full value.',
     tiBtn:'Gold',
     tiRowLbl:'Gold',
     tiKaratLbl:'Karat',
@@ -4099,6 +4119,20 @@ const T = {
     tiNetLbl:'Worth',
     tiGainRow:'Gain on the gold',
     tiGainTotalRow:'Total from this transaction',
+    cashBuyLbl:'Gold deduction — cash (%)',
+    cashBuyHint:'When the customer wants MONEY instead of jewelry. Always higher than the exchange rate — on an exchange you also earn on the piece you sell, whereas here the metal is your only margin. The trade runs 10–15% for an exchange, 20–40% for cash.',
+    gcheckBtn:'Customer\'s gold',
+    gcheckTitle:'Customer\'s gold',
+    gcheckExchange:'To exchange',
+    gcheckCash:'For cash',
+    gcheckHold:'Hold it for the sale',
+    gcheckPay:'Pay & add to stock',
+    gcheckArmed:'will be applied to the next sale',
+    gcheckHint:'Tell them both. "Exchange" holds the amount for the next sale — nothing is recorded if they buy nothing. "Cash" pays them now and the gold goes into your metal stock.',
+    gcheckHintEmp:'Tell them both. Buying for cash needs the owner.',
+    gcheckPayAsk:'Pay {amt} for {g}g {m}? The gold goes into your metal stock and the gain into today\'s sales.',
+    gcheckPayOk:'Pay',
+    gcheckCashNote:'Gold bought from a customer',
     tiCreditLbl:'For the gold',
     tiNeedWeight:'Enter karat & weight',
     tiTooMuch:'The gold is worth more than the sale, so the credit was capped at the sale amount. That is right if the customer accepts it — the difference stays as gain on the metal. If you need to give them change back, record the gold with "🧱 Add Metal" instead.',
@@ -4802,7 +4836,7 @@ function defaultState() {
     // 17% = Karpathos reduced island VAT rate (not the 24% mainland rate).
     // Only used until applyCloudConfig loads the owner's saved value.
     vat: 17, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
-    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3, tradeInDeduct: 10,
+    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3, tradeInDeduct: 10, cashBuyDeduct: 20,
     autoRoundStep: 5, autoRoundMin: 20
   };
 }
@@ -5148,7 +5182,7 @@ function cloudConfig() {
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
            customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
-           tradeInDeduct: state.tradeInDeduct,
+           tradeInDeduct: state.tradeInDeduct, cashBuyDeduct: state.cashBuyDeduct,
            autoRoundStep: state.autoRoundStep, autoRoundMin: state.autoRoundMin,
            aiKey: localStorage.getItem('jpro_ai_key') || '',
            imgbbKey: localStorage.getItem('jpro_imgbb_key') || '',
@@ -5208,6 +5242,7 @@ function applyCloudConfig(cfg) {
   if (cfg.customCoins !== undefined) state.customCoins = cfg.customCoins;
   if (cfg.refiningLoss !== undefined) state.refiningLoss = cfg.refiningLoss;
   if (cfg.tradeInDeduct !== undefined) state.tradeInDeduct = cfg.tradeInDeduct;
+  if (cfg.cashBuyDeduct !== undefined) state.cashBuyDeduct = cfg.cashBuyDeduct;
   if (cfg.autoRoundStep !== undefined) state.autoRoundStep = cfg.autoRoundStep;
   if (cfg.autoRoundMin !== undefined) state.autoRoundMin = cfg.autoRoundMin;
   // Sync owner PIN so employees are prompted when switching to Owner
@@ -14174,11 +14209,22 @@ function _splitSet(p, cash) {
 // customer bringing 50 g earns a better rate than one bringing 1.2 g.
 const TRADEIN_DEDUCT_DEFAULT = 10;
 
-// Read through a helper, never off `state` directly: a device whose saved
-// jpro_state predates this key would otherwise read `undefined` (v12.14).
+// TWO rates, because they are two different trades. Against a PURCHASE the shop
+// also earns retail margin on the piece going out, so the metal can be taken at
+// 85–95% of melt. A straight CASH buy-out earns nothing but the metal, and the
+// trade runs 60–80%. One rate would either rob the exchanging customer or leave
+// money on the table when buying outright.
+const CASHBUY_DEDUCT_DEFAULT = 20;
+
+// Read through helpers, never off `state` directly: a device whose saved
+// jpro_state predates these keys would otherwise read `undefined` (v12.14).
 function _tradeInDeductPct() {
   const v = parseFloat(state.tradeInDeduct);
   return isNaN(v) ? TRADEIN_DEDUCT_DEFAULT : Math.max(0, Math.min(100, v));
+}
+function _cashBuyDeductPct() {
+  const v = parseFloat(state.cashBuyDeduct);
+  return isNaN(v) ? CASHBUY_DEDUCT_DEFAULT : Math.max(0, Math.min(100, v));
 }
 
 // What a trade-in may cover: the amount less anything a certificate already paid
@@ -14400,6 +14446,174 @@ function _tiSet(p, s) {
   // today's gold price — what was agreed is what was agreed.
   if (c) { c.value = ti.toFixed(2); c.dataset.manual = '1'; }
   _tiSync(p);
+}
+
+// ── GOLD CHECK (Calc) — "what will you give me for this?" ────────────────────
+// The counter sequence runs the other way round from the sale dialog: the
+// customer puts gold down and asks what they will GET, and the answer often
+// decides whether they buy at all. So the same valuation has to be reachable
+// with no sale in progress.
+//
+// Shows BOTH prices at once, because that is the conversation: "this much if you
+// exchange it for something, this much if you want money." Then one action:
+//   • Exchange → the valuation is HELD for the next sale opened (nothing is
+//     written; a quote must be able to end in "no thanks" leaving no trace).
+//   • Cash    → you pay them, and the metal enters stock through the very same
+//     path as the Add Metal button, gain and all.
+let _goldCheckPending = null;   // { spec, credit, ts } armed for the next sale
+
+function _gcheckSpec() {
+  const kv = document.getElementById('gcheckKarat')?.value || '';
+  const ix = kv.indexOf(':');
+  if (ix < 0) return null;
+  const metal = kv.slice(0, ix), karat = kv.slice(ix + 1);
+  const preset = (METAL_STOCK_KARATS[metal] || []).find(x => x.k === karat);
+  const grams = parseFloat(document.getElementById('gcheckWeight')?.value);
+  if (!preset || !isFinite(grams) || grams <= 0) return null;
+  const pure = _gRound(grams * preset.f);
+  const spot = metal === 'silver' ? getSilverPrice() : getGoldPrice();
+  const melt = spot ? parseFloat(((spot / TROY_OZ_TO_GRAM) * pure).toFixed(2)) : null;
+  if (melt == null) return null;
+  const ex = _tradeInDeductPct(), cb = _cashBuyDeductPct();
+  return { metal, karat, fineness: preset.f, grams: _gRound(grams), pure, melt,
+           exPct: ex, cashPct: cb,
+           exchange: parseFloat((melt * (1 - ex / 100)).toFixed(2)),
+           cash: parseFloat((melt * (1 - cb / 100)).toFixed(2)) };
+}
+
+function openGoldCheck() {
+  document.getElementById('gcheckOverlay')?.remove();
+  const isEl = lang === 'el';
+  const fld = 'background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:9px 11px';
+  const ov = document.createElement('div');
+  ov.id = 'gcheckOverlay';
+  // Top-anchored: it has typing in it, and a bottom sheet hides its own results
+  // under the keyboard (v11.53).
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;padding-top:env(safe-area-inset-top);overflow-y:auto';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:0 0 16px 16px;padding:18px 16px 20px;width:100%;max-width:480px;max-height:92dvh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🧱 ${t('gcheckTitle')}</div>
+      <button onclick="document.getElementById('gcheckOverlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div style="display:flex;gap:9px;margin-bottom:12px">
+      <div style="flex:1;min-width:0">
+        <label style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:4px">${t('tiKaratLbl')}</label>
+        <select id="gcheckKarat" onchange="_gcheckSync()" style="width:100%;${fld};font-size:13px">${_tiKaratOptions('gold:14')}</select>
+      </div>
+      <div style="flex:0 0 96px">
+        <label style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:4px">${t('tiWeightLbl')}</label>
+        <input type="number" id="gcheckWeight" step="0.01" inputmode="decimal" placeholder="0.00" oninput="_gcheckSync()" style="width:100%;${fld}">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--wa08)">
+      <span style="color:var(--text-muted)">${t('tiMeltLbl')}</span>
+      <span id="gcheckMelt" style="color:var(--text);font-family:var(--font-mono)">—</span>
+    </div>
+    <div id="gcheckQuotes" style="margin-top:12px"></div>
+    <div id="gcheckNote" style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.5">${t('tiNeedWeight')}</div>
+  </div>`;
+  document.body.appendChild(ov);
+  _gcheckSync();
+  setTimeout(() => document.getElementById('gcheckWeight')?.focus(), 60);
+}
+
+function _gcheckSync() {
+  const spec = _gcheckSpec();
+  const cur = state.currency || '€';
+  const isEl = lang === 'el';
+  const meltEl = document.getElementById('gcheckMelt');
+  const box = document.getElementById('gcheckQuotes');
+  const note = document.getElementById('gcheckNote');
+  if (meltEl) meltEl.textContent = spec ? cur + spec.melt.toFixed(2) : '—';
+  if (!box) return;
+  if (!spec) {
+    box.innerHTML = '';
+    if (note) { note.textContent = t('tiNeedWeight'); note.style.color = 'var(--text-dim)'; }
+    return;
+  }
+  const row = (icon, label, pct, amt, btnLbl, onclick, accent, disabled) => `
+    <div style="background:${accent};border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="font-size:12px;color:var(--text-muted)">${icon} ${label} <span style="color:var(--text-dim)">−${_fmtRate(pct)}%</span></span>
+        <span style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--gold-light)">${cur}${amt.toFixed(2)}</span>
+      </div>
+      ${disabled ? '' : `<button onclick="${onclick}" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${btnLbl}</button>`}
+    </div>`;
+  box.innerHTML =
+    row('🔄', t('gcheckExchange'), spec.exPct, spec.exchange, t('gcheckHold'), '_gcheckArm()', 'rgba(201,168,76,0.08)', false)
+    + row('💵', t('gcheckCash'), spec.cashPct, spec.cash, t('gcheckPay'), '_gcheckPayCash()', 'rgba(255,255,255,0.03)', !can('manage_stock'));
+  if (note) {
+    note.textContent = can('manage_stock') ? t('gcheckHint') : t('gcheckHintEmp');
+    note.style.color = 'var(--text-dim)';
+  }
+}
+
+// EXCHANGE — hold this valuation for the next sale. Nothing is written: the
+// customer is still choosing, and may well choose nothing.
+function _gcheckArm() {
+  const spec = _gcheckSpec();
+  if (!spec) return;
+  _goldCheckPending = { spec, credit: spec.exchange, ts: Date.now() };
+  document.getElementById('gcheckOverlay')?.remove();
+  const cur = state.currency || '€';
+  showToast('🧱 ' + cur + spec.exchange.toFixed(2) + ' — ' + t('gcheckArmed'));
+}
+
+// Picked up by the ONE funnel every sale-modal opener goes through, exactly like
+// a held return credit. Single-use and ignored after 30 minutes, so it can never
+// quietly attach to an unrelated customer later in the day.
+function _consumePendingGoldCheck() {
+  if (!_goldCheckPending) return;
+  const { spec, credit, ts } = _goldCheckPending;
+  _goldCheckPending = null;
+  if (Date.now() - ts > 30 * 60 * 1000) return;
+  // Filled in directly rather than through _tiSet, which reopens a saved RECORD
+  // and clamps the credit against that record's own `amount` — a synthetic object
+  // has none, so it clamped to zero and the hand-off silently did nothing.
+  try {
+    _tiOpen('sale', true);
+    const k = document.getElementById('saleTiKarat');
+    if (k) k.innerHTML = _tiKaratOptions(spec.metal + ':' + spec.karat);
+    const w = document.getElementById('saleTiWeight'); if (w) w.value = spec.grams;
+    const p = document.getElementById('saleTiPct'); if (p) p.value = _fmtRate(spec.exPct);
+    const c = document.getElementById('saleTiCredit');
+    // Marked as hand-typed: this figure was agreed with the customer at the
+    // counter, so a recompute must not quietly move it. _tiSync still caps it to
+    // the sale if the piece they chose is worth less than the gold.
+    if (c) { c.value = credit.toFixed(2); c.dataset.manual = '1'; }
+    _tiSync('sale');
+  } catch (e) {}
+}
+
+// CASH — you hand money over and keep the metal. Identical in every respect to
+// the Add Metal button (same lot merge, same buy-cheap gain into today's sales);
+// this only saves walking to the Stock tab and working the price out by hand.
+async function _gcheckPayCash() {
+  if (!can('manage_stock')) return;
+  const spec = _gcheckSpec();
+  if (!spec) return;
+  const cur = state.currency || '€';
+  const isEl = lang === 'el';
+  const label = metalStockLabel({ metal: spec.metal, karat: spec.karat });
+  const msg = t('gcheckPayAsk')
+    .replace('{g}', spec.grams.toFixed(2)).replace('{m}', label)
+    .replace('{amt}', cur + spec.cash.toFixed(2));
+  const ok = await new Promise(res => showConfirm(msg, () => res(true), () => res(false),
+    { okLabel: t('gcheckPayOk'), danger: false }));
+  if (!ok) return;
+  if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+    try { _inventoryCache = await loadInventory(); } catch (e) {}
+  }
+  const res = await _metalAddToLot({
+    metal: spec.metal, karat: spec.karat, fineness: spec.fineness,
+    weight: spec.grams, pure: spec.pure
+  }, spec.cash, t('gcheckCashNote'));
+  document.getElementById('gcheckOverlay')?.remove();
+  if (!res.ok) { showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again'); return; }
+  showToast(t('tiAddedToast').replace('{g}', spec.grams.toFixed(2))
+    + (res.gain > 0 ? ' · ' + t('metalGainToast').replace('{amt}', cur + res.gain.toFixed(2)) : ''));
+  try { renderInvList(); } catch (e) {}
 }
 
 // ── OWED CONTROL (the goods left, the money follows) ─────────────────────────
@@ -22136,6 +22350,7 @@ function loadSettingsForm() {
   { const _cms = document.getElementById('coinMarkupSilverInput'); if (_cms) _cms.value = (state.coinMarkupSilver != null && state.coinMarkupSilver !== '') ? state.coinMarkupSilver : ''; }
   { const _rl = document.getElementById('refiningLossInput'); if (_rl) _rl.value = (state.refiningLoss != null && state.refiningLoss !== '') ? state.refiningLoss : ''; }
   { const _td = document.getElementById('tradeInDeductInput'); if (_td) _td.value = _tradeInDeductPct(); }
+  { const _cb = document.getElementById('cashBuyDeductInput'); if (_cb) _cb.value = _cashBuyDeductPct(); }
   { const _ar = document.getElementById('autoRoundStepSelect'); if (_ar) _ar.value = String(_autoRoundStep()); }
   { const _arm = document.getElementById('autoRoundMinInput'); if (_arm) _arm.value = _autoRoundMin(); }
   renderCustomCoinsManager();
@@ -22160,6 +22375,7 @@ function saveSettings() {
   { const _cmsv = document.getElementById('coinMarkupSilverInput'); const _cmsn = _cmsv ? parseFloat(_cmsv.value) : NaN; state.coinMarkupSilver = isNaN(_cmsn) ? 0 : _cmsn; }
   { const _rlv = document.getElementById('refiningLossInput'); const _rln = _rlv ? parseFloat(_rlv.value) : NaN; state.refiningLoss = isNaN(_rln) ? 3 : Math.max(0, Math.min(100, _rln)); }
   { const _tdv = document.getElementById('tradeInDeductInput'); const _tdn = _tdv ? parseFloat(_tdv.value) : NaN; state.tradeInDeduct = isNaN(_tdn) ? TRADEIN_DEDUCT_DEFAULT : Math.max(0, Math.min(100, _tdn)); }
+  { const _cbv = document.getElementById('cashBuyDeductInput'); const _cbn = _cbv ? parseFloat(_cbv.value) : NaN; state.cashBuyDeduct = isNaN(_cbn) ? CASHBUY_DEDUCT_DEFAULT : Math.max(0, Math.min(100, _cbn)); }
   { const _arv = document.getElementById('autoRoundStepSelect'); const _arn = _arv ? parseFloat(_arv.value) : NaN; state.autoRoundStep = isNaN(_arn) ? 5 : Math.max(0, _arn); }
   { const _armv = document.getElementById('autoRoundMinInput'); const _armn = _armv ? parseFloat(_armv.value) : NaN; state.autoRoundMin = isNaN(_armn) ? 20 : Math.max(0, _armn); }
   // Collect weight tiers
@@ -31730,10 +31946,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.84', date: 'Αύγουστος 2026', items: [
-        "🧱 Στο πλαίσιο του χρυσού μπήκε γραμμή «Αξίζει»: κάτω από την αξία μετάλλου και την έκπτωση βλέπετε πλέον το καθαρό ποσό (84,91 € − 8,49 € = 76,42 €). Η πίστωση από κάτω μπορεί να διαφέρει — αν την περιορίσει η πώληση ή αν συμφωνήσετε άλλο ποσό — και η διαφορά είναι ακριβώς το κέρδος σας.",
-        "♻️ Η καρτέλα της πώλησης δείχνει τώρα και το «Κέρδος στον χρυσό» με το «Σύνολο από τη συναλλαγή». Πουλήσατε σκουλαρίκια 55 € και πήρατε 1,2g χρυσό: κέρδος πώλησης 30,85 €, κέρδος στο μέταλλο 27,36 €, σύνολο 58,21 €. Πριν φαινόταν μόνο το πρώτο και έμοιαζε ότι βγάλατε λιγότερα.",
-        "💬 Ξαναγράφτηκε το μήνυμα όταν ο χρυσός αξίζει περισσότερο από την πώληση: έλεγε ότι κάνατε λάθος, ενώ δεν κάνατε. Αν ο πελάτης δέχεται το κόσμημα ως εξόφληση είναι σωστό — η διαφορά μένει ως κέρδος στο μέταλλο.",
+      { version: 'v12.85', date: 'Αύγουστος 2026', items: [
+        "🧱 ΝΕΟ «Χρυσός πελάτη» στον Υπολογισμό: μπαίνει πελάτης με 4g χρυσό και ρωτά τι θα πάρει — πλέον του απαντάτε πριν διαλέξει οτιδήποτε. Ζυγίζετε, διαλέγετε καράτια, και βλέπετε την τιμή.",
+        "🔁 Δύο τιμές μαζί, όπως το λέτε κι εσείς: «τόσο αν το ανταλλάξεις με κόσμημα (−10%), τόσο αν θέλεις μετρητά (−20%)». Οι δύο εκπτώσεις ορίζονται χωριστά στις Ρυθμίσεις.",
+        "🔄 Αν διαλέξει ανταλλαγή: πατάτε «Κράτησέ το» και το ποσό μπαίνει μόνο του στην επόμενη πώληση που θα ανοίξετε. Αν δεν αγοράσει τίποτα, δεν καταγράφεται τίποτα — και το κράτημα λήγει σε 30 λεπτά.",
+        "💵 Αν διαλέξει μετρητά: πατάτε «Πληρωμή», τον πληρώνετε και ο χρυσός μπαίνει στο απόθεμα μετάλλου με το κέρδος στις σημερινές πωλήσεις — ακριβώς όπως με το «🧱 Προσθήκη μετάλλου».",
+        "👤 Ο υπάλληλος βλέπει και λέει και τις δύο τιμές, αλλά η αγορά με μετρητά χρειάζεται εσάς.",
       ]},
       ]
   },
@@ -31764,10 +31982,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.84', date: 'Aug 2026', items: [
-        "🧱 The gold box gained a \"Worth\" line: under the metal value and the deduction you now see the net figure (€84.91 − €8.49 = €76.42). The credit below can differ — capped by the sale, or agreed at another number — and the gap between them is exactly your gain.",
-        "♻️ The sale detail now also shows \"Gain on the gold\" and \"Total from this transaction\". You sold €55 earrings and took 1.2g of gold: €30.85 sale profit, €27.36 gain on the metal, €58.21 in total. Before, only the first showed and it looked like you had made less.",
-        "💬 Rewrote the message shown when the gold is worth more than the sale: it said you were doing it wrong when you were not. If the customer accepts the piece as settlement that is correct — the difference stays as gain on the metal.",
+      { version: 'v12.85', date: 'Aug 2026', items: [
+        "🧱 NEW \"Customer's gold\" on the Calc screen: someone walks in with 4g and asks what they will get for it — you can now answer BEFORE they pick anything. Weigh it, choose the karat, read the price.",
+        "🔁 Both prices at once, the way you actually say it: \"this much if you exchange it for a piece (−10%), this much if you want money (−20%)\". The two deductions are set separately in Settings.",
+        "🔄 If they choose the exchange: press \"Hold it\" and the amount drops into the next sale you open by itself. Buy nothing and nothing is recorded — and the hold expires after 30 minutes.",
+        "💵 If they choose cash: press \"Pay\", you hand the money over and the gold goes into your metal stock with the gain in today's sales — exactly as \"🧱 Add Metal\" already does.",
+        "👤 An employee can see and quote both prices, but buying for cash needs you.",
       ]},
           ]
   }
@@ -35276,6 +35496,9 @@ async function openSaleModalWithBonus() {
   // Every sale-modal opener funnels through here, so this is the one place an
   // "Exchange now" credit needs to be picked up (see _consumePendingCredit).
   _consumePendingCredit();
+  // Same reason, same place: a gold valuation quoted at the counter before the
+  // customer chose anything is picked up here (see _consumePendingGoldCheck).
+  _consumePendingGoldCheck();
   updateSaleBonusPreview();
 }
 
@@ -36561,7 +36784,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.84';
+const APP_VERSION = '12.85';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
