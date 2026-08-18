@@ -14302,12 +14302,15 @@ function _tiHtml(p) {
         <span style="color:var(--text-muted)" data-i18n="tiMeltLbl">${t('tiMeltLbl')}</span>
         <span id="${p}TiMelt" style="color:var(--text);font-family:var(--font-mono)"></span>
       </div>
+      <!-- The RATE is never shown: this screen gets turned towards the customer,
+           and what the shop holds back is not their business. It lives in
+           Settings and rides here in a hidden field so a reopened sale can still
+           show the rate it was actually agreed at. The euro amount stays — the
+           customer can subtract two numbers anyway, and the owner needs to see
+           the arithmetic add up. -->
+      <input type="hidden" id="${p}TiPct">
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px">
-        <span style="color:var(--text-muted);display:flex;align-items:center;gap:4px">
-          <span data-i18n="tiDeductRow">${t('tiDeductRow')}</span>
-          <input type="number" id="${p}TiPct" step="0.5" inputmode="decimal" oninput="_tiRevalue('${p}')"
-            style="width:48px;background:var(--dark-3);border:1px solid rgba(201,168,76,0.4);border-radius:3px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:3px 5px;text-align:right">%
-        </span>
+        <span style="color:var(--text-muted)" data-i18n="tiDeductRow">${t('tiDeductRow')}</span>
         <span id="${p}TiDeduct" style="color:var(--text-dim);font-family:var(--font-mono)"></span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
@@ -14532,17 +14535,17 @@ function _gcheckSync() {
     if (note) { note.textContent = t('tiNeedWeight'); note.style.color = 'var(--text-dim)'; }
     return;
   }
-  const row = (icon, label, pct, amt, btnLbl, onclick, accent, disabled) => `
+  const row = (icon, label, amt, btnLbl, onclick, accent, disabled) => `
     <div style="background:${accent};border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-        <span style="font-size:12px;color:var(--text-muted)">${icon} ${label} <span style="color:var(--text-dim)">−${_fmtRate(pct)}%</span></span>
+        <span style="font-size:12px;color:var(--text-muted)">${icon} ${label}</span>
         <span style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--gold-light)">${cur}${amt.toFixed(2)}</span>
       </div>
       ${disabled ? '' : `<button onclick="${onclick}" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${btnLbl}</button>`}
     </div>`;
   box.innerHTML =
-    row('🔄', t('gcheckExchange'), spec.exPct, spec.exchange, t('gcheckHold'), '_gcheckArm()', 'rgba(201,168,76,0.08)', false)
-    + row('💵', t('gcheckCash'), spec.cashPct, spec.cash, t('gcheckPay'), '_gcheckPayCash()', 'rgba(255,255,255,0.03)', !can('manage_stock'));
+    row('🔄', t('gcheckExchange'), spec.exchange, t('gcheckHold'), '_gcheckArm()', 'rgba(201,168,76,0.08)', false)
+    + row('💵', t('gcheckCash'), spec.cash, t('gcheckPay'), '_gcheckPayCash()', 'rgba(255,255,255,0.03)', !can('manage_stock'));
   if (note) {
     note.textContent = can('manage_stock') ? t('gcheckHint') : t('gcheckHintEmp');
     note.style.color = 'var(--text-dim)';
@@ -31946,12 +31949,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.85', date: 'Αύγουστος 2026', items: [
-        "🧱 ΝΕΟ «Χρυσός πελάτη» στον Υπολογισμό: μπαίνει πελάτης με 4g χρυσό και ρωτά τι θα πάρει — πλέον του απαντάτε πριν διαλέξει οτιδήποτε. Ζυγίζετε, διαλέγετε καράτια, και βλέπετε την τιμή.",
-        "🔁 Δύο τιμές μαζί, όπως το λέτε κι εσείς: «τόσο αν το ανταλλάξεις με κόσμημα (−10%), τόσο αν θέλεις μετρητά (−20%)». Οι δύο εκπτώσεις ορίζονται χωριστά στις Ρυθμίσεις.",
-        "🔄 Αν διαλέξει ανταλλαγή: πατάτε «Κράτησέ το» και το ποσό μπαίνει μόνο του στην επόμενη πώληση που θα ανοίξετε. Αν δεν αγοράσει τίποτα, δεν καταγράφεται τίποτα — και το κράτημα λήγει σε 30 λεπτά.",
-        "💵 Αν διαλέξει μετρητά: πατάτε «Πληρωμή», τον πληρώνετε και ο χρυσός μπαίνει στο απόθεμα μετάλλου με το κέρδος στις σημερινές πωλήσεις — ακριβώς όπως με το «🧱 Προσθήκη μετάλλου».",
-        "👤 Ο υπάλληλος βλέπει και λέει και τις δύο τιμές, αλλά η αγορά με μετρητά χρειάζεται εσάς.",
+      { version: 'v12.86', date: 'Αύγουστος 2026', items: [
+        "🔒 Το ποσοστό δεν φαίνεται πλέον πουθενά — ούτε στον «Χρυσό πελάτη» ούτε στην πώληση. Γυρίζετε το τηλέφωνο στον πελάτη χωρίς να δείχνετε το περιθώριό σας.",
+        "⚙️ Οι δύο εκπτώσεις αλλάζουν μόνο από τις Ρυθμίσεις και ισχύουν παντού. Το ποσό «Για τον χρυσό» παραμένει επεξεργάσιμο — αν συμφωνήσετε άλλη τιμή, την γράφετε κατευθείαν.",
       ]},
       ]
   },
@@ -31982,12 +31982,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.85', date: 'Aug 2026', items: [
-        "🧱 NEW \"Customer's gold\" on the Calc screen: someone walks in with 4g and asks what they will get for it — you can now answer BEFORE they pick anything. Weigh it, choose the karat, read the price.",
-        "🔁 Both prices at once, the way you actually say it: \"this much if you exchange it for a piece (−10%), this much if you want money (−20%)\". The two deductions are set separately in Settings.",
-        "🔄 If they choose the exchange: press \"Hold it\" and the amount drops into the next sale you open by itself. Buy nothing and nothing is recorded — and the hold expires after 30 minutes.",
-        "💵 If they choose cash: press \"Pay\", you hand the money over and the gold goes into your metal stock with the gain in today's sales — exactly as \"🧱 Add Metal\" already does.",
-        "👤 An employee can see and quote both prices, but buying for cash needs you.",
+      { version: 'v12.86', date: 'Aug 2026', items: [
+        "🔒 The percentage is no longer shown anywhere — not on \"Customer's gold\" and not in the sale. You can turn the phone towards the customer without showing them your margin.",
+        "⚙️ Both deductions are changed in Settings only, and apply everywhere. The \"For the gold\" amount stays editable — if you agree a different price, just type it.",
       ]},
           ]
   }
@@ -36784,7 +36781,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.85';
+const APP_VERSION = '12.86';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
