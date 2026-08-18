@@ -3544,6 +3544,8 @@ const T = {
     tiMeltLbl:'Αξία μετάλλου',
     tiDeductRow:'Έκπτωση',
     tiNetLbl:'Αξίζει',
+    tiGainRow:'Κέρδος στον χρυσό',
+    tiGainTotalRow:'Σύνολο από τη συναλλαγή',
     tiCreditLbl:'Για τον χρυσό',
     tiNeedWeight:'Συμπληρώστε καράτια & βάρος',
     tiTooMuch:'Ο χρυσός αξίζει περισσότερο από την πώληση, οπότε η πίστωση περιορίστηκε στο ποσό της πώλησης. Σωστό, αν ο πελάτης το δέχεται — η διαφορά μένει ως κέρδος στο μέταλλο. Αν πρέπει να του δώσετε ρέστα, καταχωρίστε τον χρυσό με το «🧱 Προσθήκη μετάλλου».',
@@ -4095,6 +4097,8 @@ const T = {
     tiMeltLbl:'Metal value',
     tiDeductRow:'Deduction',
     tiNetLbl:'Worth',
+    tiGainRow:'Gain on the gold',
+    tiGainTotalRow:'Total from this transaction',
     tiCreditLbl:'For the gold',
     tiNeedWeight:'Enter karat & weight',
     tiTooMuch:'The gold is worth more than the sale, so the credit was capped at the sale amount. That is right if the customer accepts it — the difference stays as gain on the metal. If you need to give them change back, record the gold with "🧱 Add Metal" instead.',
@@ -12280,6 +12284,25 @@ function _saleListPrice(s) {
   return stored > 0 ? stored : null;
 }
 
+// The buy-cheap gain this transaction's metal produced, and what it and the sale
+// profit come to together.
+//
+// Shown HERE because this is where the owner asks the question — he looks at a
+// €55 sale settled with €76 of gold and reasonably wonders where the rest went.
+// The gain is deliberately a SEPARATE record in today's takings (it is a
+// metal-buying profit, not jewelry margin, and the segmented margin in the sales
+// breakdown depends on that separation), so the Profit row above must keep
+// showing only the sale's own profit or it would disagree with the sales list.
+// These two rows just make the link visible.
+function _tradeInGainRows(gain, profit, cur, mkRow) {
+  const g = parseFloat(gain) || 0;
+  if (!(g > 0)) return;
+  mkRow('♻️ ' + t('tiGainRow'), '+' + cur + g.toFixed(2), 'var(--success)');
+  if (profit !== null && profit !== undefined && !isNaN(parseFloat(profit))) {
+    mkRow(t('tiGainTotalRow'), cur + (parseFloat(profit) + g).toFixed(2), 'var(--gold-light)');
+  }
+}
+
 // The "List Price / Discount" rows for the sale detail, drawn through the caller's
 // own row builder so the single and the transaction view can never look different.
 // Silent on a return (its amount is a negative mirror), on a giveaway (nothing was
@@ -15518,6 +15541,8 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
       const profitPct = amtExVat > 0 ? ' (' + ((totProfit / amtExVat) * 100).toFixed(1) + '%)' : '';
       mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', cur + totProfit.toFixed(2) + profitPct, totProfit >= 0 ? 'var(--success)' : '#ff6b6b');
     }
+    // Summed over the lines, though the physical metal is stamped on one of them.
+    _tradeInGainRows(members.reduce((a, x) => a + (parseFloat(x.tradeInGain) || 0), 0), totProfit, cur, mkRow);
     if (totBonus > 0) mkRow('🎁 Bonus', cur + totBonus.toFixed(2), 'var(--gold)');
   }
 
@@ -15732,6 +15757,7 @@ async function showSaleDetail(id, forceSingle) {
         cur + parseFloat(s.profit).toFixed(2) + profitPct,
         s.profit >= 0 ? 'var(--success)' : '#ff6b6b');
     }
+    _tradeInGainRows(s.tradeInGain, s.profit, cur, mkRow);
     if (s.bonusAmt > 0) mkRow('🎁 Bonus', cur + parseFloat(s.bonusAmt).toFixed(2), 'var(--gold)');
   }
 
@@ -31704,11 +31730,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.83', date: 'Αύγουστος 2026', items: [
-        "🧱 ΧΡΥΣΟΣ ΚΑΙ ΣΤΙΣ ΠΑΡΑΓΓΕΛΙΕΣ & ΕΠΙΣΚΕΥΕΣ: το «🧱 Χρυσός» υπάρχει τώρα και στην παραλαβή μιας παραγγελίας ή μιας επισκευής, όχι μόνο στις πωλήσεις. Ο πελάτης δίνει παλιό χρυσό για να καλύψει μέρος της δουλειάς, ακριβώς όπως σε μια πώληση.",
-        "🔧 Ισχύει και για επισκευές — σε αντίθεση με τη δωροεπιταγή, που αφορά μόνο κοσμήματα προς πώληση. Ο χρυσός είναι σαν χρήμα: πληρώνει και μια επισκευή.",
-        "📦 Ο χρυσός μπαίνει στο απόθεμα μετάλλου ΑΚΟΜΑ κι αν επιλέξετε να μην καταγράψετε το έσοδο της δουλειάς — το μέταλλο ήρθε στα χέρια σας έτσι κι αλλιώς.",
-        "💶 Διορθώθηκε και το κέρδος που έδειχνε η καρτέλα του δελτίου: υπολόγιζε ΦΠΑ πάνω σε όλο το ποσό, οπότε σε μια δουλειά πληρωμένη εν μέρει με χρυσό έδειχνε λιγότερο κέρδος από το πραγματικό (π.χ. €307,35 αντί για €333,49).",
+      { version: 'v12.84', date: 'Αύγουστος 2026', items: [
+        "🧱 Στο πλαίσιο του χρυσού μπήκε γραμμή «Αξίζει»: κάτω από την αξία μετάλλου και την έκπτωση βλέπετε πλέον το καθαρό ποσό (84,91 € − 8,49 € = 76,42 €). Η πίστωση από κάτω μπορεί να διαφέρει — αν την περιορίσει η πώληση ή αν συμφωνήσετε άλλο ποσό — και η διαφορά είναι ακριβώς το κέρδος σας.",
+        "♻️ Η καρτέλα της πώλησης δείχνει τώρα και το «Κέρδος στον χρυσό» με το «Σύνολο από τη συναλλαγή». Πουλήσατε σκουλαρίκια 55 € και πήρατε 1,2g χρυσό: κέρδος πώλησης 30,85 €, κέρδος στο μέταλλο 27,36 €, σύνολο 58,21 €. Πριν φαινόταν μόνο το πρώτο και έμοιαζε ότι βγάλατε λιγότερα.",
+        "💬 Ξαναγράφτηκε το μήνυμα όταν ο χρυσός αξίζει περισσότερο από την πώληση: έλεγε ότι κάνατε λάθος, ενώ δεν κάνατε. Αν ο πελάτης δέχεται το κόσμημα ως εξόφληση είναι σωστό — η διαφορά μένει ως κέρδος στο μέταλλο.",
       ]},
       ]
   },
@@ -31739,11 +31764,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.83', date: 'Aug 2026', items: [
-        "🧱 GOLD ON ORDERS & REPAIRS TOO: the \"🧱 Gold\" button is now in the collection box of an order or a repair, not just on a sale. The customer hands over old gold towards the job exactly as they would towards a purchase.",
-        "🔧 Repairs included — unlike a gift certificate, which only buys jewelry. Gold is money-like: it can pay for a repair just as well.",
-        "📦 The gold goes into your metal stock EVEN IF you choose not to log the job's income — the metal came into your hands either way.",
-        "💶 Also fixed the profit shown on the ticket: it charged VAT on the whole amount, so a job part-paid with gold read lower than it really was (€307.35 instead of €333.49).",
+      { version: 'v12.84', date: 'Aug 2026', items: [
+        "🧱 The gold box gained a \"Worth\" line: under the metal value and the deduction you now see the net figure (€84.91 − €8.49 = €76.42). The credit below can differ — capped by the sale, or agreed at another number — and the gap between them is exactly your gain.",
+        "♻️ The sale detail now also shows \"Gain on the gold\" and \"Total from this transaction\". You sold €55 earrings and took 1.2g of gold: €30.85 sale profit, €27.36 gain on the metal, €58.21 in total. Before, only the first showed and it looked like you had made less.",
+        "💬 Rewrote the message shown when the gold is worth more than the sale: it said you were doing it wrong when you were not. If the customer accepts the piece as settlement that is correct — the difference stays as gain on the metal.",
       ]},
           ]
   }
@@ -36537,7 +36561,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.83';
+const APP_VERSION = '12.84';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
