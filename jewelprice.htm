@@ -32005,12 +32005,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.88', date: 'Αύγουστος 2026', items: [
-        "✏️ Αλλαγή τιμής μέσα στο καλάθι, ξεχωριστά για κάθε είδος: πατήστε την τιμή στο καλάθι και βάλτε τη δική σας. Βλέπετε αμέσως πόση έκπτωση βγαίνει από την τιμή καταλόγου, και με την «Επαναφορά» γυρίζει στην υπολογισμένη τιμή. Πριν, για να αλλάξετε μία τιμή έπρεπε να αδειάσετε όλο το καλάθι και να ξανασαρώσετε τα πάντα.",
-        "📦 Νέο κουμπί «Παραγγελία» στο καλάθι, για προσφορές από κατάλογο: τα είδη δεν υπάρχουν ακόμα στο απόθεμα, οπότε ούτε η «Πώληση Όλων» ούτε η «Κράτηση» μπορούσαν να τα πιάσουν. Τώρα, μόλις συμφωνήσει ο πελάτης, με ένα πάτημα ανοίγει παραγγελία στον Πάγκο με έτοιμη τη λίστα των ειδών και τη συμφωνημένη τιμή — χωρίς να ξαναγράψετε τίποτα. Τα κομμάτια συνδέονται όταν έρθουν, από το «Προσθήκη κομματιών».",
-        "💬 Αν πατήσετε «Πώληση Όλων» ή «Κράτηση» με είδη που δεν είναι στο απόθεμα, το μήνυμα σας στέλνει πλέον στην «Παραγγελία» αντί απλώς να αρνείται.",
-        "👤 Στην πώληση αλυσίδας με το γραμμάριο μπαίνει πλέον ο πελάτης όπως σε κάθε άλλη πώληση: γράφετε τα πρώτα γράμματα και συμπληρώνεται μόνο του από τους Πελάτες, με τηλέφωνο και email. Πριν υπήρχε μόνο ένα κουτί για το όνομα — χωρίς συμπλήρωση και χωρίς τηλέφωνο — και το τηλέφωνο δεν αποθηκευόταν πουθενά.",
-        "💶 Τα ποσά αποθηκεύονται πάντα στο λεπτό. Η πώληση αλυσίδας με το γραμμάριο κατέγραφε €484.3001891 ενώ η οθόνη έδειχνε €484.30 — σωστό στην εμφάνιση, αλλά μπορούσε να φέρει διαφορά ενός λεπτού σε ένα σύνολο.",
+      { version: 'v12.89', date: 'Αύγουστος 2026', items: [
+        "✏️ Το «Αλλαγή τιμής» στο καλάθι δουλεύει πλέον όπως η κανονική μπάρα τιμής: κουτάκι «Έκπτωση %» και κουτάκι στρογγυλοποίησης, με την τιμή μεγάλη και την τιμή χωρίς ΦΠΑ ακριβώς από κάτω. Γράφετε 10% και βλέπετε αμέσως τη νέα τιμή, ή βάζετε κατευθείαν το στρογγυλό ποσό που θέλετε. Πριν υπήρχε μόνο ένα κουτάκι τιμής, χωρίς έκπτωση και χωρίς τιμή χωρίς ΦΠΑ.",
       ]},
       ]
   },
@@ -32041,12 +32037,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.88', date: 'Aug 2026', items: [
-        "✏️ Change a price inside the cart, one item at a time: tap the price in the cart and type your own. It shows straight away how much discount that is off the list price, and \"Reset\" puts back the calculated price. Before, changing one price meant clearing the whole cart and scanning everything again.",
-        "📦 New \"Order\" button in the cart, for quotes built from a catalog: the pieces are not in stock yet, so neither \"Sell All\" nor \"Reserve\" had anything to work with. Now, once the customer agrees, one tap opens an order on the Desk with the item list and the agreed price already filled in — nothing to retype. The pieces are linked when they arrive, from \"Add pieces\".",
-        "💬 Tapping \"Sell All\" or \"Reserve\" with items that are not in stock now points you at \"Order\" instead of just refusing.",
-        "👤 The by-the-gram chain sale now takes a customer like every other sale: type the first letters and it fills in from your Clients, with phone and email. Before it had a plain name box — no autocomplete, no phone — and any phone was dropped.",
-        "💶 Amounts are always stored to the cent. The by-the-gram chain sale recorded €484.3001891 while the screen said €484.30 — right on screen, but it could put a total a cent out.",
+      { version: 'v12.89', date: 'Aug 2026', items: [
+        "✏️ \"Change price\" in the cart now works like the normal price bar: a \"Discount %\" box and a rounding box, with the price shown large and the price before VAT right underneath. Type 10% and see the new price at once, or type the round figure you want. Before there was only one price box — no discount, and no ex-VAT figure.",
       ]},
           ]
   }
@@ -32220,7 +32212,9 @@ function removeFromCart(idx) {
 // rather than printing "-0.24%" on the quote.
 function _cartApplyLinePrice(ci, newPrice) {
   const r = ci.result;
-  const p = parseFloat(newPrice);
+  // Always to the cent — a discount-derived figure (2870.82 less 10%) is not a
+  // round number, and a stored fraction of a cent puts a total out later.
+  const p = Math.round((parseFloat(newPrice) || 0) * 100) / 100;
   const retail = parseFloat(r.retail) || 0;
   const discAmt = Math.max(0, retail - p);
   r.finalPrice = p.toFixed(2);
@@ -32232,6 +32226,26 @@ function _cartApplyLinePrice(ci, newPrice) {
   const pre = p / (1 + vatPct / 100);
   r.preVat = pre.toFixed(2);
   r.vatAmount = (p - pre).toFixed(2);
+}
+
+// The figure the two fields describe. A round target wins — it is the owner
+// saying "the price is exactly this" — otherwise the price is the list price
+// less the typed discount. That is the calc's own order (discount first,
+// rounding on top of it), so this dialog behaves like the price bar he uses
+// all day rather than being a third way of setting a price.
+function _cartLineFigure() {
+  const ov = document.getElementById('cartLineEditOverlay');
+  if (!ov) return NaN;
+  const rEl = document.getElementById('cartLineRoundInput');
+  const rv = parseFloat(rEl && rEl.value);
+  if (rv > 0) return rv;
+  const retail = parseFloat(ov.dataset.retail) || 0;
+  if (retail > 0) {
+    const dEl = document.getElementById('cartLineDiscInput');
+    const d = Math.min(Math.max(parseFloat(dEl && dEl.value) || 0, 0), 100);
+    return retail * (1 - d / 100);
+  }
+  return parseFloat(ov.dataset.now) || NaN;
 }
 
 function openCartLineEdit(idx) {
@@ -32246,13 +32260,24 @@ function openCartLineEdit(idx) {
   // older saved cart.
   const orig = parseFloat(r._originalFinalPrice != null ? r._originalFinalPrice : r.finalPrice) || 0;
   const now = parseFloat(r.finalPrice) || 0;
+  const vatPct = parseFloat(r.vat) || 0;
+  // Prefill: the line's own discount in the % box, and the round box ONLY when the
+  // current price is not simply "list less that discount" — i.e. only when a figure
+  // was genuinely typed. A blank round box is the honest state for an untouched line.
+  const curDisc = Math.min(Math.max(parseFloat(r.discount) || 0, 0), 100);
+  const discPrice = retail > 0 ? retail * (1 - curDisc / 100) : 0;
+  const roundPre = (retail > 0 && Math.abs(now - discPrice) <= 0.005) ? '' : now.toFixed(2);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fld = "width:100%;padding:11px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:'DM Mono',monospace;font-size:17px;box-sizing:border-box;text-align:center";
+  const lbl = 'display:block;font-size:10px;color:var(--text-muted);margin-bottom:4px;letter-spacing:0.06em;text-transform:uppercase';
 
   const old = document.getElementById('cartLineEditOverlay'); if (old) old.remove();
   const ov = document.createElement('div');
   ov.id = 'cartLineEditOverlay';
-  // Top-anchored: it contains a field, so the keyboard must not cover the very
-  // preview line the owner is typing to watch.
+  ov.dataset.retail = String(retail);
+  ov.dataset.now = String(now);
+  // Top-anchored: it contains fields, so the keyboard must not cover the very
+  // price line the owner is typing to watch.
   ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding-top:env(safe-area-inset-top,0px);overflow-y:auto';
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
   ov.innerHTML = `
@@ -32268,15 +32293,35 @@ function openCartLineEdit(idx) {
         <span>${isEl ? 'Τιμή καταλόγου' : 'List price'}</span>
         <span style="font-family:'DM Mono',monospace;color:var(--text)">${cur}${retail.toFixed(2)}</span>
       </div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--wa06);margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--wa06)">
         <span>${isEl ? 'Υπολογισμένη τιμή' : 'Calculated price'}</span>
         <span style="font-family:'DM Mono',monospace;color:var(--text)">${cur}${orig.toFixed(2)}</span>
       </div>
 
-      <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;letter-spacing:0.04em">${isEl ? 'Νέα τιμή' : 'New price'} (${cur})</label>
-      <input id="cartLinePriceInput" type="number" inputmode="decimal" step="0.01" min="0" value="${now.toFixed(2)}"
-        style="width:100%;padding:12px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:'DM Mono',monospace;font-size:18px;box-sizing:border-box">
-      <div id="cartLinePriceNote" style="font-size:11px;color:var(--text-muted);min-height:16px;margin:8px 2px 14px"></div>
+      <!-- The figure itself, with the ex-VAT split under it — the same pair the
+           customer price bar shows, so the two read alike. -->
+      <div style="text-align:center;padding:14px 0 2px">
+        <div id="cartLineBigPrice" style="font-family:'DM Mono',monospace;font-size:30px;font-weight:700;color:var(--gold-light);line-height:1.1">—</div>
+        <div id="cartLinePreVat" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+      </div>
+      <div id="cartLinePriceNote" style="font-size:11px;color:var(--text-muted);min-height:16px;margin:6px 2px 14px;text-align:center"></div>
+
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:16px">
+        ${retail > 0 ? `<div style="flex:1;min-width:0">
+          <label style="${lbl}">${t('discount')}</label>
+          <input id="cartLineDiscInput" type="number" inputmode="decimal" min="0" max="100" step="0.5" placeholder="0"
+            value="${curDisc > 0.001 ? curDisc : ''}" style="${fld}">
+        </div>` : ''}
+        <div style="flex:1;min-width:0">
+          <label style="${lbl}">${t('roundLabel')}</label>
+          <div style="display:flex;gap:6px;align-items:stretch">
+            <input id="cartLineRoundInput" type="number" inputmode="decimal" min="0" step="1" placeholder="${isEl ? 'π.χ. 2850' : 'e.g. 2850'}"
+              value="${roundPre}" style="${fld};flex:1;min-width:0">
+            <button onclick="_cartLineClearRound()" title="${isEl ? 'Καθαρισμός' : 'Clear'}"
+              style="flex-shrink:0;width:34px;border-radius:8px;border:1px solid var(--wa15);background:var(--wa06);color:var(--text-muted);font-size:15px;cursor:pointer;padding:0">✕</button>
+          </div>
+        </div>
+      </div>
 
       <div style="display:flex;gap:8px">
         ${Math.abs(now - orig) > 0.005 ? `<button onclick="_cartLineReset(${idx})" style="flex:0 0 auto;background:var(--wa06);border:1px solid var(--wa15);border-radius:11px;padding:13px 14px;color:var(--text-muted);font-family:var(--font-body);font-size:13px;cursor:pointer">↩️ ${isEl ? 'Επαναφορά' : 'Reset'}</button>` : ''}
@@ -32285,11 +32330,16 @@ function openCartLineEdit(idx) {
     </div>`;
   document.body.appendChild(ov);
 
-  const inp = document.getElementById('cartLinePriceInput');
+  const discInp = document.getElementById('cartLineDiscInput');
+  const roundInp = document.getElementById('cartLineRoundInput');
   const note = document.getElementById('cartLinePriceNote');
+  const bigEl = document.getElementById('cartLineBigPrice');
+  const pvEl = document.getElementById('cartLinePreVat');
   const sync = () => {
-    const v = parseFloat(inp.value);
-    if (!(v > 0)) { note.textContent = ''; return; }
+    const v = _cartLineFigure();
+    if (!(v > 0)) { bigEl.textContent = '—'; pvEl.textContent = ''; note.textContent = ''; return; }
+    bigEl.textContent = cur + v.toFixed(2);
+    pvEl.textContent = (isEl ? 'χωρίς ΦΠΑ ' : 'excl. VAT ') + cur + (v / (1 + vatPct / 100)).toFixed(2);
     const d = retail - v;
     if (retail > 0 && d > 0.005) {
       note.innerHTML = `<span style="color:var(--danger)">−${(d / retail * 100).toFixed(1)}% (−${cur}${d.toFixed(2)})</span> ${isEl ? 'έκπτωση από την τιμή καταλόγου' : 'off the list price'}`;
@@ -32299,22 +32349,33 @@ function openCartLineEdit(idx) {
       note.textContent = isEl ? 'Χωρίς έκπτωση' : 'No discount';
     }
   };
-  inp.oninput = sync;
-  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); _cartLineSave(idx); } };
+  // Typing a discount drops any rounding — exactly what re-calculating does in the
+  // calc, and without it the round target would silently ignore the % just typed.
+  if (discInp) discInp.oninput = () => { if (roundInp) roundInp.value = ''; sync(); };
+  if (roundInp) roundInp.oninput = sync;
+  [discInp, roundInp].forEach(el => { if (el) el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); _cartLineSave(idx); } }; });
   sync();
-  setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 80);
+  const focusEl = roundInp || discInp;
+  setTimeout(() => { try { focusEl.focus(); focusEl.select(); } catch (e) {} }, 80);
+}
+
+function _cartLineClearRound() {
+  const el = document.getElementById('cartLineRoundInput');
+  if (!el) return;
+  el.value = '';
+  if (el.oninput) el.oninput();
+  try { el.focus(); } catch (e) {}
 }
 
 function _cartLineSave(idx) {
   const ci = quoteCart[idx];
   if (!ci || !ci.result) return;
-  const inp = document.getElementById('cartLinePriceInput');
-  const v = parseFloat(inp && inp.value);
+  const v = _cartLineFigure();
   if (!(v > 0)) { showToast(lang === 'el' ? '⚠️ Βάλτε μια τιμή' : '⚠️ Enter a price'); return; }
   _cartApplyLinePrice(ci, v);
   const ov = document.getElementById('cartLineEditOverlay'); if (ov) ov.remove();
   updateCartUI();   // …which saves the cart (see _saveQuoteCart)
-  showToast('✏️ ' + ci.name + ' · ' + (state.currency || '€') + v.toFixed(2));
+  showToast('✏️ ' + ci.name + ' · ' + (state.currency || '€') + parseFloat(ci.result.finalPrice).toFixed(2));
 }
 
 // Back to the price this piece actually calculated at, with its own original discount.
@@ -37003,7 +37064,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.88';
+const APP_VERSION = '12.89';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
