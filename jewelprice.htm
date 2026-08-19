@@ -12597,7 +12597,12 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
   const _cost = (cost !== undefined && cost !== null && cost > 0) ? parseFloat(cost) : null;
   // profit: cash sales use full amount (no VAT deducted); normal sales deduct VAT first
   const _vat = parseFloat(state.vat) || 0;
-  const _amt = parseFloat(amount);
+  // The amount is MONEY, so it is rounded to the cent once, here, and everything
+  // below (the split, the ex-VAT value, the profit, the stored record) derives
+  // from that one figure. Every caller that already passes a .toFixed(2) value —
+  // which is all of them but the by-the-gram chain — is unaffected; the chain
+  // sale used to store €484.3001891 against a screen reading €484.30.
+  const _amt = Math.round((parseFloat(amount) || 0) * 100) / 100;
   // A sale part-paid by a gift certificate arrived under TWO regimes, months
   // apart: the certificate portion as it was taken back then, the rest as it is
   // being taken now. One flag cannot describe that, so each portion is treated
@@ -12632,7 +12637,7 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
   const _profit = _cost !== null ? parseFloat((_amtExVat - _cost).toFixed(2)) : null;
   const rec = {
     id: _nextSaleId(sales),
-    amount: parseFloat(amount),
+    amount: _amt,
     note: note || '',
     date: date || todayStr(),
     ts: Date.now(),
@@ -16806,7 +16811,8 @@ function closeSaleEditModal() {
 
 async function confirmSaleEdit() {
   const id = parseInt(document.getElementById('saleEditId').value);
-  const amt = parseFloat(document.getElementById('saleEditAmt').value);
+  // Money to the cent, like addSaleRecord — a stored amount is never a fraction of one.
+  const amt = Math.round((parseFloat(document.getElementById('saleEditAmt').value) || 0) * 100) / 100;
   if (!amt || amt <= 0) { showToast(lang==='el'?'⚠️ Εισάγετε έγκυρο ποσό':'⚠️ Enter a valid amount'); return; }
   const vendor = document.getElementById('saleEditVendor').value.trim();
   const note = document.getElementById('saleEditNote').value.trim();
@@ -29213,18 +29219,24 @@ function _bulkSellCalc() {
   const preVatBase = w * pvpg;
   // If an explicit rounding target is set, use it directly as the final price
   // so the entered amount is honoured exactly (avoids drift from a % round-trip).
+  // Money, so round to the cent HERE — the figure this returns is not just the
+  // preview, it is what gets STORED as the sale amount and as the cart line's
+  // price. base is a per-gram product (3.7 × 184.527…), so unrounded it wrote
+  // €484.3001891 onto a record whose screen said €484.30.
+  const _c = n => Math.round(n * 100) / 100;
   const roundVal = parseFloat(document.getElementById('bulkSellRound')?.value);
   if (!isNaN(roundVal) && roundVal > 0 && roundVal < base) {
-    const final = roundVal;
-    const discAmt = base - final;
+    const final = _c(roundVal);
+    const discAmt = _c(base - final);
     // Percentage is display-only (final price + saved amount come straight from the
     // entered target), so round it to 2 decimals to avoid a long float like 22.9114…%
     const disc = Math.round((discAmt / base) * 100 * 100) / 100;
     return { base, preVatBase, final, disc, discAmt, vatRate, w };
   }
   const disc = parseFloat(document.getElementById('bulkSellDiscount')?.value) || 0;
-  const discAmt = base * (disc / 100);
-  let final = base - discAmt;
+  const final = _c(base - base * (disc / 100));
+  // Derived from the rounded price, so "Save €X" is exactly what came off.
+  const discAmt = _c(base - final);
   return { base, preVatBase, final, disc, discAmt, vatRate, w };
 }
 
@@ -31998,6 +32010,7 @@ const ABOUT = {
         "📦 Νέο κουμπί «Παραγγελία» στο καλάθι, για προσφορές από κατάλογο: τα είδη δεν υπάρχουν ακόμα στο απόθεμα, οπότε ούτε η «Πώληση Όλων» ούτε η «Κράτηση» μπορούσαν να τα πιάσουν. Τώρα, μόλις συμφωνήσει ο πελάτης, με ένα πάτημα ανοίγει παραγγελία στον Πάγκο με έτοιμη τη λίστα των ειδών και τη συμφωνημένη τιμή — χωρίς να ξαναγράψετε τίποτα. Τα κομμάτια συνδέονται όταν έρθουν, από το «Προσθήκη κομματιών».",
         "💬 Αν πατήσετε «Πώληση Όλων» ή «Κράτηση» με είδη που δεν είναι στο απόθεμα, το μήνυμα σας στέλνει πλέον στην «Παραγγελία» αντί απλώς να αρνείται.",
         "👤 Στην πώληση αλυσίδας με το γραμμάριο μπαίνει πλέον ο πελάτης όπως σε κάθε άλλη πώληση: γράφετε τα πρώτα γράμματα και συμπληρώνεται μόνο του από τους Πελάτες, με τηλέφωνο και email. Πριν υπήρχε μόνο ένα κουτί για το όνομα — χωρίς συμπλήρωση και χωρίς τηλέφωνο — και το τηλέφωνο δεν αποθηκευόταν πουθενά.",
+        "💶 Τα ποσά αποθηκεύονται πάντα στο λεπτό. Η πώληση αλυσίδας με το γραμμάριο κατέγραφε €484.3001891 ενώ η οθόνη έδειχνε €484.30 — σωστό στην εμφάνιση, αλλά μπορούσε να φέρει διαφορά ενός λεπτού σε ένα σύνολο.",
       ]},
       ]
   },
@@ -32033,6 +32046,7 @@ const ABOUT = {
         "📦 New \"Order\" button in the cart, for quotes built from a catalog: the pieces are not in stock yet, so neither \"Sell All\" nor \"Reserve\" had anything to work with. Now, once the customer agrees, one tap opens an order on the Desk with the item list and the agreed price already filled in — nothing to retype. The pieces are linked when they arrive, from \"Add pieces\".",
         "💬 Tapping \"Sell All\" or \"Reserve\" with items that are not in stock now points you at \"Order\" instead of just refusing.",
         "👤 The by-the-gram chain sale now takes a customer like every other sale: type the first letters and it fills in from your Clients, with phone and email. Before it had a plain name box — no autocomplete, no phone — and any phone was dropped.",
+        "💶 Amounts are always stored to the cent. The by-the-gram chain sale recorded €484.3001891 while the screen said €484.30 — right on screen, but it could put a total a cent out.",
       ]},
           ]
   }
