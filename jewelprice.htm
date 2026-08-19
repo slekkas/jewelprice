@@ -26,6 +26,10 @@
        measures 1.7:1 on the light theme's ivory — unreadable — so it is a token
        rather than a literal, and the light theme darkens it. */
     --debt: #ff8a80;
+    /* Orders / "on order" purple. Same story as --debt: the pale purple used on
+       the dark theme measures 2.2:1 on the light theme's white, so the light
+       theme darkens it. */
+    --order: #c9a0e0;
     --glow-gold: rgba(212,175,55,0.22); --glow-gold-strong: rgba(212,175,55,0.38);
     --font-heading: 'Playfair Display', 'Cormorant Garamond', serif;
     --font-body: 'Inter', sans-serif;
@@ -49,6 +53,7 @@
     --silver: #6B7688; --silver-light: #8A94A6;
     --danger: #C0392B; --success: #2E8B57;
     --debt: #9B2314;
+    --order: #6B3E8F;
     --glow-gold: rgba(184,149,46,0.14); --glow-gold-strong: rgba(184,149,46,0.26);
     --wa02:rgba(45,36,14,0.03); --wa03:rgba(45,36,14,0.04); --wa04:rgba(45,36,14,0.05);
     --wa05:rgba(45,36,14,0.055); --wa06:rgba(45,36,14,0.06); --wa07:rgba(45,36,14,0.07);
@@ -2291,6 +2296,7 @@
       <button onclick="markCartAsSold()" style="flex:1;padding:10px;background:rgba(61,170,106,0.12);border:1px solid rgba(61,170,106,0.4);color:#3daa6a;border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">✅ <span data-i18n="markAllSold">Πώληση Όλων</span></button>
       <button onclick="reserveCartItems()" style="flex:1;padding:10px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">🔒 <span data-i18n="reserveBtn">Κράτηση</span></button>
     </div>
+    <button onclick="orderFromCart()" style="width:100%;margin-top:7px;padding:10px;background:rgba(140,110,200,0.12);border:1px solid rgba(160,130,220,0.45);color:var(--order);border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase">📦 <span data-i18n="cartOrderBtn">Παραγγελία</span></button>
   </div>
 </div>
 
@@ -3945,6 +3951,7 @@ const T = {
     ordSearchPh:'Αναζήτηση — πελάτης, παραγγελία…',
     resNew:'Νέα κράτηση',
     reserveBtn:'Κράτηση',
+    cartOrderBtn:'Παραγγελία',
     resHint:'🔒 Για νέα κράτηση: υπολογίστε ή σαρώστε ένα είδος και πατήστε «Κράτηση» — ή από το καλάθι (πολλά είδη) ή την κάρτα στο Απόθεμα.',
     resSearchPh:'Αναζήτηση — πελάτης, είδος…',
     navInventory:'Απόθ.',
@@ -4542,6 +4549,7 @@ const T = {
     ordSearchPh:'Search — customer, order…',
     resNew:'New reservation',
     reserveBtn:'Reserve',
+    cartOrderBtn:'Order',
     resHint:'🔒 To make a reservation: price or scan an item and tap «Reserve» — or from the cart (multiple items) or an item card in Stock.',
     resSearchPh:'Search — customer, item…',
     navInventory:'Stock',
@@ -8612,6 +8620,7 @@ function _repHideClientSug() { const b = document.getElementById('repClientSug')
 async function _repairSave() {
   const ov = document.getElementById('repairModalOverlay');
   const type = (ov && ov.dataset.type) || 'repair';
+  const _fromCart = !!(ov && ov.dataset.fromCart);
   const isEl = lang === 'el';
   const name = (document.getElementById('repCustName').value || '').trim();
   if (!name) { _repairDlgStatus(isEl ? '⚠️ Βάλτε όνομα πελάτη' : '⚠️ Enter a customer name'); return; }
@@ -8658,6 +8667,10 @@ async function _repairSave() {
     : _isOrdT ? (isEl ? '✓ Η παραγγελία καταχωρήθηκε' : '✓ Order created')
     : (isEl ? '✓ Το δελτίο δημιουργήθηκε' : '✓ Ticket created'));
   renderRepairs();
+  // Built from the quote cart: the deal has moved to the Desk, so the cart's job
+  // is done. Leaving it full would invite a later "Sell all" on pieces that are
+  // on order — the same reasoning as a hold made from the cart (_resDialogSave).
+  if (_fromCart) clearQuoteCart();
   if (isQuote) setTimeout(() => openRepairDetail(rec.id), 150); // straight to sending it
 }
 
@@ -12037,7 +12050,10 @@ function _cartMissingOk(missing, total, action) {
   const list = missing.join(', ');
   const kept = total - missing.length;
   if (!kept) {
-    showToast(isEl ? '⚠️ Δεν βρέθηκαν είδη στο απόθεμα' : '⚠️ No items found in stock');
+    // Nothing in stock is the normal case for a quote built from a catalog —
+    // point at the step that actually fits it rather than just refusing.
+    showToast(isEl ? '⚠️ Κανένα είδος στο απόθεμα — για κατάλογο πατήστε «📦 Παραγγελία»'
+                   : '⚠️ Nothing found in stock — for catalog items use «📦 Order»');
     return Promise.resolve(false);
   }
   // One flowing line: the confirm box renders with textContent, so a \n would
@@ -29141,10 +29157,13 @@ function openBulkSellSheet(id) {
       </div>
       <div style="height:1px;background:var(--wa08);margin-bottom:16px"></div>
 
-      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Πελάτης (προαιρετικό)':'Customer (optional)'}</label>
-      <input type="text" id="bulkSellCustomer" autocomplete="off" autocorrect="off"
-        placeholder="${lang==='el'?'Όνομα πελάτη':'Customer name'}"
-        style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none;margin-bottom:16px">
+      ${/* The one customer block every other sale uses: autocomplete off the Clients
+            book, plus phone and email. This sheet had a bare name box — so a
+            by-the-gram sale was the only one that could not fill in a customer
+            properly, and the phone had nowhere to go. */''}
+      ${_saleCustBlockHtml('bulkSell', {
+        fld: 'width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:14px;box-sizing:border-box;outline:none'
+      })}
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${lang==='el'?'Φωτογραφία (προαιρετικό)':'Photo (optional)'}</label>
       <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -29291,7 +29310,8 @@ async function confirmBulkSell() {
   const remaining = parseFloat(item.weight);
   if (soldWeight > remaining) { showToast('⚠️ ' + (lang==='el'?'Υπερβαίνει το υπόλοιπο βάρος':'Exceeds remaining weight')); return; }
 
-  const customer = (document.getElementById('bulkSellCustomer')?.value || '').trim();
+  const _cust = _saleCustRead('bulkSell');
+  const customer = _cust.name;
   const date = document.getElementById('bulkSellDate')?.value || todayStr();
   const _isBulkCash = document.getElementById('bulkSellCashBtn')?.classList.contains('cash-active') || false;
   const cur = state.currency || '€';
@@ -29300,7 +29320,7 @@ async function confirmBulkSell() {
   // Calculate cost for profit tracking
   const _bulkCost = _bulkSoldCost(item, soldWeight);
   // Log sale — store bulkInvId + bulkSoldWeight so delete can restore weight
-  const bulkRec = await addSaleRecord(saleAmount, note, date, item.vendorName || '', 0, 0, item.qrCode || '', customer, '', _bulkCost, _isBulkCash);
+  const bulkRec = await addSaleRecord(saleAmount, note, date, item.vendorName || '', 0, 0, item.qrCode || '', customer, _cust.email, _bulkCost, _isBulkCash);
   if (bulkRec) {
     bulkRec.bulkInvId = id;
     bulkRec.bulkSoldWeight = soldWeight;
@@ -29311,7 +29331,9 @@ async function confirmBulkSell() {
     localStorage.setItem('jpro_sales', JSON.stringify(_salesCache));
     await pushSalesToCloud(_salesCache);
   }
-  if (customer) autoSaveClientFromQuote(customer, '');
+  // The full upsert, like every other sale — so the phone typed here reaches the
+  // Clients book instead of being dropped (autoSaveClientFromQuote takes no phone).
+  if (customer) upsertClientFromSale(customer, _cust.phone, _cust.email);
 
   // Deduct weight from batch
   const newWeight = Math.max(0, remaining - soldWeight);
@@ -31971,9 +31993,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.87', date: 'Αύγουστος 2026', items: [
-        "🔧 Διόρθωση: η «Προσθήκη όμοιων ειδών» ζητούσε βάρος και σε είδη τύπου «Άλλο», που δεν έχουν βάρος καθόλου — έβγαζε «Βάλτε βάρος» και δεν προσθέτονταν τίποτα. Τώρα το πεδίο του βάρους δεν εμφανίζεται σε αυτά τα είδη· βάζετε ποσότητα και χρώμα και προστίθενται κανονικά.",
-        "🏷️ Στην «Προσθήκη όμοιων ειδών» μπορείτε πλέον να αλλάξετε τον Κωδικό Προμηθευτή. Άλλο χρώμα σημαίνει συνήθως άλλο κωδικό στον προμηθευτή — πριν αντιγραφόταν ο κωδικός του πρώτου κομματιού χωρίς να μπορείτε να τον πειράξετε.",
+      { version: 'v12.88', date: 'Αύγουστος 2026', items: [
+        "✏️ Αλλαγή τιμής μέσα στο καλάθι, ξεχωριστά για κάθε είδος: πατήστε την τιμή στο καλάθι και βάλτε τη δική σας. Βλέπετε αμέσως πόση έκπτωση βγαίνει από την τιμή καταλόγου, και με την «Επαναφορά» γυρίζει στην υπολογισμένη τιμή. Πριν, για να αλλάξετε μία τιμή έπρεπε να αδειάσετε όλο το καλάθι και να ξανασαρώσετε τα πάντα.",
+        "📦 Νέο κουμπί «Παραγγελία» στο καλάθι, για προσφορές από κατάλογο: τα είδη δεν υπάρχουν ακόμα στο απόθεμα, οπότε ούτε η «Πώληση Όλων» ούτε η «Κράτηση» μπορούσαν να τα πιάσουν. Τώρα, μόλις συμφωνήσει ο πελάτης, με ένα πάτημα ανοίγει παραγγελία στον Πάγκο με έτοιμη τη λίστα των ειδών και τη συμφωνημένη τιμή — χωρίς να ξαναγράψετε τίποτα. Τα κομμάτια συνδέονται όταν έρθουν, από το «Προσθήκη κομματιών».",
+        "💬 Αν πατήσετε «Πώληση Όλων» ή «Κράτηση» με είδη που δεν είναι στο απόθεμα, το μήνυμα σας στέλνει πλέον στην «Παραγγελία» αντί απλώς να αρνείται.",
+        "👤 Στην πώληση αλυσίδας με το γραμμάριο μπαίνει πλέον ο πελάτης όπως σε κάθε άλλη πώληση: γράφετε τα πρώτα γράμματα και συμπληρώνεται μόνο του από τους Πελάτες, με τηλέφωνο και email. Πριν υπήρχε μόνο ένα κουτί για το όνομα — χωρίς συμπλήρωση και χωρίς τηλέφωνο — και το τηλέφωνο δεν αποθηκευόταν πουθενά.",
       ]},
       ]
   },
@@ -32004,9 +32028,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.87', date: 'Aug 2026', items: [
-        "🔧 Fix: \"Add similar items\" asked for a weight on \"Other\"-type pieces, which have no weight at all — it showed \"Enter a weight\" and added nothing. The weight box is no longer shown for those pieces; set a quantity and a colour and they add normally.",
-        "🏷️ \"Add similar items\" now lets you change the Vendor Code. A different colour usually has a different code at the supplier — before, the first piece's code was copied with no way to edit it.",
+      { version: 'v12.88', date: 'Aug 2026', items: [
+        "✏️ Change a price inside the cart, one item at a time: tap the price in the cart and type your own. It shows straight away how much discount that is off the list price, and \"Reset\" puts back the calculated price. Before, changing one price meant clearing the whole cart and scanning everything again.",
+        "📦 New \"Order\" button in the cart, for quotes built from a catalog: the pieces are not in stock yet, so neither \"Sell All\" nor \"Reserve\" had anything to work with. Now, once the customer agrees, one tap opens an order on the Desk with the item list and the agreed price already filled in — nothing to retype. The pieces are linked when they arrive, from \"Add pieces\".",
+        "💬 Tapping \"Sell All\" or \"Reserve\" with items that are not in stock now points you at \"Order\" instead of just refusing.",
+        "👤 The by-the-gram chain sale now takes a customer like every other sale: type the first letters and it fills in from your Clients, with phone and email. Before it had a plain name box — no autocomplete, no phone — and any phone was dropped.",
       ]},
           ]
   }
@@ -32165,6 +32191,166 @@ function removeFromCart(idx) {
   if (quoteCart.length === 0) {
     document.getElementById('cartPanel').style.display = 'none';
   }
+}
+
+// ── Edit one cart line's price ───────────────────────────────────────────────
+// A cart is built one scan at a time, but the price the owner gives is often
+// decided AFTER the pieces are together in front of the customer ("call it
+// 12,400"). Before this, changing one line meant clearing the whole cart and
+// scanning every piece again — a €25 adjustment cost the entire basket.
+//
+// The rule is exactly the calc's own rounding box (applyRoundedPrice), so the
+// two cannot drift: the typed figure IS the price, and the discount is
+// back-calculated against that piece's list price. Rounding UP is not a
+// negative discount — it is simply the price — so the discount clamps at 0
+// rather than printing "-0.24%" on the quote.
+function _cartApplyLinePrice(ci, newPrice) {
+  const r = ci.result;
+  const p = parseFloat(newPrice);
+  const retail = parseFloat(r.retail) || 0;
+  const discAmt = Math.max(0, retail - p);
+  r.finalPrice = p.toFixed(2);
+  r.discount = parseFloat((retail > 0 ? (discAmt / retail) * 100 : 0).toFixed(2));
+  r.discountAmt = discAmt.toFixed(2);
+  // Keep the ex-VAT split in step with the figure above it — the quote history
+  // stores these, and a stale pre-VAT would describe a price that no longer exists.
+  const vatPct = parseFloat(r.vat) || 0;
+  const pre = p / (1 + vatPct / 100);
+  r.preVat = pre.toFixed(2);
+  r.vatAmount = (p - pre).toFixed(2);
+}
+
+function openCartLineEdit(idx) {
+  const ci = quoteCart[idx];
+  if (!ci || !ci.result) return;
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const r = ci.result;
+  const retail = parseFloat(r.retail) || 0;
+  // The price this piece calculated at, before any rounding — every calc path
+  // stores it, but fall back to the current figure for a line restored from an
+  // older saved cart.
+  const orig = parseFloat(r._originalFinalPrice != null ? r._originalFinalPrice : r.finalPrice) || 0;
+  const now = parseFloat(r.finalPrice) || 0;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const old = document.getElementById('cartLineEditOverlay'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'cartLineEditOverlay';
+  // Top-anchored: it contains a field, so the keyboard must not cover the very
+  // preview line the owner is typing to watch.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.75);display:flex;align-items:flex-start;justify-content:center;padding-top:env(safe-area-inset-top,0px);overflow-y:auto';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2);border-bottom-left-radius:18px;border-bottom-right-radius:18px;max-width:420px;width:100%;padding:18px 18px 22px;box-shadow:0 8px 40px rgba(0,0,0,0.6);max-height:92dvh;overflow-y:auto">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:17px;color:var(--gold-light);font-weight:700">${isEl ? 'Αλλαγή τιμής' : 'Change price'}</div>
+        <button onclick="document.getElementById('cartLineEditOverlay').remove()" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:13px;color:var(--text);margin-bottom:2px">${esc(ci.name)}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:14px">${esc(r.metalLabel || '')}${r.weight ? ' · ' + r.weight + 'g' : ''}</div>
+
+      ${retail > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--wa06)">
+        <span>${isEl ? 'Τιμή καταλόγου' : 'List price'}</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--text)">${cur}${retail.toFixed(2)}</span>
+      </div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--wa06);margin-bottom:14px">
+        <span>${isEl ? 'Υπολογισμένη τιμή' : 'Calculated price'}</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--text)">${cur}${orig.toFixed(2)}</span>
+      </div>
+
+      <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;letter-spacing:0.04em">${isEl ? 'Νέα τιμή' : 'New price'} (${cur})</label>
+      <input id="cartLinePriceInput" type="number" inputmode="decimal" step="0.01" min="0" value="${now.toFixed(2)}"
+        style="width:100%;padding:12px;background:var(--dark-3);border:1px solid var(--wa15);color:var(--text);border-radius:10px;font-family:'DM Mono',monospace;font-size:18px;box-sizing:border-box">
+      <div id="cartLinePriceNote" style="font-size:11px;color:var(--text-muted);min-height:16px;margin:8px 2px 14px"></div>
+
+      <div style="display:flex;gap:8px">
+        ${Math.abs(now - orig) > 0.005 ? `<button onclick="_cartLineReset(${idx})" style="flex:0 0 auto;background:var(--wa06);border:1px solid var(--wa15);border-radius:11px;padding:13px 14px;color:var(--text-muted);font-family:var(--font-body);font-size:13px;cursor:pointer">↩️ ${isEl ? 'Επαναφορά' : 'Reset'}</button>` : ''}
+        <button onclick="_cartLineSave(${idx})" style="flex:1;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:11px;padding:13px;color:var(--ink);font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${isEl ? 'Αποθήκευση' : 'Save'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+
+  const inp = document.getElementById('cartLinePriceInput');
+  const note = document.getElementById('cartLinePriceNote');
+  const sync = () => {
+    const v = parseFloat(inp.value);
+    if (!(v > 0)) { note.textContent = ''; return; }
+    const d = retail - v;
+    if (retail > 0 && d > 0.005) {
+      note.innerHTML = `<span style="color:var(--danger)">−${(d / retail * 100).toFixed(1)}% (−${cur}${d.toFixed(2)})</span> ${isEl ? 'έκπτωση από την τιμή καταλόγου' : 'off the list price'}`;
+    } else if (retail > 0 && d < -0.005) {
+      note.textContent = (isEl ? 'Πάνω από την τιμή καταλόγου κατά ' : 'Above the list price by ') + cur + Math.abs(d).toFixed(2);
+    } else {
+      note.textContent = isEl ? 'Χωρίς έκπτωση' : 'No discount';
+    }
+  };
+  inp.oninput = sync;
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); _cartLineSave(idx); } };
+  sync();
+  setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 80);
+}
+
+function _cartLineSave(idx) {
+  const ci = quoteCart[idx];
+  if (!ci || !ci.result) return;
+  const inp = document.getElementById('cartLinePriceInput');
+  const v = parseFloat(inp && inp.value);
+  if (!(v > 0)) { showToast(lang === 'el' ? '⚠️ Βάλτε μια τιμή' : '⚠️ Enter a price'); return; }
+  _cartApplyLinePrice(ci, v);
+  const ov = document.getElementById('cartLineEditOverlay'); if (ov) ov.remove();
+  updateCartUI();   // …which saves the cart (see _saveQuoteCart)
+  showToast('✏️ ' + ci.name + ' · ' + (state.currency || '€') + v.toFixed(2));
+}
+
+// Back to the price this piece actually calculated at, with its own original discount.
+function _cartLineReset(idx) {
+  const ci = quoteCart[idx];
+  if (!ci || !ci.result) return;
+  const r = ci.result;
+  const orig = parseFloat(r._originalFinalPrice != null ? r._originalFinalPrice : r.finalPrice) || 0;
+  _cartApplyLinePrice(ci, orig);
+  // The calc's own original discount is authoritative — a piece whose list price
+  // equals its calculated price still carried a discount typed in the calc.
+  if (r._originalDiscount != null) {
+    r.discount = parseFloat(r._originalDiscount) || 0;
+    r.discountAmt = (parseFloat(r._originalDiscountAmt) || 0).toFixed(2);
+  }
+  const ov = document.getElementById('cartLineEditOverlay'); if (ov) ov.remove();
+  updateCartUI();
+  showToast('↩️ ' + (state.currency || '€') + orig.toFixed(2));
+}
+
+// ── Cart → order ─────────────────────────────────────────────────────────────
+// A quote is very often built from a vendor CATALOG — the pieces do not exist in
+// stock yet. "Sell all" and "Reserve" both resolve every line to a record in
+// stock (_resolveCart) and can only drop the ones they cannot place, so neither
+// has anything to work with. The step that actually follows a catalog quote is
+// "the customer said yes, now order it", which lives in Desk → Orders — and it
+// had to be retyped by hand.
+//
+// This is that bridge: the cart's lines become the order's description (so they
+// print on the ticket and go out in the quote message) and the subtotal becomes
+// the agreed price. The pieces themselves are linked when they ARRIVE, via the
+// order's "Add pieces" — the only moment a record for them exists.
+function orderFromCart() {
+  if (!quoteCart.length) return;
+  const cur = state.currency || '€';
+  const total = quoteCart.reduce((s, ci) => s + (parseFloat(ci.result.finalPrice) || 0), 0);
+  const lines = quoteCart.map((ci, i) => {
+    const r = ci.result || {};
+    const bits = [r.metalLabel || '', r.weight ? r.weight + 'g' : ''].filter(Boolean).join(' · ');
+    return `${i + 1}. ${ci.name}${bits ? ' — ' + bits : ''} — ${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)}`;
+  }).join('\n');
+
+  openRepairModal('orders');
+  const ov = document.getElementById('repairModalOverlay');
+  if (!ov) return;   // not signed in — openRepairModal already said so
+  ov.dataset.fromCart = '1';   // lives on the overlay, so it dies with it
+  const desc = document.getElementById('repDesc');
+  if (desc) { desc.value = lines; desc.rows = Math.min(8, quoteCart.length + 1); }
+  const est = document.getElementById('repEstLow');
+  if (est) est.value = total.toFixed(2);
 }
 
 function clearQuoteCart() {
@@ -32619,12 +32805,12 @@ function updateCartUI() {
   if (list) {
     list.innerHTML = quoteCart.map((ci, i) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--wa06)">
-        <div>
+        <div style="flex:1;min-width:0;padding-right:10px">
           <div style="font-size:12px;color:var(--text)">${ci.name}</div>
           <div style="font-size:10px;color:var(--text-muted)">${ci.result.metalLabel} · ${ci.result.weight}g${ci.result.discount > 0 ? ' · -' + ci.result.discount + '%' : ''}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--gold-light)">${cur}${parseFloat(ci.result.finalPrice).toFixed(2)}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+          <button onclick="openCartLineEdit(${i})" title="${lang === 'el' ? 'Αλλαγή τιμής' : 'Change price'}" style="background:none;border:none;border-bottom:1px dashed rgba(201,168,76,0.45);font-family:'DM Mono',monospace;font-size:13px;color:var(--gold-light);cursor:pointer;padding:2px 0;white-space:nowrap"><span style="font-size:10px;opacity:0.6;margin-right:3px">✏️</span>${cur}${parseFloat(ci.result.finalPrice).toFixed(2)}</button>
           <button onclick="removeFromCart(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:4px 6px">✕</button>
         </div>
       </div>`).join('');
@@ -36803,7 +36989,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.87';
+const APP_VERSION = '12.88';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
