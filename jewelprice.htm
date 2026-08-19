@@ -1655,6 +1655,14 @@
     <span id="cpbRestorePillAmt" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:600;color:var(--gold-light);letter-spacing:0.04em">—</span>
   </button>
 
+  <!-- CART PILL — the 🛒 button lives INSIDE the customer price bar, and that bar only
+       exists once something has been calculated. So a cart restored after a reload (or one
+       still holding items after the calc was cleared) had no way in at all. This is it. -->
+  <button id="cartFloatPill" onclick="_openCartFromPill()" style="display:none;position:fixed;bottom:65px;right:12px;z-index:1000;background:linear-gradient(135deg,#2a1f00,#1a1500);border:1.5px solid rgba(212,175,55,0.6);border-radius:24px;padding:8px 16px 8px 12px;cursor:pointer;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,0.7),0 0 0 1px rgba(212,175,55,0.15);backdrop-filter:blur(12px)">
+    <span style="font-size:15px;line-height:1">🛒</span>
+    <span id="cartFloatPillLabel" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:600;color:var(--gold-light);letter-spacing:0.04em">0</span>
+  </button>
+
   <!-- PRICE FULLSCREEN OVERLAY -->
   <div id="priceFullscreenOverlay" onclick="togglePriceFullscreen()" style="display:none;position:fixed;inset:0;background:#0a0800;z-index:99999;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;cursor:pointer;overflow:hidden;padding:44px 20px 58px">
     <div style="font-family:var(--font-body);font-size:13px;letter-spacing:0.15em;color:rgba(240,208,96,0.65);text-transform:uppercase" data-i18n="finalPrice">Τελική Τιμή</div>
@@ -5771,6 +5779,7 @@ function showPanel(name) {
   if (pb) pb.style.display = (_pbOn && !_priceBarMinimized) ? 'block' : 'none';
   const _pbPill = document.getElementById('cpbRestorePill');
   if (_pbPill) _pbPill.style.display = (_pbOn && _priceBarMinimized) ? 'flex' : 'none';
+  _syncCartFloatPill();   // …and the cart pill, which is the only way in when the bar is absent
   // Adjust calc panel bottom padding to always clear the price bar
   adjustCalcPadding();
   // Refresh notification badge on every tab switch
@@ -32005,8 +32014,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.89', date: 'Αύγουστος 2026', items: [
-        "✏️ Το «Αλλαγή τιμής» στο καλάθι δουλεύει πλέον όπως η κανονική μπάρα τιμής: κουτάκι «Έκπτωση %» και κουτάκι στρογγυλοποίησης, με την τιμή μεγάλη και την τιμή χωρίς ΦΠΑ ακριβώς από κάτω. Γράφετε 10% και βλέπετε αμέσως τη νέα τιμή, ή βάζετε κατευθείαν το στρογγυλό ποσό που θέλετε. Πριν υπήρχε μόνο ένα κουτάκι τιμής, χωρίς έκπτωση και χωρίς τιμή χωρίς ΦΠΑ.",
+      { version: 'v12.90', date: 'Αύγουστος 2026', items: [
+        "🛒 Μικρό κουμπί καλαθιού που εμφανίζεται πάνω από τα tabs όταν το καλάθι έχει είδη και δεν υπάρχει υπολογισμός στην οθόνη — π.χ. μόλις ανοίξετε ξανά την εφαρμογή και επιστρέψει το καλάθι της ημέρας. Πριν, το κουμπί 🛒 υπήρχε μόνο μέσα στη μπάρα τιμής, που εμφανίζεται μόνο μετά από υπολογισμό, οπότε το καλάθι ήταν εκεί αλλά δεν άνοιγε με τίποτα. Πατήστε το και ανοίγει κανονικά.",
       ]},
       ]
   },
@@ -32037,8 +32046,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.89', date: 'Aug 2026', items: [
-        "✏️ \"Change price\" in the cart now works like the normal price bar: a \"Discount %\" box and a rounding box, with the price shown large and the price before VAT right underneath. Type 10% and see the new price at once, or type the round figure you want. Before there was only one price box — no discount, and no ex-VAT figure.",
+      { version: 'v12.90', date: 'Aug 2026', items: [
+        "🛒 A small cart button now appears just above the tabs whenever the cart has items and there is no calculation on screen — for example right after reopening the app, when the day's cart comes back. Before, the 🛒 button lived only inside the price bar, which only appears after a calculation, so the cart was there but nothing would open it. Tap it and the cart opens as normal.",
       ]},
           ]
   }
@@ -32685,6 +32694,7 @@ function togglePriceFullscreen() {
 function _showPriceBar() {
   const bar = document.getElementById('customerPriceBar');
   if (!bar) return;
+  _syncCartFloatPill();   // a calc just landed: the bar carries the 🛒 again, so the pill steps aside
   if (!document.getElementById('panel-calc')?.classList.contains('active')) return;
   if (_priceBarMinimized) return;   // user minimized it — don't pop it back up
   bar.style.display = 'block';
@@ -32842,6 +32852,34 @@ function clearCalc() {
 function toggleCartPanel() {
   const panel = document.getElementById('cartPanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  _syncCartFloatPill();
+}
+
+// The floating way into the cart. Everything else that opens the cart panel is a button
+// on the customer price bar, which only exists after a calculation — so with no calc on
+// screen (a fresh reload with a restored cart, or right after Clear) the cart was there
+// but unreachable. The pill shows on Calc whenever the cart has items and neither the
+// bar nor the cart panel is on screen to carry the button itself; it deliberately stays
+// hidden while the bar is merely MINIMIZED, because its own restore pill owns that spot.
+function _syncCartFloatPill() {
+  const pill = document.getElementById('cartFloatPill');
+  if (!pill) return;
+  const onCalc = !!document.getElementById('panel-calc')?.classList.contains('active');
+  const panelOpen = document.getElementById('cartPanel')?.style.display === 'block';
+  const show = onCalc && quoteCart.length > 0 && !lastCalcResult && !panelOpen;
+  pill.style.display = show ? 'flex' : 'none';
+  const lb = document.getElementById('cartFloatPillLabel');
+  if (lb && show) {
+    const n = quoteCart.length;
+    lb.textContent = n + ' ' + (lang === 'el' ? (n === 1 ? 'είδος' : 'είδη') : (n === 1 ? 'item' : 'items'));
+  }
+}
+
+function _openCartFromPill() {
+  const panel = document.getElementById('cartPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  _syncCartFloatPill();
 }
 
 function updateCartUI() {
@@ -32894,6 +32932,7 @@ function updateCartUI() {
     if (subtotalEl) subtotalEl.textContent = cur + subtotal.toFixed(2);
   }
 
+  _syncCartFloatPill();
   _saveQuoteCart(); // every mutation lands here, so this is the one save point
 }
 
@@ -37064,7 +37103,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.89';
+const APP_VERSION = '12.90';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
