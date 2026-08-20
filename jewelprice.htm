@@ -30,6 +30,9 @@
        the dark theme measures 2.2:1 on the light theme's white, so the light
        theme darkens it. */
     --order: #c9a0e0;
+    /* "Bring it back" green (reactivating a finished hold). Same story again: the pale
+       mint used on the dark ground measures 1.7:1 on the light theme's white. */
+    --revive: #7fd6b0;
     --glow-gold: rgba(212,175,55,0.22); --glow-gold-strong: rgba(212,175,55,0.38);
     --font-heading: 'Playfair Display', 'Cormorant Garamond', serif;
     --font-body: 'Inter', sans-serif;
@@ -54,6 +57,7 @@
     --danger: #C0392B; --success: #2E8B57;
     --debt: #9B2314;
     --order: #6B3E8F;
+    --revive: #1F6E4E;
     --glow-gold: rgba(184,149,46,0.14); --glow-gold-strong: rgba(184,149,46,0.26);
     --wa02:rgba(45,36,14,0.03); --wa03:rgba(45,36,14,0.04); --wa04:rgba(45,36,14,0.05);
     --wa05:rgba(45,36,14,0.055); --wa06:rgba(45,36,14,0.06); --wa07:rgba(45,36,14,0.07);
@@ -7944,6 +7948,7 @@ function openReservationDetail(id) {
     <button onclick="_resComplete('${r.id}')" style="width:100%;margin-top:12px;padding:14px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer">✅ ${isEl ? 'Ολοκλήρωση & Πώληση' : 'Complete & sell'}</button>
     <button onclick="_resCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση κράτησης' : 'Cancel reservation'}</button>`
     : `<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:6px">${r.status === 'completed' ? (isEl ? 'Ολοκληρώθηκε' : 'Completed') : r.status === 'expired' ? (isEl ? 'Έληξε' : 'Expired') : (isEl ? 'Ακυρώθηκε' : 'Cancelled')}${r.dateCompleted ? ' · ' + fmtDate(new Date(r.dateCompleted)) : ''}</div>
+    ${_resCanRevive(r) ? `<button onclick="_resReactivate('${r.id}')" style="width:100%;margin-top:10px;padding:13px;background:rgba(76,175,132,0.12);border:1px solid rgba(76,175,132,0.45);color:var(--revive);border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">↩️ ${isEl ? 'Ενεργοποίηση ξανά' : 'Reactivate'}</button>` : ''}
     ${(r.status === 'cancelled' || r.status === 'expired') ? `<button onclick="_resDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}`}
   </div>`;
   document.body.appendChild(ov);
@@ -8046,11 +8051,67 @@ async function _resEditSave(id) {
   if (reviving) _resOfferRevive(id);
 }
 
-// An EXPIRED hold whose date has been pushed into the future. Its pieces were released
-// back to stock (and the showroom) when it expired, so bringing it back must put them
-// on hold again — and only the ones that are still free to hold. Anything sold or now
-// held by someone else is NAMED, never silently dropped: the record keeps listing it
+// ── BRINGING A FINISHED HOLD BACK ───────────────────────────────────────────
+// An EXPIRED hold whose date has been pushed into the future, or a CANCELLED one the
+// customer has come back for. Its pieces were released back to stock (and the showroom)
+// when it ended, so bringing it back must put them on hold again — and only the ones
+// that are still free to hold. Anything sold or now held by someone else (another hold
+// OR an order ticket) is NAMED, never silently dropped: the record keeps listing it
 // (so the history stays true) but it is not re-flagged.
+//
+// Who may: owner/manager always. An EXPIRED hold can also be brought back by whoever
+// made it (the same rule as editing it) — a CANCELLED one was a deliberate
+// owner/manager decision, so only they can undo it. A COMPLETED hold is never revivable:
+// its pieces were sold.
+function _resCanRevive(r) {
+  if (!r) return false;
+  if (r.status !== 'expired' && r.status !== 'cancelled') return false;
+  if (can('desk_admin')) return true;
+  if (r.status !== 'expired') return false;
+  const me = (creds.displayName || creds.userName || '').trim();
+  return !!me && (r.createdBy || '').trim() === me;
+}
+
+// The shared machinery behind both entry points: flip the record back to active and
+// re-hold whatever it still can.
+async function _resReviveApply(id, holdUntil) {
+  const isEl = lang === 'el';
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { _inventoryCache = await loadInventory(); } catch (e) {} }
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  const _nameOf = iid => {
+    const it = (_inventoryCache || {})[iid];
+    if (it && it.seqId) return itemRefCode(it);
+    const li = ((r.items || []).find(x => x && x.invId === iid)) || {};
+    return li.ref || li.desc || (it && it.qrCode) || iid;
+  };
+  // Work out what is still holdable BEFORE flipping the status — _holdFor only looks at
+  // ACTIVE holds/tickets, so this one must not yet be one of them.
+  const free = [], gone = [];
+  for (const iid of (r.itemIds || [])) {
+    const it = (_inventoryCache || {})[iid];
+    const held = _holdFor(iid);
+    const takenByOther = held && !(held.kind === 'res' && held.id === id);
+    if (!it || it.status !== 'in_stock' || takenByOther) gone.push(iid); else free.push(iid);
+  }
+  const list = getReservations(); const r2 = list.find(x => x.id === id); if (!r2) return;
+  r2.status = 'active'; r2.dateCompleted = null;
+  if (holdUntil) r2.holdUntil = holdUntil;
+  saveReservationsLocal(list); pushReservationsToCloud(list);
+  const mark = await _resMarkItems(free, id);
+  openReservationDetail(id);
+  renderReservations();
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+  const problems = gone.concat(mark.failed.filter(f => gone.indexOf(f) === -1));
+  if (!problems.length) { showToast(isEl ? '✓ Η κράτηση ενεργοποιήθηκε ξανά' : '✓ Reservation reactivated'); return; }
+  const names = problems.map(_nameOf).join(', ');
+  showConfirm(
+    isEl ? `Η κράτηση ενεργοποιήθηκε, ΑΛΛΑ αυτά τα κομμάτια δεν μπήκαν ξανά σε κράτηση: ${names}. Ελέγξτε τα στο Απόθεμα και διορθώστε τη συμφωνημένη τιμή αν χρειάζεται.`
+         : `The reservation is active again, BUT these pieces could not be put back on hold: ${names}. Check them in Stock and adjust the agreed price if needed.`,
+    () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false }
+  );
+}
+
+// Entry point 1: the edit form pushed an EXPIRED hold's date into the future.
 function _resOfferRevive(id) {
   const isEl = lang === 'el';
   const r = getReservations().find(x => x.id === id);
@@ -8058,40 +8119,49 @@ function _resOfferRevive(id) {
   showConfirm(
     isEl ? `Η κράτηση είχε λήξει. Να ενεργοποιηθεί ξανά έως ${fmtDate(r.holdUntil)};`
          : `This reservation had expired. Reactivate it until ${fmtDate(r.holdUntil)}?`,
-    async () => {
-      if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { _inventoryCache = await loadInventory(); } catch (e) {} }
-      const _nameOf = iid => {
-        const it = (_inventoryCache || {})[iid];
-        if (it && it.seqId) return itemRefCode(it);
-        const li = ((r.items || []).find(x => x && x.invId === iid)) || {};
-        return li.ref || li.desc || (it && it.qrCode) || iid;
-      };
-      // Work out what is still holdable BEFORE flipping the status — _resHoldFor only
-      // looks at ACTIVE reservations, so this one must not yet be one of them.
-      const free = [], gone = [];
-      for (const iid of (r.itemIds || [])) {
-        const it = (_inventoryCache || {})[iid];
-        const held = _resHoldFor(iid);
-        if (!it || it.status !== 'in_stock' || (held && held.id !== id)) gone.push(iid); else free.push(iid);
-      }
-      const list = getReservations(); const r2 = list.find(x => x.id === id); if (!r2) return;
-      r2.status = 'active'; r2.dateCompleted = null;
-      saveReservationsLocal(list); pushReservationsToCloud(list);
-      const mark = await _resMarkItems(free, id);
-      openReservationDetail(id);
-      renderReservations();
-      if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
-      const problems = gone.concat(mark.failed.filter(f => gone.indexOf(f) === -1));
-      if (!problems.length) { showToast(isEl ? '✓ Η κράτηση ενεργοποιήθηκε ξανά' : '✓ Reservation reactivated'); return; }
-      const names = problems.map(_nameOf).join(', ');
-      showConfirm(
-        isEl ? `Η κράτηση ενεργοποιήθηκε, ΑΛΛΑ αυτά τα κομμάτια δεν μπήκαν ξανά σε κράτηση: ${names}. Ελέγξτε τα στο Απόθεμα και διορθώστε τη συμφωνημένη τιμή αν χρειάζεται.`
-             : `The reservation is active again, BUT these pieces could not be put back on hold: ${names}. Check them in Stock and adjust the agreed price if needed.`,
-        () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false }
-      );
-    },
-    null, { okLabel: isEl ? 'Ενεργοποίηση' : 'Reactivate' }
+    () => { _resReviveApply(id); },
+    null, { okLabel: isEl ? 'Ενεργοποίηση' : 'Reactivate', danger: false }
   );
+}
+
+// Entry point 2: the ↩️ button on a cancelled/expired hold. It asks for the new
+// hold-until date up front — a revived hold whose date is already past would simply be
+// expired again by the next _resCheckExpiry sweep.
+function _resReactivate(id) {
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  const isEl = lang === 'el';
+  if (!_resCanRevive(r)) { showToast(isEl ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  const def = (r.holdUntil && r.holdUntil >= todayStr()) ? r.holdUntil : dateStrInDays(14);
+  document.getElementById('resReviveOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'resReviveOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.88);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:400px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">↩️ ${isEl ? 'Ενεργοποίηση ξανά' : 'Reactivate'} · ${resNoFmt(r)}</div>
+      <button onclick="document.getElementById('resReviveOverlay').remove()" class="modal-x">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:12px">${isEl ? 'Τα κομμάτια μπαίνουν ξανά σε κράτηση — όσα είναι ακόμα διαθέσιμα. Αν κάποιο πουλήθηκε ή το κρατάει άλλος, θα σας το πούμε.' : 'The pieces go back on hold — the ones still available. If any was sold, or is now held by someone else, you will be told.'}</div>
+    <div style="${_resLbl}">${isEl ? 'Κράτηση έως' : 'Hold until'}</div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="resRevHoldDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${fmtDate(def)}</div>
+      <input id="resRevHold" type="date" value="${def}" onchange="var _d=document.getElementById('resRevHoldDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
+    </div>
+    <div id="resRevStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:#e0a85a"></div>
+    <button onclick="_resReviveConfirm('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">↩️ ${isEl ? 'Ενεργοποίηση' : 'Reactivate'}</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+async function _resReviveConfirm(id) {
+  const isEl = lang === 'el';
+  const r = getReservations().find(x => x.id === id); if (!r) return;
+  if (!_resCanRevive(r)) { showToast(isEl ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  const d = (document.getElementById('resRevHold') || {}).value || '';
+  const st = document.getElementById('resRevStatus');
+  if (!d || d < todayStr()) { if (st) st.textContent = isEl ? '⚠️ Βάλτε σημερινή ή μελλοντική ημερομηνία' : '⚠️ Pick today or a future date'; return; }
+  document.getElementById('resReviveOverlay')?.remove();
+  await _resReviveApply(id, d);
 }
 
 async function _resAddPayment(id) {
@@ -8692,6 +8762,8 @@ function openRepairDetail(id) {
   document.getElementById('repairDetailOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'repairDetailOverlay';
+  ov.dataset.rid = id;                 // so a background stock load knows it is still this ticket
+  _ordEnsureStockThenRedraw(r);        // the piece blocks need the stock cache — see _ordEnsureStock
   ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
   const statusLabel = repStatusLabel(r);
   const _isQ = _repIsQuote(r);
@@ -9092,8 +9164,9 @@ function _repairDepositConfirm(id) {
 
 // Collect: enter final price + the cost it took you, choose receipt/cash (affects
 // profit like a sale), optionally log as income, mark collected.
-function _repairCollectOpen(id) {
+async function _repairCollectOpen(id) {
   const r = getRepairs().find(x => x.id === id); if (!r) return;
+  await _ordEnsureStock(r);   // materials decide the job's cost — never book them at €0
   const isEl = lang === 'el';
   const suggested = (parseFloat(r.estHigh) || parseFloat(r.estLow) || 0);
   // Stock that went into the job. Its cost is added automatically, so the Cost box asks
@@ -9543,6 +9616,59 @@ async function shareRepairForm(id) {
 
 // The pieces still resolvable, as [id, item] pairs. A piece deleted from stock simply
 // drops out — the ticket is not rewritten behind the owner's back.
+// Both piece blocks below resolve their items out of _inventoryCache — and a device that
+// has NOT opened the Stock tab this session has an empty one (nothing loads it at boot).
+// So a manager who went straight to Desk saw "Materials from stock" with no rows at all,
+// and worse: the Collect box then costed the job at €0 while _ordConsumeMaterials, which
+// loads the cache itself, still took the piece out of stock. Same family as the stocktake
+// scanner (v10.72) and the export sheet (v10.74) — a resolver assuming a cache someone
+// else populated.
+let _ordStockLoading = false, _ordStockFailedAt = 0;
+const ORD_STOCK_RETRY_MS = 20000;
+function _ordNeedsStock(r) { return !!r && ((((r.invIds || []).length) > 0) || (((r.materials || []).length) > 0)); }
+function _ordStockCold(r) { return _ordNeedsStock(r) && !(_inventoryCache && Object.keys(_inventoryCache).length); }
+// Awaited by anything that decides MONEY from the pieces. _invEnsureForScan keeps the last
+// good cache when the network is down rather than reporting an empty stock (v11.74).
+async function _ordEnsureStock(r) {
+  if (!_ordStockCold(r)) return;
+  try { await _invEnsureForScan(); } catch (e) {}
+}
+// The detail sheet must not wait for a download: it opens instantly and is redrawn once
+// the stock lands — and only if it is still showing the same ticket.
+// The redraw calls this again, so a load that FAILED must not start another one — or a
+// phone with no signal would hammer the network in a loop. A cooldown lets a later reopen
+// try again once the connection is back.
+function _ordEnsureStockThenRedraw(r) {
+  if (!_ordStockCold(r) || _ordStockLoading) return;
+  if (Date.now() - _ordStockFailedAt < ORD_STOCK_RETRY_MS) return;
+  _ordStockLoading = true;
+  _ordEnsureStock(r).catch(() => {}).then(() => {
+    _ordStockLoading = false;
+    if (_ordStockCold(r)) _ordStockFailedAt = Date.now();   // still nothing — say so, don't retry
+    const ov = document.getElementById('repairDetailOverlay');
+    if (ov && ov.dataset.rid === r.id) openRepairDetail(r.id);
+  });
+}
+
+// A block whose pieces could not be resolved must SAY so. Without this the ticket reads
+// "no materials", which is indistinguishable from a job that genuinely has none — exactly
+// the misreading that hid this bug.
+function _ordStockColdNote(r) {
+  if (!_ordStockCold(r)) return '';
+  const isEl = lang === 'el';
+  return `<div style="font-size:11px;color:var(--text-dim);padding:4px 0">${_ordStockLoading
+    ? (isEl ? 'Θα εμφανιστούν μόλις φορτώσει το απόθεμα…' : 'Loading them from stock…')
+    : '⚠️ ' + (isEl ? 'Δεν φόρτωσε το απόθεμα — ανοίξτε ξανά το δελτίο' : 'Stock did not load — reopen the ticket')}</div>`;
+}
+
+// Tap a piece in a ticket to open it in Stock. _jumpToInvCard waits for the list, pages it
+// in and widens the filters for a piece not in the current view (v12.51), so a consumed
+// material — now marked sold — is reached as easily as one still on the shelf.
+function _ordOpenPiece(invId) {
+  document.getElementById('repairDetailOverlay')?.remove();
+  _jumpToInvCard(invId);
+}
+
 function _ordLinkedEntries(r) {
   const out = [];
   for (const id of ((r && r.invIds) || [])) {
@@ -9564,14 +9690,17 @@ function _ordPiecesBlock(r) {
   const list = rows.map(([id, it]) => {
     const sold = it.status === 'sold';
     return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0">
-      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
-      <span style="flex:1;min-width:0;font-size:12px;color:${sold ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${sold ? ' · ' + (isEl ? 'πουλήθηκε' : 'sold') : ''}</span>
+      <div onclick="_ordOpenPiece('${id}')" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer">
+        ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+        <span style="flex:1;min-width:0;font-size:12px;color:${sold ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${sold ? ' · ' + (isEl ? 'πουλήθηκε' : 'sold') : ''}</span>
+      </div>
       ${live && !sold ? `<button onclick="_ordUnlink('${r.id}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>` : ''}
     </div>`;
   }).join('');
   return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
     <div style="${_resLbl};margin-top:0">${rows.length ? (isEl ? `Κομμάτια (${rows.length}) — κρατημένα για τον πελάτη` : `Pieces (${rows.length}) — held for the customer`) : (isEl ? 'Κομμάτια' : 'Pieces')}</div>
-    ${list || `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Μόλις φτάσουν, προσθέστε τα στο απόθεμα και συνδέστε τα εδώ — τότε η παραλαβή τα πουλάει κανονικά, με σωστό κόστος και κέρδος.' : 'When they arrive, add them to stock and link them here — collection then sells them normally, with the real cost and profit.'}</div>`}
+    ${_ordStockColdNote(r)}
+    ${list || (_ordStockCold(r) ? '' : `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Μόλις φτάσουν, προσθέστε τα στο απόθεμα και συνδέστε τα εδώ — τότε η παραλαβή τα πουλάει κανονικά, με σωστό κόστος και κέρδος.' : 'When they arrive, add them to stock and link them here — collection then sells them normally, with the real cost and profit.'}</div>`)}
     ${live ? `<button onclick="openOrderAddPieces('${r.id}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(111,201,168,0.12);border:1px solid rgba(111,201,168,0.45);color:#6fc9a8;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">📥 ${rows.length ? (isEl ? 'Σύνδεση κι άλλων' : 'Link more pieces') : (isEl ? 'Έφτασαν — σύνδεση κομματιών' : 'They arrived — link the pieces')}</button>` : ''}
   </div>`;
 }
@@ -9691,8 +9820,10 @@ function _ordMaterialsBlock(r) {
     const line = mc.lines.find(l => l.id === id && l.mat === mt);
     const used = mt.done;
     return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0">
-      ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
-      <span style="flex:1;min-width:0;font-size:12px;color:${used ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${mt.bulk ? ` · <b>${(parseFloat(mt.grams) || 0).toFixed(1)}g</b>` : ''}${used ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
+      <div onclick="_ordOpenPiece('${id}')" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer">
+        ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
+        <span style="flex:1;min-width:0;font-size:12px;color:${used ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${mt.bulk ? ` · <b>${(parseFloat(mt.grams) || 0).toFixed(1)}g</b>` : ''}${used ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
+      </div>
       ${seeCost ? `<span style="flex:0 0 auto;font-size:11px;font-family:var(--font-mono);color:var(--text-dim)">${line && line.cost != null ? cur + line.cost.toFixed(2) : '—'}</span>` : ''}
       ${live && !used ? `<button onclick="_ordUnlinkMaterial('${r.id}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>` : ''}
     </div>`;
@@ -9709,7 +9840,8 @@ function _ordMaterialsBlock(r) {
     </div>` : '';
   return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
     <div style="${_resLbl};margin-top:0">🧩 ${rows.length ? (isEl ? `Υλικά από το απόθεμα (${rows.length})` : `Materials from stock (${rows.length})`) : (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock')}</div>
-    ${list || `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια ή αλυσίδα που μπαίνουν σε αυτή τη δουλειά. Κρατούνται για τον πελάτη και το κόστος τους μπαίνει στην παραλαβή.' : 'Your own pieces or chain that go into this job. They are held for the customer and their cost is added at collection.'}</div>`}
+    ${_ordStockColdNote(r)}
+    ${list || (_ordStockCold(r) ? '' : `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια ή αλυσίδα που μπαίνουν σε αυτή τη δουλειά. Κρατούνται για τον πελάτη και το κόστος τους μπαίνει στην παραλαβή.' : 'Your own pieces or chain that go into this job. They are held for the customer and their cost is added at collection.'}</div>`)}
     ${totalRow}
     ${live ? `<button onclick="openOrderAddPieces('${r.id}','material')" style="width:100%;margin-top:8px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">🧩 ${rows.length ? (isEl ? 'Προσθήκη κι άλλων' : 'Add more') : (isEl ? 'Προσθήκη από το απόθεμα' : 'Add from stock')}</button>` : ''}
   </div>`;
@@ -32014,8 +32146,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.90', date: 'Αύγουστος 2026', items: [
-        "🛒 Μικρό κουμπί καλαθιού που εμφανίζεται πάνω από τα tabs όταν το καλάθι έχει είδη και δεν υπάρχει υπολογισμός στην οθόνη — π.χ. μόλις ανοίξετε ξανά την εφαρμογή και επιστρέψει το καλάθι της ημέρας. Πριν, το κουμπί 🛒 υπήρχε μόνο μέσα στη μπάρα τιμής, που εμφανίζεται μόνο μετά από υπολογισμό, οπότε το καλάθι ήταν εκεί αλλά δεν άνοιγε με τίποτα. Πατήστε το και ανοίγει κανονικά.",
+      { version: 'v12.92', date: 'Αύγουστος 2026', items: [
+        "🧩 Τα κομμάτια ενός δελτίου φαίνονται πλέον σε όλες τις συσκευές. Αν ανοίγατε ένα δελτίο χωρίς να έχετε μπει πρώτα στο Απόθεμα, τα «Υλικά από το απόθεμα» και τα συνδεδεμένα κομμάτια έβγαιναν άδεια — απλά δεν είχε φορτώσει ακόμα το απόθεμα. Τώρα φορτώνει μόνο του μόλις ανοίξετε το δελτίο, και αν δεν τα καταφέρει σας το λέει καθαρά.",
+        "💶 Και το σωστό κόστος στην παραλαβή: σε τέτοια συσκευή το κουτί της παραλαβής μπορούσε να μην πιάσει καθόλου το κόστος των υλικών, ενώ το κομμάτι έφευγε κανονικά από το απόθεμα — άρα το κέρδος έβγαινε μεγαλύτερο από το πραγματικό.",
+        "👉 Πατήστε ένα κομμάτι μέσα στο δελτίο και πηγαίνετε κατευθείαν στην καρτέλα του στο Απόθεμα.",
       ]},
       ]
   },
@@ -32046,8 +32180,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.90', date: 'Aug 2026', items: [
-        "🛒 A small cart button now appears just above the tabs whenever the cart has items and there is no calculation on screen — for example right after reopening the app, when the day's cart comes back. Before, the 🛒 button lived only inside the price bar, which only appears after a calculation, so the cart was there but nothing would open it. Tap it and the cart opens as normal.",
+      { version: 'v12.92', date: 'Aug 2026', items: [
+        "🧩 A ticket’s pieces now show on every device. If you opened a ticket without visiting the Stock tab first, “Materials from stock” and the linked pieces came up empty — the stock had simply not loaded yet. It now loads by itself the moment you open the ticket, and says so plainly if it cannot.",
+        "💶 And the right cost at collection: on such a device the Collect box could miss the materials cost entirely while the piece still left stock — so the profit read higher than it really was.",
+        "👉 Tap a piece inside a ticket to jump straight to its card in Stock.",
       ]},
           ]
   }
@@ -37103,7 +37239,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.90';
+const APP_VERSION = '12.92';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
