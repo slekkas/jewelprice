@@ -19398,11 +19398,7 @@ function calculate() {
   const preVatEl = document.getElementById('preVatDisplay');
   preVatEl.style.display = 'block';
   preVatEl.textContent = (lang === 'el' ? 'χωρίς ΦΠΑ ' : 'excl. VAT ') + cur + preVat.toFixed(2);
-  const badge = document.getElementById('discountBadge');
-  if (discount > 0) {
-    badge.innerHTML = `<div class="cpb-badge"><span class="badge-pct">-${discount}%</span><span class="badge-saved">${t('rSave')} ${cur}${discountAmt.toFixed(2)}</span></div>`;
-    badge.style.display = 'block';
-  } else { badge.style.display = 'none'; }
+  _setDiscountBadge(discount, discountAmt, cur);
 
   const metalLabel = (metal==='gold'?t('gold'):t('silver')) + ' · ' + purityLabel;
   const stoneRows = getStoneRows();
@@ -19706,6 +19702,36 @@ function _refreshBreakdownTail() {
   });
 }
 
+// The discount badge on the customer-facing price bar — the screen the owner turns towards
+// the customer, so it must only ever name a real concession. Automatic rounding shaves a few
+// cents off, and "-0.0% Save €0.12" in front of a customer reads as pettiness, not a discount.
+// Three honest states: a percentage worth naming shows as it always did; a saving that is real
+// money but a meaningless percentage (€5 off €4,000 = 0.1%) leads with the euros instead; and
+// anything smaller than both is not shown at all. ONE helper, used by all five price paths.
+const DISC_BADGE_MIN_PCT = 0.5;  // below this the percentage is not worth printing
+const DISC_BADGE_MIN_AMT = 1;    // below this the saving is not worth printing either
+function _setDiscountBadge(pct, amt, cur) {
+  const el = document.getElementById('discountBadge');
+  if (!el) return;
+  const _p = parseFloat(pct) || 0, _a = parseFloat(amt) || 0;
+  const _cur = cur || state.currency || '€';
+  let html = '', line = '';
+  if (_p >= DISC_BADGE_MIN_PCT) {
+    // Drop a trailing ".0" — "-15%" reads better to a customer than "-15.0%".
+    const _pStr = _p.toFixed(1).replace(/\.0$/, '');
+    html = `<div class="cpb-badge"><span class="badge-pct">-${_pStr}%</span><span class="badge-saved">${t('rSave')} ${_cur}${_a.toFixed(2)}</span></div>`;
+    line = `-${_pStr}% · ${t('rSave')} ${_cur}${_a.toFixed(2)}`;
+  } else if (_a >= DISC_BADGE_MIN_AMT) {
+    html = `<div class="cpb-badge"><span class="badge-pct">-${_cur}${_a.toFixed(2)}</span><span class="badge-saved">${t('rSave')}</span></div>`;
+    line = `${t('rSave')} ${_cur}${_a.toFixed(2)}`;
+  }
+  // Clear the markup when hiding — leaving it in place is what let a discount that no longer
+  // applies reappear on the fullscreen view, which reads the flat line below.
+  el.innerHTML = html;
+  el.dataset.line = line;
+  el.style.display = html ? 'block' : 'none';
+}
+
 function applyRoundedPrice(val) {
   const rounded = parseFloat(val);
   if (!lastCalcResult || isNaN(rounded) || rounded <= 0) return;
@@ -19725,13 +19751,7 @@ function applyRoundedPrice(val) {
     const _vatPct = parseFloat(lastCalcResult.vat) || 0;
     _pvEl.textContent = (lang === 'el' ? 'χωρίς ΦΠΑ ' : 'excl. VAT ') + cur + (rounded / (1 + _vatPct / 100)).toFixed(2);
   }
-  const badge = document.getElementById('discountBadge');
-  if (effectiveDiscountPct > 0.001) {
-    badge.innerHTML = `<div class="cpb-badge"><span class="badge-pct">-${effectiveDiscountPct.toFixed(1)}%</span><span class="badge-saved">${t('rSave')} ${cur}${effectiveDiscountAmt.toFixed(2)}</span></div>`;
-    badge.style.display = 'block';
-  } else {
-    badge.style.display = 'none';
-  }
+  _setDiscountBadge(effectiveDiscountPct, effectiveDiscountAmt, cur);
 
   // Update lastCalcResult so quote/history use the rounded price
   lastCalcResult.finalPrice = rounded.toFixed(2);
@@ -19752,13 +19772,7 @@ function resetRoundedPrice() {
   }
   const origDiscount = parseFloat(lastCalcResult._originalDiscount || 0);
   const origDiscountAmt = parseFloat(lastCalcResult._originalDiscountAmt || 0);
-  const badge = document.getElementById('discountBadge');
-  if (origDiscount > 0.001) {
-    badge.innerHTML = `<div class="cpb-badge"><span class="badge-pct">-${origDiscount.toFixed(1)}%</span><span class="badge-saved">${t('rSave')} ${cur}${origDiscountAmt.toFixed(2)}</span></div>`;
-    badge.style.display = 'block';
-  } else {
-    badge.style.display = 'none';
-  }
+  _setDiscountBadge(origDiscount, origDiscountAmt, cur);
   // Restore lastCalcResult
   lastCalcResult.finalPrice = original.toFixed(2);
   lastCalcResult.discount = origDiscount;
@@ -22213,8 +22227,7 @@ function lookupCode(raw, opts) {
           document.getElementById('retailPriceDisplay').textContent = cur + _fixedPrice.toFixed(2);
           const _preVatEl = document.getElementById('preVatDisplay');
           if (_preVatEl) { _preVatEl.style.display='block'; _preVatEl.textContent = (lang==='el'?'χωρίς ΦΠΑ ':'excl. VAT ') + cur + _preVat.toFixed(2); }
-          const _badge = document.getElementById('discountBadge');
-          if (_badge) _badge.style.display = 'none';
+          _setDiscountBadge(0, 0);
           // Show result card with full Other-type breakdown (same as calculateOtherPrice)
           const _isEl = lang === 'el';
           const _mult = _cat ? (parseFloat(_cat.multiplier) || 1) : 1;
@@ -26886,7 +26899,7 @@ function renderInvList() {
       ? otherMaterialLabel(item.otherMaterial)  // material (brass/steel/plated…) if set, else blank
       : item.isBulk
         ? `${metalLabel} · ${karatLabel} · <strong style="color:var(--gold-light)">${parseFloat(item.weight).toFixed(1)}g ${t('bulkRemaining')}</strong>`
-        : `${metalLabel} · ${karatLabel} · ${parseFloat(item.weight).toFixed(2)}g${item.secondaryMetal && item.secondaryWeight ? ` · ${item.secondaryMetal==='gold'?t('gold'):t('silver')} ${(item.secondaryKarat||'')}${item.secondaryMetal==='gold'?'K':''} · ${parseFloat(item.secondaryWeight).toFixed(2)}g` : ''}`;
+        : `${metalLabel} · ${karatLabel} · ${parseFloat(item.weight).toFixed(2)}g${secondMetalLabel(item) ? ` · ${secondMetalLabel(item)} · ${secondMetalWeightStr(item)}` : ''}`;
     // Look up live catName from state.vendors so it always shows in the current language
     const _liveCatName = (function() {
       const _cat = getItemCat(item);
@@ -29565,13 +29578,7 @@ function bulkAddToCart() {
   if (_retailDisp) _retailDisp.textContent = _cur + final.toFixed(2);
   const _preVatEl = document.getElementById('preVatDisplay');
   if (_preVatEl) { _preVatEl.textContent = (lang==='el'?'χωρίς ΦΠΑ ':'excl. VAT ') + _cur + finalPreVat.toFixed(2); _preVatEl.style.display = 'block'; }
-  const _badge = document.getElementById('discountBadge');
-  if (_badge) {
-    if (disc > 0) {
-      _badge.innerHTML = `<div class="cpb-badge"><span class="badge-pct">-${disc}%</span><span class="badge-saved">${t('rSave')} ${_cur}${discAmt.toFixed(2)}</span></div>`;
-      _badge.style.display = 'block';
-    } else { _badge.style.display = 'none'; }
-  }
+  _setDiscountBadge(disc, discAmt, _cur);
   const _rows = [
     [lang==='el'?'Αλυσίδα':'Chain', cartName],
     [lang==='el'?'Βάρος':'Weight', soldWeight.toFixed(2) + ' g'],
@@ -32146,10 +32153,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.92', date: 'Αύγουστος 2026', items: [
-        "🧩 Τα κομμάτια ενός δελτίου φαίνονται πλέον σε όλες τις συσκευές. Αν ανοίγατε ένα δελτίο χωρίς να έχετε μπει πρώτα στο Απόθεμα, τα «Υλικά από το απόθεμα» και τα συνδεδεμένα κομμάτια έβγαιναν άδεια — απλά δεν είχε φορτώσει ακόμα το απόθεμα. Τώρα φορτώνει μόνο του μόλις ανοίξετε το δελτίο, και αν δεν τα καταφέρει σας το λέει καθαρά.",
-        "💶 Και το σωστό κόστος στην παραλαβή: σε τέτοια συσκευή το κουτί της παραλαβής μπορούσε να μην πιάσει καθόλου το κόστος των υλικών, ενώ το κομμάτι έφευγε κανονικά από το απόθεμα — άρα το κέρδος έβγαινε μεγαλύτερο από το πραγματικό.",
-        "👉 Πατήστε ένα κομμάτι μέσα στο δελτίο και πηγαίνετε κατευθείαν στην καρτέλα του στο Απόθεμα.",
+      { version: 'v12.93', date: 'Αύγουστος 2026', items: [
+        "⚗️ Το δεύτερο μέταλλο φαίνεται πια και στη μεγάλη οθόνη τιμής. Ένα κόσμημα από δύο μέταλλα (π.χ. 1.80g ασήμι 925 με 0.60g χρυσό 14K) έδειχνε μόνο το ασήμι — ο πελάτης έβλεπε τη μισή αλήθεια. Τώρα διαβάζεται «Ασήμι · 925 + Χρυσός 14K» και «1.80g + 0.60g», με την ίδια σειρά, όπως ακριβώς στο showroom.",
+        "🏷️ Η έκπτωση στην οθόνη του πελάτη δείχνει πια μόνο πραγματική έκπτωση. Η αυτόματη στρογγυλοποίηση έκοβε καμιά φορά 12 λεπτά και εμφανιζόταν ως «-0.0%Εξοικονόμηση €0.12» — κολλημένο, και σαν να δίνετε έκπτωση 12 λεπτών. Τώρα: κανονική έκπτωση → «-15% · Εξοικονόμηση €120.00» (χωρίς το άχρηστο «.0»)· μικρό ποσοστό αλλά πραγματικά λεφτά (π.χ. €5 σε κόσμημα €4.000) → «Εξοικονόμηση €5.00», χωρίς το ανούσιο «-0.1%»· και ψίχουλα → δεν εμφανίζεται τίποτα. Επίσης δεν εμφανίζεται πια παλιά έκπτωση που δεν ισχύει.",
       ]},
       ]
   },
@@ -32180,10 +32186,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.92', date: 'Aug 2026', items: [
-        "🧩 A ticket’s pieces now show on every device. If you opened a ticket without visiting the Stock tab first, “Materials from stock” and the linked pieces came up empty — the stock had simply not loaded yet. It now loads by itself the moment you open the ticket, and says so plainly if it cannot.",
-        "💶 And the right cost at collection: on such a device the Collect box could miss the materials cost entirely while the piece still left stock — so the profit read higher than it really was.",
-        "👉 Tap a piece inside a ticket to jump straight to its card in Stock.",
+      { version: 'v12.93', date: 'Aug 2026', items: [
+        "⚗️ The second metal now shows in the large price view. A two-metal piece (e.g. 1.80g silver 925 with 0.60g 14K gold) named only the silver — the customer was told half of what was in front of them. It now reads “Silver · 925 + Gold 14K” and “1.80g + 0.60g”, in the same order, exactly as the showroom shows it.",
+        "🏷️ The discount on the customer's screen now only ever names a real discount. Automatic rounding sometimes shaved 12 cents off and showed it as “-0.0%Save €0.12” — glued together, and reading as though you were offering a 12-cent discount. Now: a real discount reads “-15% · Save €120.00” (no pointless “.0”); a small percentage that is nonetheless real money (say €5 off a €4,000 piece) reads “Save €5.00” without the meaningless “-0.1%”; and small change shows nothing at all. A discount that no longer applies is no longer shown either.",
       ]},
           ]
   }
@@ -32734,9 +32739,12 @@ function togglePriceFullscreen() {
   document.getElementById('pfsAmount').textContent = amt;
   const preVatEl = document.getElementById('preVatDisplay');
   document.getElementById('pfsPreVat').textContent = (preVatEl && preVatEl.style.display !== 'none') ? preVatEl.textContent : '';
-  // Discount badge
+  // Discount. In the price bar the percentage is display:block ABOVE the saving, so reading
+  // .textContent glued them into "-15%Save €120.00" — _setDiscountBadge writes the flat,
+  // properly separated line for this view. The display check is belt-and-braces.
   const discEl = document.getElementById('discountBadge');
-  document.getElementById('pfsDiscount').textContent = discEl ? discEl.textContent : '';
+  document.getElementById('pfsDiscount').textContent =
+    (discEl && discEl.style.display !== 'none') ? (discEl.dataset.line || '') : '';
 
   // Customer-facing details: metal/karat, weight, stones — never prices
   const detailsEl = document.getElementById('pfsDetails');
@@ -32767,11 +32775,17 @@ function togglePriceFullscreen() {
       const _plLbl = silverPlatingLabel(lastCalcResult.silverPlating);
       if (_plLbl) metalType = _plLbl + ' ' + metalType;
     }
-    rows.push([t('pfsMetal'), (metalType + (purityPart ? ' · ' + purityPart : '')).trim()]);
+    // A two-metal piece (e.g. silver with a 14K gold face) — name BOTH, or the customer
+    // is told only half of what is in front of them. Same pairing the showroom uses.
+    const _sm2 = secondMetalLabel(lastCalcResult);
+    const _metalVal = (metalType + (purityPart ? ' · ' + purityPart : '')).trim();
+    rows.push([t('pfsMetal'), _sm2 ? _metalVal + ' + ' + _sm2 : _metalVal]);
   }
   // Weight — 2 decimals. Skipped entirely for "other" pieces (they carry no weight; 0.00g is ugly).
   if (!_isOtherPfs && lastCalcResult.weight && parseFloat(lastCalcResult.weight) > 0) {
-    rows.push([t('pfsWeight'), parseFloat(lastCalcResult.weight).toFixed(2) + 'g']);
+    // Second metal's grams follow in the same order as the metals above, so the pairing reads.
+    const _sm2w = secondMetalWeightStr(lastCalcResult);
+    rows.push([t('pfsWeight'), parseFloat(lastCalcResult.weight).toFixed(2) + 'g' + (_sm2w ? ' + ' + _sm2w : '')]);
   }
   // Stones — one per line: name + carat + clarity + color + shape, whichever are present. No price, ever.
   const stones = lastCalcResult.stones || [];
@@ -32955,8 +32969,7 @@ function clearCalc() {
   }
   const preVat = document.getElementById('preVatDisplay');
   if (preVat) preVat.style.display = 'none';
-  const discBadge = document.getElementById('discountBadge');
-  if (discBadge) discBadge.innerHTML = '';
+  _setDiscountBadge(0, 0);
   const retailDisplay = document.getElementById('retailPriceDisplay');
   if (retailDisplay) retailDisplay.textContent = '—';
   const addBtn = document.getElementById('addToCartBtn');
@@ -37239,7 +37252,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.92';
+const APP_VERSION = '12.93';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -37321,6 +37334,25 @@ function metalWithPlating(item, isEl) {
   if (!e || !e.mode) return base;
   if (e.mode === 'pre') return (_el ? (e.pre_el || e.el) : (e.pre_en || e.en)) + ' ' + base;
   return base + ' ' + (_el ? e.post_el : e.post_en);
+}
+
+// Second metal on a piece (e.g. a silver ring with a 14K gold face). Reads the same
+// three fields whether it is handed an inventory item or a calc result, so ONE helper
+// serves both. Returns '' when there is no second metal, so a caller can concatenate
+// it blind. Mirrors secondMetalLabel/secondMetalWeight in showroom.htm.
+function secondMetalLabel(o, isEl) {
+  if (!o || !o.secondaryMetal || !(parseFloat(o.secondaryWeight) > 0)) return '';
+  const _el = (isEl === undefined) ? (lang === 'el') : isEl;
+  const names = { gold: _el ? 'Χρυσός' : 'Gold', silver: _el ? 'Ασήμι' : 'Silver' };
+  const k = o.secondaryKarat ? String(o.secondaryKarat).replace(/s$/, '') : '';
+  let s = names[o.secondaryMetal] || o.secondaryMetal;
+  // Silver purity is a millesimal fineness (925), not karats — no 'K' on silver.
+  if (k) s += ' ' + (o.secondaryMetal === 'silver' ? k : k + 'K');
+  return s;
+}
+function secondMetalWeightStr(o) {
+  const w = parseFloat(o && o.secondaryWeight);
+  return w > 0 ? w.toFixed(2) + 'g' : '';
 }
 
 // Decorative colors for items (enamel / stone / cord) — INDEPENDENT of metal.
@@ -41126,11 +41158,7 @@ function calculateOtherPrice() {
   const preVatEl = document.getElementById('preVatDisplay');
   preVatEl.style.display = 'block';
   preVatEl.textContent = (isEl ? 'χωρίς ΦΠΑ ' : 'excl. VAT ') + cur + preVat.toFixed(2);
-  const badge = document.getElementById('discountBadge');
-  if (custDiscPct > 0) {
-    badge.innerHTML = `<div class="cpb-badge"><span class="badge-pct">-${custDiscPct}%</span><span class="badge-saved">${t('rSave')} ${cur}${custDiscAmt.toFixed(2)}</span></div>`;
-    badge.style.display = 'block';
-  } else { badge.style.display = 'none'; }
+  _setDiscountBadge(custDiscPct, custDiscAmt, cur);
 
   // lastCalcResult — powers QR, Quote, Inventory
   lastCalcResult = {
