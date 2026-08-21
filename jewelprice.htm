@@ -2385,6 +2385,12 @@
     </div>
     <!-- Cash toggle — pressed = cash (black money), which hides VAT on the printed quote/certificate -->
     <button type="button" id="quoteCashToggle" data-cash-btn="1" onclick="_toggleCashBtn('quoteCashToggle')" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap">💵 ΜΕΤΡΗΤΑ</button>
+    <!-- Certificate only: print it without the price, for a piece bought as a gift.
+         Shown by openCertificateModal(); hidden (and reset) by openQuoteModal(). -->
+    <div id="certNoPriceWrap" style="display:none;margin-bottom:12px">
+      <button type="button" id="certNoPriceToggle" data-opt-btn="1" data-opt-key="certNoPrice" onclick="_toggleOptBtn('certNoPriceToggle')" style="width:100%;padding:11px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:6px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap">🙈 ΧΩΡΙΣ ΤΙΜΗ</button>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:6px;line-height:1.5" data-i18n="certNoPriceHint">Πατημένο = το πιστοποιητικό τυπώνεται χωρίς τιμή (για δώρο)</div>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <button onclick="printQuote()" style="flex:1;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="printQuoteConfirm">🖨 Εκτύπωση</button>
       <button onclick="shareQuote()" style="flex:1;padding:12px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="shareQuoteBtn">📤 Αποστολή</button>
@@ -3872,6 +3878,8 @@ const T = {
     emailsCopied:'Emails αντιγράφηκαν ✓',
     quoteCustomerEmail:'Email Πελάτη (προαιρετικό)', quoteCustomerEmailPh:'π.χ. giorgos@example.com',
     shareQuoteBtn:'📤 Αποστολή',
+    certNoPrice:'🙈 ΧΩΡΙΣ ΤΙΜΗ',
+    certNoPriceHint:'Πατημένο = το πιστοποιητικό τυπώνεται χωρίς τιμή (για δώρο)',
     clientSyncOk:'Πελάτες αποθηκεύτηκαν ✓',
     clientSyncFail:'Αποτυχία αποθήκευσης',
     backupTitle:'💾 Αντίγραφο Ασφαλείας',
@@ -4470,6 +4478,8 @@ const T = {
     emailsCopied:'Emails copied ✓',
     quoteCustomerEmail:'Customer Email (optional)', quoteCustomerEmailPh:'e.g. george@example.com',
     shareQuoteBtn:'📤 Share',
+    certNoPrice:'🙈 WITHOUT PRICE',
+    certNoPriceHint:'Pressed = the certificate prints with no price (for a gift)',
     clientSyncOk:'Clients saved ✓',
     clientSyncFail:'Save failed',
     backupTitle:'💾 Data Backup',
@@ -4760,12 +4770,18 @@ function setLang(l) {
   document.querySelectorAll('[data-cash-btn]').forEach(btn => {
     btn.textContent = _cashLabel(btn.classList.contains('cash-active'));
   });
+  document.querySelectorAll('[data-opt-btn]').forEach(btn => {
+    btn.textContent = t(btn.dataset.optKey || '') + (btn.classList.contains('opt-active') ? ' ✓' : '');
+  });
 }
 
 function applyTranslations() {
   // Cash buttons — update label to current language
   document.querySelectorAll('[data-cash-btn]').forEach(btn => {
     btn.textContent = _cashLabel(btn.classList.contains('cash-active'));
+  });
+  document.querySelectorAll('[data-opt-btn]').forEach(btn => {
+    btn.textContent = t(btn.dataset.optKey || '') + (btn.classList.contains('opt-active') ? ' ✓' : '');
   });
   // data-i18n elements
   document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -14227,6 +14243,24 @@ function _cashToggleHtml(id, extraStyle) {
 function _toggleCashBtn(id) { const b = document.getElementById(id); if (b) _setCashBtnState(b, !b.classList.contains('cash-active')); }
 function _isCashBtn(id) { return document.getElementById(id)?.classList.contains('cash-active') || false; }
 
+// ── A pressed/unpressed toggle in the cash toggle's visual language, but with
+// its own caption (e.g. "print this certificate WITHOUT the price"). Pressed =
+// the exception. The caption comes from an i18n key held on the element, so a
+// language switch relabels it and the ✓ still reflects the state.
+function _optToggleHtml(id, key, extraStyle) {
+  return `<button type="button" id="${id}" data-opt-btn="1" data-opt-key="${key}" onclick="_toggleOptBtn('${id}')" style="width:100%;padding:11px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:8px;color:var(--text-muted);font-size:12px;font-family:var(--font-body);letter-spacing:0.05em;cursor:pointer;white-space:nowrap;${extraStyle || ''}">${t(key)}</button>`;
+}
+function _setOptBtnState(btn, active) {
+  btn.classList.toggle('opt-active', !!active);
+  btn.style.background  = active ? 'rgba(201,168,76,0.25)' : 'rgba(201,168,76,0.08)';
+  btn.style.border      = '1px solid ' + (active ? 'rgba(201,168,76,0.8)' : 'rgba(201,168,76,0.3)');
+  btn.style.color       = active ? 'var(--gold-light)' : 'var(--text-muted)';
+  btn.textContent = t(btn.dataset.optKey || '') + (active ? ' ✓' : '');
+}
+function _toggleOptBtn(id) { const b = document.getElementById(id); if (b) _setOptBtnState(b, !b.classList.contains('opt-active')); }
+function _isOptBtn(id) { return document.getElementById(id)?.classList.contains('opt-active') || false; }
+
+
 // Style a cash toggle button to reflect its active/inactive state (shared look with the
 // sale-modal cash toggle). Keeps the 'cash-active' class in sync so language re-translation
 // (which relabels any [data-cash-btn]) shows the correct ✓.
@@ -16504,7 +16538,10 @@ async function _saleDocResult(rec) {
 }
 
 // One sale (or one whole multi-item transaction) → finished document HTML.
-async function _saleDocBuild(saleId, groupId, isCert) {
+async function _saleDocBuild(saleId, groupId, isCert, noPrice) {
+  // A certificate for a piece bought as a gift prints with no price at all.
+  // Read by buildCertificateHTML / buildMultiQuoteHTML, like _quoteIsCash.
+  window._certNoPrice = !!(isCert && noPrice);
   const sales = await getSales();
   const members = groupId
     ? sales.filter(x => x.saleGroup === groupId)
@@ -16558,14 +16595,14 @@ async function _saleDocBuild(saleId, groupId, isCert) {
   };
 }
 
-async function _saleDocPrint(saleId, groupId, isCert) {
-  const d = await _saleDocBuild(saleId, groupId, isCert);
+async function _saleDocPrint(saleId, groupId, isCert, noPrice) {
+  const d = await _saleDocBuild(saleId, groupId, isCert, noPrice);
   if (!d) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν βρέθηκε η πώληση' : 'Sale not found')); return; }
   openQuoteWindow(d.html, false, null);
 }
 
-async function _saleDocShare(saleId, groupId, isCert) {
-  const d = await _saleDocBuild(saleId, groupId, isCert);
+async function _saleDocShare(saleId, groupId, isCert, noPrice) {
+  const d = await _saleDocBuild(saleId, groupId, isCert, noPrice);
   if (!d) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν βρέθηκε η πώληση' : 'Sale not found')); return; }
   await shareQuoteAsPDF(d.html, d.title, isCert, d.fileName);
 }
@@ -16925,12 +16962,20 @@ function openSaleDocPicker(saleId, groupId) {
       ? 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;'
       : 'background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.45);color:var(--gold-light);'}border-radius:10px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:0.05em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
       <span style="font-size:16px">${icon}</span><span>${label}</span></button>`;
-  const sect = (title, isCert) => `
+  // The no-price toggle is read BEFORE the overlay is removed, so the two go
+  // through one helper rather than being sequenced inside an onclick attribute.
+  const sect = (title, isCert, extra) => `
     <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.09em;text-transform:uppercase;margin:14px 0 7px">${title}</div>
+    ${extra || ''}
     <div style="display:flex;gap:9px">
-      ${rowBtn('🖨️', isEl ? 'Εκτύπωση' : 'Print', `document.getElementById('saleDocPickerOverlay').remove();_saleDocPrint(${saleId},'${gid}',${isCert})`, true)}
-      ${rowBtn('📤', 'PDF', `document.getElementById('saleDocPickerOverlay').remove();_saleDocShare(${saleId},'${gid}',${isCert})`, false)}
+      ${rowBtn('🖨️', isEl ? 'Εκτύπωση' : 'Print', `_sdpGo(${saleId},'${gid}',${isCert},false)`, true)}
+      ${rowBtn('📤', 'PDF', `_sdpGo(${saleId},'${gid}',${isCert},true)`, false)}
     </div>`;
+  const certOpt = `<div style="margin-bottom:9px">
+    ${_optToggleHtml('sdpNoPrice', 'certNoPrice', 'font-size:11.5px;padding:10px')}
+    <div style="font-size:10.5px;color:var(--text-muted);margin-top:6px;line-height:1.45">${isEl
+      ? 'Πατημένο = χωρίς τιμή (για δώρο)'
+      : 'Pressed = no price shown (for a gift)'}</div></div>`;
   ov.innerHTML = `
     <div style="background:var(--dark-2);border:1px solid rgba(212,175,55,0.3);border-radius:16px;padding:22px;width:100%;max-width:380px">
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">🖨️ ${isEl ? 'Έντυπο Πώλησης' : 'Sale Document'}</div>
@@ -16938,10 +16983,17 @@ function openSaleDocPicker(saleId, groupId) {
         ? 'Με τα ποσά που πληρώθηκαν πραγματικά.'
         : 'With the amounts actually paid.'}</div>
       ${sect(isEl ? 'Προσφορά — αναλυτικές τιμές' : 'Quote — itemised prices', false)}
-      ${sect(isEl ? 'Πιστοποιητικό αυθεντικότητας' : 'Certificate of authenticity', true)}
+      ${sect(isEl ? 'Πιστοποιητικό αυθεντικότητας' : 'Certificate of authenticity', true, certOpt)}
       <button onclick="document.getElementById('saleDocPickerOverlay').remove()" style="width:100%;margin-top:16px;padding:11px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:10px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>
     </div>`;
   document.body.appendChild(ov);
+}
+
+// Read the option, THEN close the sheet — the toggle lives inside it.
+function _sdpGo(saleId, gid, isCert, share) {
+  const noPrice = isCert && _isOptBtn('sdpNoPrice');
+  document.getElementById('saleDocPickerOverlay')?.remove();
+  (share ? _saleDocShare : _saleDocPrint)(saleId, gid, isCert, noPrice);
 }
 
 function closeSaleEditModal() {
@@ -32153,9 +32205,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.93', date: 'Αύγουστος 2026', items: [
-        "⚗️ Το δεύτερο μέταλλο φαίνεται πια και στη μεγάλη οθόνη τιμής. Ένα κόσμημα από δύο μέταλλα (π.χ. 1.80g ασήμι 925 με 0.60g χρυσό 14K) έδειχνε μόνο το ασήμι — ο πελάτης έβλεπε τη μισή αλήθεια. Τώρα διαβάζεται «Ασήμι · 925 + Χρυσός 14K» και «1.80g + 0.60g», με την ίδια σειρά, όπως ακριβώς στο showroom.",
-        "🏷️ Η έκπτωση στην οθόνη του πελάτη δείχνει πια μόνο πραγματική έκπτωση. Η αυτόματη στρογγυλοποίηση έκοβε καμιά φορά 12 λεπτά και εμφανιζόταν ως «-0.0%Εξοικονόμηση €0.12» — κολλημένο, και σαν να δίνετε έκπτωση 12 λεπτών. Τώρα: κανονική έκπτωση → «-15% · Εξοικονόμηση €120.00» (χωρίς το άχρηστο «.0»)· μικρό ποσοστό αλλά πραγματικά λεφτά (π.χ. €5 σε κόσμημα €4.000) → «Εξοικονόμηση €5.00», χωρίς το ανούσιο «-0.1%»· και ψίχουλα → δεν εμφανίζεται τίποτα. Επίσης δεν εμφανίζεται πια παλιά έκπτωση που δεν ισχύει.",
+      { version: 'v12.94', date: 'Αύγουστος 2026', items: [
+        "🎁 Μπορείτε πια να τυπώσετε πιστοποιητικό χωρίς την τιμή. Όταν κάποιος αγοράζει κόσμημα για δώρο, η τιμή δεν πρέπει να φαίνεται πουθενά. Στην εκτύπωση πιστοποιητικού — και από τον Υπολογισμό και από μια περασμένη πώληση — υπάρχει πλέον διακόπτης «ΧΩΡΙΣ ΤΙΜΗ». Πατημένος, το χαρτί βγαίνει χωρίς καμία τιμή, έκπτωση ή ΦΠΑ — κρατάει όμως μέταλλο, βάρος, πέτρες, κωδικό, σφραγίδα και υπογραφή. Ξεκινάει πάντα κλειστός, ώστε τα συνηθισμένα πιστοποιητικά — αυτά που πάνε στην ασφάλεια — βγαίνουν ακριβώς όπως πριν.",
       ]},
       ]
   },
@@ -32186,9 +32237,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.93', date: 'Aug 2026', items: [
-        "⚗️ The second metal now shows in the large price view. A two-metal piece (e.g. 1.80g silver 925 with 0.60g 14K gold) named only the silver — the customer was told half of what was in front of them. It now reads “Silver · 925 + Gold 14K” and “1.80g + 0.60g”, in the same order, exactly as the showroom shows it.",
-        "🏷️ The discount on the customer's screen now only ever names a real discount. Automatic rounding sometimes shaved 12 cents off and showed it as “-0.0%Save €0.12” — glued together, and reading as though you were offering a 12-cent discount. Now: a real discount reads “-15% · Save €120.00” (no pointless “.0”); a small percentage that is nonetheless real money (say €5 off a €4,000 piece) reads “Save €5.00” without the meaningless “-0.1%”; and small change shows nothing at all. A discount that no longer applies is no longer shown either.",
+      { version: 'v12.94', date: 'Aug 2026', items: [
+        "🎁 You can now print a certificate without the price. When someone buys a piece as a gift, the price should not appear anywhere on it. The certificate print — both from the Calculator and from a past sale — now has a “WITHOUT PRICE” switch. Pressed, the paper comes out with no price, no discount and no VAT, while keeping the metal, weight, stones, reference code, stamp and signature. It always starts off, so an ordinary certificate — the kind people take to insure a jewel — prints exactly as before.",
       ]},
           ]
   }
@@ -33138,6 +33188,11 @@ function openQuoteModal() {
   resetQuotePhotoUI();
   const _qc = document.getElementById('quoteCashToggle'); if (_qc) _setCashBtnState(_qc, false); // default: receipt (VAT shown)
   window._quoteIsCash = false;
+  // Certificate price option — hidden for a quote, and always reset to ON
+  // (with price), which is what almost every certificate needs.
+  const _cnp = document.getElementById('certNoPriceToggle'); if (_cnp) _setOptBtnState(_cnp, false);
+  const _cnpW = document.getElementById('certNoPriceWrap'); if (_cnpW) _cnpW.style.display = 'none';
+  window._certNoPrice = false;
 
   // Pre-fill title: use bilingual description from inventory item (or lastCalcResult)
   (function _prefillQuoteTitle() {
@@ -33303,6 +33358,7 @@ function previewQuotePhoto(input) {
 function closeQuoteModal() {
   document.getElementById('quoteModal').style.display = 'none';
   window._certMode = false;
+  const _cnpW3 = document.getElementById('certNoPriceWrap'); if (_cnpW3) _cnpW3.style.display = 'none';
   // Restore modal title to quote
   const titleEl = document.querySelector('#quoteModal [data-i18n="quoteTitle"]');
   if (titleEl) titleEl.textContent = lang === 'el' ? 'Εκτύπωση Προσφοράς' : 'Print Quote';
@@ -33486,6 +33542,31 @@ function buildMultiQuoteHTML(cartItems, extraDiscPct, roundTarget, cur, isEl, qr
   const vatRate = Number.isFinite(_cqVat) ? _cqVat : (parseFloat(state.vat) || 0);
   const preVatTotal = grandTotal / (1 + vatRate / 100);
   const vatAmt = grandTotal - preVatTotal;
+  // Only a CERTIFICATE can be printed without prices (a piece bought as a gift).
+  // A quote is a price document by definition and always shows them.
+  const noPrice = !!(isCert && window._certNoPrice);
+  const totalsSection = noPrice ? '' : `<div class="totals-section">
+  ${showDiscount ? `
+  <div class="total-row">
+    <span class="plabel">${isEl ? 'Υποσύνολο' : 'Subtotal'}</span>
+    <span class="pvalue">${cur}${subtotal.toFixed(2)}</span>
+  </div>
+  <div class="total-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue discount-badge">-${totalDiscPct.toFixed(1)}% (-${cur}${extraDiscAmt.toFixed(2)})</span></div>
+  ` : ''}
+  ${!window._quoteIsCash ? `
+  <div class="total-row">
+    <span class="plabel">${isEl ? 'Τιμή χωρίς ΦΠΑ' : 'Price before VAT'}</span>
+    <span class="pvalue">${cur}${preVatTotal.toFixed(2)}</span>
+  </div>
+  <div class="total-row">
+    <span class="plabel">${isEl ? 'ΦΠΑ ' + vatRate + '%' : 'VAT ' + vatRate + '%'}</span>
+    <span class="pvalue">${cur}${vatAmt.toFixed(2)}</span>
+  </div>` : ''}
+  <div class="total-row grand">
+    <span class="plabel">${isCert ? (isEl ? 'Αξία Κοσμημάτων' : 'Jewelry Value') : (isEl ? 'Τελική Τιμή' : 'Final Price')}</span>
+    <span class="pvalue">${cur}${grandTotal.toFixed(2)}</span>
+  </div>
+</div>`;
   const autoTitle = cartItems.map(ci => ci.name).join(' + ');
 
   return `<!DOCTYPE html>
@@ -33576,40 +33657,19 @@ ${cartItems.map((ci, i) => {
   ${r.secondaryMetal && r.secondaryWeight ? `<div class="detail-row"><span class="label">${isEl ? 'Δευτερεύον μέταλλο' : 'Secondary metal'}</span><span class="value">${r.secondaryMetal==='gold'?(isEl?'Χρυσός':'Gold'):(isEl?'Ασήμι':'Silver')} ${(r.secondaryKarat||'')}${r.secondaryMetal==='gold'?'K':''} · ${parseFloat(r.secondaryWeight).toFixed(2)} g</span></div>` : ''}
   ${r.handmade ? `<div class="detail-row"><span class="label">${isEl ? 'Κατασκευή' : 'Craft'}</span><span class="value">${isEl ? 'Χειροποίητο' : 'Handmade'}</span></div>` : ''}
   ${r.stones && r.stones.length > 0 ? `<div class="detail-row"><span class="label">${isEl ? 'Πέτρα' : 'Stone'}</span><span class="value">${r.stones.map(s => [s.qty > 1 ? s.qty+'×' : '', s.type, s.carat ? s.carat+'ct' : '', s.clarity || ''].filter(Boolean).join(' ')).join(', ')}</span></div>` : ''}
-  ${parseFloat(r.discount) > 0 ? `
+  ${noPrice ? '' : `${parseFloat(r.discount) > 0 ? `
   <div class="detail-row"><span class="label">${isEl ? 'Τιμή καταλόγου' : 'List price'}</span><span class="value">${cur}${parseFloat(r.retail || (parseFloat(r.finalPrice) + parseFloat(r.discountAmt || 0))).toFixed(2)}</span></div>
   <div class="detail-row"><span class="label">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="value" style="color:#c0392b">-${parseFloat(r.discount).toFixed(2)}% (-${cur}${parseFloat(r.discountAmt).toFixed(2)})</span></div>` : ''}
   <div class="item-price-line">
     <span class="lbl">${isEl ? 'Τιμή αντικειμένου' : 'Item price'}</span>
     <span class="val">${cur}${parseFloat(r.finalPrice).toFixed(2)}</span>
-  </div>
+  </div>`}
 </div>`;
 }).join('')}
 
-<div class="totals-section">
-  ${showDiscount ? `
-  <div class="total-row">
-    <span class="plabel">${isEl ? 'Υποσύνολο' : 'Subtotal'}</span>
-    <span class="pvalue">${cur}${subtotal.toFixed(2)}</span>
-  </div>
-  <div class="total-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue discount-badge">-${totalDiscPct.toFixed(1)}% (-${cur}${extraDiscAmt.toFixed(2)})</span></div>
-  ` : ''}
-  ${!window._quoteIsCash ? `
-  <div class="total-row">
-    <span class="plabel">${isEl ? 'Τιμή χωρίς ΦΠΑ' : 'Price before VAT'}</span>
-    <span class="pvalue">${cur}${preVatTotal.toFixed(2)}</span>
-  </div>
-  <div class="total-row">
-    <span class="plabel">${isEl ? 'ΦΠΑ ' + vatRate + '%' : 'VAT ' + vatRate + '%'}</span>
-    <span class="pvalue">${cur}${vatAmt.toFixed(2)}</span>
-  </div>` : ''}
-  <div class="total-row grand">
-    <span class="plabel">${isCert ? (isEl ? 'Αξία Κοσμημάτων' : 'Jewelry Value') : (isEl ? 'Τελική Τιμή' : 'Final Price')}</span>
-    <span class="pvalue">${cur}${grandTotal.toFixed(2)}</span>
-  </div>
-</div>
+${totalsSection}
 
-${cartItems.some(ci => ci.result && ci.result.handmade) ? `<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:4px;padding:8px 12px;margin:8px 0 4px;font-size:8.5pt;color:#8a7040;font-style:italic;line-height:1.5">${isEl ? 'Χειροποίητο κόσμημα — Η τιμή αντικατοπτρίζει την εξαιρετική χειρωνακτική τέχνη και τον χρόνο που απαιτείται για τη δημιουργία αυτών των μοναδικών κοσμημάτων.' : 'Handmade jewelry — The price reflects the exceptional craftsmanship and time required to create these unique pieces.'}</div>` : ''}
+${cartItems.some(ci => ci.result && ci.result.handmade) ? `<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:4px;padding:8px 12px;margin:8px 0 4px;font-size:8.5pt;color:#8a7040;font-style:italic;line-height:1.5">${isEl ? (noPrice ? 'Χειροποίητο κόσμημα — δημιουργήθηκε στο εργαστήριό μας με εξαιρετική χειρωνακτική τέχνη και τον χρόνο που απαιτούν μοναδικά κομμάτια.' : 'Χειροποίητο κόσμημα — Η τιμή αντικατοπτρίζει την εξαιρετική χειρωνακτική τέχνη και τον χρόνο που απαιτείται για τη δημιουργία αυτών των μοναδικών κοσμημάτων.') : (noPrice ? 'Handmade jewelry — created in our workshop with the exceptional craftsmanship and time unique pieces require.' : 'Handmade jewelry — The price reflects the exceptional craftsmanship and time required to create these unique pieces.')}</div>` : ''}
 
 ${isCert ? `
 <div style="margin-top:20px;text-align:center;page-break-inside:avoid;break-inside:avoid">
@@ -33732,6 +33792,8 @@ function _quoteReprintResult(e, src) {
 async function printQuote() {
   const _isCert = !!window._certMode;
   window._quoteIsCash = _isCashBtn('quoteCashToggle'); // cash → hide VAT on the printout
+  // Only a certificate can be printed without the price; a quote always shows it.
+  window._certNoPrice = _isCert && _isOptBtn('certNoPriceToggle');
   window._certMode = false;
   const isMulti = quoteCart.length >= 2;
   const customer = document.getElementById('quoteCustomerName').value.trim();
@@ -33855,12 +33917,27 @@ function openCertificateModal() {
   // Reuse the quote modal — just set a flag so confirmQuote knows to build a certificate
   window._certMode = true;
   openQuoteModal();
+  // openQuoteModal() resets the option, so reveal it after that call.
+  const _cnpW2 = document.getElementById('certNoPriceWrap'); if (_cnpW2) _cnpW2.style.display = 'block';
   // Update modal title to say Certificate
   const titleEl = document.querySelector('#quoteModal [data-i18n="quoteTitle"]');
   if (titleEl) titleEl.textContent = lang === 'el' ? 'Εκτύπωση Πιστοποιητικού' : 'Print Certificate';
 }
 
 function buildCertificateHTML(r, cur, isEl, qrUrl, address, photoDataUrl, title, customer, date, time, servedBy, jewelQrUrl) {
+  // A certificate for a piece bought as a GIFT prints with no price at all.
+  // Everything else — metal, weight, stones, stamp, signature — is unchanged;
+  // it still certifies the piece, it just never names what was paid for it.
+  const noPrice = !!window._certNoPrice;
+  const priceSection = noPrice ? '' : `<div class="price-section">
+  ${parseFloat(r.discount) > 0 ? `
+  <div class="price-row"><span class="plabel">${isEl ? 'Τιμή καταλόγου' : 'List price'}</span><span class="pvalue">${cur}${parseFloat(r.retail || (parseFloat(r.finalPrice) + parseFloat(r.discountAmt))).toFixed(2)}</span></div>
+  <div class="price-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue">-${parseFloat(r.discount).toFixed(2)}%</span></div>` : ''}
+  <div class="price-row main">
+    <span class="plabel">${isEl ? 'Αξία Κοσμήματος' : 'Jewelry Value'}</span>
+    <span class="pvalue">${cur}${parseFloat(r.finalPrice).toFixed(2)}</span>
+  </div>
+</div>`;
   // Stamp box: 10cm × 5cm ≈ 378pt × 189pt (at 96dpi: ~378px × 189px)
   const stampBoxStyle = 'width:10cm;height:5cm;border:2px dashed #C9A84C;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin:0 auto';
   const stampLineStyle = 'font-size:8pt;color:#bbb;letter-spacing:0.1em;text-transform:uppercase';
@@ -33956,7 +34033,7 @@ function buildCertificateHTML(r, cur, isEl, qrUrl, address, photoDataUrl, title,
   <span class="value">${r.weight} g</span>
 </div>
 ${r.secondaryMetal && r.secondaryWeight ? `<div class="detail-row"><span class="label">${isEl ? 'Δευτερεύον μέταλλο' : 'Secondary metal'}</span><span class="value">${r.secondaryMetal==='gold'?(isEl?'Χρυσός':'Gold'):(isEl?'Ασήμι':'Silver')} ${(r.secondaryKarat||'')}${r.secondaryMetal==='gold'?'K':''} · ${parseFloat(r.secondaryWeight).toFixed(2)} g</span></div>` : ''}
-${r.handmade ? `<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:4px;padding:8px 12px;margin-bottom:4px;font-size:8.5pt;color:#8a7040;font-style:italic;line-height:1.5">${isEl ? 'Χειροποίητο κόσμημα — Η τιμή αντικατοπτρίζει την εξαιρετική χειρωνακτική τέχνη και τον χρόνο που απαιτείται για τη δημιουργία αυτού του μοναδικού κοσμήματος.' : 'Handmade jewelry — The price reflects the exceptional craftsmanship and time required to create this unique piece.'}</div>` : ''}
+${r.handmade ? `<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:4px;padding:8px 12px;margin-bottom:4px;font-size:8.5pt;color:#8a7040;font-style:italic;line-height:1.5">${isEl ? (noPrice ? 'Χειροποίητο κόσμημα — δημιουργήθηκε στο εργαστήριό μας με εξαιρετική χειρωνακτική τέχνη και τον χρόνο που απαιτεί ένα μοναδικό κομμάτι.' : 'Χειροποίητο κόσμημα — Η τιμή αντικατοπτρίζει την εξαιρετική χειρωνακτική τέχνη και τον χρόνο που απαιτείται για τη δημιουργία αυτού του μοναδικού κοσμήματος.') : (noPrice ? 'Handmade jewelry — created in our workshop with the exceptional craftsmanship and time a unique piece requires.' : 'Handmade jewelry — The price reflects the exceptional craftsmanship and time required to create this unique piece.')}</div>` : ''}
 ${r.stones && r.stones.length > 0 ? `
 <div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:4px;padding:8px 12px;margin-top:4px;margin-bottom:2px">
   <div style="font-size:8pt;letter-spacing:0.08em;text-transform:uppercase;color:#C9A84C;margin-bottom:6px">💎 ${isEl ? 'Λίθος / Πέτρα' : 'Stone'}</div>
@@ -33973,15 +34050,7 @@ ${r.stones && r.stones.length > 0 ? `
   }).join('')}
 </div>` : ''}
 
-<div class="price-section">
-  ${parseFloat(r.discount) > 0 ? `
-  <div class="price-row"><span class="plabel">${isEl ? 'Τιμή καταλόγου' : 'List price'}</span><span class="pvalue">${cur}${parseFloat(r.retail || (parseFloat(r.finalPrice) + parseFloat(r.discountAmt))).toFixed(2)}</span></div>
-  <div class="price-row"><span class="plabel">${isEl ? 'Έκπτωση' : 'Discount'}</span><span class="pvalue">-${parseFloat(r.discount).toFixed(2)}%</span></div>` : ''}
-  <div class="price-row main">
-    <span class="plabel">${isEl ? 'Αξία Κοσμήματος' : 'Jewelry Value'}</span>
-    <span class="pvalue">${cur}${parseFloat(r.finalPrice).toFixed(2)}</span>
-  </div>
-</div>
+${priceSection}
 
 <div class="stamp-section" style="page-break-inside:avoid;break-inside:avoid">
   <div class="stamp-box">
@@ -34323,6 +34392,7 @@ function renderHistory(search) {
 
 function reprintQuote(id) {
   window._quoteIsCash = false; // reprints from history default to receipt (VAT shown)
+  window._certNoPrice = false;  // history holds quotes only — a quote always shows its prices
   try {
     const raw = localStorage.getItem('jpro_quotes') || '[]';
     const quotes = JSON.parse(raw);
@@ -35495,6 +35565,8 @@ async function shareQuote() {
   const _isCert = !!window._certMode;
   window._certMode = false;
   window._quoteIsCash = _isCashBtn('quoteCashToggle'); // cash → hide VAT on the printout
+  // Only a certificate can be printed without the price; a quote always shows it.
+  window._certNoPrice = _isCert && _isOptBtn('certNoPriceToggle');
   const isMulti = quoteCart.length >= 2;
   if (!isMulti && !lastCalcResult) return;
 
@@ -37252,7 +37324,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.93';
+const APP_VERSION = '12.94';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
