@@ -33,6 +33,9 @@
     /* "Bring it back" green (reactivating a finished hold). Same story again: the pale
        mint used on the dark ground measures 1.7:1 on the light theme's white. */
     --revive: #7fd6b0;
+    /* Profit / money earned. Pale mint on dark, deep green on light -- the raw
+       #7fd6b0 measures 1.4:1 against the light theme's panels. */
+    --profit: #7fd6b0;
     --glow-gold: rgba(212,175,55,0.22); --glow-gold-strong: rgba(212,175,55,0.38);
     --font-heading: 'Playfair Display', 'Cormorant Garamond', serif;
     --font-body: 'Inter', sans-serif;
@@ -58,6 +61,7 @@
     --debt: #9B2314;
     --order: #6B3E8F;
     --revive: #1F6E4E;
+    --profit: #12664A;
     --glow-gold: rgba(184,149,46,0.14); --glow-gold-strong: rgba(184,149,46,0.26);
     --wa02:rgba(45,36,14,0.03); --wa03:rgba(45,36,14,0.04); --wa04:rgba(45,36,14,0.05);
     --wa05:rgba(45,36,14,0.055); --wa06:rgba(45,36,14,0.06); --wa07:rgba(45,36,14,0.07);
@@ -8821,6 +8825,7 @@ function openRepairDetail(id) {
     ${r.notes ? `<div style="font-size:12px;color:var(--text-muted);margin:0 0 10px;padding:9px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;white-space:pre-wrap;line-height:1.5">${_repEsc(r.notes)}</div>` : ''}
     ${_ordPiecesBlock(r)}
     ${_ordMaterialsBlock(r)}
+    ${_ordJobCostBlock(r)}
     ${_isQ ? `<button onclick="_repairQuoteOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:12px;background:rgba(201,160,224,0.12);border:1px solid rgba(201,160,224,0.45);color:#c9a0e0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✏️ ${isEl ? 'Τιμή & στοιχεία προσφοράς' : 'Edit the quote'}</button>` : ''}
     ${notifyRow}
     <button onclick="shareRepairForm('${r.id}')" style="width:100%;margin-bottom:10px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📄 ${_isQ ? (isEl ? 'Προσφορά (εκτύπωση / αποστολή)' : 'Quote (print / share)') : repIsOrder(r) ? (isEl ? 'Παραγγελία (εκτύπωση / αποστολή)' : 'Order form (print / share)') : (isEl ? 'Δελτίο (εκτύπωση / αποστολή)' : 'Claim form (print / share)')}</button>
@@ -9863,6 +9868,117 @@ function _ordMaterialsBlock(r) {
   </div>`;
 }
 
+// ── What this job costs you, worked out BEFORE the customer arrives ────────
+// The materials from stock are priced automatically, and an ordered piece carries its
+// own purchase cost. The goldsmith's invoice — or a stone bought in for the job — is
+// the one figure only you know, and it used to be asked for at the very last moment:
+// inside the Collect box, with the customer standing at the counter.
+//
+// It is stored on the ticket as `extraCost`, which the Collect box ALREADY prefills
+// from, so entering it early costs the collection nothing and the two can never
+// disagree — whatever is set here is exactly what Collect opens with.
+//
+// Owner/manager only, and only while the job is live: after collection the box at the
+// top shows the real cost and profit, and a quote has committed nothing yet.
+function _ordJobCostBlock(r) {
+  if (!r || !can('see_cost') || !_ordLive(r)) return '';
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const mc = _ordMaterialsCost(r);
+  // An ordered piece is sold as itself, so its own cost is part of what the job costs
+  // you too. Counted here for the preview only — at collection the sale records carry
+  // it, which is why _ordFinalizeCollect must not add it a second time.
+  let pcost = 0, pn = 0, punk = 0;
+  for (const [, it] of _ordLinkedInStock(r)) {
+    let c = null; try { c = _invSaleCost(it); } catch (e) { c = null; }
+    pn++;
+    if (c != null && isFinite(c) && c > 0) pcost += c; else punk++;
+  }
+  pcost = parseFloat(pcost.toFixed(2));
+  const extra = parseFloat(r.extraCost);
+  const hasExtra = isFinite(extra) && extra > 0;
+  const total = parseFloat((mc.total + pcost + (hasExtra ? extra : 0)).toFixed(2));
+  const unknown = mc.unknown + punk;
+  const rolled = mc.lines.length + pn;   // is there anything to add the goldsmith TO?
+  // The same price the Collect box will prefill, so the preview and the sale agree.
+  const price = parseFloat(r.finalPrice) || parseFloat(r.estHigh) || parseFloat(r.estLow) || 0;
+  const vat = parseFloat(state.vat) || 0;
+  // Cash and receipt both shown: which one it will be is only decided at Collect, and
+  // the gap between them is exactly what you need when settling on a price. Through
+  // _saleExVatRaw, the one place that knows the rule.
+  const prof = (cash) => _saleExVatRaw({ amount: price, cashSale: cash }, vat) - total;
+  const row = (lbl, val, strong) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:${strong ? 13 : 12}px;margin:4px 0">
+      <span style="color:var(--text-muted)${strong ? ';font-weight:600' : ''}">${lbl}</span>
+      <span style="color:${strong ? 'var(--gold-light)' : 'var(--text)'};font-family:var(--font-mono)${strong ? ';font-weight:700' : ''};flex-shrink:0">${val}</span>
+    </div>`;
+  return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+    <div style="${_resLbl};margin-top:0">💰 ${isEl ? 'Κόστος της δουλειάς' : 'What this job costs you'}</div>
+    ${mc.lines.length ? row('🧩 ' + (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock'), cur + mc.total.toFixed(2)) : ''}
+    ${pn ? row('📦 ' + (isEl ? `Κομμάτια που έφτασαν (${pn})` : `Ordered pieces (${pn})`), cur + pcost.toFixed(2)) : ''}
+    <button onclick="_repCostOpen('${r.id}')" style="${hasExtra ? 'width:calc(100% + 24px);margin:6px -12px;padding:8px 12px;background:var(--wa07);border:none;border-top:1px solid var(--card-border);border-bottom:1px solid var(--card-border);border-radius:0' : 'width:100%;margin:6px 0;padding:8px 10px;background:transparent;border:1px dashed rgba(201,168,76,0.5);border-radius:8px'};display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;font-family:var(--font-body);text-align:left">
+      <span style="font-size:12px;color:${hasExtra ? 'var(--text-muted)' : 'var(--gold-light)'}">✏️ ${isEl ? 'Δικό σας κόστος' : 'Your cost'}</span>
+      <span style="font-size:12px;font-family:var(--font-mono);color:${hasExtra ? 'var(--text)' : 'var(--text-dim)'};flex-shrink:0">${hasExtra ? cur + extra.toFixed(2) : (isEl ? 'προσθήκη' : 'add')}</span>
+    </button>
+    <div style="font-size:11px;color:var(--text-dim);line-height:1.5">${isEl ? 'Ό,τι πληρώσατε επιπλέον — ο χρυσοχόος, μια πέτρα που αγοράσατε.' : 'Whatever you paid on top — the goldsmith, a stone bought in.'}${rolled ? ' ' + (isEl ? 'Όσα είναι από πάνω μπαίνουν μόνα τους.' : 'Everything above is added for you.') : ''}</div>
+    ${unknown ? `<div style="font-size:11px;color:#e0a85a;margin-top:4px">⚠️ ${isEl ? `${unknown} χωρίς γνωστό κόστος` : `${unknown} with no known cost`}</div>` : ''}
+    ${rolled ? `<div style="border-top:1px solid var(--card-border);margin-top:6px;padding-top:5px">
+      ${row(isEl ? 'Συνολικό κόστος' : 'Total cost', cur + total.toFixed(2), true)}
+    </div>` : ''}
+    ${(price > 0 && total > 0) ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;line-height:1.6">${isEl ? `Στα ${cur}${price.toFixed(2)} το κέρδος θα είναι` : `At ${cur}${price.toFixed(2)} the profit would be`} <b style="color:var(--profit)">💵 ${cur}${prof(true).toFixed(2)}</b> · <b style="color:var(--profit)">🧾 ${cur}${prof(false).toFixed(2)}</b></div>` : ''}
+  </div>`;
+}
+
+// Set the goldsmith's cost ahead of collection. A small overlay rather than an inline
+// input on purpose: the detail sheet redraws itself when the stock cache lands
+// (_ordEnsureStockThenRedraw), which would wipe half-typed text.
+function _repCostOpen(id) {
+  const r = getRepairs().find(x => x.id === id); if (!r || !can('see_cost')) return;
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const mc = _ordMaterialsCost(r);
+  const extra = parseFloat(r.extraCost);
+  document.getElementById('repCostOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repCostOverlay';
+  ov.dataset.mat = String(mc.total);
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:360px;margin:auto">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">💰 ${isEl ? 'Δικό σας κόστος' : 'Your cost'} · ${repNoFmt(r)}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.45">${isEl ? 'Ό,τι πληρώσατε επιπλέον για αυτή τη δουλειά — ο χρυσοχόος, μια πέτρα που αγοράσατε. Τα υλικά από το απόθεμα μπαίνουν μόνα τους.' : 'Whatever you paid on top for this job — the goldsmith, a stone bought in. The materials from stock are added for you.'}</div>
+    <div style="${_resLbl}">${isEl ? 'Ποσό' : 'Amount'} (€)</div>
+    <input id="repCostAmt" type="number" step="0.01" inputmode="decimal" oninput="_repCostSync()" value="${isFinite(extra) && extra > 0 ? extra.toFixed(2) : ''}" placeholder="${isEl ? 'π.χ. 320' : 'e.g. 320'}" style="${_resInp}">
+    ${mc.lines.length ? `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">🧩 ${isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock'}</span><span style="color:var(--text);font-family:var(--font-mono)">${cur}${mc.total.toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:7px;padding-top:7px;border-top:1px solid var(--card-border)"><span style="color:var(--text-muted)">${isEl ? 'Μαζί' : 'Together'}</span><span id="repCostPrev" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span></div>
+    </div>` : ''}
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('repCostOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+      <button onclick="_repCostSave('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Αποθήκευση' : 'Save'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  _repCostSync();
+  document.getElementById('repCostAmt')?.focus();
+}
+function _repCostSync() {
+  const el = document.getElementById('repCostPrev'); if (!el) return;
+  const mat = parseFloat(document.getElementById('repCostOverlay')?.dataset.mat) || 0;
+  const typed = parseFloat(document.getElementById('repCostAmt')?.value) || 0;
+  el.textContent = (state.currency || '€') + (mat + typed).toFixed(2);
+}
+// A blank box CLEARS it: the field is deliberate, so an emptied one means "nothing on
+// top", not "leave what was there".
+function _repCostSave(id) {
+  const isEl = lang === 'el';
+  const list = getRepairs(); const r = list.find(x => x.id === id); if (!r || !can('see_cost')) return;
+  const v = parseFloat(document.getElementById('repCostAmt')?.value);
+  r.extraCost = (isFinite(v) && v > 0) ? parseFloat(v.toFixed(2)) : null;
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  document.getElementById('repCostOverlay')?.remove();
+  openRepairDetail(id);
+  showToast(r.extraCost != null
+    ? (isEl ? '✓ Το κόστος αποθηκεύτηκε' : '✓ Cost saved')
+    : (isEl ? '✓ Το κόστος καθαρίστηκε' : '✓ Cost cleared'));
+}
+
 // The line the Stock card shows for a piece tied to a job: grams promised off a batch,
 // or where a consumed piece went (so a sold piece with no sale record never looks like
 // a bug — and never offers the "restore to stock?" prompt meant for a lost sale).
@@ -10368,6 +10484,11 @@ async function _ordFinalizeCollect(tid, total, firstRec) {
   r.dateCollected = Date.now();
   if (parseFloat(total) > 0) r.finalPrice = parseFloat(parseFloat(total).toFixed(2));
   if (_mcost.total > 0) r.materialsCost = _mcost.total;
+  // What you paid on top (the goldsmith) is set on the ticket ahead of collection.
+  // The Collect box asks for it on the other path; this one goes straight to the
+  // sale, so without adding it here the profit would read high by exactly that much.
+  const _extra = parseFloat(r.extraCost) > 0 ? parseFloat(parseFloat(r.extraCost).toFixed(2)) : 0;
+  const _jobCost = parseFloat((_mcost.total + _extra).toFixed(2));
   saveRepairsLocal(list); pushRepairsToCloud(list);
   if ((r.materials || []).length) {
     const _cm = await _ordConsumeMaterials(r);
@@ -10377,9 +10498,9 @@ async function _ordFinalizeCollect(tid, total, firstRec) {
   // it — left off, the profit reads high by exactly what that stock was worth. It goes
   // onto the first record of the transaction, and the profit is re-derived through
   // _saleExVat, the one place that knows the cash / receipt / certificate rule.
-  if (_mcost.total > 0 && firstRec) {
+  if (_jobCost > 0 && firstRec) {
     try {
-      firstRec.cost = parseFloat(((parseFloat(firstRec.cost) || 0) + _mcost.total).toFixed(2));
+      firstRec.cost = parseFloat(((parseFloat(firstRec.cost) || 0) + _jobCost).toFixed(2));
       firstRec.profit = parseFloat((_saleExVat(firstRec, parseFloat(state.vat) || 0) - firstRec.cost).toFixed(2));
       localStorage.setItem('jpro_sales', JSON.stringify(_salesCache));
       await pushSalesToCloud(_salesCache);
@@ -32205,8 +32326,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.94', date: 'Αύγουστος 2026', items: [
-        "🎁 Μπορείτε πια να τυπώσετε πιστοποιητικό χωρίς την τιμή. Όταν κάποιος αγοράζει κόσμημα για δώρο, η τιμή δεν πρέπει να φαίνεται πουθενά. Στην εκτύπωση πιστοποιητικού — και από τον Υπολογισμό και από μια περασμένη πώληση — υπάρχει πλέον διακόπτης «ΧΩΡΙΣ ΤΙΜΗ». Πατημένος, το χαρτί βγαίνει χωρίς καμία τιμή, έκπτωση ή ΦΠΑ — κρατάει όμως μέταλλο, βάρος, πέτρες, κωδικό, σφραγίδα και υπογραφή. Ξεκινάει πάντα κλειστός, ώστε τα συνηθισμένα πιστοποιητικά — αυτά που πάνε στην ασφάλεια — βγαίνουν ακριβώς όπως πριν.",
+      { version: 'v12.95', date: 'Αύγουστος 2026', items: [
+        "💰 Μπορείτε πια να βάλετε το δικό σας κόστος πάνω στο δελτίο, πριν έρθει ο πελάτης. Στην παραγγελία ή την επισκευή υπάρχει πλέον κουτάκι «Κόστος της δουλειάς»: γράφετε τα χρήματα που πληρώσατε επιπλέον — π.χ. τον χρυσοχόο — και η εφαρμογή τα προσθέτει μόνη της στα υλικά από το απόθεμα και στα κομμάτια που έφτασαν. Βλέπετε το Συνολικό κόστος και το κέρδος που θα βγάλετε στην τιμή που έχετε δώσει (με απόδειξη και χωρίς), ώστε να ξέρετε από πριν πού πατάτε. Όταν έρθει η ώρα της παραλαβής, το κόστος είναι ήδη συμπληρωμένο — γράφετε μόνο την τελική τιμή."
       ]},
       ]
   },
@@ -32237,8 +32358,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.94', date: 'Aug 2026', items: [
-        "🎁 You can now print a certificate without the price. When someone buys a piece as a gift, the price should not appear anywhere on it. The certificate print — both from the Calculator and from a past sale — now has a “WITHOUT PRICE” switch. Pressed, the paper comes out with no price, no discount and no VAT, while keeping the metal, weight, stones, reference code, stamp and signature. It always starts off, so an ordinary certificate — the kind people take to insure a jewel — prints exactly as before.",
+      { version: 'v12.95', date: 'Aug 2026', items: [
+        "💰 You can now enter your own cost on the ticket, before the customer arrives. An order or a repair now has a “What this job costs you” box: type what you paid on top — the goldsmith, say — and the app adds it to the materials from stock and to any pieces that have arrived. It shows the Total cost and the profit you would make at the price you have quoted (both with a receipt and without), so you know where you stand before you commit. When collection comes, the cost is already filled in — you only type the final price."
       ]},
           ]
   }
@@ -37324,7 +37445,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.94';
+const APP_VERSION = '12.95';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
