@@ -2666,7 +2666,7 @@
       </div>
     </div>
     <div style="display:flex;gap:10px">
-      <button onclick="confirmSale()" style="flex:2;padding:12px;background:linear-gradient(135deg,#27AE60,#1e8449);color:#fff;border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="saleConfirm">✓ Καταχώριση</button>
+      <button id="saleConfirmBtn" onclick="confirmSale()" style="flex:2;padding:12px;background:linear-gradient(135deg,#27AE60,#1e8449);color:#fff;border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="saleConfirm">✓ Καταχώριση</button>
       <button onclick="closeSaleModal()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase" data-i18n="cancel">Ακύρωση</button>
     </div>
   </div>
@@ -5067,11 +5067,63 @@ async function outboxFlush(quiet) {
   } else if (after > 0) _outboxUpdateBadge();
 }
 
+// ── COLD-START BASELINE SAFETY ───────────────────────────────────────────────
+// The diff below is only as trustworthy as the baseline it compares against.
+// When that baseline had to be fetched on the spot — the app has just opened and
+// the once-per-boot sync hasn't landed yet, or it failed — this device CANNOT
+// tell its own change apart from another device's, and inferring one is how
+// money moves by itself:
+//   • a record we hold that the cloud lacks LOOKS new — but far more often it is
+//     one another phone DELETED, and re-uploading it duplicates a sale;
+//   • a record the cloud holds that we lack LOOKS deleted — but far more often it
+//     is one another phone just ADDED, and deleting it destroys a sale.
+// The first of those is the v12.99 report: a sale deleted on the owner's phone,
+// still sitting in the employee's saved list, uploaded again the moment she
+// recorded the replacement — one piece, two sales.
+// So on that one untrusted save we act only on intent we can PROVE is ours:
+// what the outbox is holding, and records minted in this session.
+const _sessionStartMs = Date.now();
+// Every id is minted by _stampId() — Date.now()*1000 + a per-device salt — and
+// older records carry a plain Date.now(). Anything unrecognised counts as OLD,
+// which is the safe direction: it can never be mistaken for our own new work.
+function _idMintedMs(id) {
+  const n = Number(id);
+  if (!isFinite(n) || n <= 0) return 0;
+  if (n > 1e14) return Math.floor(n / 1000);   // _stampId()
+  if (n > 1e11) return n;                      // legacy plain Date.now()
+  return 0;
+}
+function _idThisSession(id) { return _idMintedMs(id) >= _sessionStartMs - 60000; }
+const _LIST_LS_KEY = {
+  '/jewelprice_sales': 'jpro_sales',
+  '/jewelprice_giftcards': 'jpro_giftcards',
+  '/jewelprice_reservations': 'jpro_reservations',
+  '/jewelprice_repairs': 'jpro_repairs',
+  '/jewelprice_clients': 'jpro_clients'
+};
+// A record another device deleted has to leave THIS device's list too, or the
+// next save — by then on a trusted baseline — would upload it after all, and it
+// would sit in the list as a phantom until the next pull.
+function _dropStaleLocal(path, list, ids, idOf) {
+  if (!ids.length || !Array.isArray(list)) return;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i] && ids.indexOf(String(idOf(list[i]))) !== -1) list.splice(i, 1);
+  }
+  const k = _LIST_LS_KEY[path];
+  if (k) { try { localStorage.setItem(k, JSON.stringify(list)); } catch (e) {} }
+}
+// A deliberate removal, recorded BEFORE the write is attempted — the same thing
+// addSaleRecord does for a new sale (v11.65). It is what tells the guard above
+// that a missing record is an intention and not just a stale list, and it also
+// means an offline delete survives the app being closed.
+function _queueRemoval(path, id) { if (id !== undefined && id !== null) _outboxAdd(path, id, 'del', null); }
+
 // Save a list by writing only the records that changed. Returns true when every
 // write landed — callers that care (money) can then report honestly instead of
 // assuming, the lesson of v11.62.
 async function _syncListToCloud(path, list, idOf, opts) {
   if (!creds.binId) return false;
+  let _lazy = false;   // true when the baseline below had to be guessed at
   // No snapshot yet (the app booted offline, or nothing has pulled this node):
   // read the node ONCE and diff against that, instead of blindly re-writing
   // every record one by one — which on a 700-sale shop would be 700 requests,
@@ -5081,6 +5133,7 @@ async function _syncListToCloud(path, list, idOf, opts) {
       const res = await fetch(fbUrl(path + '.json'), { cache: 'no-store' });
       if (!res.ok) return false;                       // can't establish a baseline — don't guess
       _cloudSnap[path] = _snapOf(_listFromNode(await res.json()), idOf);
+      _lazy = true;                                    // ...and don't trust it, either
     } catch (e) { return false; }
   }
   const snap = _cloudSnap[path];
@@ -5100,10 +5153,33 @@ async function _syncListToCloud(path, list, idOf, opts) {
     return false;
   }
   const jobs = [];
-  for (const [id, json] of next) if (snap.get(id) !== json) jobs.push(['PUT', id, json]);
+  // On an untrusted baseline, act only on intent we can prove — see the block
+  // above _syncListToCloud for why inference is dangerous there.
+  const _ob = _lazy ? new Map(_outboxFor(path).map(e => [String(e.id), e.op])) : null;
+  const _phantom = [];   // ours only in appearance — deleted on another device
+  const _theirs = [];    // missing here only in appearance — added on another device
+  for (const [id, json] of next) {
+    if (snap.get(id) === json) continue;
+    if (_lazy && !snap.has(id) && _ob.get(id) !== 'put' && !_idThisSession(id)) { _phantom.push(id); continue; }
+    jobs.push(['PUT', id, json]);
+  }
   // Only ever delete something this device actually knew about. A record we've
   // never seen belongs to another phone and is none of our business.
-  for (const [id] of snap) if (!next.has(id)) jobs.push(['DELETE', id, null]);
+  for (const [id] of snap) {
+    if (next.has(id)) continue;
+    if (_lazy && _ob.get(id) !== 'del') { _theirs.push(id); continue; }
+    jobs.push(['DELETE', id, null]);
+  }
+  if (_phantom.length) {
+    console.warn('[sync] ' + path + ': ' + _phantom.length + ' record(s) deleted on another device — not re-uploaded', _phantom);
+    _dropStaleLocal(path, list, _phantom, idOf);
+  }
+  if (_theirs.length) {
+    // Forget we ever saw them, or the next save would infer the same delete all
+    // over again. The next pull restores the truth.
+    console.warn('[sync] ' + path + ': ' + _theirs.length + ' record(s) added on another device — left alone', _theirs);
+    _theirs.forEach(id => snap.delete(id));
+  }
   if (!jobs.length) return true;
   let allOk = true;
   for (const [method, id, json] of jobs) {
@@ -6943,6 +7019,7 @@ function _gcDelete(id) {
     async () => {
       const list = getGiftCards().filter(x => x.id !== id);
       saveGiftCardsLocal(list);
+      _queueRemoval('/jewelprice_giftcards', id);
       await pushGiftCardsToCloud(list, { allowEmpty: true });
       closeGiftCardDetail(true);
       renderGiftCards();
@@ -8203,7 +8280,8 @@ function _resDelete(id) {
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτής της κράτησης;' : 'Permanently delete this reservation?', async () => {
     const gone = getReservations().find(x => x.id === id);
     const list = getReservations().filter(x => x.id !== id);
-    saveReservationsLocal(list); pushReservationsToCloud(list, { allowEmpty: true });
+    saveReservationsLocal(list); _queueRemoval('/jewelprice_reservations', id);
+    pushReservationsToCloud(list, { allowEmpty: true });
     // Belt-and-suspenders: release any items this reservation still had flagged.
     try { await _resMarkItems((gone && gone.itemIds) || [], null); } catch (e) {}
     document.getElementById('reservationDetailOverlay')?.remove();
@@ -9498,7 +9576,8 @@ function _repairDelete(id) {
   if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτού του δελτίου;' : 'Permanently delete this ticket?', () => {
     const list = getRepairs().filter(x => x.id !== id);
-    saveRepairsLocal(list); pushRepairsToCloud(list, { allowEmpty: true });
+    saveRepairsLocal(list); _queueRemoval('/jewelprice_repairs', id);
+    pushRepairsToCloud(list, { allowEmpty: true });
     document.getElementById('repairDetailOverlay')?.remove();
     renderRepairs();
     if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
@@ -13048,6 +13127,7 @@ async function deleteSaleRecord(id) {
   const filtered = sales.filter(s => s.id !== id);
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
+  _queueRemoval('/jewelprice_sales', id);
   await pushSalesToCloud(filtered, { allowEmpty: true });
   // Hand the balance back if this sale drew on a gift certificate — same
   // principle as restoring the sold inventory piece below.
@@ -13671,6 +13751,7 @@ async function _undoReturn(retId) {
   }
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
+  _queueRemoval('/jewelprice_sales', retId);
   await pushSalesToCloud(filtered, { allowEmpty: true });
   if (rec.creditCardId) {
     const list = getGiftCards();
@@ -17312,7 +17393,39 @@ async function confirmSaleEdit() {
   await renderSalesPanel();
 }
 
+// A sale must be recordable exactly once per press. The dialog stays open for
+// the whole write (it only closes after the records and the stock updates have
+// gone out), so on a slow signal a second, impatient tap used to run the whole
+// thing again and write a COMPLETE second sale under a new id — the piece is
+// already sold, so nothing in stock changes and only the money doubles. Guarded
+// the same way the label modal is (v11.09): the flag is set synchronously,
+// before the first await, so even a double-tap in the same instant records once.
+let _confirmingSale = false;
 async function confirmSale() {
+  if (_confirmingSale) return;
+  _confirmingSale = true;
+  const _btn = document.getElementById('saleConfirmBtn');
+  const _btnHtml = _btn ? _btn.innerHTML : '';
+  if (_btn) {
+    _btn.disabled = true;
+    _btn.style.opacity = '0.6';
+    _btn.style.cursor = 'default';
+    _btn.textContent = lang === 'el' ? 'Καταχώριση…' : 'Recording…';
+  }
+  try {
+    return await _confirmSaleInner();
+  } finally {
+    _confirmingSale = false;
+    if (_btn) {
+      _btn.disabled = false;
+      _btn.style.opacity = '';
+      _btn.style.cursor = 'pointer';
+      _btn.innerHTML = _btnHtml;
+    }
+  }
+}
+
+async function _confirmSaleInner() {
   const amt = parseFloat(document.getElementById('saleAmountInput').value);
   if (!amt || amt <= 0) { showToast(lang==='el'?'⚠️ Εισάγετε έγκυρο ποσό':'⚠️ Enter a valid amount'); return; }
 
@@ -32430,8 +32543,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.98', date: 'Αύγουστος 2026', items: [
-        "🔔 Η ειδοποίηση ανοίγει ακριβώς το κομμάτι που στείλατε. Όταν δύο κομμάτια έχουν τον ίδιο περιγραφικό κωδικό (π.χ. δύο σκουλαρίκια DIA925S02), η ειδοποίηση ταξίδευε μόνο με τον κωδικό — και ο κωδικός δεν λέει ποιο από τα δύο. Έτσι το «Προβολή» άνοιγε το λάθος κομμάτι: στέλνατε το ER0895 και ο παραλήπτης έβλεπε το ER0933. Τώρα η ειδοποίηση κουβαλά την ταυτότητα της ίδιας της καρτέλας, οπότε ανοίγει πάντα το κομμάτι που επιλέξατε. Το ίδιο διορθώθηκε και στους συνδέσμους ?item= — αν ο κωδικός ανήκει σε δύο κομμάτια, ανοίγει αυτό που είναι στο απόθεμα."
+      { version: 'v12.99', date: 'Αύγουστος 2026', items: [
+        "🔁 Διορθώθηκε το «η ίδια πώληση δύο φορές». Το προκαλούσαν δύο ξεχωριστά προβλήματα — επιβεβαιώθηκαν και τα δύο. (1) Όταν σβήνατε μια πώληση από το δικό σας κινητό, το κινητό του υπαλλήλου την είχε ακόμα στη δική του αποθηκευμένη λίστα· αν καταχωρούσε τη νέα πώληση μέσα στα πρώτα δευτερόλεπτα από το άνοιγμα της εφαρμογής, πριν προλάβει να συγχρονιστεί, την ξανα-ανέβαζε στο σύννεφο. Ένα κομμάτι, δύο πωλήσεις. Τώρα, όταν η εφαρμογή δεν μπορεί να είναι σίγουρη τι άλλαξε, δεν μαντεύει: ανεβάζει μόνο ό,τι έκανε η ίδια. Αυτό έκλεισε και την αντίστροφη περίπτωση, που ήταν ακόμη χειρότερη — μια παλιά λίστα δεν μπορεί πια να σβήσει πώληση που μόλις έκανε άλλο κινητό.",
+        "🔒 Το κουμπί «Καταχώριση» κλειδώνει όσο γράφει την πώληση. Πριν, σε αργή σύνδεση, ένα δεύτερο ανυπόμονο πάτημα κατέγραφε ολόκληρη δεύτερη πώληση (το κομμάτι ήταν ήδη πουλημένο, οπότε το απόθεμα έμενε σωστό και διπλασιάζονταν μόνο τα χρήματα). Τώρα γράφει «Καταχώριση…» και δεν δέχεται δεύτερο πάτημα μέχρι να ολοκληρωθεί."
       ]},
       ]
   },
@@ -32462,8 +32576,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.98', date: 'Aug 2026', items: [
-        "🔔 A notification opens the exact piece you sent. When two pieces share a descriptive code (for example two pairs of earrings both reading DIA925S02), the notification travelled with the code alone — and the code cannot say which of the two. So “View” opened the wrong one: you sent ER0895 and your employee got ER0933. The notification now carries the identity of the record itself, so it always opens the piece you picked. The same fix applies to ?item= links — where a code belongs to two pieces, the one still in stock is opened."
+      { version: 'v12.99', date: 'Aug 2026', items: [
+        "🔁 Fixed “the same sale recorded twice”. Two separate faults could cause it, and both were confirmed. (1) When you deleted a sale on your phone, your employee's phone still had it in its own saved list; if she recorded the replacement in the first seconds after opening the app, before it had synced, it uploaded the deleted one all over again. One piece, two sales. Now, when the app cannot be certain what changed, it does not guess: it uploads only the work it did itself. That also closed the opposite case, which was worse — a stale list can no longer delete a sale another phone has just made.",
+        "🔒 The “Record” button now locks while the sale is being saved. Before, on a slow connection, a second impatient tap wrote a complete second sale (the piece was already sold, so stock stayed right and only the money doubled). It now reads “Recording…” and ignores a second tap until it has finished."
       ]},
           ]
   }
@@ -34954,6 +35069,7 @@ async function saveClient(client) {
 async function deleteClient(id) {
   const list = getClients().filter(c => c.id !== id);
   saveClientsLocal(list);
+  _queueRemoval('/jewelprice_clients', id);
   await pushClientsToCloud(list, { allowEmpty: true });
 }
 
@@ -37549,7 +37665,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.98';
+const APP_VERSION = '12.99';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
