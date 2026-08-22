@@ -6490,6 +6490,7 @@ async function _gcOpenFromNotif(gcId) {
 async function openGiftCardDetail(id) {
   _gcDetailReturnToNotif = false;
   _clientBackTo = null;
+  _repBackToSale = null;
   const g = gcFindById(id); if (!g) return;
   // Sales carry the item descriptions the redemption statement below resolves.
   // Sales carry the redemption→sale link; inventory carries the ref code and
@@ -7929,6 +7930,7 @@ function invReserveOrView(id) {
 
 function openReservationDetail(id) {
   _clientBackTo = null;
+  _repBackToSale = null;
   const r = getReservations().find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const bal = resBalance(r), paid = resPaid(r), active = r.status === 'active';
@@ -8776,6 +8778,7 @@ async function _repairSave() {
 // ── Detail ──
 function openRepairDetail(id) {
   _clientBackTo = null;
+  _repBackToSale = null;
   const r = getRepairs().find(x => x.id === id); if (!r) return;
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const owner = can('see_cost');
@@ -9356,6 +9359,10 @@ async function _repairCollectConfirm(id) {
       const _incOpts = _rgUse > 0
         ? { giftAmt: _rgUse, giftWasCash: !!_rgCard.cashSale, giftCardId: _rgCard.id, giftCardNo: _rgCard.cardNo }
         : {};
+      // The job this money came from, so the sale can be traced back to it. The
+      // note names the ticket NUMBER, but a number is a description — only an id
+      // can be looked up, and a ticket may be renumbered or deleted around it.
+      _incOpts.ticketId = r.id;
       // Clamped to what is actually being handed over, so cash + card + any
       // certificate + any gold can never add up to more than the price.
       if (splitCash != null) _incOpts.cashAmt = Math.min(splitCash, parseFloat((price - _rgUse - _tiTotal).toFixed(2)));
@@ -9438,6 +9445,10 @@ async function _recordRepairIncome(amount, cost, cashSale, note, giftOpts) {
     salePhotoUrl: '', salePhotoName: '', seqRef: '', repairIncome: true
   };
   if (_sp.cashAmt != null) rec.cashAmt = _sp.cashAmt;
+  // The ticket this income belongs to, by RECORD ID (v12.97). Everything else on
+  // this record says WHAT was earned; this says which job earned it, so the sale
+  // detail can open the ticket — and from there the pieces that went into it.
+  if (_go.ticketId) rec.repairTicketId = _go.ticketId;
   if (_giftPart > 0) {
     rec.giftCardId = _go.giftCardId || null;
     rec.giftCardNo = _go.giftCardNo || null;
@@ -10498,14 +10509,27 @@ async function _ordFinalizeCollect(tid, total, firstRec) {
   // it — left off, the profit reads high by exactly what that stock was worth. It goes
   // onto the first record of the transaction, and the profit is re-derived through
   // _saleExVat, the one place that knows the cash / receipt / certificate rule.
-  if (_jobCost > 0 && firstRec) {
-    try {
+  try {
+    let _touched = false;
+    if (_jobCost > 0 && firstRec) {
       firstRec.cost = parseFloat(((parseFloat(firstRec.cost) || 0) + _jobCost).toFixed(2));
       firstRec.profit = parseFloat((_saleExVat(firstRec, parseFloat(state.vat) || 0) - firstRec.cost).toFixed(2));
+      _touched = true;
+    }
+    // Point every line of the transaction back at the ticket (v12.97), by RECORD ID —
+    // the note names the ticket number, but a number is a description, not an identity.
+    // Every line, not just the first: any one of them can be opened on its own.
+    if (firstRec) {
+      const _grp = firstRec.saleGroup;
+      const _recs = _grp ? (_salesCache || []).filter(x => x && x.saleGroup === _grp) : [firstRec];
+      _recs.forEach(x => { x.repairTicketId = tid; });
+      if (_recs.length) _touched = true;
+    }
+    if (_touched) {
       localStorage.setItem('jpro_sales', JSON.stringify(_salesCache));
       await pushSalesToCloud(_salesCache);
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
   if (document.getElementById('panel-desk')?.classList.contains('active')) renderRepairs();
 }
 
@@ -16159,6 +16183,10 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     acts.appendChild(payBtn);
   }
 
+  // 📦 The job behind the whole transaction (an order collected as a sale of its
+  // arrived pieces). Every line carries the same link, so any of them opens it.
+  _saleTicketBtn(s, acts, false);
+
   // 🖨️ Quote / certificate for the whole transaction — the paper a customer
   // asks for after the fact (splitting the cost, insurance, a present).
   if (!_isRetGroup) {
@@ -16219,8 +16247,61 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
   { const _s = document.getElementById('saleDetailModal'); const _sd = _s && _s.querySelector('div'); if (_sd) _sd.scrollTop = 0; }
 }
 
+// ─── THE JOB A SALE CAME FROM (v12.97) ───────────────────────────────────────
+// A repair or a custom order collected as income names its ticket in the note —
+// "Custom order O-0002 — Δαχτυλίδι…" — but reading a number is not the same as
+// being able to open it, and the ticket is the only place the pieces that went
+// INTO the job are listed. From v12.97 the record stores `repairTicketId`, a
+// record id ([[link-records-by-id-not-string]]). For the sales already written
+// the number in the note is the only link there is, so it is read back here —
+// at READ time, never written, so no stored record is silently rewritten.
+function _saleTicket(s) {
+  if (!s) return null;
+  const list = getRepairs();
+  if (!list.length) return null;
+  if (s.repairTicketId) return list.find(r => r.id === s.repairTicketId) || null;
+  // Only R- and O- are ticket prefixes; G- (gift) and X- (exchange) can never
+  // match one, so a note naming a card cannot be mistaken for a job.
+  const m = /\b([RO]-\d{1,6})\b/.exec(s.note || '');
+  return m ? (list.find(r => repNoFmt(r) === m[1]) || null) : null;
+}
+
+// The Desk list is pulled once at boot. On a device that has not seen it yet the
+// button would simply not appear — indistinguishable from "this sale came from no
+// ticket", which is exactly the failure v11.61 was about. One attempt per session,
+// awaited before the sheet is drawn; a device that is offline pays for it once.
+let _saleTicketsTried = false;
+async function _saleEnsureTickets() {
+  if (_repLoaded || _saleTicketsTried || !creds.binId) return;
+  _saleTicketsTried = true;
+  try { await pullRepairsFromCloud(); } catch (e) {}
+}
+
+// A ticket opened from a sale hands the owner back to that sale on the ✕ — the
+// same one-step-back rule the client sheet follows (v11.79/v11.80). Cleared by
+// every Desk-detail opener, so a ticket reached any other way never bounces.
+let _repBackToSale = null;
+function _saleOpenTicket(saleId, forceSingle, ticketId) {
+  closeSaleDetailModal(true);          // navigating: don't unwind to wherever the sale came from
+  openRepairDetail(ticketId);
+  _repBackToSale = { id: saleId, forceSingle: !!forceSingle };  // set AFTER — the opener clears it
+}
+
+// Built here for BOTH the single and the transaction view, so the two can never
+// drift apart.
+function _saleTicketBtn(s, acts, forceSingle) {
+  const tk = _saleTicket(s);
+  if (!tk) return;
+  const btn = document.createElement('button');
+  btn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+  btn.textContent = repTypeIcon(tk) + ' ' + (lang === 'el' ? 'Δες ' : 'View ') + repNoFmt(tk);
+  btn.onclick = () => _saleOpenTicket(s.id, forceSingle, tk.id);
+  acts.appendChild(btn);
+}
+
 async function showSaleDetail(id, forceSingle) {
   const sales = await getSales();
+  await _saleEnsureTickets();
   const s = sales.find(x => x.id === id);
   if (!s) return;
   // Remembered so a debt payment made from inside this sheet can repaint it
@@ -16449,6 +16530,11 @@ async function showSaleDetail(id, forceSingle) {
     };
     acts.appendChild(invBtn);
   }
+
+  // 📦 The job behind this sale — a repair, an order, a piece made to order.
+  // Sits next to "View Item" because it answers the same question: what was
+  // actually sold here. The ticket then lists the pieces that went into it.
+  _saleTicketBtn(s, acts, !!forceSingle);
 
   // 🖨️ Quote / certificate for this sale. The certificate especially: it is
   // always wanted AFTER the piece is bought, and Calc could only make one
@@ -32338,8 +32424,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.96', date: 'Αύγουστος 2026', items: [
-        "🔔 Η ειδοποίηση υπαλλήλου δείχνει πια το κομμάτι, ακόμη κι αν έχει πουληθεί. Όταν σας στέλνει μήνυμα για κάτι που μόλις πούλησε και πατούσατε «Άνοιγμα», η λίστα έβγαινε άδεια — γιατί το απόθεμα δείχνει από μόνο του μόνο ό,τι υπάρχει στο ράφι. Τώρα η ειδοποίηση δείχνει ακριβώς τα κομμάτια που σας έστειλαν, όποια κι αν είναι η κατάστασή τους (πουλημένο, κρυμμένο, νόμισμα) και όποιο φίλτρο κι αν έχετε ανοιχτό. Κλείνοντας την μπάρα της ειδοποίησης, τα δικά σας φίλτρα επιστρέφουν όπως τα είχατε."
+      { version: 'v12.97', date: 'Αύγουστος 2026', items: [
+        "📦 Από την πώληση στο δελτίο της παραγγελίας. Μια κανονική πώληση είχε πάντα «Δες Αντικείμενο»· μια παραγγελία ή επισκευή που εισπράχθηκε ανέφερε μόνο τον αριθμό της στη σημείωση, χωρίς τρόπο να την ανοίξετε. Τώρα οι Λεπτομέρειες Πώλησης έχουν κουμπί «Δες O-0002» που ανοίγει το δελτίο — με τα υλικά και τα κομμάτια που μπήκαν στη δουλειά, όπου ένα πάτημα στο καθένα το ανοίγει στο απόθεμα. Το ✕ σας γυρίζει πίσω στην πώληση. Δουλεύει και για τις παλιές πωλήσεις, χωρίς καμία αλλαγή στα δεδομένα σας."
       ]},
       ]
   },
@@ -32370,8 +32456,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.96', date: 'Aug 2026', items: [
-        "🔔 An employee's notification now shows the piece, even after it has been sold. When they messaged you about something they had just sold and you pressed “View”, the list came up empty — because Stock only ever shows what is on the shelf. The notification now shows exactly the pieces they sent you, whatever their status (sold, hidden, a coin) and whatever filter you happen to have on. Dismissing the notification bar puts your own filters back exactly as they were."
+      { version: 'v12.97', date: 'Aug 2026', items: [
+        "📦 From a sale to the job it came from. An ordinary sale has always had “View Item”; an order or repair collected as income only named its ticket number in the note, with no way to open it. Sale Details now has a “View O-0002” button that opens the ticket — with the materials and pieces that went into the job, each one a tap away in Stock. The ✕ brings you back to the sale. It works for sales already recorded too, and changes nothing in your data."
       ]},
           ]
   }
@@ -37457,7 +37543,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.96';
+const APP_VERSION = '12.97';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -41106,6 +41192,10 @@ function _clientBackConsume() {
 }
 function _clientCloseDetail(overlayId) {
   document.getElementById(overlayId)?.remove();
+  // Innermost first: a ticket opened from a sale goes back to that sale, one step,
+  // exactly as one line of a transaction goes back to the transaction.
+  const _sale = _repBackToSale; _repBackToSale = null;
+  if (_sale) { try { showSaleDetail(_sale.id, _sale.forceSingle); } catch (e) {} return; }
   _clientBackConsume();
 }
 
