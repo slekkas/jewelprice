@@ -26723,10 +26723,16 @@ function renderInvList() {
 
   // Notification filter — restricts allItems to only the notified QR codes.
   // Codes are compared through _qrKey so a legacy '+' form code still resolves (v11.78).
-  const _notifOn = !!(_notifFilter && _notifFilter.length > 0);
+  const _notifOn = !!((_notifFilterIds && _notifFilterIds.length > 0) || (_notifFilter && _notifFilter.length > 0));
   if (_notifOn) {
-    const _nqrSet = new Set(_notifFilter.map(_qrKey));
-    allItems.splice(0, allItems.length, ...allItems.filter(([,item]) => _nqrSet.has(_qrKey(item.qrCode || item.code || ''))));
+    if (_notifFilterIds && _notifFilterIds.length) {
+      // The notification named the exact records — nothing else may come along for the ride.
+      const _nIdSet = new Set(_notifFilterIds);
+      allItems.splice(0, allItems.length, ...allItems.filter(([id]) => _nIdSet.has(id)));
+    } else {
+      const _nqrSet = new Set(_notifFilter.map(_qrKey));
+      allItems.splice(0, allItems.length, ...allItems.filter(([,item]) => _nqrSet.has(_qrKey(item.qrCode || item.code || ''))));
+    }
   }
 
   // How many in-stock pieces each group still holds. A group of one is unwrapped into a
@@ -32424,8 +32430,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.97', date: 'Αύγουστος 2026', items: [
-        "📦 Από την πώληση στο δελτίο της παραγγελίας. Μια κανονική πώληση είχε πάντα «Δες Αντικείμενο»· μια παραγγελία ή επισκευή που εισπράχθηκε ανέφερε μόνο τον αριθμό της στη σημείωση, χωρίς τρόπο να την ανοίξετε. Τώρα οι Λεπτομέρειες Πώλησης έχουν κουμπί «Δες O-0002» που ανοίγει το δελτίο — με τα υλικά και τα κομμάτια που μπήκαν στη δουλειά, όπου ένα πάτημα στο καθένα το ανοίγει στο απόθεμα. Το ✕ σας γυρίζει πίσω στην πώληση. Δουλεύει και για τις παλιές πωλήσεις, χωρίς καμία αλλαγή στα δεδομένα σας."
+      { version: 'v12.98', date: 'Αύγουστος 2026', items: [
+        "🔔 Η ειδοποίηση ανοίγει ακριβώς το κομμάτι που στείλατε. Όταν δύο κομμάτια έχουν τον ίδιο περιγραφικό κωδικό (π.χ. δύο σκουλαρίκια DIA925S02), η ειδοποίηση ταξίδευε μόνο με τον κωδικό — και ο κωδικός δεν λέει ποιο από τα δύο. Έτσι το «Προβολή» άνοιγε το λάθος κομμάτι: στέλνατε το ER0895 και ο παραλήπτης έβλεπε το ER0933. Τώρα η ειδοποίηση κουβαλά την ταυτότητα της ίδιας της καρτέλας, οπότε ανοίγει πάντα το κομμάτι που επιλέξατε. Το ίδιο διορθώθηκε και στους συνδέσμους ?item= — αν ο κωδικός ανήκει σε δύο κομμάτια, ανοίγει αυτό που είναι στο απόθεμα."
       ]},
       ]
   },
@@ -32456,8 +32462,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.97', date: 'Aug 2026', items: [
-        "📦 From a sale to the job it came from. An ordinary sale has always had “View Item”; an order or repair collected as income only named its ticket number in the note, with no way to open it. Sale Details now has a “View O-0002” button that opens the ticket — with the materials and pieces that went into the job, each one a tap away in Stock. The ✕ brings you back to the sale. It works for sales already recorded too, and changes nothing in your data."
+      { version: 'v12.98', date: 'Aug 2026', items: [
+        "🔔 A notification opens the exact piece you sent. When two pieces share a descriptive code (for example two pairs of earrings both reading DIA925S02), the notification travelled with the code alone — and the code cannot say which of the two. So “View” opened the wrong one: you sent ER0895 and your employee got ER0933. The notification now carries the identity of the record itself, so it always opens the piece you picked. The same fix applies to ?item= links — where a code belongs to two pieces, the one still in stock is opened."
       ]},
           ]
   }
@@ -37543,7 +37549,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.97';
+const APP_VERSION = '12.98';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -38381,6 +38387,9 @@ function showChatIdHelp() {
 
 let _notifCache = null; // { notifId: {fromName, qrCode, itemDesc, note, sentAt}, ... }
 let _notifFilter = null; // array of QR codes — when set, inventory shows only these items
+// The record ids the notification named, when it carried them. Preferred over the codes
+// above, which are a DESCRIPTION and can name several pieces at once.
+let _notifFilterIds = null;
 
 async function notifCheckAndUpdateBadge() {
   const slug = creds.userName || '';
@@ -38454,7 +38463,8 @@ function openNotifPanel() {
   // Store notif data on overlay to avoid inline JSON in onclick attributes
   overlay._notifData = {};
   entries.forEach(([id, n]) => {
-    overlay._notifData[id] = { qrCodes: n.qrCodes || [n.qrCode||''], note: n.note||'' };
+    overlay._notifData[id] = { qrCodes: n.qrCodes || [n.qrCode||''], note: n.note||'',
+                               invIds: n.invIds || (n.invId ? [n.invId] : null) };
   });
 
   const rows = entries.length === 0
@@ -38571,18 +38581,24 @@ function notifViewById(notifId) {
   const overlay = document.getElementById('notifPanelOverlay');
   const data = overlay && overlay._notifData ? overlay._notifData[notifId] : null;
   if (!data) return;
-  notifViewItem(data.qrCodes, data.note, notifId);
+  notifViewItem(data.qrCodes, data.note, notifId, data.invIds);
 }
 
-function notifViewItem(qrCodesJson, note, notifId) {
+function notifViewItem(qrCodesJson, note, notifId, idsJson) {
   const overlay = document.getElementById('notifPanelOverlay');
   if (overlay) overlay.remove();
   // Parse QR codes — may be a single code string or JSON array
   const qrCodes = (Array.isArray(qrCodesJson) ? qrCodesJson : [qrCodesJson]).filter(Boolean);
-  if (qrCodes.length === 0) return;
+  // The record ids the sender picked, when the notification carries them. A notification
+  // sent before v12.98 has only codes, and a code can name several pieces — those fall
+  // back to the code filter below, which is the best that can be done for them.
+  const invIds = (Array.isArray(idsJson) ? idsJson : (idsJson ? [idsJson] : []))
+    .filter(id => id && (_inventoryCache || {})[id]);
+  if (qrCodes.length === 0 && invIds.length === 0) return;
 
-  // Set notification filter
-  _notifFilter = qrCodes;
+  // Set notification filter — by record id when we have it, else by code.
+  _notifFilterIds = invIds.length ? invIds : null;
+  _notifFilter = qrCodes.length ? qrCodes : invIds.map(id => _inventoryCache[id].qrCode || _inventoryCache[id].code || '');
 
   // A leftover search term would still narrow the notified set (the search box is the one
   // thing the filter bypass deliberately keeps), so clear it — the owner tapped a
@@ -38598,10 +38614,11 @@ function notifViewItem(qrCodesJson, note, notifId) {
   const banner = document.getElementById('invNotifFilterBanner');
   const label = document.getElementById('invNotifFilterLabel');
   const noteEl = document.getElementById('invNotifFilterNote');
+  const _nCount = invIds.length || qrCodes.length;
   if (banner) {
     if (label) label.textContent = lang === 'el'
-      ? '🔔 ' + qrCodes.length + (qrCodes.length === 1 ? ' αντικείμενο' : ' αντικείμενα') + ' από ειδοποίηση'
-      : '🔔 ' + qrCodes.length + (qrCodes.length === 1 ? ' item' : ' items') + ' from notification';
+      ? '🔔 ' + _nCount + (_nCount === 1 ? ' αντικείμενο' : ' αντικείμενα') + ' από ειδοποίηση'
+      : '🔔 ' + _nCount + (_nCount === 1 ? ' item' : ' items') + ' from notification';
     if (noteEl) noteEl.textContent = note || '';
     noteEl.style.display = note ? '' : 'none';
     banner.style.display = 'flex';
@@ -38613,8 +38630,11 @@ function notifViewItem(qrCodesJson, note, notifId) {
     // For both single and multi — scroll to top (filter already shows only these items)
     const panel = document.getElementById('panel-inventory');
     if (panel) panel.scrollTo({ top: 0, behavior: 'smooth' });
-    // For single item, also flash it after scroll
-    if (qrCodes.length === 1) {
+    // For single item, also flash it after scroll — by record id when we have one, so
+    // the piece that lights up is the piece that was sent.
+    if (invIds.length === 1) {
+      setTimeout(() => _invFlashCard(invIds[0]), 400);
+    } else if (invIds.length === 0 && qrCodes.length === 1) {
       setTimeout(() => handleDeepLinkItem(qrCodes[0]), 400);
     }
   });
@@ -38622,6 +38642,7 @@ function notifViewItem(qrCodesJson, note, notifId) {
 
 function clearNotifFilter() {
   _notifFilter = null;
+  _notifFilterIds = null;
   const banner = document.getElementById('invNotifFilterBanner');
   if (banner) banner.style.display = 'none';
   renderInvList();
@@ -38789,7 +38810,7 @@ function updateInvShareBar() {
 function invShareSingle(id) {
   const item = (_inventoryCache || {})[id];
   if (!item) return;
-  showInvShareOptions([item]);
+  showInvShareOptions([item], [id]);
 }
 
 function invSelectAll() {
@@ -38820,9 +38841,9 @@ function invClearSelection() {
 
 function invShareSelected() {
   if (_invSelected.size === 0) { showToast(t('invShareNone')); return; }
-  const items = [..._invSelected].map(id => (_inventoryCache || {})[id]).filter(Boolean);
-  if (!items.length) return;
-  showInvShareOptions(items);
+  const _pairs = [..._invSelected].map(id => [id, (_inventoryCache || {})[id]]).filter(([, it]) => it);
+  if (!_pairs.length) return;
+  showInvShareOptions(_pairs.map(p => p[1]), _pairs.map(p => p[0]));
 }
 
 // ── Similar-items grouping (v10.28) ──────────────────────────────────────────
@@ -39916,10 +39937,9 @@ function _invGroupTogglePieces() {
 // (the promo/social image) when more than one item is passed.
 function invShareGroup(gid) {
   const members = Object.entries(_inventoryCache || {})
-    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk)
-    .map(([,it]) => it);
+    .filter(([,it]) => it && it.groupId === gid && it.status !== 'sold' && !it.isBulk);
   if (!members.length) { showToast(lang==='el' ? 'Κανένα διαθέσιμο κομμάτι' : 'No pieces in stock'); return; }
-  showInvShareOptions(members);
+  showInvShareOptions(members.map(m => m[1]), members.map(m => m[0]));
 }
 
 // Ungroup: strip the groupId from every member so they render as individual cards again.
@@ -39975,7 +39995,7 @@ function invSellFromGroup(gid) {
   openMultiSaleModal(items);
 }
 
-function showInvShareOptions(items) {
+function showInvShareOptions(items, ids) {
   const existing = document.getElementById('invShareOptionsOverlay');
   if (existing) existing.remove();
   const isSingle = items.length === 1;
@@ -39984,6 +40004,13 @@ function showInvShareOptions(items) {
   const overlay = document.createElement('div');
   overlay.id = 'invShareOptionsOverlay';
   overlay._qrList = items.map(i => i.qrCode||i.code||''); // safe store for team send
+  // A descriptive code is a DESCRIPTION, not an identity — since v11.32 several pieces
+  // may legitimately share one. Carry the record ids alongside so "send to team" names
+  // the exact piece that was picked. Falls back to resolving by object identity from the
+  // cache, so a caller that passes no ids still sends the right record.
+  overlay._idList = (Array.isArray(ids) && ids.length === items.length)
+    ? ids.slice()
+    : items.map(it => (Object.entries(_inventoryCache || {}).find(([, c]) => c === it) || [null])[0]);
   overlay.style.cssText = 'position:fixed;inset:0;z-index:999995;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;padding:0';
 
   const btnBase = 'display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 16px;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;border:none;';
@@ -40025,7 +40052,7 @@ function showInvShareOptions(items) {
         </button>` : ''}
 
         <!-- SEND TO TEAM -->
-        <button onclick="invShareToTeam(document.getElementById('invShareOptionsOverlay')._qrList)" style="${btnBase}background:rgba(61,170,106,0.1);border:1px solid rgba(61,170,106,0.35);color:#3DAA6A">
+        <button onclick="invShareToTeam(document.getElementById('invShareOptionsOverlay')._qrList, document.getElementById('invShareOptionsOverlay')._idList)" style="${btnBase}background:rgba(61,170,106,0.1);border:1px solid rgba(61,170,106,0.35);color:#3DAA6A">
           <span>${t('invShareToTeam')}${!isSingle ? ' (' + items.length + ')' : ''}</span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
@@ -40533,16 +40560,21 @@ async function drawPromoCanvas(item, style, format) {
 /* ════════════════ END PROMO IMAGE ════════════════ */
 
 
-async function invShareToTeam(qrInput) {
+async function invShareToTeam(qrInput, idInput) {
   const overlayEl = document.getElementById('invShareOptionsOverlay');
   if (overlayEl) overlayEl.remove();
   // Accept single string or array
   const qrCodes = (Array.isArray(qrInput) ? qrInput : [qrInput]).filter(Boolean);
   if (qrCodes.length === 0) return;
   const isSingleItem = qrCodes.length === 1;
+  // The RECORD IDS of the pieces being sent. This is the identity the notification
+  // travels on; the codes below are only what it displays.
+  const invIds = (Array.isArray(idInput) ? idInput : [idInput]).filter(Boolean);
 
-  // Get item description for display
-  const firstItem = isSingleItem ? Object.values(_inventoryCache || {}).find(i => (i.qrCode||i.code||'') === qrCodes[0]) : null;
+  // Get item description for display — by record id when we have it, so two pieces
+  // sharing a descriptive code cannot end up describing each other.
+  const firstItem = !isSingleItem ? null
+    : (invIds[0] ? (_inventoryCache || {})[invIds[0]] : null) || _descCodeItem(qrCodes[0]);
   const itemDesc = isSingleItem
     ? (firstItem ? (_itemDesc(firstItem) || firstItem.jewelryType || '') : '')
     : (qrCodes.length + (lang==='el' ? ' αντικείμενα' : ' items'));
@@ -40554,6 +40586,7 @@ async function invShareToTeam(qrInput) {
   const overlay = document.createElement('div');
   overlay.id = 'notifSendOverlay';
   overlay._qrCodes = qrCodes; // safe store — no inline JSON
+  overlay._invIds = invIds;   // the identities the notification is sent with
   // Top-anchored: this sheet has a message field to type into.
   overlay.style.cssText = 'position:fixed;inset:0;z-index:999996;background:rgba(0,0,0,0.8);display:flex;align-items:flex-start;justify-content:center;padding:0;padding-top:env(safe-area-inset-top,0px)';
 
@@ -40585,7 +40618,7 @@ async function invShareToTeam(qrInput) {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="notifDoSend(document.getElementById('notifSendOverlay')._qrCodes,'${itemDesc.replace(/'/g,"\'")}')" style="padding:14px;background:linear-gradient(135deg,#3DAA6A,#2d8a54);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${t('notifSendBtn')}</button>
+        <button onclick="notifDoSend(document.getElementById('notifSendOverlay')._qrCodes,'${itemDesc.replace(/'/g,"\'")}',document.getElementById('notifSendOverlay')._invIds)" style="padding:14px;background:linear-gradient(135deg,#3DAA6A,#2d8a54);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer">${t('notifSendBtn')}</button>
         <button onclick="document.getElementById('notifSendOverlay').remove()" style="padding:12px;background:transparent;color:var(--text-muted);border:none;border-radius:10px;font-family:var(--font-body);font-size:13px;cursor:pointer">${t('cancel')}</button>
       </div>
     </div>`;
@@ -40608,7 +40641,7 @@ function notifToggleRecipient(row, slug) {
   }
 }
 
-async function notifDoSend(qrCodeArg, itemDesc) {
+async function notifDoSend(qrCodeArg, itemDesc, idArg) {
   const overlay = document.getElementById('notifSendOverlay');
   const checkboxes = overlay ? overlay.querySelectorAll('.notif-cb.checked') : [];
   if (checkboxes.length === 0) { showToast(lang==='el' ? '⚠️ Επιλέξτε παραλήπτη' : '⚠️ Select a recipient'); return; }
@@ -40617,13 +40650,20 @@ async function notifDoSend(qrCodeArg, itemDesc) {
   const sentAt = new Date().toISOString();
   const notifId = 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const qrCodes = (Array.isArray(qrCodeArg) ? qrCodeArg : [qrCodeArg]).filter(Boolean);
+  // THE PIECE IS THE RECORD, NOT THE CODE. Several in-stock pieces can legitimately
+  // share one descriptive code (v11.32), so a notification carrying only the code left
+  // the recipient's app to guess which one was meant — and it guessed wrong. The ids
+  // are what "View" resolves; the codes stay in the payload for display and for a
+  // recipient still running an older app.
+  const invIds = (Array.isArray(idArg) ? idArg : [idArg]).filter(Boolean);
   // Resolve ref code for the first item
   const _notifFirstRef = (() => {
     if (!_inventoryCache || qrCodes.length === 0) return '';
-    const _fi = Object.values(_inventoryCache).find(it => (it.qrCode||it.code||'') === qrCodes[0]);
+    const _fi = (invIds[0] ? _inventoryCache[invIds[0]] : null) || _descCodeItem(qrCodes[0]);
     return _fi && _fi.seqId ? itemRefCode(_fi) : '';
   })();
   const payload = { fromName, qrCode: qrCodes[0], qrCodes, itemDesc, note, sentAt, seqRef: _notifFirstRef };
+  if (invIds.length) { payload.invId = invIds[0]; payload.invIds = invIds; }
   let sent = 0;
   const recipientSlugs = [];
   for (const cb of checkboxes) {
@@ -40647,19 +40687,18 @@ async function notifDoSend(qrCodeArg, itemDesc) {
   if (sent > 0) sendTelegramNotif(recipientSlugs, qrCodes, itemDesc, note);
 }
 
-function handleDeepLinkItem(qrCode) {
-  if (!qrCode) return;
-  // Find the item with this QR code in the data, ensure its (possibly not-yet-paged)
-  // card is rendered, then highlight it.
-  let targetId = null;
-  const _wantKey = _qrKey(qrCode);
-  Object.entries(_inventoryCache || {}).forEach(([id, item]) => {
-    if (item && _qrKey(item.qrCode || item.code || '') === _wantKey) targetId = id;
-  });
-  if (targetId) _invEnsureRendered(targetId);
+// Page the list to a RECORD and light its card up. Split out of handleDeepLinkItem so
+// the notification path, which knows the exact record, never has to go back through a
+// code to find it (v12.98).
+function _invFlashCard(id, labelForToast) {
+  if (!id) return false;
+  _invEnsureRendered(id);
   // Grouped pieces are shown by their group's card (see _invCardIdFor).
-  const target = targetId ? document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(targetId)}"]`) : null;
-  if (!target) { showToast('⚠️ ' + (lang==='el' ? 'Δεν βρέθηκε: ' : 'Not found: ') + qrCode); return; }
+  const target = document.querySelector(`.inv-card[data-inv-id="${_invCardIdFor(id)}"]`);
+  if (!target) {
+    if (labelForToast) showToast('⚠️ ' + (lang==='el' ? 'Δεν βρέθηκε: ' : 'Not found: ') + labelForToast);
+    return false;
+  }
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   // Double rAF guarantees the browser has fully painted before animation starts
   setTimeout(() => {
@@ -40671,6 +40710,21 @@ function handleDeepLinkItem(qrCode) {
     });
   }, 400);
   setTimeout(() => target.classList.remove('deep-link-highlight'), 6000);
+  return true;
+}
+
+function handleDeepLinkItem(qrCode) {
+  if (!qrCode) return;
+  // A descriptive code can name several pieces, so THE SHELF RULE decides which one is
+  // meant — the piece still in stock, never whichever the loop happened to see last
+  // (which is what the old forEach did: it overwrote its answer on every match).
+  const _pool = _descCodePool(qrCode);
+  // _descCodePool matches on qrCode; a legacy record that only carries `code` is caught here.
+  const _want = _qrKey(qrCode);
+  const targetId = _pool.length ? _pool[0][0]
+    : (Object.entries(_inventoryCache || {}).find(([, it]) => it && _qrKey(it.qrCode || it.code || '') === _want) || [null])[0];
+  if (!targetId) { showToast('⚠️ ' + (lang==='el' ? 'Δεν βρέθηκε: ' : 'Not found: ') + qrCode); return; }
+  _invFlashCard(targetId, qrCode);
 }
 
 // Called on page load — reads #item= hash and stores for after inventory renders
