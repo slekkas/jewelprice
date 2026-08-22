@@ -26635,10 +26635,12 @@ function renderInvList() {
   const searchClear = document.getElementById('invSearchClear');
   if (searchClear) searchClear.style.display = searchQuery ? '' : 'none';
 
-  // Notification filter — restricts allItems to only the notified QR codes
-  if (_notifFilter && _notifFilter.length > 0) {
-    const _nqrSet = new Set(_notifFilter);
-    allItems.splice(0, allItems.length, ...allItems.filter(([,item]) => _nqrSet.has(item.qrCode || item.code || '')));
+  // Notification filter — restricts allItems to only the notified QR codes.
+  // Codes are compared through _qrKey so a legacy '+' form code still resolves (v11.78).
+  const _notifOn = !!(_notifFilter && _notifFilter.length > 0);
+  if (_notifOn) {
+    const _nqrSet = new Set(_notifFilter.map(_qrKey));
+    allItems.splice(0, allItems.length, ...allItems.filter(([,item]) => _nqrSet.has(_qrKey(item.qrCode || item.code || ''))));
   }
 
   // How many in-stock pieces each group still holds. A group of one is unwrapped into a
@@ -26653,6 +26655,31 @@ function renderInvList() {
   // Apply active filters (all filters combine with AND)
   let filtered = allItems.filter(([id, item]) => {
     const f = _invFilters;
+    if (searchQuery) {
+      const _refCode = item.seqId ? itemRefCode(item).toLowerCase() : '';
+      const _typeLabel = item.jewelryType ? (invTypeLabel(item.jewelryType) || '').toLowerCase() : '';
+      // Coins have no text description — make them findable by their catalog name (both languages).
+      const _coinNames = item.isCoin
+        ? [item.coinName, coinCatalogEntry(item.coinKey)?.el, coinCatalogEntry(item.coinKey)?.en].filter(Boolean).join(' ')
+        : '';
+      const hay = [item.description, item.descEl, item.descEn, item.vendorCode, item.qrCode, item.code, item.vendorName, item.catName, item.stonesDesc, _refCode, _typeLabel, _coinNames, item.setNameEl, item.setNameEn]
+        .filter(Boolean).join(' ').toLowerCase();
+      // also match seqId number without prefix
+      const _numOnly = item.seqId ? String(item.seqId) : '';
+      // Multiple comma-separated terms are treated as OR (e.g. "CR0100, CR0200"
+      // shows both). An item matches if ANY term is found; blank terms are ignored.
+      const _terms = searchQuery.split(',').map(s => s.trim()).filter(Boolean);
+      const _matchTerm = tm => hay.includes(tm) || _numOnly.includes(tm);
+      if (_terms.length ? !_terms.some(_matchTerm) : !_matchTerm(searchQuery)) return false;
+    }
+    // A notification names the EXACT pieces to look at, so nothing below may narrow it
+    // further. Without this a notified piece that has since been SOLD vanished under the
+    // default in-stock view and the screen read "no items" — which is what "I click on it
+    // and I cannot see it" looked like. Any other pill (vendor, metal, date) could hide it
+    // just the same. The search box above is still honoured, and notifViewItem clears any
+    // stale term, so typing narrows within the notified set. Dismissing the banner
+    // (clearNotifFilter) restores the owner's own filters untouched.
+    if (_notifOn) return true;
     if (f.metals.length && !f.metals.includes(item.metal)) return false;
     if (f.karats.length && !f.karats.includes(item.karat)) return false;
     if (f.types.length && !f.types.includes(item.jewelryType || '__notype__')) return false;
@@ -26750,23 +26777,6 @@ function renderInvList() {
       if (f.dateFrom && relevantTs < new Date(f.dateFrom).getTime()) return false;
       if (f.dateTo && relevantTs > new Date(f.dateTo).getTime() + 86399999) return false;
     }
-    if (searchQuery) {
-      const _refCode = item.seqId ? itemRefCode(item).toLowerCase() : '';
-      const _typeLabel = item.jewelryType ? (invTypeLabel(item.jewelryType) || '').toLowerCase() : '';
-      // Coins have no text description — make them findable by their catalog name (both languages).
-      const _coinNames = item.isCoin
-        ? [item.coinName, coinCatalogEntry(item.coinKey)?.el, coinCatalogEntry(item.coinKey)?.en].filter(Boolean).join(' ')
-        : '';
-      const hay = [item.description, item.descEl, item.descEn, item.vendorCode, item.qrCode, item.code, item.vendorName, item.catName, item.stonesDesc, _refCode, _typeLabel, _coinNames, item.setNameEl, item.setNameEn]
-        .filter(Boolean).join(' ').toLowerCase();
-      // also match seqId number without prefix
-      const _numOnly = item.seqId ? String(item.seqId) : '';
-      // Multiple comma-separated terms are treated as OR (e.g. "CR0100, CR0200"
-      // shows both). An item matches if ANY term is found; blank terms are ignored.
-      const _terms = searchQuery.split(',').map(s => s.trim()).filter(Boolean);
-      const _matchTerm = tm => hay.includes(tm) || _numOnly.includes(tm);
-      if (_terms.length ? !_terms.some(_matchTerm) : !_matchTerm(searchQuery)) return false;
-    }
     return true;
   });
 
@@ -26803,7 +26813,9 @@ function renderInvList() {
   // stays in the totals above; this only affects the visible cards.
   {
     const _types = _invFilters.types || [];
-    if (!searchQuery) {
+    // _notifOn: a notification names the pieces explicitly, so a notified coin or metal
+    // lot must show too — dropping it here would be the same "I cannot see it" bug.
+    if (!searchQuery && !_notifOn) {
       if (!_types.includes('coin'))  filtered = filtered.filter(([, it]) => !it.isCoin);
       if (!_types.includes('metal')) filtered = filtered.filter(([, it]) => !it.isMetal);
     }
@@ -32326,8 +32338,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.95', date: 'Αύγουστος 2026', items: [
-        "💰 Μπορείτε πια να βάλετε το δικό σας κόστος πάνω στο δελτίο, πριν έρθει ο πελάτης. Στην παραγγελία ή την επισκευή υπάρχει πλέον κουτάκι «Κόστος της δουλειάς»: γράφετε τα χρήματα που πληρώσατε επιπλέον — π.χ. τον χρυσοχόο — και η εφαρμογή τα προσθέτει μόνη της στα υλικά από το απόθεμα και στα κομμάτια που έφτασαν. Βλέπετε το Συνολικό κόστος και το κέρδος που θα βγάλετε στην τιμή που έχετε δώσει (με απόδειξη και χωρίς), ώστε να ξέρετε από πριν πού πατάτε. Όταν έρθει η ώρα της παραλαβής, το κόστος είναι ήδη συμπληρωμένο — γράφετε μόνο την τελική τιμή."
+      { version: 'v12.96', date: 'Αύγουστος 2026', items: [
+        "🔔 Η ειδοποίηση υπαλλήλου δείχνει πια το κομμάτι, ακόμη κι αν έχει πουληθεί. Όταν σας στέλνει μήνυμα για κάτι που μόλις πούλησε και πατούσατε «Άνοιγμα», η λίστα έβγαινε άδεια — γιατί το απόθεμα δείχνει από μόνο του μόνο ό,τι υπάρχει στο ράφι. Τώρα η ειδοποίηση δείχνει ακριβώς τα κομμάτια που σας έστειλαν, όποια κι αν είναι η κατάστασή τους (πουλημένο, κρυμμένο, νόμισμα) και όποιο φίλτρο κι αν έχετε ανοιχτό. Κλείνοντας την μπάρα της ειδοποίησης, τα δικά σας φίλτρα επιστρέφουν όπως τα είχατε."
       ]},
       ]
   },
@@ -32358,8 +32370,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.95', date: 'Aug 2026', items: [
-        "💰 You can now enter your own cost on the ticket, before the customer arrives. An order or a repair now has a “What this job costs you” box: type what you paid on top — the goldsmith, say — and the app adds it to the materials from stock and to any pieces that have arrived. It shows the Total cost and the profit you would make at the price you have quoted (both with a receipt and without), so you know where you stand before you commit. When collection comes, the cost is already filled in — you only type the final price."
+      { version: 'v12.96', date: 'Aug 2026', items: [
+        "🔔 An employee's notification now shows the piece, even after it has been sold. When they messaged you about something they had just sold and you pressed “View”, the list came up empty — because Stock only ever shows what is on the shelf. The notification now shows exactly the pieces they sent you, whatever their status (sold, hidden, a coin) and whatever filter you happen to have on. Dismissing the notification bar puts your own filters back exactly as they were."
       ]},
           ]
   }
@@ -37445,7 +37457,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.95';
+const APP_VERSION = '12.96';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -38485,6 +38497,16 @@ function notifViewItem(qrCodesJson, note, notifId) {
 
   // Set notification filter
   _notifFilter = qrCodes;
+
+  // A leftover search term would still narrow the notified set (the search box is the one
+  // thing the filter bypass deliberately keeps), so clear it — the owner tapped a
+  // notification, not a search result.
+  const _si = document.getElementById('invSearchInput');
+  if (_si && _si.value) {
+    _si.value = '';
+    const _sc = document.getElementById('invSearchClear');
+    if (_sc) _sc.style.display = 'none';
+  }
 
   // Show banner
   const banner = document.getElementById('invNotifFilterBanner');
@@ -40544,8 +40566,9 @@ function handleDeepLinkItem(qrCode) {
   // Find the item with this QR code in the data, ensure its (possibly not-yet-paged)
   // card is rendered, then highlight it.
   let targetId = null;
+  const _wantKey = _qrKey(qrCode);
   Object.entries(_inventoryCache || {}).forEach(([id, item]) => {
-    if (item && (item.qrCode || item.code || '') === qrCode) targetId = id;
+    if (item && _qrKey(item.qrCode || item.code || '') === _wantKey) targetId = id;
   });
   if (targetId) _invEnsureRendered(targetId);
   // Grouped pieces are shown by their group's card (see _invCardIdFor).
