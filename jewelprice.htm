@@ -3628,6 +3628,11 @@ const T = {
     metalRecoverable:'Ανακτήσιμο (−{loss}%)',
     metalGain:'Κέρδος αγοράς',
     metalGainToSales:'→ προστίθεται στις σημερινές πωλήσεις',
+    scrapDetailTitle:'♻️ Αγορά Παλαιού Μετάλλου',
+    scrapMetalRow:'Μέταλλο',
+    scrapRefLoss:'Απώλεια καθαρισμού {loss}%',
+    scrapPaidRow:'Πλήρωσα',
+    scrapNoBreakdown:'Παλαιότερη εγγραφή — δεν είχε καταγραφεί η ανάλυση',
     metalNewTotal:'Νέο σύνολο',
     metalAddMore:'＋ Προσθήκη',
     metalTakeBtn:'− Αφαίρεση',
@@ -4443,6 +4448,11 @@ const T = {
     metalRecoverable:'Recoverable (−{loss}%)',
     metalGain:'Buy gain',
     metalGainToSales:'→ added to today\'s sales',
+    scrapDetailTitle:'♻️ Scrap Metal Purchase',
+    scrapMetalRow:'Metal',
+    scrapRefLoss:'Refining loss {loss}%',
+    scrapPaidRow:'You paid',
+    scrapNoBreakdown:'Older entry — the breakdown was not recorded',
     metalNewTotal:'New total',
     metalAddMore:'＋ Add',
     metalScrapGainNote:'♻️ Scrap gain',
@@ -12735,6 +12745,46 @@ function _tradeInGainRows(gain, profit, cur, mkRow) {
   }
 }
 
+// A gain-only record — a scrap purchase or an expired gift certificate — is NOT a
+// sale: no goods went out, nothing went through the till, and the amount IS the
+// profit by construction. So an "Amount excl. VAT" row states a VAT split that
+// never happened, and a profit percentage is always 100%. Both are omitted.
+function _saleIsGainOnly(s) { return !!(s && (s.scrapGain || s.giftBreakage)); }
+
+// For a scrap purchase, show the arithmetic the owner actually needs: what the
+// metal was worth, what the refinery keeps, and what he handed the customer.
+// Every figure is the one FROZEN on the record at the moment of purchase — never
+// recomputed from today's metal price, which would no longer reconcile with the
+// gain (v12.79). An older record carries none of them and says so, rather than
+// showing a plausible number that was never true.
+function _scrapGainRows(s, cur, mkRow, host) {
+  const paid = parseFloat(s.scrapPaid), melt = parseFloat(s.scrapMelt);
+  const gain = parseFloat(s.amount) || 0;
+  const grams = parseFloat(s.scrapGrams);
+  if (grams > 0 && s.scrapKarat) {
+    mkRow(t('scrapMetalRow'), grams.toFixed(2) + 'g ' + metalStockLabel({ metal: s.scrapMetal, karat: s.scrapKarat })
+      + (parseFloat(s.scrapPure) > 0 ? ' · ' + parseFloat(s.scrapPure).toFixed(2) + 'g ' + t('metalPure').toLowerCase() : ''));
+  }
+  const haveFigures = isFinite(paid) && isFinite(melt) && melt > 0;
+  if (haveFigures) {
+    const loss = isFinite(parseFloat(s.scrapLossPct)) ? parseFloat(s.scrapLossPct) : _refiningLossPct();
+    const recover = isFinite(parseFloat(s.scrapRecover)) ? parseFloat(s.scrapRecover)
+      : Math.round(melt * (1 - loss / 100) * 100) / 100;
+    const lossAmt = parseFloat((melt - recover).toFixed(2));
+    mkRow(t('tiMeltLbl'), cur + melt.toFixed(2));
+    if (lossAmt > 0) mkRow(t('scrapRefLoss').replace('{loss}', _fmtRate(loss)), '−' + cur + lossAmt.toFixed(2));
+    mkRow(t('metalRecoverable').replace('{loss}', _fmtRate(loss)), cur + recover.toFixed(2));
+    mkRow(t('scrapPaidRow'), '−' + cur + paid.toFixed(2), 'var(--gold-light)');
+  }
+  mkRow(t('metalGain'), cur + gain.toFixed(2), gain >= 0 ? 'var(--success)' : '#ff6b6b');
+  if (!haveFigures && host) {
+    const n = document.createElement('div');
+    n.style.cssText = 'font-size:11px;color:var(--text-dim);padding:6px 0 0';
+    n.textContent = t('scrapNoBreakdown');
+    host.appendChild(n);
+  }
+}
+
 // The "List Price / Discount" rows for the sale detail, drawn through the caller's
 // own row builder so the single and the transaction view can never look different.
 // Silent on a return (its amount is a negative mirror), on a giveaway (nothing was
@@ -16404,7 +16454,11 @@ async function showSaleDetail(id, forceSingle) {
   if (_gEl) { _gEl.style.display = 'none'; _gEl.innerHTML = ''; }
   if (!forceSingle && groupItems.length > 1) { await _showSaleGroupDetail(s, groupItems, cur, vat, isOwnerMgr); return; }
 
-  document.getElementById('sdmTitle').textContent = lang === 'el' ? '📋 Λεπτομέρειες Πώλησης' : '📋 Sale Details';
+  // A scrap purchase is money going OUT for metal, not a sale — calling it one is
+  // what made the VAT row below it look like it belonged.
+  document.getElementById('sdmTitle').textContent = s.scrapGain
+    ? t('scrapDetailTitle')
+    : (lang === 'el' ? '📋 Λεπτομέρειες Πώλησης' : '📋 Sale Details');
   document.getElementById('sdmAmt').textContent = fmtAmt(s.amount);
   const _sgcb = document.getElementById('sdmGroupPayBtn');
   if (_sgcb) _sgcb.style.display = 'none'; // group-only; a single sale edits its payment in the Edit modal
@@ -16433,7 +16487,12 @@ async function showSaleDetail(id, forceSingle) {
       '<span style="font-family:var(--font-mono);font-size:13px;color:' + (color || 'var(--text)') + '">' + val + '</span>';
     bk.appendChild(row);
   };
-  if (isOwnerMgr) {
+  if (isOwnerMgr && _saleIsGainOnly(s)) {
+    // Not a sale — a gain. A VAT split and a profit percentage are both
+    // meaningless here; a scrap purchase gets the arithmetic it was worked out from.
+    if (s.scrapGain) _scrapGainRows(s, cur, mkRow, bk);
+    else mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', cur + (parseFloat(s.amount) || 0).toFixed(2), 'var(--success)');
+  } else if (isOwnerMgr) {
     // What the piece was on the shelf for, and what came off it — the first thing
     // you want when you open a sale you have just made.
     if (!s.isReturn && !s.giveaway) {
@@ -16620,7 +16679,12 @@ async function showSaleDetail(id, forceSingle) {
   // 🖨️ Quote / certificate for this sale. The certificate especially: it is
   // always wanted AFTER the piece is bought, and Calc could only make one
   // before.
-  if (!s.isReturn) {
+  // A gain-only record is not a sale: there is no jewel to certify, no card to
+  // hand over, and "returning" it would write a negative sale — possibly issuing
+  // store credit for metal you BOUGHT. Edit (correct the figure) and Delete
+  // (undo it) are the only two that mean anything here.
+  const _gainOnly = _saleIsGainOnly(s);
+  if (!s.isReturn && !_gainOnly) {
     const docBtn = document.createElement('button');
     docBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     docBtn.textContent = '🖨️ ' + (lang === 'el' ? 'Εκτύπωση' : 'Print');
@@ -16630,7 +16694,7 @@ async function showSaleDetail(id, forceSingle) {
 
   // 🎁 Exchange card — for the customer who asks for one after the fact, or a
   // reprint of a lost card (issueExchangeCard keeps the same number).
-  if (!s.isReturn) {
+  if (!s.isReturn && !_gainOnly) {
     const exBtn = document.createElement('button');
     exBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     exBtn.textContent = '🎁 ' + (s.exchangeCardNo
@@ -16645,7 +16709,7 @@ async function showSaleDetail(id, forceSingle) {
 
   // ↩️ Return — the piece came back. Writes a negative record; never touches
   // this sale, so the month it belongs to keeps its total.
-  if (_saleCanReturn(s)) {
+  if (_saleCanReturn(s) && !_gainOnly) {
     const retBtn = document.createElement('button');
     retBtn.style.cssText = 'flex:1;padding:11px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     retBtn.textContent = '↩️ ' + (lang === 'el' ? 'Επιστροφή' : 'Return');
@@ -17341,7 +17405,12 @@ async function confirmSaleEdit() {
     giftCardWasCash: !!sales[idx].giftCardWasCash,
     tradeInAmt: _editTi > 0 ? _editTi : 0
   }, _editVat);
-  const _editProfit = _editCost !== null ? parseFloat((_editAmtBase - _editCost).toFixed(2)) : sales[idx].profit ?? null;
+  // A gain-only record (a scrap purchase, an expired certificate) has no cost and
+  // its profit IS its amount by construction. Keeping the old profit here left the
+  // two disagreeing the moment the amount was corrected — a record reading "€30.00,
+  // profit €24.48" with nothing to explain the gap.
+  const _editProfit = _saleIsGainOnly(sales[idx]) ? amt
+    : (_editCost !== null ? parseFloat((_editAmtBase - _editCost).toFixed(2)) : sales[idx].profit ?? null);
   // Upload new photo if captured, otherwise keep existing
   let _editImgUrl = sales[idx].salePhotoUrl || '';
   let _editImgName = sales[idx].salePhotoName || '';
@@ -31101,8 +31170,10 @@ function _metalUpdatePreview() {
     const paid = parseFloat(document.getElementById('metalPriceInput')?.value);
     if (!isNaN(paid) && paid > 0) {
       const loss = _refiningLossPct();
-      const recover = melt * (1 - loss / 100);
-      const gain = recover - paid;
+      // Rounded before subtracting, exactly as _metalAddToLot books it, so the
+      // preview can never show a gain a cent away from the one recorded.
+      const recover = Math.round(melt * (1 - loss / 100) * 100) / 100;
+      const gain = Math.round((recover - Math.round(paid * 100) / 100) * 100) / 100;
       html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid var(--wa08)">${t('metalRecoverable').replace('{loss}', loss)}: ${cur}${recover.toFixed(2)}</div>`;
       if (gain > 0) html += `<div style="font-size:12px;color:#4caf84;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t('metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
       else html += `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px">${isEl ? 'Χωρίς κέρδος (τιμή ≥ αξία)' : 'No gain (price ≥ value)'}</div>`;
@@ -31113,7 +31184,12 @@ function _metalUpdatePreview() {
 
 // Book the buy-cheap gain as a gain-only profit entry in today's Sales (revenue and
 // profit both rise by exactly the gain; flagged scrapGain so it's not a real item sale).
-async function _recordScrapGain(gain, note) {
+// `extra` = what the gain was worked out FROM (weight, purity, the metal's value
+// at that moment, the refining loss and the price paid), stored on the record and
+// never re-derived: the metal price moves every day, so a melt value computed when
+// the record is later opened would not reconcile with the gain sitting beside it
+// — the same reason a sale's list price is frozen at sale time (v12.79).
+async function _recordScrapGain(gain, note, extra) {
   const sales = await getSales();
   const g = parseFloat(gain.toFixed(2));
   const rec = {
@@ -31128,6 +31204,7 @@ async function _recordScrapGain(gain, note) {
     cost: null, profit: g, cashSale: true,
     salePhotoUrl: '', salePhotoName: '', seqRef: '', scrapGain: true
   };
+  if (extra) Object.assign(rec, extra);
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
@@ -31193,11 +31270,21 @@ async function _metalAddToLot(spec, paid, noteLbl) {
   let gain = 0, gainRecId = null;
   if (paid > 0 && meltNow > 0) {
     const loss = _refiningLossPct();
-    const g = Math.round((meltNow * (1 - loss / 100) - paid) * 100) / 100;
+    // Each figure is rounded to the cent BEFORE the subtraction, so the rows the
+    // sale detail draws (value − refining loss − paid = gain) always add up
+    // exactly on screen rather than being a cent out on the last line.
+    const meltR = Math.round(meltNow * 100) / 100;
+    const recoverR = Math.round(meltNow * (1 - loss / 100) * 100) / 100;
+    const paidR = Math.round(paid * 100) / 100;
+    const g = Math.round((recoverR - paidR) * 100) / 100;
     if (g > 0) {
       gain = g;
       const note = `${noteLbl || t('metalScrapGainNote')} — ${spec.weight.toFixed(spec.weight < 10 ? 2 : 0)}g ${metalStockLabel({ metal: spec.metal, karat: spec.karat })}`;
-      const gRec = await _recordScrapGain(gain, note);
+      const gRec = await _recordScrapGain(gain, note, {
+        scrapPaid: paidR, scrapMelt: meltR, scrapRecover: recoverR, scrapLossPct: loss,
+        scrapGrams: spec.weight, scrapPure: spec.pure,
+        scrapMetal: spec.metal, scrapKarat: spec.karat, scrapLotId: lotId
+      });
       gainRecId = gRec ? gRec.id : null;
     }
   }
@@ -32543,9 +32630,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v12.99', date: 'Αύγουστος 2026', items: [
-        "🔁 Διορθώθηκε το «η ίδια πώληση δύο φορές». Το προκαλούσαν δύο ξεχωριστά προβλήματα — επιβεβαιώθηκαν και τα δύο. (1) Όταν σβήνατε μια πώληση από το δικό σας κινητό, το κινητό του υπαλλήλου την είχε ακόμα στη δική του αποθηκευμένη λίστα· αν καταχωρούσε τη νέα πώληση μέσα στα πρώτα δευτερόλεπτα από το άνοιγμα της εφαρμογής, πριν προλάβει να συγχρονιστεί, την ξανα-ανέβαζε στο σύννεφο. Ένα κομμάτι, δύο πωλήσεις. Τώρα, όταν η εφαρμογή δεν μπορεί να είναι σίγουρη τι άλλαξε, δεν μαντεύει: ανεβάζει μόνο ό,τι έκανε η ίδια. Αυτό έκλεισε και την αντίστροφη περίπτωση, που ήταν ακόμη χειρότερη — μια παλιά λίστα δεν μπορεί πια να σβήσει πώληση που μόλις έκανε άλλο κινητό.",
-        "🔒 Το κουμπί «Καταχώριση» κλειδώνει όσο γράφει την πώληση. Πριν, σε αργή σύνδεση, ένα δεύτερο ανυπόμονο πάτημα κατέγραφε ολόκληρη δεύτερη πώληση (το κομμάτι ήταν ήδη πουλημένο, οπότε το απόθεμα έμενε σωστό και διπλασιάζονταν μόνο τα χρήματα). Τώρα γράφει «Καταχώριση…» και δεν δέχεται δεύτερο πάτημα μέχρι να ολοκληρωθεί."
+      { version: 'v13.00', date: 'Αύγουστος 2026', items: [
+        "♻️ Η αγορά παλαιού χρυσού δείχνει πλέον τους αριθμούς της. Ανοίγοντας την εγγραφή βλέπετε τι ζύγιζε, πόσο άξιζε το μέταλλο εκείνη τη στιγμή, πόσο κρατάει το καθάρισμα και πόσα πληρώσατε — και από κάτω το κέρδος. Οι τιμές «παγώνουν» τη στιγμή της αγοράς, ώστε να συμφωνούν για πάντα, όσο κι αν κινηθεί ο χρυσός.",
+        "🧾 Έφυγε η γραμμή «Ποσό (χωρίς ΦΠΑ)» από αυτές τις εγγραφές. Δεν είναι πώληση — δεν βγήκε κόσμημα και δεν πέρασε ΦΠΑ από πουθενά· ο τίτλος λέει τώρα «Αγορά Παλαιού Μετάλλου».",
+        "🔧 Διορθώθηκε ασυμφωνία: αν διορθώνατε το ποσό μιας τέτοιας εγγραφής, το κέρδος έμενε στο παλιό νούμερο (π.χ. «€30.00, κέρδος €24.48»). Τώρα τα δύο κινούνται μαζί.",
+        "🛡️ Σε αυτές τις εγγραφές μένουν μόνο «Επεξεργασία» και «Διαγραφή». Η «Επιστροφή» θα έγραφε αρνητική πώληση — και μπορούσε να εκδώσει πίστωση για χρυσό που αγοράσατε εσείς· η «Εκτύπωση» και η «Κάρτα Αλλαγής» δεν έχουν νόημα σε μια αγορά μετάλλου."
       ]},
       ]
   },
@@ -32576,9 +32665,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v12.99', date: 'Aug 2026', items: [
-        "🔁 Fixed “the same sale recorded twice”. Two separate faults could cause it, and both were confirmed. (1) When you deleted a sale on your phone, your employee's phone still had it in its own saved list; if she recorded the replacement in the first seconds after opening the app, before it had synced, it uploaded the deleted one all over again. One piece, two sales. Now, when the app cannot be certain what changed, it does not guess: it uploads only the work it did itself. That also closed the opposite case, which was worse — a stale list can no longer delete a sale another phone has just made.",
-        "🔒 The “Record” button now locks while the sale is being saved. Before, on a slow connection, a second impatient tap wrote a complete second sale (the piece was already sold, so stock stayed right and only the money doubled). It now reads “Recording…” and ignores a second tap until it has finished."
+      { version: 'v13.00', date: 'Aug 2026', items: [
+        "♻️ A scrap gold purchase now shows its own arithmetic. Open the entry and you see the weight, what the metal was worth at that moment, what refining keeps, and what you paid — with the gain underneath. The figures are frozen at the moment of purchase, so they still add up months later however far gold has moved.",
+        "🧾 The “Amount excl. VAT” line is gone from these entries. It is not a sale — no jewel left and no VAT went through anywhere — and the title now reads “Scrap Metal Purchase”.",
+        "🔧 Fixed a mismatch: correcting the amount on one of these entries left the profit on the old figure (e.g. “€30.00, profit €24.48”). The two now move together.",
+        "🛡️ These entries now keep only “Edit” and “Delete”. “Return” would have written a negative sale — and could have issued store credit for gold YOU bought; “Print” and “Exchange Card” mean nothing on a metal purchase."
       ]},
           ]
   }
@@ -37665,7 +37756,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '12.99';
+const APP_VERSION = '13.00';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
