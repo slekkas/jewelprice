@@ -3580,6 +3580,12 @@ const T = {
     tiNetLbl:'Αξίζει',
     tiGainRow:'Κέρδος στον χρυσό',
     tiGainTotalRow:'Σύνολο από τη συναλλαγή',
+    holdGainRow:'Κέρδος από άνοδο μετάλλου',
+    sbHoldTitle:'Κέρδος από το μέταλλο που κρατούσατε',
+    sbHoldLine:'Άνοδος από την ημέρα που το αγοράσατε',
+    sbHoldTotal:'Συνολικό κέρδος',
+    sbHoldNote:'Το κέρδος πιο πάνω είναι με το σημερινό κόστος αντικατάστασης. Αυτή η γραμμή είναι όσα κέρδισε το μέταλλο όσο ήταν στο ράφι.',
+    sbHoldEst:'≈ εκτίμηση σε {n} από αυτές (παλαιότερες πωλήσεις, χωρίς καταγεγραμμένο αρχικό κόστος)',
     cashBuyLbl:'Έκπτωση χρυσού — μετρητά (%)',
     cashBuyHint:'Όταν ο πελάτης θέλει ΧΡΗΜΑΤΑ αντί για κόσμημα. Πάντα μεγαλύτερη από την ανταλλαγή — στην ανταλλαγή κερδίζετε και από το κόσμημα που πουλάτε, ενώ εδώ βγάζετε μόνο από το μέταλλο. Στην αγορά: 10–15% για ανταλλαγή, 20–40% για μετρητά.',
     gcheckBtn:'Χρυσός πελάτη',
@@ -4155,6 +4161,12 @@ const T = {
     tiNetLbl:'Worth',
     tiGainRow:'Gain on the gold',
     tiGainTotalRow:'Total from this transaction',
+    holdGainRow:'Gain on metal held',
+    sbHoldTitle:'Gain on the metal you held',
+    sbHoldLine:'Rise since the day you bought it',
+    sbHoldTotal:'Total profit',
+    sbHoldNote:'The profit above is measured against what the pieces cost to replace today. This line is what the metal itself earned while it sat on the shelf.',
+    sbHoldEst:'≈ estimated on {n} of them (older sales with no recorded original cost)',
     cashBuyLbl:'Gold deduction — cash (%)',
     cashBuyHint:'When the customer wants MONEY instead of jewelry. Always higher than the exchange rate — on an exchange you also earn on the piece you sell, whereas here the metal is your only margin. The trade runs 10–15% for an exchange, 20–40% for cash.',
     gcheckBtn:'Customer\'s gold',
@@ -12736,22 +12748,136 @@ function _saleListPrice(s) {
   return stored > 0 ? stored : null;
 }
 
-// The buy-cheap gain this transaction's metal produced, and what it and the sale
-// profit come to together.
+// ── GAIN ON THE METAL HELD (v13.02) ──────────────────────────────────────────
+// A per-gram piece's stored `cost` is what it would cost to REPLACE it at the
+// metal price on the day it sold — never what was paid for it, because for such
+// a piece the app computes the cost live rather than storing an invoice. So on
+// stock bought when gold was cheaper the recorded profit understates what the
+// sale actually put in the till, by exactly the metal's appreciation while it
+// was on the shelf.
 //
-// Shown HERE because this is where the owner asks the question — he looks at a
-// €55 sale settled with €76 of gold and reasonably wonders where the rest went.
-// The gain is deliberately a SEPARATE record in today's takings (it is a
-// metal-buying profit, not jewelry margin, and the segmented margin in the sales
-// breakdown depends on that separation), so the Profit row above must keep
-// showing only the sale's own profit or it would disagree with the sales list.
-// These two rows just make the link visible.
-function _tradeInGainRows(gain, profit, cur, mkRow) {
-  const g = parseFloat(gain) || 0;
-  if (!(g > 0)) return;
-  mkRow('♻️ ' + t('tiGainRow'), '+' + cur + g.toFixed(2), 'var(--success)');
-  if (profit !== null && profit !== undefined && !isNaN(parseFloat(profit))) {
-    mkRow(t('tiGainTotalRow'), cur + (parseFloat(profit) + g).toFixed(2), 'var(--gold-light)');
+// The two figures are NOT competing answers, they add up:
+//     trading margin (sale − replacement cost)
+//   + holding gain   (replacement cost − what it cost when added)
+//   = what the piece really made
+//
+// The recorded profit deliberately stays the headline: every sale already stored
+// carries it, the breakdown's margin is a TRADING margin that a holding gain
+// would distort exactly as a bullion coin did (v12.74), and an employee bonus is
+// paid on profit — nobody earns a bonus on the gold price.
+//
+// `heldCost` is FROZEN on the sale record at sale time (v12.79's rule: a figure
+// that floats must be captured, not re-derived), and stamped ONLY when the cost
+// really was a live recomputation — never when `purchaseCost` was stored, where
+// the recorded cost IS the historical one and there is no gap to report.
+function _saleHoldGain(s) {
+  if (!s || s.isReturn || s.returnOfSaleId || s.scrapGain || s.repairIncome
+      || s.giveaway || s.giftBreakage || s.bulkInvId) return null;
+  const cost = parseFloat(s.cost);
+  if (!isFinite(cost) || cost <= 0) return null;
+  const stored = parseFloat(s.heldCost);
+  if (isFinite(stored) && stored > 0) {
+    return { gain: parseFloat((cost - stored).toFixed(2)), held: stored, exact: true };
+  }
+  // Nothing was frozen (a sale recorded before this existed). The piece's own
+  // add-date baseline is the only trace left, and it is a RETAIL figure — so it
+  // is converted with today's cost/retail ratio, which is algebraically the same
+  // as dividing by (1+margin)(1+VAT) as they stand now. That is an ESTIMATE, and
+  // it says so: the margin, the VAT rate (24% → 17%) and the labour rate have all
+  // moved since, and `initialRetail` has been deliberately re-baselined more than
+  // once. Measured on the real backup, two pieces added the same day can imply
+  // metal prices 10% apart. Better a figure marked "≈" than one that looks exact.
+  const it = _saleHoldItem(s);
+  if (!it) return null;
+  const ir = parseFloat(it.initialRetail);
+  if (!(ir > 0)) return null;
+  const p = calcInvItemPrice(it);
+  if (!p || !(p.retail > 0) || !(p.baseCost > 0)) return null;
+  const held = parseFloat((ir * (p.baseCost / p.retail)).toFixed(2));
+  if (!(held > 0)) return null;
+  return { gain: parseFloat((cost - held).toFixed(2)), held, exact: false };
+}
+
+// code → item, memoized. Most sales recorded before v11.78 carry no invId, so
+// without this a year's breakdown would scan the whole stock once per record.
+// Rebuilt whenever the cache is replaced or grows, which is every way it changes
+// that matters here; a stale index would at worst drop an estimated row, never
+// produce a wrong figure.
+let _qrIdxMap = null, _qrIdxSrc = null, _qrIdxN = -1;
+function _qrItemIndex() {
+  const n = _inventoryCache ? Object.keys(_inventoryCache).length : 0;
+  if (_qrIdxMap && _qrIdxSrc === _inventoryCache && _qrIdxN === n) return _qrIdxMap;
+  const m = new Map();
+  if (_inventoryCache) {
+    for (const it of Object.values(_inventoryCache)) {
+      if (!it || !it.qrCode) continue;
+      const k = _qrKey(it.qrCode);
+      if (!m.has(k)) m.set(k, it);
+    }
+  }
+  _qrIdxMap = m; _qrIdxSrc = _inventoryCache; _qrIdxN = n;
+  return m;
+}
+
+// The piece behind a sale, but ONLY when a holding gain can honestly be claimed
+// for it: gold or silver jewelry whose cost the app recomputes. A stored
+// `purchaseCost` means the recorded cost is already historical; an other-type
+// piece keeps a fixed cost in its QR that does not move with metal; coins and
+// raw metal carry their own gain line and their own melt baseline, and folding
+// them in here would report the same money twice.
+function _saleHoldItem(s) {
+  if (!_inventoryCache) return null;
+  const it = (s.invId && _inventoryCache[s.invId]) || (s.invQr ? _qrItemIndex().get(_qrKey(s.invQr)) : null);
+  if (!it || it.isCoin || it.isMetal || it.isBulk) return null;
+  if (it.metal !== 'gold' && it.metal !== 'silver') return null;
+  if (parseFloat(it.purchaseCost) > 0) return null;
+  return it;
+}
+
+// What to freeze on a sale record: the piece's cost on the day it was ADDED.
+// Null whenever a holding gain would be meaningless (see _saleHoldItem), so a
+// record only ever carries the field when the figure means something.
+function _itemHeldCost(item) {
+  if (!item || item.isCoin || item.isMetal || item.isBulk) return null;
+  if (item.metal !== 'gold' && item.metal !== 'silver') return null;
+  if (parseFloat(item.purchaseCost) > 0) return null;
+  const ibc = parseFloat(item.initialBaseCost);
+  return ibc > 0 ? parseFloat(ibc.toFixed(2)) : null;
+}
+
+// Sum the holding gain over a set of records (one transaction, or a whole
+// period). `exact` is false as soon as ONE member had to be estimated — a total
+// is only as honest as its softest part.
+function _holdGainTotal(recs) {
+  let gain = 0, n = 0, nEst = 0;
+  (recs || []).forEach(r => {
+    const h = _saleHoldGain(r);
+    if (!h) return;
+    gain += h.gain; n++;
+    if (!h.exact) nEst++;
+  });
+  return { gain: parseFloat(gain.toFixed(2)), n, nEst, exact: nEst === 0 };
+}
+
+// The extra-gain rows under Profit: the buy-cheap gain a trade-in produced, the
+// gain on metal held, and ONE combined total. Drawn through the caller's own row
+// builder so the single and the transaction view can never look different — and
+// combined here rather than in two functions, or a sale with both would print
+// two contradicting "total" lines.
+function _saleGainRows(recs, profit, cur, mkRow) {
+  const ti = (recs || []).reduce((a, r) => a + (parseFloat(r.tradeInGain) || 0), 0);
+  const hg = _holdGainTotal(recs);
+  const extra = parseFloat(((ti > 0 ? ti : 0) + hg.gain).toFixed(2));
+  if (!(ti > 0) && hg.n === 0) return;
+  if (ti > 0) mkRow('♻️ ' + t('tiGainRow'), '+' + cur + ti.toFixed(2), 'var(--success)');
+  if (hg.n !== 0 && hg.gain !== 0) {
+    mkRow('🧱 ' + t('holdGainRow') + (hg.exact ? '' : ' ≈'),
+      (hg.gain < 0 ? '−' : '+') + cur + Math.abs(hg.gain).toFixed(2),
+      hg.gain < 0 ? '#ff8a80' : 'var(--success)');
+  }
+  const p = parseFloat(profit);
+  if (isFinite(p) && extra !== 0) {
+    mkRow(t('tiGainTotalRow'), cur + (p + extra).toFixed(2), 'var(--gold-light)');
   }
 }
 
@@ -16241,7 +16367,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
       mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', cur + totProfit.toFixed(2) + profitPct, totProfit >= 0 ? 'var(--success)' : '#ff6b6b');
     }
     // Summed over the lines, though the physical metal is stamped on one of them.
-    _tradeInGainRows(members.reduce((a, x) => a + (parseFloat(x.tradeInGain) || 0), 0), totProfit, cur, mkRow);
+    _saleGainRows(members, totProfit, cur, mkRow);
     if (totBonus > 0) mkRow('🎁 Bonus', cur + totBonus.toFixed(2), 'var(--gold)');
   }
 
@@ -16458,6 +16584,15 @@ async function showSaleDetail(id, forceSingle) {
   const vat = parseFloat(state.vat) || 0;
   const isOwnerMgr = can('see_cost');
 
+  // The piece is needed by the breakdown BELOW (the gain-on-metal line falls back
+  // to the piece's own add-date baseline on a sale recorded before that was
+  // frozen), and the sheet loads it further down anyway — so the same single load
+  // just happens earlier. _invEnsureForScan keeps the last good cache on a network
+  // failure instead of blanking it (v11.74).
+  if ((s.invId || s.invQr) && (!_inventoryCache || Object.keys(_inventoryCache).length === 0)) {
+    try { await _invEnsureForScan(); } catch (e) {}
+  }
+
   // Multi-item transaction → combined view (unless a single line was explicitly requested).
   const groupItems = s.saleGroup ? sales.filter(x => x.saleGroup === s.saleGroup) : [];
   const _gEl = document.getElementById('sdmGroupItems');
@@ -16522,7 +16657,7 @@ async function showSaleDetail(id, forceSingle) {
         cur + parseFloat(s.profit).toFixed(2) + profitPct,
         s.profit >= 0 ? 'var(--success)' : '#ff6b6b');
     }
-    _tradeInGainRows(s.tradeInGain, s.profit, cur, mkRow);
+    _saleGainRows([s], s.profit, cur, mkRow);
     if (s.bonusAmt > 0) mkRow('🎁 Bonus', cur + parseFloat(s.bonusAmt).toFixed(2), 'var(--gold)');
   }
 
@@ -17773,6 +17908,11 @@ async function _confirmSaleInner() {
         try {
           const _lpP = calcInvItemPrice(_lpItem);
           if (_lpP && _lpP.retail > 0) { _firstSaleRec.listPrice = parseFloat(_lpP.retail.toFixed(2)); _linkChanged = true; }
+          // ...and what the piece cost on the day it was ADDED, so the gain it made
+          // while sitting on the shelf can still be told months from now without
+          // depending on the piece surviving or on where the metal price has gone.
+          const _hc = _itemHeldCost(_lpItem);
+          if (_hc != null) { _firstSaleRec.heldCost = _hc; _linkChanged = true; }
         } catch (e) {}
       }
     }
@@ -17949,8 +18089,11 @@ async function _confirmSaleInner() {
           // Its own asking price, same reason as the first record above. Persisted
           // by the shared-saleGroup push below (_stdRec lives in _salesCache).
           try {
-            const _rp = calcInvItemPrice((_inventoryCache && _inventoryCache[id]) || item);
+            const _rItem = (_inventoryCache && _inventoryCache[id]) || item;
+            const _rp = calcInvItemPrice(_rItem);
             if (_rp && _rp.retail > 0) _stdRec.listPrice = parseFloat(_rp.retail.toFixed(2));
+            const _rhc = _itemHeldCost(_rItem);
+            if (_rhc != null) _stdRec.heldCost = _rhc;
           } catch (e) {}
           _groupRecs.push(_stdRec);
         }
@@ -18833,6 +18976,27 @@ function _sbRender() {
           '<span>' + signed(s.amt) + ' · <span style="color:' + pCol + '">' + signed(s.profit) +
           (mg === null ? '' : ' (' + mg.toFixed(1) + '%)') + '</span></span></div>';
       }).join('') + '</div>';
+  }
+
+  // ── Gain on the metal held ────────────────────────────────────────────────
+  // A per-gram piece's recorded cost is what it would cost to REPLACE it on the
+  // day it sold, so on stock bought when gold was cheaper the profit above
+  // understates what the sale really made. This is that difference.
+  //
+  // Deliberately kept OUT of the tiles and out of the per-activity margins: those
+  // measure the TRADING margin, and a holding gain would distort them exactly as
+  // a bullion coin did (v12.74). It is a different kind of income, so it is
+  // stated separately and then added up.
+  const _sbHold = _holdGainTotal(_sbSales || []);
+  if (_sbHold.n > 0 && _sbHold.gain !== 0) {
+    const _hCol = _sbHold.gain < 0 ? '#ff8a80' : '#4CAF50';
+    html += '<div class="sb-sec"><div class="sb-sec-t">🧱 ' + t('sbHoldTitle') + '</div>' +
+      '<div class="sb-line"><span>' + t('sbHoldLine') + (_sbHold.exact ? '' : ' ≈') + '</span>' +
+      '<span style="color:' + _hCol + '">' + (_sbHold.gain < 0 ? '−' : '+') + money(_sbHold.gain) + '</span></div>' +
+      '<div class="sb-line"><span>' + t('sbHoldTotal') + '</span><span style="color:var(--gold-light)">' +
+      signed(tProfit + _sbHold.gain) + '</span></div>' +
+      '<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);margin-top:6px;line-height:1.5">' +
+      t('sbHoldNote') + (_sbHold.nEst ? ' ' + t('sbHoldEst').replace('{n}', _sbHold.nEst) : '') + '</div></div>';
   }
 
   // How the money came in — which is what decides the VAT.
@@ -27238,6 +27402,10 @@ function renderInvList() {
       // Only fires for items missing a baseline — i.e. freshly-created ones; existing
       // stock already has initialRetail, so it keeps the May-2025 anchor instead.
       if (!item.isMetal && Number.isFinite(p.metalValue)) item.initialMetalValue = parseFloat(p.metalValue.toFixed(2));
+      // What the piece COST on the day it was added. Frozen here because the app
+      // recomputes a per-gram cost live, so without this there is no trace of what
+      // was actually paid — and the difference is real money the sale never reports.
+      if (Number.isFinite(p.baseCost)) item.initialBaseCost = parseFloat(p.baseCost.toFixed(2));
       saveInventoryItem(id, item).catch(() => {});
     }
     // Appreciation line for owner/manager (hidden from employees)
@@ -28228,6 +28396,7 @@ RETAIL: €[integer]`;
       if (_scanPrice) {
         item.initialRetail = parseFloat(_scanPrice.retail.toFixed(2));
         if (Number.isFinite(_scanPrice.metalValue)) item.initialMetalValue = parseFloat(_scanPrice.metalValue.toFixed(2));
+        if (Number.isFinite(_scanPrice.baseCost)) item.initialBaseCost = parseFloat(_scanPrice.baseCost.toFixed(2));
       }
     }
     const ok = await saveInventoryItem(id, item);
@@ -29437,6 +29606,9 @@ RETAIL: \u20ac[integer]`;
         }
         if (item.initialMetalValue > 0 && _beforePx.metalValue > 0) {
           item.initialMetalValue = parseFloat((item.initialMetalValue * (_afterPx.metalValue / _beforePx.metalValue)).toFixed(2));
+        }
+        if (item.initialBaseCost > 0 && _beforePx.baseCost > 0) {
+          item.initialBaseCost = parseFloat((item.initialBaseCost * (_afterPx.baseCost / _beforePx.baseCost)).toFixed(2));
         }
       }
     }
@@ -31799,6 +31971,8 @@ function invAddSimilar(sourceId) {
           newItem.initialRetail = parseFloat(_p.retail.toFixed(2));
           // Re-baseline metal too (don't inherit the source's initialMetalValue).
           if (Number.isFinite(_p.metalValue)) newItem.initialMetalValue = parseFloat(_p.metalValue.toFixed(2));
+          // ...and its cost: this piece is being bought NOW, whatever the source cost.
+          if (Number.isFinite(_p.baseCost)) newItem.initialBaseCost = parseFloat(_p.baseCost.toFixed(2));
         }
       }
       _inventoryCache[newId] = newItem;
@@ -32640,9 +32814,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.01', date: 'Αύγουστος 2026', items: [
-        "🔑 Η καταχώριση ληγμένης δωροεπιταγής («τζίρος» από αχρησιμοποίητο υπόλοιπο) έπαιρνε αριθμό μόνο από το ρολόι. Ήταν η τελευταία εγγραφή πώλησης που το έκανε αυτό: αν δύο συσκευές την καταχωρούσαν το ίδιο χιλιοστό του δευτερολέπτου, έπαιρναν τον ίδιο αριθμό — και ο αριθμός είναι αυτό που χρησιμοποιεί η εφαρμογή για να βρει, να σβήσει ή να επιστρέψει μια εγγραφή. Τώρα παίρνει μοναδικό αριθμό ανά συσκευή, όπως όλες οι υπόλοιπες.",
-        "📶 Και μπαίνει πλέον στην ουρά αποστολής πριν σταλεί: αν την καταχωρούσατε με κλειστό internet, ζούσε μόνο στο κινητό σας και ο επόμενος συγχρονισμός την έσβηνε αθόρυβα. Τώρα ανεβαίνει μόλις επανέλθει η σύνδεση, όπως κάθε πώληση."
+      { version: 'v13.02', date: 'Αύγουστος 2026', items: [
+        "🧱 Νέα γραμμή «Κέρδος από άνοδο μετάλλου» στην πώληση. Το κέρδος που έδειχνε η εφαρμογή ήταν πάντα σε σχέση με το τι θα σας κόστιζε το κόσμημα ΣΗΜΕΡΑ. Αν το είχατε αγοράσει όταν ο χρυσός ήταν φθηνότερος, κερδίσατε στην πραγματικότητα περισσότερα — και αυτή η διαφορά δεν φαινόταν πουθενά. Τώρα φαίνεται, με το συνολικό κέρδος από κάτω. Παράδειγμα από το δικό σας απόθεμα: κολιέ με κέρδος €6.646,97 στην οθόνη, ενώ το πραγματικό ήταν €7.384,00.",
+        "📊 Το ίδιο και στην ανάλυση πωλήσεων: ξεχωριστή ενότητα «Κέρδος από το μέταλλο που κρατούσατε» με το άθροισμα και το συνολικό κέρδος. Μένει έξω από το ποσοστό περιθωρίου, γιατί αυτό μετράει το εμπορικό κέρδος — όπως κάναμε και με τα νομίσματα.",
+        "📌 Για τα κομμάτια που προσθέτετε από εδώ και πέρα το νούμερο είναι ακριβές: το κόστος «παγώνει» τη στιγμή που μπαίνει το κομμάτι στο απόθεμα. Για τις παλιότερες πωλήσεις υπολογίζεται κατά προσέγγιση από την αρχική τιμή και σημειώνεται με «≈» — η εφαρμογή δεν κρύβει ότι είναι εκτίμηση.",
+        "⚖️ Δεν αλλάζει τίποτα στα υπάρχοντα νούμερα: το καταγεγραμμένο κέρδος, τα σύνολα και τα μπόνους των υπαλλήλων μένουν ακριβώς όπως ήταν. Αν ο χρυσός έχει πέσει, η γραμμή δείχνει ζημιά — όπως πρέπει."
       ]},
       ]
   },
@@ -32673,9 +32849,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.01', date: 'Aug 2026', items: [
-        "🔑 Booking an expired gift certificate (the unspent balance) took its record number from the clock alone. It was the last sale record still doing that: two devices booking one in the same millisecond would take the same number — and the number is what the app uses to find, delete or return a record. It now takes a number that is unique per device, like every other record.",
-        "📶 And it is now queued for upload before being sent: booked with no internet, it lived only on your phone and the next sync quietly erased it. It now goes up as soon as the connection returns, like any sale."
+      { version: 'v13.02', date: 'Aug 2026', items: [
+        "🧱 A new “Gain on metal held” line on a sale. The profit the app showed was always measured against what the piece would cost you TODAY. If you bought it when gold was cheaper you actually made more — and that difference appeared nowhere. Now it does, with the total underneath. From your own stock: a necklace showing €6,646.97 profit had really made €7,384.00.",
+        "📊 The same in the sales breakdown: its own “Gain on the metal you held” section with the total. It is kept out of the margin percentage, because that measures your trading margin — the same treatment coins already get.",
+        "📌 For pieces you add from now on the figure is exact: the cost is frozen the moment the piece goes into stock. For older sales it is worked out approximately from the initial price and marked with “≈” — the app does not pretend it is exact.",
+        "⚖️ Nothing already recorded changes: the stored profit, the totals and staff bonuses stay exactly as they were. If gold has fallen, the line shows a loss, as it should."
       ]},
           ]
   }
@@ -37762,7 +37940,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.01';
+const APP_VERSION = '13.02';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
