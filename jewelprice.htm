@@ -6994,7 +6994,11 @@ async function _recordGiftBreakage(amount, note) {
   const sales = await getSales();
   const g = parseFloat(amount.toFixed(2));
   const rec = {
-    id: Date.now(),
+    // Stepped past anything already taken, and salted per device — a bare
+    // Date.now() let two phones booking a breakage in the same millisecond mint
+    // the SAME id, and an id is what every lookup, delete and return keys on
+    // (v11.64). This was the last sale-record writer still minting one that way.
+    id: _nextSaleId(sales),
     amount: g, note: note || '', date: todayStr(), ts: Date.now(),
     vendor: '', customer: '', email: '',
     employee: creds.userName || '', employeeName: creds.displayName || '',
@@ -7005,6 +7009,12 @@ async function _recordGiftBreakage(amount, note) {
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  // Queued BEFORE the attempt, like every other sale-record writer. On a phone
+  // that booted with no signal _syncListToCloud cannot even establish a baseline
+  // to diff against and returns without queuing anything, so without this the
+  // breakage would exist nowhere but this device and the next successful pull
+  // would erase it (v11.65).
+  _outboxAdd('/jewelprice_sales', rec.id, 'put', JSON.stringify(rec));
   try { await pushSalesToCloud(sales); } catch (e) {}
   return rec;
 }
@@ -32630,11 +32640,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.00', date: 'Αύγουστος 2026', items: [
-        "♻️ Η αγορά παλαιού χρυσού δείχνει πλέον τους αριθμούς της. Ανοίγοντας την εγγραφή βλέπετε τι ζύγιζε, πόσο άξιζε το μέταλλο εκείνη τη στιγμή, πόσο κρατάει το καθάρισμα και πόσα πληρώσατε — και από κάτω το κέρδος. Οι τιμές «παγώνουν» τη στιγμή της αγοράς, ώστε να συμφωνούν για πάντα, όσο κι αν κινηθεί ο χρυσός.",
-        "🧾 Έφυγε η γραμμή «Ποσό (χωρίς ΦΠΑ)» από αυτές τις εγγραφές. Δεν είναι πώληση — δεν βγήκε κόσμημα και δεν πέρασε ΦΠΑ από πουθενά· ο τίτλος λέει τώρα «Αγορά Παλαιού Μετάλλου».",
-        "🔧 Διορθώθηκε ασυμφωνία: αν διορθώνατε το ποσό μιας τέτοιας εγγραφής, το κέρδος έμενε στο παλιό νούμερο (π.χ. «€30.00, κέρδος €24.48»). Τώρα τα δύο κινούνται μαζί.",
-        "🛡️ Σε αυτές τις εγγραφές μένουν μόνο «Επεξεργασία» και «Διαγραφή». Η «Επιστροφή» θα έγραφε αρνητική πώληση — και μπορούσε να εκδώσει πίστωση για χρυσό που αγοράσατε εσείς· η «Εκτύπωση» και η «Κάρτα Αλλαγής» δεν έχουν νόημα σε μια αγορά μετάλλου."
+      { version: 'v13.01', date: 'Αύγουστος 2026', items: [
+        "🔑 Η καταχώριση ληγμένης δωροεπιταγής («τζίρος» από αχρησιμοποίητο υπόλοιπο) έπαιρνε αριθμό μόνο από το ρολόι. Ήταν η τελευταία εγγραφή πώλησης που το έκανε αυτό: αν δύο συσκευές την καταχωρούσαν το ίδιο χιλιοστό του δευτερολέπτου, έπαιρναν τον ίδιο αριθμό — και ο αριθμός είναι αυτό που χρησιμοποιεί η εφαρμογή για να βρει, να σβήσει ή να επιστρέψει μια εγγραφή. Τώρα παίρνει μοναδικό αριθμό ανά συσκευή, όπως όλες οι υπόλοιπες.",
+        "📶 Και μπαίνει πλέον στην ουρά αποστολής πριν σταλεί: αν την καταχωρούσατε με κλειστό internet, ζούσε μόνο στο κινητό σας και ο επόμενος συγχρονισμός την έσβηνε αθόρυβα. Τώρα ανεβαίνει μόλις επανέλθει η σύνδεση, όπως κάθε πώληση."
       ]},
       ]
   },
@@ -32665,11 +32673,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.00', date: 'Aug 2026', items: [
-        "♻️ A scrap gold purchase now shows its own arithmetic. Open the entry and you see the weight, what the metal was worth at that moment, what refining keeps, and what you paid — with the gain underneath. The figures are frozen at the moment of purchase, so they still add up months later however far gold has moved.",
-        "🧾 The “Amount excl. VAT” line is gone from these entries. It is not a sale — no jewel left and no VAT went through anywhere — and the title now reads “Scrap Metal Purchase”.",
-        "🔧 Fixed a mismatch: correcting the amount on one of these entries left the profit on the old figure (e.g. “€30.00, profit €24.48”). The two now move together.",
-        "🛡️ These entries now keep only “Edit” and “Delete”. “Return” would have written a negative sale — and could have issued store credit for gold YOU bought; “Print” and “Exchange Card” mean nothing on a metal purchase."
+      { version: 'v13.01', date: 'Aug 2026', items: [
+        "🔑 Booking an expired gift certificate (the unspent balance) took its record number from the clock alone. It was the last sale record still doing that: two devices booking one in the same millisecond would take the same number — and the number is what the app uses to find, delete or return a record. It now takes a number that is unique per device, like every other record.",
+        "📶 And it is now queued for upload before being sent: booked with no internet, it lived only on your phone and the next sync quietly erased it. It now goes up as soon as the connection returns, like any sale."
       ]},
           ]
   }
@@ -37756,7 +37762,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.00';
+const APP_VERSION = '13.01';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
