@@ -36,6 +36,17 @@
     /* Profit / money earned. Pale mint on dark, deep green on light -- the raw
        #7fd6b0 measures 1.4:1 against the light theme's panels. */
     --profit: #7fd6b0;
+    /* Money EARNED and money LOST, as figures. Same story as --debt/--profit: the
+       app's action green measures 2.7:1 and the salmon red 3.6:1 on the light
+       theme's panels, so both are tokens and the light theme darkens them. Two
+       near-identical shades of each (#4CAF50/#4caf84, #ff6b6b/#ff8a80) were in
+       use as text; they are unified here so the next one cannot drift again. */
+    --gain: #4caf84;
+    --loss: #ff8a80;
+    /* The app's amber, used for a sold piece, an outstanding balance and every
+       soft warning. Worse than either of the above on the light theme -- 2.1:1
+       against white -- so it is darkened to a deep gold-brown there. */
+    --warn: #e0a85a;
     --glow-gold: rgba(212,175,55,0.22); --glow-gold-strong: rgba(212,175,55,0.38);
     --font-heading: 'Playfair Display', 'Cormorant Garamond', serif;
     --font-body: 'Inter', sans-serif;
@@ -57,11 +68,14 @@
     --card: #FFFFFF; --card-border: rgba(150,120,45,0.28);
     --text: #2A2416; --text-muted: #6E5F38; --text-dim: #9C8E64;
     --silver: #6B7688; --silver-light: #8A94A6;
-    --danger: #C0392B; --success: #2E8B57;
+    --danger: #C0392B; --success: #12664A;
     --debt: #9B2314;
     --order: #6B3E8F;
     --revive: #1F6E4E;
     --profit: #12664A;
+    --gain: #12664A;
+    --loss: #9B2314;
+    --warn: #8A5A00;
     --glow-gold: rgba(184,149,46,0.14); --glow-gold-strong: rgba(184,149,46,0.26);
     --wa02:rgba(45,36,14,0.03); --wa03:rgba(45,36,14,0.04); --wa04:rgba(45,36,14,0.05);
     --wa05:rgba(45,36,14,0.055); --wa06:rgba(45,36,14,0.06); --wa07:rgba(45,36,14,0.07);
@@ -796,8 +810,8 @@
   .sb-row:active { background:rgba(212,175,55,0.06); }
   .sb-meta { font-family:var(--font-mono); font-size:10.5px; color:var(--text-muted); margin-bottom:3px; overflow-wrap:anywhere; }
   .sb-num { font-family:var(--font-mono); font-size:12.5px; text-align:right; color:var(--text); }
-  .sb-num.sb-p { color:#4CAF50; }
-  .sb-num.sb-n { color:#ff8a80; }
+  .sb-num.sb-p { color:var(--gain); }
+  .sb-num.sb-n { color:var(--loss); }
   .sb-num.sb-dim { color:var(--text-muted); }
   .sb-tot { padding-top:9px; margin-top:2px; border-top:2px solid rgba(212,175,55,0.35); }
   .sb-tot .sb-num { font-size:14px; font-weight:700; color:var(--gold-light); }
@@ -1952,9 +1966,9 @@
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button onclick="stkOpenScanner()" style="flex:1;min-width:120px;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkOpenBtn">📷 Σάρωση</button>
-            <button onclick="stkFinishCompare()" style="flex:1;min-width:120px;padding:11px;background:rgba(76,175,132,0.14);border:1px solid rgba(76,175,132,0.4);color:#7fd6b0;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkFinishShort">✅ Ολοκλήρωση</button>
+            <button onclick="stkFinishCompare()" style="flex:1;min-width:120px;padding:11px;background:rgba(76,175,132,0.14);border:1px solid rgba(76,175,132,0.4);color:var(--profit);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkFinishShort">✅ Ολοκλήρωση</button>
           </div>
-          <button onclick="stkCancel()" style="width:100%;margin-top:8px;padding:9px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:#e05a5a;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkCancelBtn">✕ Ακύρωση Ελέγχου</button>
+          <button onclick="stkCancel()" style="width:100%;margin-top:8px;padding:9px;background:transparent;border:1px solid rgba(224,90,90,0.3);color:var(--loss);border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="stkCancelBtn">✕ Ακύρωση Ελέγχου</button>
         </div>
         <div class="status-bar" id="stkStatusBar"></div>
       </div>
@@ -2574,7 +2588,7 @@
         <!-- Shown only when the card has already been partly spent. The customer
              is holding a paper that still says its FACE value, so the difference
              has to be visible here rather than buried in the Desk list. -->
-        <div id="saleGiftPartial" style="display:none;font-size:11px;color:#e0a85a;margin-top:5px;line-height:1.45"></div>
+        <div id="saleGiftPartial" style="display:none;font-size:11px;color:var(--warn);margin-top:5px;line-height:1.45"></div>
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,76,0.2)">
           <span style="color:var(--text-muted)" data-i18n="gcCashDue">Να εισπραχθούν</span>
           <span id="saleGiftDue" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
@@ -3246,7 +3260,7 @@
       <div class="sp-hero-label" id="spHeroLabel" data-i18n="totalSales">TOTAL SALES</div>
       <div class="sp-hero-amount" id="spHeroTotal">€0</div>
       <div class="sp-hero-sub" id="spHeroSub"></div>
-      <div id="spHeroProfit" style="font-family:var(--font-mono);font-size:11px;color:#4CAF50;margin-top:4px;letter-spacing:0.08em;display:none"></div>
+      <div id="spHeroProfit" style="font-family:var(--font-mono);font-size:11px;color:var(--gain);margin-top:4px;letter-spacing:0.08em;display:none"></div>
       <div id="spHeroHint" data-i18n="sbTapHint" style="font-family:var(--font-body);font-size:10px;letter-spacing:0.12em;color:rgba(212,175,55,0.55);margin-top:8px;display:none">Tap for the breakdown ›</div>
     </div>
 
@@ -3388,7 +3402,7 @@
         <div>
           <div class="sp-month-name" id="spDetailName">—</div>
           <div class="sp-month-total" id="spDetailTotal">€0</div>
-          <div id="spDetailProfit" style="font-family:var(--font-mono);font-size:11px;color:#4CAF50;margin-top:2px;display:none"></div>
+          <div id="spDetailProfit" style="font-family:var(--font-mono);font-size:11px;color:var(--gain);margin-top:2px;display:none"></div>
         </div>
         <div class="sp-yoy" id="spYoy"></div>
       </div>
@@ -6359,10 +6373,10 @@ function renderGiftCards() {
     const soon = gcIsSpendable(g) && days !== null && days >= 0 && days <= GC_EXPIRY_WARN_DAYS;
     const statusChip =
       g.status === 'active'   ? (soon
-        ? `<span style="color:#7fd6b0">${isEl ? `Λήγει σε ${days}${days === 1 ? ' μέρα' : ' μέρες'}` : `Expires in ${days} day${days === 1 ? '' : 's'}`}</span>`
-        : `<span style="color:#7fd6b0">${isEl ? 'Ενεργή' : 'Active'}</span>`)
+        ? `<span style="color:var(--profit)">${isEl ? `Λήγει σε ${days}${days === 1 ? ' μέρα' : ' μέρες'}` : `Expires in ${days} day${days === 1 ? '' : 's'}`}</span>`
+        : `<span style="color:var(--profit)">${isEl ? 'Ενεργή' : 'Active'}</span>`)
       : g.status === 'redeemed' ? `<span style="color:var(--text-dim)">${isEl ? 'Εξαργυρώθηκε' : 'Redeemed'}</span>`
-      : g.status === 'expired'  ? `<span style="color:#e0a85a">${isEl ? 'Έληξε' : 'Expired'}</span>`
+      : g.status === 'expired'  ? `<span style="color:var(--warn)">${isEl ? 'Έληξε' : 'Expired'}</span>`
       : `<span style="color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</span>`;
     // A partly-spent card shows what is left against what it started as.
     const amtLine = (bal !== (parseFloat(g.amount) || 0) && g.status !== 'cancelled')
@@ -6685,8 +6699,8 @@ async function openGiftCardDetail(id) {
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${spent > 0
         ? (isEl ? `υπόλοιπο από ${cur}${face.toFixed(2)}` : `remaining of ${cur}${face.toFixed(2)}`)
         : (isEl ? 'διαθέσιμο' : 'available')}</div>
-      ${soon ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:rgba(46,158,99,0.15);border:1px solid rgba(46,158,99,0.45);border-radius:20px;font-size:11px;color:#7fd6b0">${isEl ? `Λήγει σε ${days}${days === 1 ? ' μέρα' : ' μέρες'}` : `Expires in ${days} day${days === 1 ? '' : 's'}`}</div>` : ''}
-      ${g.status === 'expired' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:rgba(224,168,90,0.15);border:1px solid rgba(224,168,90,0.45);border-radius:20px;font-size:11px;color:#e0a85a">${isEl ? 'Έληξε' : 'Expired'}</div>` : ''}
+      ${soon ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:rgba(46,158,99,0.15);border:1px solid rgba(46,158,99,0.45);border-radius:20px;font-size:11px;color:var(--profit)">${isEl ? `Λήγει σε ${days}${days === 1 ? ' μέρα' : ' μέρες'}` : `Expires in ${days} day${days === 1 ? '' : 's'}`}</div>` : ''}
+      ${g.status === 'expired' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:rgba(224,168,90,0.15);border:1px solid rgba(224,168,90,0.45);border-radius:20px;font-size:11px;color:var(--warn)">${isEl ? 'Έληξε' : 'Expired'}</div>` : ''}
       ${g.status === 'redeemed' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:20px;font-size:11px;color:var(--text-dim)">${isEl ? 'Εξαργυρώθηκε πλήρως' : 'Fully redeemed'}</div>` : ''}
       ${g.status === 'cancelled' ? `<div style="margin-top:8px;display:inline-block;padding:4px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:20px;font-size:11px;color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</div>` : ''}
     </div>
@@ -7145,12 +7159,12 @@ function openGiftPickerForSale() {
         return `<div onclick="_pickGiftForSale('${g.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 4px;border-bottom:1px solid var(--wa06);cursor:pointer">
           <div style="min-width:0">
             <div style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${gcKindIcon(g)} ${_gcEsc(g.buyerName || '—')}</div>
-            <div style="font-size:11px;color:${gcIsCredit(g) ? '#7fd6b0' : 'var(--text-muted)'};letter-spacing:0.04em">${gcKindLabel(g)}</div>
+            <div style="font-size:11px;color:${gcIsCredit(g) ? 'var(--profit)' : 'var(--text-muted)'};letter-spacing:0.04em">${gcKindLabel(g)}</div>
             <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${gcNoFmt(g)}${d !== null && d >= 0 ? ` · ${isEl ? 'λήγει σε' : 'expires in'} ${d}${isEl ? (d === 1 ? ' μέρα' : ' μέρες') : (d === 1 ? ' day' : ' days')}` : ''}</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-family:var(--font-mono);font-size:16px;color:var(--text);font-weight:700">${cur}${bal.toFixed(2)}</div>
-            ${gcRedeemed(g) > 0 ? `<div style="font-size:10px;color:#e0a85a;margin-top:1px">${isEl ? 'από' : 'of'} ${cur}${(parseFloat(g.amount) || 0).toFixed(2)}</div>` : ''}
+            ${gcRedeemed(g) > 0 ? `<div style="font-size:10px;color:var(--warn);margin-top:1px">${isEl ? 'από' : 'of'} ${cur}${(parseFloat(g.amount) || 0).toFixed(2)}</div>` : ''}
           </div>
         </div>`;
       }).join('')
@@ -7249,7 +7263,7 @@ function _updateSaleGiftDisplay() {
         + `<br>${isEl ? 'Μετά από αυτή την πώληση' : 'After this sale'}: <strong>${cur}${_left.toFixed(2)}</strong>`;
     }
     _pBox.innerHTML = _html;
-    _pBox.style.color = _spent > 0 ? '#e0a85a' : 'var(--text-muted)';  // amber only when it IS a warning
+    _pBox.style.color = _spent > 0 ? 'var(--warn)' : 'var(--text-muted)';  // amber only when it IS a warning
     _pBox.style.display = '';
   }
   document.getElementById('saleGiftDue').textContent = cur + due.toFixed(2);
@@ -7802,14 +7816,14 @@ function renderReservations() {
   if (!list.length) { box.innerHTML = _resToggle + `<div style="text-align:center;padding:34px 20px;color:var(--text-muted);font-size:13px">${isEl ? 'Καμία κράτηση ακόμη' : 'No reservations yet'}</div>`; return; }
   box.innerHTML = _resToggle + list.map(r => {
     const bal = resBalance(r);
-    const chip = r.status === 'active' ? (bal <= 0 ? `<span style="color:#7fd6b0">${isEl ? 'Πληρωμένη' : 'Paid'}</span>` : `<span style="color:#e0a85a">${isEl ? 'Ενεργή' : 'Active'}</span>`)
-      : r.status === 'completed' ? `<span style="color:#7fd6b0">${isEl ? 'Ολοκληρώθηκε' : 'Completed'}</span>`
-      : r.status === 'expired' ? `<span style="color:#e0a85a">${isEl ? 'Έληξε' : 'Expired'}</span>`
+    const chip = r.status === 'active' ? (bal <= 0 ? `<span style="color:var(--profit)">${isEl ? 'Πληρωμένη' : 'Paid'}</span>` : `<span style="color:var(--warn)">${isEl ? 'Ενεργή' : 'Active'}</span>`)
+      : r.status === 'completed' ? `<span style="color:var(--profit)">${isEl ? 'Ολοκληρώθηκε' : 'Completed'}</span>`
+      : r.status === 'expired' ? `<span style="color:var(--warn)">${isEl ? 'Έληξε' : 'Expired'}</span>`
       : `<span style="color:var(--text-dim)">${isEl ? 'Ακυρώθηκε' : 'Cancelled'}</span>`;
     const its = r.items || r.itemsSnapshot || [];
     const n = its.length;
     const itemsLine = n === 1 ? ((its[0].desc) || its[0].ref || '') : (isEl ? `${n} είδη` : `${n} items`);
-    const balLine = r.status === 'active' ? `<span style="color:${bal > 0 ? '#e0a85a' : '#7fd6b0'}">${isEl ? 'Υπόλοιπο' : 'Balance'}: ${cur}${bal.toFixed(2)}</span>` : '<span></span>';
+    const balLine = r.status === 'active' ? `<span style="color:${bal > 0 ? 'var(--warn)' : 'var(--profit)'}">${isEl ? 'Υπόλοιπο' : 'Balance'}: ${cur}${bal.toFixed(2)}</span>` : '<span></span>';
     return `<div onclick="openReservationDetail('${r.id}')" style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:9px;cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
         <span style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light)">${_resEsc(r.clientName || '—')}</span>
@@ -7826,7 +7840,7 @@ const _resInp = 'width:100%;box-sizing:border-box;padding:11px;background:var(--
 const _resLbl = 'font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px';
 let _resDlgItems = [];
 let _resDlgSource = '';   // where the items came from ('cart' must empty the cart on save)
-function _resDlgStatus(msg) { const el = document.getElementById('resDlgStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+function _resDlgStatus(msg) { const el = document.getElementById('resDlgStatus'); if (el) { el.textContent = msg || ''; el.style.color = 'var(--warn)'; } }
 
 // Turn a calc/cart result (lastCalcResult or a quoteCart entry) into a reservation
 // item. The AGREED price (result.finalPrice, incl. discounts/rounding) is locked in.
@@ -8047,7 +8061,7 @@ function openReservationDetail(id) {
   const ov = document.createElement('div'); ov.id = 'reservationDetailOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
   const itemsHtml = (r.items || r.itemsSnapshot || []).map(i => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--wa05)">${i.photoUrl ? `<img src="${i.photoUrl}" style="width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}<div style="min-width:0;flex:1"><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-light)">${i.ref || i.qr || ''}</span> <span style="font-size:12px;color:var(--text)">${_resEsc(i.desc)}</span></div><span style="font-size:12px;color:var(--text-muted)">${cur}${(i.price != null ? i.price : (i.retail || 0)).toFixed(0)}</span></div>`).join('');
-  const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:#7fd6b0">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
+  const payHtml = (r.payments || []).length ? r.payments.map(p => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text-muted)">${fmtDate(p.date)} · ${p.method === 'card' ? (isEl ? 'Κάρτα' : 'Card') : (isEl ? 'Μετρητά' : 'Cash')}${p.note ? ' · ' + _resEsc(p.note) : ''}</span><span style="color:var(--profit)">${cur}${(parseFloat(p.amount) || 0).toFixed(2)}</span></div>`).join('') : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Καμία πληρωμή' : 'No payments'}</div>`;
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:440px;margin:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div><div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${_resEsc(r.clientName)}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${resNoFmt(r)}${r.clientPhone ? ` · <span onclick="contactFromRecord('res','${r.id}')" style="color:#4bd07f;cursor:pointer;font-weight:600">📞 ${_resEsc(r.clientPhone)}</span>` : ''}</div></div>
@@ -8058,8 +8072,8 @@ function openReservationDetail(id) {
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.agreedTotal) || 0).toFixed(2)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Πληρωμένα' : 'Paid'}</span><span style="color:#7fd6b0">${cur}${paid.toFixed(2)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 0"><span style="color:var(--text)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span><span style="color:${bal > 0 ? '#e0a85a' : '#7fd6b0'}">${cur}${bal.toFixed(2)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Πληρωμένα' : 'Paid'}</span><span style="color:var(--profit)">${cur}${paid.toFixed(2)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 0"><span style="color:var(--text)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span><span style="color:${bal > 0 ? 'var(--warn)' : 'var(--profit)'}">${cur}${bal.toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Τρόπος συναλλαγής' : 'Transaction'}</span><span style="color:var(--text-muted)">${r.cashSale ? (isEl ? '💵 Μετρητά' : '💵 Cash') : (isEl ? '🧾 Με απόδειξη' : '🧾 With receipt')}</span></div>
     ${r.holdUntil ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Κράτηση έως' : 'Hold until'}</span><span style="color:var(--text-muted)">${fmtDate(r.holdUntil)}</span></div>` : ''}
     ${r.clientEmail ? `<div style="font-size:11px;color:var(--text-dim);margin:2px 0">${_resEsc(r.clientEmail)}</div>` : ''}
@@ -8103,7 +8117,7 @@ function _resCanEdit(r) {
   const me = (creds.displayName || creds.userName || '').trim();
   return !!me && (r.createdBy || '').trim() === me;
 }
-function _resEdStatus(msg) { const el = document.getElementById('resEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+function _resEdStatus(msg) { const el = document.getElementById('resEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = 'var(--warn)'; } }
 
 function openResEdit(id) {
   const r = getReservations().find(x => x.id === id); if (!r) return;
@@ -8127,7 +8141,7 @@ function openResEdit(id) {
       <div id="resEdHoldDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${r.holdUntil ? fmtDate(r.holdUntil) : '—'}</div>
       <input id="resEdHold" type="date" value="${r.holdUntil || ''}" onchange="var _d=document.getElementById('resEdHoldDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
     </div>
-    ${r.status === 'expired' ? `<div style="font-size:11px;color:#e0a85a;margin:-4px 0 10px;line-height:1.45">${isEl ? 'Η κράτηση έχει λήξει. Βάλτε μελλοντική ημερομηνία και θα ρωτηθείτε αν θέλετε να ενεργοποιηθεί ξανά.' : 'This reservation has expired. Set a future date and you will be asked whether to reactivate it.'}</div>` : ''}
+    ${r.status === 'expired' ? `<div style="font-size:11px;color:var(--warn);margin:-4px 0 10px;line-height:1.45">${isEl ? 'Η κράτηση έχει λήξει. Βάλτε μελλοντική ημερομηνία και θα ρωτηθείτε αν θέλετε να ενεργοποιηθεί ξανά.' : 'This reservation has expired. Set a future date and you will be asked whether to reactivate it.'}</div>` : ''}
 
     <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'}</div>
     <input id="resEdName" autocomplete="off" value="${_resEsc(r.clientName || '')}" style="${_resInp}" placeholder="${isEl ? 'Όνομα' : 'Name'}">
@@ -8278,7 +8292,7 @@ function _resReactivate(id) {
       <div id="resRevHoldDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${fmtDate(def)}</div>
       <input id="resRevHold" type="date" value="${def}" onchange="var _d=document.getElementById('resRevHoldDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
     </div>
-    <div id="resRevStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:#e0a85a"></div>
+    <div id="resRevStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:var(--warn)"></div>
     <button onclick="_resReviveConfirm('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer">↩️ ${isEl ? 'Ενεργοποίηση' : 'Reactivate'}</button>
   </div>`;
   document.body.appendChild(ov);
@@ -8667,8 +8681,8 @@ function repStatusLabel(r) {
     : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
 }
 function repStatusColor(r) {
-  return r.status === 'quote' ? '#c9a0e0' : r.status === 'in_progress' ? '#e0a85a'
-    : r.status === 'ready' ? '#7fd6b0' : 'var(--text-dim)';
+  return r.status === 'quote' ? '#c9a0e0' : r.status === 'in_progress' ? 'var(--warn)'
+    : r.status === 'ready' ? 'var(--profit)' : 'var(--text-dim)';
 }
 // Contact for notifying: the ticket's own phone/email, else the matching client's
 // (by name) — so a number added later in the Clients tab enables WhatsApp/SMS here.
@@ -8783,7 +8797,7 @@ function openRepairModal(kind) {
       <div id="repPromisedDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${fmtDate(dflt)}</div>
       <input id="repPromised" type="date" value="${dflt}" onchange="var _d=document.getElementById('repPromisedDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
     </div>
-    <div id="repDlgStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:#e0a85a"></div>
+    <div id="repDlgStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:var(--warn)"></div>
     <button onclick="_repairSave()" style="width:100%;padding:14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-family:var(--font-body);font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">💾 ${isEl ? 'Αποθήκευση' : 'Save ticket'}</button>
   </div>`;
   document.body.appendChild(ov);
@@ -8908,7 +8922,7 @@ function openRepairDetail(id) {
   const waNum = (_rc.phone || '').replace(/[^0-9]/g, '');
   const _sentAt = _isQ ? r.quoteSentAt : r.notifiedAt;
   const notifyRow = (_isQ || r.status === 'in_progress' || r.status === 'ready') && (_rc.phone || _rc.email) ? `
-    <div style="${_resLbl};margin-top:6px">${_isQ ? (isEl ? 'Αποστολή προσφοράς' : 'Send the quote') : (isEl ? 'Ειδοποίηση πελάτη' : 'Notify customer')}${_sentAt ? ` · <span style="color:#7fd6b0;text-transform:none;letter-spacing:0">${isEl ? 'στάλθηκε' : 'sent'} ${fmtDate(new Date(_sentAt))}</span>` : ''}</div>
+    <div style="${_resLbl};margin-top:6px">${_isQ ? (isEl ? 'Αποστολή προσφοράς' : 'Send the quote') : (isEl ? 'Ειδοποίηση πελάτη' : 'Notify customer')}${_sentAt ? ` · <span style="color:var(--profit);text-transform:none;letter-spacing:0">${isEl ? 'στάλθηκε' : 'sent'} ${fmtDate(new Date(_sentAt))}</span>` : ''}</div>
     <div style="display:flex;gap:7px;margin-bottom:10px">
       ${waNum ? `<button onclick="_repairNotify('${r.id}','whatsapp')" style="flex:1;padding:9px;background:rgba(37,211,102,0.14);border:1px solid rgba(37,211,102,0.4);color:#25d366;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">WhatsApp</button>` : ''}
       ${_rc.phone ? `<button onclick="_repairNotify('${r.id}','sms')" style="flex:1;padding:9px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">SMS</button>` : ''}
@@ -8926,14 +8940,14 @@ function openRepairDetail(id) {
     ${r.photoUrl ? `<img src="${r.photoUrl}" style="width:100%;max-height:220px;object-fit:contain;background:#fff;border-radius:10px;margin-bottom:10px">` : ''}
     ${r.description ? `<div style="font-size:14px;color:var(--text);margin-bottom:10px;line-height:1.5">${_repEsc(r.description)}</div>` : ''}
     <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${_isQ ? (isEl ? 'Τιμή προσφοράς' : 'Quoted price') : (isEl ? 'Εκτίμηση' : 'Estimate')}</span><span style="color:${_isQ && repEstText(r) === '—' ? '#e0a85a' : 'var(--text)'}">${repEstText(r)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${_isQ ? (isEl ? 'Τιμή προσφοράς' : 'Quoted price') : (isEl ? 'Εκτίμηση' : 'Estimate')}</span><span style="color:${_isQ && repEstText(r) === '—' ? 'var(--warn)' : 'var(--text)'}">${repEstText(r)}</span></div>
       ${(_isQ && parseFloat(r.depositAsked) > 0) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Ζητούμενη προκαταβολή' : 'Deposit asked'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.depositAsked) || 0).toFixed(2)}</span></div>` : ''}
-      ${r.deposit ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Προκαταβολή' : 'Deposit'}</span><span style="color:#7fd6b0">${cur}${(parseFloat(r.deposit) || 0).toFixed(2)}</span></div>` : ''}
+      ${r.deposit ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Προκαταβολή' : 'Deposit'}</span><span style="color:var(--profit)">${cur}${(parseFloat(r.deposit) || 0).toFixed(2)}</span></div>` : ''}
       ${r.datePromised ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Έτοιμο έως' : 'Ready by'}</span><span style="color:var(--text)">${fmtDate(r.datePromised)}</span></div>` : ''}
       ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)} ${r.cashSale ? '💵' : '🧾'}</span></div>` : ''}
       ${parseFloat(r.tradeInAmt) > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">🧱 ${t('tiRowLbl')}</span><span style="color:var(--text)">−${cur}${(parseFloat(r.tradeInAmt) || 0).toFixed(2)}${(parseFloat(r.tradeInGrams) > 0 ? ` · ${(parseFloat(r.tradeInGrams)).toFixed(2)}g ${metalStockLabel({ metal: r.tradeInMetal || 'gold', karat: r.tradeInKarat })}` : '')}</span></div>` : ''}
       ${r.finalCost != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κόστος' : 'Cost'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.finalCost) || 0).toFixed(2)}</span></div>` : ''}
-      ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:#7fd6b0">${cur}${(_saleExVatRaw({ amount: parseFloat(r.finalPrice) || 0, cashSale: r.cashSale, tradeInAmt: parseFloat(r.tradeInAmt) || 0 }, parseFloat(state.vat) || 0) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
+      ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:var(--profit)">${cur}${(_saleExVatRaw({ amount: parseFloat(r.finalPrice) || 0, cashSale: r.cashSale, tradeInAmt: parseFloat(r.tradeInAmt) || 0 }, parseFloat(state.vat) || 0) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
     ${r.notes ? `<div style="font-size:12px;color:var(--text-muted);margin:0 0 10px;padding:9px 11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;white-space:pre-wrap;line-height:1.5">${_repEsc(r.notes)}</div>` : ''}
     ${_ordPiecesBlock(r)}
@@ -8971,7 +8985,7 @@ function _repCanEdit(r) {
   const me = (creds.displayName || creds.userName || '').trim();
   return !!me && (r.createdBy || '').trim() === me;
 }
-function _repEdStatus(msg) { const el = document.getElementById('repEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = '#e0a85a'; } }
+function _repEdStatus(msg) { const el = document.getElementById('repEdStatus'); if (el) { el.textContent = msg || ''; el.style.color = 'var(--warn)'; } }
 // Order ↔ custom is the ONE type change that is safe: same lifecycle, same deposit
 // rule, same document — only the wording differs. Crossing to or from a repair is
 // refused, because that would rewrite what the customer signed for.
@@ -9232,7 +9246,7 @@ function _repairQuoteOpen(id) {
       <div id="repQPromisedDisp" style="${_resInp.replace('margin-bottom:10px', 'margin-bottom:0')}">${_pd ? fmtDate(_pd) : '—'}</div>
       <input id="repQPromised" type="date" value="${_pd}" onchange="var _d=document.getElementById('repQPromisedDisp'); if(_d)_d.textContent=this.value?fmtDate(this.value):'—'" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:none;cursor:pointer">
     </div>
-    <div id="repQStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:#e0a85a"></div>
+    <div id="repQStatus" style="font-size:12px;min-height:16px;text-align:center;margin:2px 0 8px;color:var(--warn)"></div>
     <button onclick="_repairQuoteSave('${r.id}')" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💾 ${isEl ? 'Αποθήκευση' : 'Save'}</button>
   </div>`;
   document.body.appendChild(ov);
@@ -9273,7 +9287,7 @@ function _repairDepositOpen(id) {
       <input id="repDepAmt" type="number" step="0.01" inputmode="decimal" value="${asked > 0 ? asked.toFixed(2) : ''}" placeholder="€" style="${_resInp};margin-bottom:0;flex:1;width:auto">
       <select id="repDepMethod" style="flex:0 0 auto;width:auto;padding:11px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option><option value="bank">${isEl ? 'Τράπεζα' : 'Bank'}</option></select>
     </div>
-    <div id="repDepStatus" style="font-size:12px;min-height:16px;text-align:center;margin-bottom:6px;color:#e0a85a"></div>
+    <div id="repDepStatus" style="font-size:12px;min-height:16px;text-align:center;margin-bottom:6px;color:var(--warn)"></div>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('repDepOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
       <button onclick="_repairDepositConfirm('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Ξεκίνα' : 'Start order'}</button>
@@ -9365,7 +9379,7 @@ async function _repairCollectOpen(id) {
         </div>
       </div>
     </div>` : ''}
-    <button type="button" id="repLogBtn" onclick="_repCollectToggleLog()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(76,175,132,0.18);border:1px solid rgba(76,175,132,0.5);color:#7fd6b0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✓ ${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</button>
+    <button type="button" id="repLogBtn" onclick="_repCollectToggleLog()" style="width:100%;padding:11px;margin-bottom:12px;background:rgba(76,175,132,0.18);border:1px solid rgba(76,175,132,0.5);color:var(--profit);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">✓ ${isEl ? 'Καταγραφή στα έσοδα' : 'Log as income'}</button>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('repCollectOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
       <button onclick="_repairCollectConfirm('${r.id}')" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Παραλαβή' : 'Collect'}</button>
@@ -9394,7 +9408,7 @@ function _repCollectToggleLog() {
   const on = ov.dataset.log !== '1'; ov.dataset.log = on ? '1' : '0';
   const btn = document.getElementById('repLogBtn'); if (!btn) return;
   const isEl = lang === 'el'; const label = isEl ? 'Καταγραφή στα έσοδα' : 'Log as income';
-  if (on) { btn.style.background = 'rgba(76,175,132,0.18)'; btn.style.borderColor = 'rgba(76,175,132,0.5)'; btn.style.color = '#7fd6b0'; btn.textContent = '✓ ' + label; }
+  if (on) { btn.style.background = 'rgba(76,175,132,0.18)'; btn.style.borderColor = 'rgba(76,175,132,0.5)'; btn.style.color = 'var(--profit)'; btn.textContent = '✓ ' + label; }
   else { btn.style.background = 'transparent'; btn.style.borderColor = 'var(--card-border)'; btn.style.color = 'var(--text-muted)'; btn.textContent = '○ ' + label; }
   btn.style.border = '1px solid ' + btn.style.borderColor;
 }
@@ -10041,7 +10055,7 @@ function _ordJobCostBlock(r) {
       <span style="font-size:12px;font-family:var(--font-mono);color:${hasExtra ? 'var(--text)' : 'var(--text-dim)'};flex-shrink:0">${hasExtra ? cur + extra.toFixed(2) : (isEl ? 'προσθήκη' : 'add')}</span>
     </button>
     <div style="font-size:11px;color:var(--text-dim);line-height:1.5">${isEl ? 'Ό,τι πληρώσατε επιπλέον — ο χρυσοχόος, μια πέτρα που αγοράσατε.' : 'Whatever you paid on top — the goldsmith, a stone bought in.'}${rolled ? ' ' + (isEl ? 'Όσα είναι από πάνω μπαίνουν μόνα τους.' : 'Everything above is added for you.') : ''}</div>
-    ${unknown ? `<div style="font-size:11px;color:#e0a85a;margin-top:4px">⚠️ ${isEl ? `${unknown} χωρίς γνωστό κόστος` : `${unknown} with no known cost`}</div>` : ''}
+    ${unknown ? `<div style="font-size:11px;color:var(--warn);margin-top:4px">⚠️ ${isEl ? `${unknown} χωρίς γνωστό κόστος` : `${unknown} with no known cost`}</div>` : ''}
     ${rolled ? `<div style="border-top:1px solid var(--card-border);margin-top:6px;padding-top:5px">
       ${row(isEl ? 'Συνολικό κόστος' : 'Total cost', cur + total.toFixed(2), true)}
     </div>` : ''}
@@ -10339,7 +10353,7 @@ async function _ordAddOnCode(raw) {
   }
   r.invIds = linked.concat([id]);
   saveRepairsLocal(list); pushRepairsToCloud(list);
-  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)), '#7fd6b0');
+  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)), 'var(--profit)');
   buzz(40);
   _ordAddRenderList();
   if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
@@ -10429,7 +10443,7 @@ function _ordMaterialAdd(invId, grams) {
     : { invId: invId };
   r.materials = (r.materials || []).concat([entry]);
   saveRepairsLocal(list); pushRepairsToCloud(list);
-  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)) + (grams != null ? ` · ${parseFloat(grams).toFixed(1)}g` : ''), '#7fd6b0');
+  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)) + (grams != null ? ` · ${parseFloat(grams).toFixed(1)}g` : ''), 'var(--profit)');
   try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
   const mi = document.getElementById('ordAddManual'); if (mi) mi.value = '';
   _ordAddSearchRender();
@@ -12873,7 +12887,7 @@ function _saleGainRows(recs, profit, cur, mkRow) {
   if (hg.n !== 0 && hg.gain !== 0) {
     mkRow('🧱 ' + t('holdGainRow') + (hg.exact ? '' : ' ≈'),
       (hg.gain < 0 ? '−' : '+') + cur + Math.abs(hg.gain).toFixed(2),
-      hg.gain < 0 ? '#ff8a80' : 'var(--success)');
+      hg.gain < 0 ? 'var(--loss)' : 'var(--success)');
   }
   const p = parseFloat(profit);
   if (isFinite(p) && extra !== 0) {
@@ -12912,7 +12926,7 @@ function _scrapGainRows(s, cur, mkRow, host) {
     mkRow(t('metalRecoverable').replace('{loss}', _fmtRate(loss)), cur + recover.toFixed(2));
     mkRow(t('scrapPaidRow'), '−' + cur + paid.toFixed(2), 'var(--gold-light)');
   }
-  mkRow(t('metalGain'), cur + gain.toFixed(2), gain >= 0 ? 'var(--success)' : '#ff6b6b');
+  mkRow(t('metalGain'), cur + gain.toFixed(2), gain >= 0 ? 'var(--success)' : 'var(--loss)');
   if (!haveFigures && host) {
     const n = document.createElement('div');
     n.style.cssText = 'font-size:11px;color:var(--text-dim);padding:6px 0 0';
@@ -14239,7 +14253,7 @@ async function openReturnDialog(saleId, groupId) {
          you can't help them if they lose the card. Small sales often have no
          customer on them, so this is the moment to capture it. -->
     <div id="retCustBlock">
-      <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'} <span id="retCustReq" style="color:#e0a85a"></span></div>
+      <div style="${_resLbl}">${isEl ? 'Πελάτης' : 'Customer'} <span id="retCustReq" style="color:var(--warn)"></span></div>
       <div style="position:relative;margin-bottom:10px">
         <input id="retCustName" autocomplete="off" value="${_gcEsc(s.customer || '')}"
           oninput="_retClientAutocomplete(this.value)" onblur="setTimeout(_retHideClientSug,200)"
@@ -14267,7 +14281,7 @@ async function openReturnDialog(saleId, groupId) {
 
     <button type="button" id="retRestockBtn" onclick="_retToggleRestock()" style="width:100%;padding:11px;border-radius:8px;font-family:var(--font-body);font-size:12.5px;cursor:pointer;margin-bottom:14px;background:rgba(201,168,76,0.25);border:1px solid var(--gold);color:var(--gold-light);font-weight:600">📦 ${isEl ? 'Επιστροφή στο απόθεμα ✓' : 'Put back in stock ✓'}</button>
 
-    <div id="retDlgStatus" style="font-size:11px;color:#e0a85a;text-align:center;min-height:15px;margin-bottom:8px"></div>
+    <div id="retDlgStatus" style="font-size:11px;color:var(--warn);text-align:center;min-height:15px;margin-bottom:8px"></div>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('returnDlgOverlay').remove()" style="flex:1;padding:12px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer">${isEl ? 'Ακύρωση' : 'Cancel'}</button>
       <button id="retConfirmBtn" onclick="_returnDlgConfirm()" style="flex:2;padding:12px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">↩️ ${isEl ? 'Καταχώριση επιστροφής' : 'Record return'}</button>
@@ -15008,7 +15022,7 @@ function _tiSync(p) {
     const v = parseFloat(credEl.value);
     if (isFinite(v) && v > room + 0.004) {
       credEl.value = room.toFixed(2);
-      note = t('tiTooMuch'); noteCol = '#e0a85a';
+      note = t('tiTooMuch'); noteCol = 'var(--warn)';
     }
   }
   if (noteEl) { noteEl.textContent = note; noteEl.style.color = noteCol; }
@@ -15931,7 +15945,7 @@ async function openGroupEdit(groupId) {
         <input type="text" id="grpEdNote" maxlength="120" value="${_gcEsc(s0.note || '')}" style="${_fld}">
       </div>
       ${_saleCustBlockHtml('grpEd', { name: s0.customer, email: s0.email, fld: _fld })}
-      <div id="grpEdStatus" style="display:none;font-size:11px;color:#ff8a80;margin-bottom:10px;line-height:1.45"></div>
+      <div id="grpEdStatus" style="display:none;font-size:11px;color:var(--loss);margin-bottom:10px;line-height:1.45"></div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
         ? 'Η τιμή ενός τεμαχίου αλλάζει πατώντας το τεμάχιο. Ο τρόπος πληρωμής αλλάζει από το κουμπί «Πληρωμή».'
         : 'The price of one piece is edited by tapping the piece. The payment is edited with the Payment button.'}</div>
@@ -16364,7 +16378,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     if (totCost != null) mkRow(lang === 'el' ? 'Κόστος' : 'Cost', cur + totCost.toFixed(2));
     if (totProfit != null) {
       const profitPct = amtExVat > 0 ? ' (' + ((totProfit / amtExVat) * 100).toFixed(1) + '%)' : '';
-      mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', cur + totProfit.toFixed(2) + profitPct, totProfit >= 0 ? 'var(--success)' : '#ff6b6b');
+      mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', cur + totProfit.toFixed(2) + profitPct, totProfit >= 0 ? 'var(--success)' : 'var(--loss)');
     }
     // Summed over the lines, though the physical metal is stamped on one of them.
     _saleGainRows(members, totProfit, cur, mkRow);
@@ -16395,7 +16409,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
       // silently skipped something.
       const _wasRet = !!_saleReturnRecord(m.id);
       const _retMark = _wasRet
-        ? ' <span style="font-size:10px;color:#ff8a80">↩️ ' + (lang === 'el' ? 'επιστράφηκε' : 'returned') + '</span>'
+        ? ' <span style="font-size:10px;color:var(--loss)">↩️ ' + (lang === 'el' ? 'επιστράφηκε' : 'returned') + '</span>'
         : '';
       return '<div onclick="_sdmOpenMember(' + s.id + ',' + m.id + ')" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--wa05);cursor:pointer' + (_wasRet ? ';opacity:0.6' : '') + '">' +
         '<div style="min-width:0"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + memberDesc(m) + _retMark + '</div>' +
@@ -16488,7 +16502,7 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
 
   if (canDel) {
     const delBtn = document.createElement('button');
-    delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:#ff6b6b;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:var(--loss);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
     // A group of return records is undone, not deleted (deleteSaleRecord routes
     // each one to _undoReturn) — so the button says what actually happens.
     delBtn.textContent = _isRetGroup
@@ -16655,7 +16669,7 @@ async function showSaleDetail(id, forceSingle) {
       const profitPct = base > 0 ? ' (' + ((s.profit / base) * 100).toFixed(1) + '%)' : '';
       mkRow(lang === 'el' ? 'Κέρδος' : 'Profit',
         cur + parseFloat(s.profit).toFixed(2) + profitPct,
-        s.profit >= 0 ? 'var(--success)' : '#ff6b6b');
+        s.profit >= 0 ? 'var(--success)' : 'var(--loss)');
     }
     _saleGainRows([s], s.profit, cur, mkRow);
     if (s.bonusAmt > 0) mkRow('🎁 Bonus', cur + parseFloat(s.bonusAmt).toFixed(2), 'var(--gold)');
@@ -16874,7 +16888,7 @@ async function showSaleDetail(id, forceSingle) {
     }
     if (isOwnerMgr) {
       const delBtn = document.createElement('button');
-      delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:#ff6b6b;border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+      delBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(200,60,60,0.45);color:var(--loss);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
       if (s.isReturn) {
         delBtn.textContent = '↩️ ' + (lang === 'el' ? 'Αναίρεση' : 'Undo');
         delBtn.onclick = () => {
@@ -17257,13 +17271,13 @@ async function scanSaleLinks() {
   box.innerHTML = '<div style="font-size:11px;color:var(--text-muted)">' + (isEl ? 'Σάρωση…' : 'Scanning…') + '</div>';
   let bad;
   try { bad = await _saleLinkBadRecords(); }
-  catch (e) { box.innerHTML = '<div style="font-size:11px;color:#ff8a80">' + (isEl ? 'Η σάρωση απέτυχε.' : 'Scan failed.') + '</div>'; return; }
+  catch (e) { box.innerHTML = '<div style="font-size:11px;color:var(--loss)">' + (isEl ? 'Η σάρωση απέτυχε.' : 'Scan failed.') + '</div>'; return; }
   if (!bad.length) {
     box.innerHTML = '<div style="font-size:11.5px;color:var(--success);padding:8px 0">✅ ' +
       (isEl ? 'Όλες οι πωλήσεις είναι σωστά συνδεδεμένες.' : 'Every sale is linked correctly.') + '</div>';
     return;
   }
-  box.innerHTML = '<div style="font-size:11.5px;color:#e0a85a;margin-bottom:8px">⚠️ ' +
+  box.innerHTML = '<div style="font-size:11.5px;color:var(--warn);margin-bottom:8px">⚠️ ' +
     (isEl ? bad.length + (bad.length === 1 ? ' πώληση χρειάζεται διόρθωση' : ' πωλήσεις χρειάζονται διόρθωση')
           : bad.length + (bad.length === 1 ? ' sale needs repair' : ' sales need repair')) + '</div>' +
     bad.map(e => {
@@ -17278,7 +17292,7 @@ async function scanSaleLinks() {
       const ownRef = e.own.seqId ? itemRefCode(e.own) : '';
       if (e.kind === 'unsold') {
         return wrap(
-          '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' +
+          '<div style="font-size:11px;color:var(--loss);margin-top:5px">' +
             (isEl ? 'Πληρώθηκε αλλά είναι ακόμη στο απόθεμα' : 'Paid for, but still listed in stock') + '</div>' +
           '<div style="font-size:11px;color:var(--success);margin-top:2px">' +
             (isEl ? 'Κομμάτι' : 'Piece') + ': ' + ownName + (ownRef ? ' (' + ownRef + ')' : '') + ' · ' +
@@ -17289,7 +17303,7 @@ async function scanSaleLinks() {
         const vat = parseFloat(state.vat) || 0;
         const _prof = parseFloat((_saleExVat(s, vat) - e.cost).toFixed(2));
         return wrap(
-          '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' +
+          '<div style="font-size:11px;color:var(--loss);margin-top:5px">' +
             (isEl ? 'Πληρώθηκε, αλλά δεν καταγράφηκε κόστος — το κέρδος χάθηκε' : 'Paid for, but no cost recorded — profit was lost') + '</div>' +
           '<div style="font-size:11px;color:var(--success);margin-top:2px">' +
             ownName + (ownRef ? ' (' + ownRef + ')' : '') + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(e.cost) +
@@ -17299,7 +17313,7 @@ async function scanSaleLinks() {
       const f = _saleLinkFixedValues(e);
       const nowName = _itemDesc(e.batch) || invTypeLabel(e.batch.jewelryType) || '—';
       return wrap(
-        '<div style="font-size:11px;color:#ff8a80;margin-top:5px">' + (isEl ? 'Τώρα δείχνει' : 'Now points at') + ': ' +
+        '<div style="font-size:11px;color:var(--loss);margin-top:5px">' + (isEl ? 'Τώρα δείχνει' : 'Now points at') + ': ' +
           nowName + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(s.cost) + '</div>' +
         '<div style="font-size:11px;color:var(--success);margin-top:2px">' + (isEl ? 'Σωστό' : 'Should be') + ': ' +
           ownName + (f.seqRef ? ' (' + f.seqRef + ')' : '') + ' · ' + (isEl ? 'κόστος' : 'cost') + ' ' + money(f.cost) +
@@ -18841,7 +18855,7 @@ function _sbSegment(recs) {
 // A short label for what a row IS, when it is not an ordinary sale.
 function _sbKindTag(e, recs) {
   const isEl = lang === 'el';
-  if (e.isReturn) return '<span style="color:#ff8a80">↩️ ' + (isEl ? 'ΕΠΙΣΤΡΟΦΗ' : 'RETURN') + '</span>';
+  if (e.isReturn) return '<span style="color:var(--loss)">↩️ ' + (isEl ? 'ΕΠΙΣΤΡΟΦΗ' : 'RETURN') + '</span>';
   if (e.giveaway) return '<span style="color:var(--gold)">🎁 ' + (isEl ? 'ΔΩΡΟ' : 'GIFT') + '</span>';
   const r = recs[0] || {};
   if (r.scrapGain)    return '<span style="color:var(--gold)">♻️ ' + (isEl ? 'ΚΕΡΔΟΣ ΠΑΛΑΙΟΥ' : 'SCRAP GAIN') + '</span>';
@@ -18958,9 +18972,9 @@ function _sbRender() {
   let html = '<div class="sb-tiles">' +
     tile(isEl ? 'Πωλήσεις' : 'Sales', signed(tAmt)) +
     tile(isEl ? 'Κόστος' : 'Cost', signed(tCost), 'var(--text)') +
-    tile(isEl ? 'Κέρδος' : 'Profit', signed(tProfit), tProfit < 0 ? '#ff8a80' : '#4CAF50') +
+    tile(isEl ? 'Κέρδος' : 'Profit', signed(tProfit), tProfit < 0 ? 'var(--loss)' : 'var(--gain)') +
     tile(isEl ? 'Περιθώριο' : 'Margin', margin === null ? '—' : margin.toFixed(1) + '%',
-         margin !== null && margin < 0 ? '#ff8a80' : '#4CAF50',
+         margin !== null && margin < 0 ? 'var(--loss)' : 'var(--gain)',
          jewelryOnly ? (isEl ? 'μόνο κοσμήματα' : 'jewelry only') : '') +
     '</div>';
 
@@ -18971,7 +18985,7 @@ function _sbRender() {
     html += '<div class="sb-sec"><div class="sb-sec-t">' + (isEl ? 'Ανά δραστηριότητα' : 'By activity') + '</div>' +
       segKeys.map(k => {
         const s = seg[k], d = SB_SEGMENTS[k], mg = segMargin(k);
-        const pCol = s.profit < 0 ? '#ff8a80' : '#4CAF50';
+        const pCol = s.profit < 0 ? 'var(--loss)' : 'var(--gain)';
         return '<div class="sb-line"><span>' + d.icon + ' ' + (isEl ? d.el : d.en) + '</span>' +
           '<span>' + signed(s.amt) + ' · <span style="color:' + pCol + '">' + signed(s.profit) +
           (mg === null ? '' : ' (' + mg.toFixed(1) + '%)') + '</span></span></div>';
@@ -18989,7 +19003,7 @@ function _sbRender() {
   // stated separately and then added up.
   const _sbHold = _holdGainTotal(_sbSales || []);
   if (_sbHold.n > 0 && _sbHold.gain !== 0) {
-    const _hCol = _sbHold.gain < 0 ? '#ff8a80' : '#4CAF50';
+    const _hCol = _sbHold.gain < 0 ? 'var(--loss)' : 'var(--gain)';
     html += '<div class="sb-sec"><div class="sb-sec-t">🧱 ' + t('sbHoldTitle') + '</div>' +
       '<div class="sb-line"><span>' + t('sbHoldLine') + (_sbHold.exact ? '' : ' ≈') + '</span>' +
       '<span style="color:' + _hCol + '">' + (_sbHold.gain < 0 ? '−' : '+') + money(_sbHold.gain) + '</span></div>' +
@@ -19071,7 +19085,7 @@ function _sbRender() {
   // Say it plainly when part of the cost is missing, rather than quietly
   // reporting a profit that is really only most of one.
   if (unknown > 0) {
-    html += '<div style="font-family:var(--font-mono);font-size:10.5px;color:#e0b050;margin-top:10px;line-height:1.5">⚠️ ' +
+    html += '<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--warn);margin-top:10px;line-height:1.5">⚠️ ' +
       (isEl
         ? (unknown === 1
             ? '1 πώληση δεν έχει καταγεγραμμένο κόστος — το κέρδος της δεν μετριέται εδώ.'
@@ -19309,7 +19323,7 @@ function _spRenderSalesList(elId, salesArr) {
       : '';
     // A return reads as money leaving: red, negative, and labelled.
     const retTag = e.isReturn
-      ? `<span style="margin-left:6px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:#ff8a80">↩️ ${lang==='el'?'ΕΠΙΣΤΡΟΦΗ':'RETURN'}</span>`
+      ? `<span style="margin-left:6px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--loss)">↩️ ${lang==='el'?'ΕΠΙΣΤΡΟΦΗ':'RETURN'}</span>`
       : '';
     // A giveaway reads as a goodwill gesture, not a sale: €0 in, gold-tagged.
     const giveTag = e.giveaway
@@ -19322,7 +19336,7 @@ function _spRenderSalesList(elId, salesArr) {
     const owedTag = _owe > 0
       ? `<span style="margin-left:6px;background:rgba(231,76,60,${_owedLate ? '0.22' : '0.12'});border:1px solid rgba(231,76,60,${_owedLate ? '0.6' : '0.35'});border-radius:10px;padding:1px 6px;font-family:var(--font-mono);font-size:10px;color:var(--debt)">🕐 ${_owedLate ? t('owedOverdue') : t('owedTag')} ${fmtAmt(_owe)}</span>`
       : '';
-    const amtStyle = e.isReturn ? ' style="color:#ff8a80"' : '';
+    const amtStyle = e.isReturn ? ' style="color:var(--loss)"' : '';
     // A group opens the combined detail; inline edit is hidden (edit items from inside it).
     // Delete on a group removes the whole transaction.
     const delAttrs = e.isGroup ? ('data-group-id="' + e.groupId + '"') : ('data-sale-id="' + safeId + '"');
@@ -23334,7 +23348,7 @@ function _staleRenderList() {
       ? `<img src="${it.photoUrl}" style="width:46px;height:46px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">`
       : `<div style="width:46px;height:46px;border-radius:6px;background:var(--dark-3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💎</div>`;
     const yr = r.date ? new Date(r.date).getFullYear() : '';
-    const gainStr = (r.gain != null) ? `<span style="color:${r.gain >= 0 ? '#7fd6b0' : '#e0a85a'}">${r.gain >= 0 ? '+' : ''}${r.gain.toFixed(1)}%</span>` : '';
+    const gainStr = (r.gain != null) ? `<span style="color:${r.gain >= 0 ? 'var(--profit)' : 'var(--warn)'}">${r.gain >= 0 ? '+' : ''}${r.gain.toFixed(1)}%</span>` : '';
     return `<div style="display:flex;gap:9px;align-items:center;background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px;margin-bottom:7px">
       ${thumb}
       <div style="flex:1;min-width:0">
@@ -23941,7 +23955,7 @@ async function stkOnScan(raw, viaManual) {
       if (fb) {
         fb.textContent = (isEl ? '⚠️ Ήδη σαρωμένο' : '⚠️ Already scanned') + ' · ' + (itemRefCode(item) || '')
           + (expectedN > 1 ? (isEl ? ` (και τα ${expectedN})` : ` (all ${expectedN})`) : '');
-        fb.style.color = '#e0a85a';
+        fb.style.color = 'var(--warn)';
       }
       try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) {}
       return; // no record, no count bump
@@ -23949,7 +23963,7 @@ async function stkOnScan(raw, viaManual) {
   }
 
   let msg, color;
-  if (!item) { msg = (isEl ? '⚠️ Άγνωστος κωδικός: ' : '⚠️ Unknown code: ') + r.code; color = '#e0a85a'; }
+  if (!item) { msg = (isEl ? '⚠️ Άγνωστος κωδικός: ' : '⚠️ Unknown code: ') + r.code; color = 'var(--warn)'; }
   else if (item.isCoin || item.isMetal) { msg = (isEl ? 'ℹ️ Νόμισμα/μέταλλο — δεν μετρά' : 'ℹ️ Coin/metal — not counted'); color = '#9aa'; }
   else {
     const nm = (isEl ? (item.descEl || item.descEn) : (item.descEn || item.descEl)) || invTypeLabel(item.jewelryType);
@@ -23958,7 +23972,7 @@ async function stkOnScan(raw, viaManual) {
     const nextN = (_stk.counts[r.qr] || 0) + 1;
     const prog = (countable && expectedN > 1) ? ` (${nextN}/${expectedN})` : ''; // show progress for grouped/coin twins
     msg = '✓ ' + (itemRefCode(item) || '') + ' · ' + nm + tag + prog;
-    color = item.status === 'sold' ? '#e0a85a' : '#7fd6b0';
+    color = item.status === 'sold' ? 'var(--warn)' : 'var(--profit)';
   }
   if (fb) { fb.textContent = msg; fb.style.color = color; }
   if (countable) _stk.counts[r.qr] = (_stk.counts[r.qr] || 0) + 1;
@@ -24048,25 +24062,25 @@ function stkShowReport(rep) {
   let html = `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
     ${tile(isEl ? 'Αναμενόμενα' : 'Expected', rep.expectedTotal)}
     ${tile(isEl ? 'Σαρώθηκαν' : 'Scanned', rep.scannedTotal)}
-    ${tile(isEl ? 'Βρέθηκαν' : 'Accounted', rep.accounted, '#7fd6b0')}
-    ${tile(isEl ? 'Λείπουν' : 'Missing', rep.missing.length, rep.missing.length ? '#e05a5a' : '#7fd6b0')}
+    ${tile(isEl ? 'Βρέθηκαν' : 'Accounted', rep.accounted, 'var(--profit)')}
+    ${tile(isEl ? 'Λείπουν' : 'Missing', rep.missing.length, rep.missing.length ? 'var(--loss)' : 'var(--profit)')}
   </div>`;
-  if (rep.missing.length) html += `<div style="text-align:center;color:#e05a5a;font-family:var(--font-body);font-size:13px;margin-bottom:12px">${isEl ? 'Αξία λιανικής που λείπει' : 'Missing retail value'}: ${cur}${rep.missingValue.toFixed(2)}</div>`;
-  else html += `<div style="text-align:center;color:#7fd6b0;font-family:var(--font-body);font-size:14px;margin-bottom:12px">✅ ${isEl ? 'Όλα τα είδη βρέθηκαν!' : 'Everything accounted for!'}</div>`;
+  if (rep.missing.length) html += `<div style="text-align:center;color:var(--loss);font-family:var(--font-body);font-size:13px;margin-bottom:12px">${isEl ? 'Αξία λιανικής που λείπει' : 'Missing retail value'}: ${cur}${rep.missingValue.toFixed(2)}</div>`;
+  else html += `<div style="text-align:center;color:var(--profit);font-family:var(--font-body);font-size:14px;margin-bottom:12px">✅ ${isEl ? 'Όλα τα είδη βρέθηκαν!' : 'Everything accounted for!'}</div>`;
   if (rep.missing.length) {
-    html += `<div style="font-family:var(--font-heading);font-size:14px;color:#e05a5a;margin:10px 0 6px">🔴 ${isEl ? 'Λείπουν' : 'Missing'} (${rep.missing.length})</div>`;
+    html += `<div style="font-family:var(--font-heading);font-size:14px;color:var(--loss);margin:10px 0 6px">🔴 ${isEl ? 'Λείπουν' : 'Missing'} (${rep.missing.length})</div>`;
     html += rep.missing.map(m => `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 10px;background:var(--dark);border:1px solid rgba(224,90,90,0.2);border-radius:8px;margin-bottom:5px"><div style="min-width:0"><span style="font-family:'DM Mono',monospace;color:var(--gold-light);font-size:12px">${esc(m.ref) || '—'}</span> <span style="color:var(--text);font-size:12px">${esc(m.name)}</span></div><div style="color:var(--text-muted);font-size:12px;white-space:nowrap">${cur}${m.value.toFixed(0)}</div></div>`).join('');
   }
   const issues = rep.over.length + rep.soldOnShelf.length + rep.unknown.length;
   if (issues) {
-    html += `<div style="font-family:var(--font-heading);font-size:14px;color:#e0a85a;margin:14px 0 6px">🟡 ${isEl ? 'Για έλεγχο' : 'To review'} (${issues})</div>`;
+    html += `<div style="font-family:var(--font-heading);font-size:14px;color:var(--warn);margin:14px 0 6px">🟡 ${isEl ? 'Για έλεγχο' : 'To review'} (${issues})</div>`;
     rep.soldOnShelf.forEach(o => html += `<div style="padding:7px 10px;background:var(--dark);border:1px solid rgba(224,168,90,0.2);border-radius:8px;margin-bottom:5px;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--gold-light)">${esc(o.ref)}</span> — ${isEl ? 'σαρώθηκε αλλά είναι πουλημένο' : 'scanned but marked sold'}${o.count > 1 ? ` ×${o.count}` : ''}</div>`);
     rep.over.forEach(o => html += `<div style="padding:7px 10px;background:var(--dark);border:1px solid rgba(224,168,90,0.2);border-radius:8px;margin-bottom:5px;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--gold-light)">${esc(o.ref)}</span> — ${isEl ? 'σαρώθηκε παραπάνω φορές' : 'scanned more than expected'} (+${o.extra})</div>`);
     rep.unknown.forEach(o => html += `<div style="padding:7px 10px;background:var(--dark);border:1px solid rgba(224,168,90,0.2);border-radius:8px;margin-bottom:5px;font-size:12px"><span style="font-family:'DM Mono',monospace;color:var(--text-muted)">${esc(o.qr)}</span> — ${isEl ? 'άγνωστος κωδικός' : 'unknown code'}${o.count > 1 ? ` ×${o.count}` : ''}</div>`);
   }
   html += `<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
     <button onclick="stkExportReport()" style="flex:1;min-width:130px;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">📊 ${isEl ? 'Εξαγωγή CSV' : 'Export CSV'}</button>
-    <button onclick="stkResume()" style="flex:1;min-width:130px;padding:12px;background:rgba(76,175,132,0.12);border:1px solid rgba(76,175,132,0.4);color:#7fd6b0;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">▶️ ${isEl ? 'Συνέχεια σάρωσης' : 'Resume scanning'}</button>
+    <button onclick="stkResume()" style="flex:1;min-width:130px;padding:12px;background:rgba(76,175,132,0.12);border:1px solid rgba(76,175,132,0.4);color:var(--profit);border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer">▶️ ${isEl ? 'Συνέχεια σάρωσης' : 'Resume scanning'}</button>
   </div>
   <button onclick="stkCloseReport()" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>`;
   document.getElementById('stkReportContent').innerHTML = html;
@@ -24426,7 +24440,7 @@ function coinInitialLineHtml(item) {
   let gainStr = '';
   if (g != null) {
     const a = Math.abs(g), s = a < 0.05 ? '±' : (g >= 0 ? '+' : '-');
-    const c = g > 0.01 ? '#4caf84' : g < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+    const c = g > 0.01 ? 'var(--gain)' : g < -0.01 ? 'var(--loss)' : 'var(--text-dim)';
     gainStr = ` <span style="color:${c}">(${s}${a < 0.05 ? '0.0' : a.toFixed(1)}%)</span>`;
   }
   return `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${lbl}: ${cur}${base.toFixed(2)}${gainStr}</div>`;
@@ -24505,7 +24519,7 @@ function metalStockInitialLineHtml(item) {
   let gainStr = '';
   if (g != null) {
     const a = Math.abs(g), s = a < 0.05 ? '±' : (g >= 0 ? '+' : '-');
-    const c = g > 0.01 ? '#4caf84' : g < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+    const c = g > 0.01 ? 'var(--gain)' : g < -0.01 ? 'var(--loss)' : 'var(--text-dim)';
     gainStr = ` <span style="color:${c}">(${s}${a < 0.05 ? '0.0' : a.toFixed(1)}%)</span>`;
   }
   return `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${lbl}: ${cur}${base.toFixed(2)}${gainStr}</div>`;
@@ -25765,7 +25779,7 @@ function renderConsignReport() {
       return `<button onclick="_consignPick('${_ordEsc(name).replace(/'/g, "\\'")}')" style="width:100%;text-align:left;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;padding:13px 14px;margin-bottom:9px;cursor:pointer;color:var(--text)">
         <div style="font-family:var(--font-heading);font-size:15px;color:var(--gold-light);margin-bottom:5px">${_ordEsc(name)}</div>
         <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">
-          <span style="color:${owe > 0 ? '#e0a85a' : 'var(--text-dim)'}">${t('consignOwe')}: ${cur}${owe.toFixed(2)}</span>
+          <span style="color:${owe > 0 ? 'var(--warn)' : 'var(--text-dim)'}">${t('consignOwe')}: ${cur}${owe.toFixed(2)}</span>
           &nbsp;·&nbsp; ${t('consignHere')}: ${here}
           &nbsp;·&nbsp; ${t('consignBack')}: ${back}
         </div></button>`;
@@ -25790,7 +25804,7 @@ function renderConsignReport() {
   box.innerHTML =
     `<button onclick="_consignPick(null)" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;padding:0 0 10px">← ${isEl ? 'Όλοι οι προμηθευτές' : 'All vendors'}</button>
      <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:12px">${_ordEsc(_consignVendor)}</div>` +
-    section(`${t('consignOwe')} — ${cur}${oweTotal.toFixed(2)}`, '#e0a85a',
+    section(`${t('consignOwe')} — ${cur}${oweTotal.toFixed(2)}`, 'var(--warn)',
       owed.length ? owed.map(r => line(r, cur + (_invSaleCost(r[1]) || 0).toFixed(2))).join('')
         : `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Τίποτα απλήρωτο' : 'Nothing outstanding'}</div>`,
       owed.length ? `<button onclick="_consignSettle()" style="width:100%;margin-top:10px;padding:11px;background:linear-gradient(135deg,#C9A84C,#A8882A);border:none;border-radius:9px;color:var(--ink);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">✓ ${t('consignSettle')} — ${cur}${oweTotal.toFixed(2)}</button>` : '') +
@@ -25973,7 +25987,7 @@ function renderConsignBar(rows) {
   // how much of someone else's stock you are holding.
   const cells = [];
   if (T.sold) {
-    cells.push(cell(t('consignOwe'), cur + T.owed.toFixed(2), T.owed > 0 ? '#e0a85a' : 'var(--text-dim)'));
+    cells.push(cell(t('consignOwe'), cur + T.owed.toFixed(2), T.owed > 0 ? 'var(--warn)' : 'var(--text-dim)'));
     cells.push(cell(isEl ? 'Πωλήσεις' : 'Sales', cur + T.sales.toFixed(2), 'var(--gold-light)'));
     cells.push(cell(isEl ? 'Κέρδος' : 'Profit', cur + T.profit.toFixed(2), T.profit >= 0 ? '#6fc9a8' : '#e57373'));
     if (T.inStock > 0) cells.push(cell(isEl ? 'Στο ράφι' : 'On the shelf', cur + T.inStock.toFixed(2), 'var(--text)'));
@@ -26005,7 +26019,7 @@ function _consignCardLine(id, item) {
   const txt = item.status === 'sold'
     ? (item.consignSettledAt
         ? { lbl: t('consignSettled'), col: 'var(--text-dim)' }
-        : { lbl: t('consignOwe'), col: '#e0a85a' })
+        : { lbl: t('consignOwe'), col: 'var(--warn)' })
     : { lbl: (isEl ? 'Θα οφείλετε' : 'You will owe'), col: 'var(--text-dim)' };
   return `<div style="font-size:11px;color:${txt.col};margin-bottom:6px;font-family:'DM Mono',monospace">🤝 ${txt.lbl}: ${cur}${cost.toFixed(2)}</div>`;
 }
@@ -26874,7 +26888,7 @@ function renderInvSummary(filteredItems) {
     const absPct = Math.abs(diff / base * 100);
     const pctStr = absPct < 0.05 ? '0.0' : absPct.toFixed(1);
     const sign = absPct < 0.05 ? '±' : (diff >= 0 ? '+' : '-');
-    const color = diff > 0.01 ? '#4caf84' : diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+    const color = diff > 0.01 ? 'var(--gain)' : diff < -0.01 ? 'var(--loss)' : 'var(--text-dim)';
     return `<span style="color:${color}">${sign}${pctStr}%</span>`;
   };
   const _rgEl = document.getElementById('invStatRetailGain');
@@ -27418,7 +27432,7 @@ function renderInvList() {
       const _absPct = Math.abs(_pct);
       const _pctStr = (_absPct < 0.05) ? '0.0' : _absPct.toFixed(1);
       const _sign = (_absPct < 0.05) ? '±' : (_diff >= 0 ? '+' : '-');
-      const _color = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+      const _color = _diff > 0.01 ? 'var(--gain)' : _diff < -0.01 ? 'var(--loss)' : 'var(--text-dim)';
       // Include the date the item was added, so a gain % can be checked against how
       // much gold has moved since that date. Falls back to the plain label if the
       // item predates the dateAdded field.
@@ -27771,7 +27785,7 @@ function renderInvList() {
         const _absPct = Math.abs(_diff / _sumInit * 100);
         const _pctStr = _absPct < 0.05 ? '0.0' : _absPct.toFixed(1);
         const _sign = _absPct < 0.05 ? '±' : (_diff >= 0 ? '+' : '-');
-        const _color = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+        const _color = _diff > 0.01 ? 'var(--gain)' : _diff < -0.01 ? 'var(--loss)' : 'var(--text-dim)';
         _grpAppreciation = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'DM Mono',monospace">${t('grpInitialLbl')}: ${cur}${_sumInit.toFixed(2)} <span style="color:${_color}">(${_sign}${_pctStr}%)</span></div>`;
       }
     }
@@ -28896,7 +28910,7 @@ function invEdit(id) {
         style="width:100%;padding:11px 13px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;letter-spacing:0.05em;box-sizing:border-box;outline:none;text-transform:uppercase">
     </div>
     <div style="margin-bottom:18px;display:flex;align-items:center;gap:10px">
-      ${(()=>{ const _ir = parseFloat(item.initialRetail); const _pp = calcInvItemPrice(item); const _curr = _pp ? _pp.retail : 0; const _diff = _ir && _curr ? _curr - _ir : 0; const _pct = _ir > 0 ? (_diff/_ir*100) : 0; const _absPct2 = Math.abs(_pct); const _pctStr2 = (_absPct2 < 0.05) ? '0.0' : _absPct2.toFixed(1); const _sign = (_absPct2 < 0.05) ? '±' : (_diff >= 0 ? '+' : '-'); const _col = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)'; return _ir ? `<div style="flex:1"><div style="font-size:11px;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:2px">${t('initialPriceLbl')}</div><div style="font-family:'DM Mono',monospace;font-size:14px;color:var(--text)">${state.currency||'€'}${_ir.toFixed(2)} <span style="color:${_col}">(${_sign}${_pctStr2}%)</span>${_absPct2 >= 0.05 ? '<button onclick="invEditResetInitialPrice(\'' + id + '\')" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;font-family:var(--font-mono);letter-spacing:0.05em;padding:0 0 0 6px;text-decoration:underline">' + (lang==='el'?'Επαναφορά':'Reset') + '</button>' : ''}</div></div>` : `<span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);flex:1">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`; })()}
+      ${(()=>{ const _ir = parseFloat(item.initialRetail); const _pp = calcInvItemPrice(item); const _curr = _pp ? _pp.retail : 0; const _diff = _ir && _curr ? _curr - _ir : 0; const _pct = _ir > 0 ? (_diff/_ir*100) : 0; const _absPct2 = Math.abs(_pct); const _pctStr2 = (_absPct2 < 0.05) ? '0.0' : _absPct2.toFixed(1); const _sign = (_absPct2 < 0.05) ? '±' : (_diff >= 0 ? '+' : '-'); const _col = _diff > 0.01 ? 'var(--gain)' : _diff < -0.01 ? 'var(--loss)' : 'var(--text-dim)'; return _ir ? `<div style="flex:1"><div style="font-size:11px;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:2px">${t('initialPriceLbl')}</div><div style="font-family:'DM Mono',monospace;font-size:14px;color:var(--text)">${state.currency||'€'}${_ir.toFixed(2)} <span style="color:${_col}">(${_sign}${_pctStr2}%)</span>${_absPct2 >= 0.05 ? '<button onclick="invEditResetInitialPrice(\'' + id + '\')" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;font-family:var(--font-mono);letter-spacing:0.05em;padding:0 0 0 6px;text-decoration:underline">' + (lang==='el'?'Επαναφορά':'Reset') + '</button>' : ''}</div></div>` : `<span style="font-family:var(--font-body);font-size:13px;color:var(--text-muted);flex:1">${lang==='el'?'Χειροποίητο':'Handmade'}</span>`; })()}
       <button id="invEditHandmadeToggle" style="flex:0 0 46px;height:46px;background:${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'rgba(201,168,76,0.15)':'var(--wa04)'};border:1px solid ${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'rgba(201,168,76,0.5)':'var(--wa10)'};border-radius:8px;font-size:20px;cursor:pointer;opacity:${(item.handmade || !!(state.vendors[item.vendorIdx]?.laborCategories?.[item.catIdx]?.handmade))?'1':'0.35'};transition:opacity .15s,background .15s,border-color .15s">✋</button>
     </div>
     <div style="margin-bottom:18px">
@@ -30868,7 +30882,7 @@ function openAddCoinModal(prefillKey) {
       </div>
 
       <div id="addCoinPreview" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:10px;padding:12px 14px;margin-bottom:6px"></div>
-      <div id="addCoinCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:8px;font-weight:600"></div>
+      <div id="addCoinCounter" style="font-size:12px;color:var(--gain);text-align:center;min-height:18px;margin-bottom:8px;font-weight:600"></div>
       <button id="addCoinAddBtn" onclick="_addCoinConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${isEl?'Προσθήκη στο απόθεμα':'Add to stock'}</button>
       <button onclick="_addCoinDone()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Τέλος':'Done'}</button>
     </div>`;
@@ -31357,7 +31371,7 @@ function _metalUpdatePreview() {
       const recover = Math.round(melt * (1 - loss / 100) * 100) / 100;
       const gain = Math.round((recover - Math.round(paid * 100) / 100) * 100) / 100;
       html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid var(--wa08)">${t('metalRecoverable').replace('{loss}', loss)}: ${cur}${recover.toFixed(2)}</div>`;
-      if (gain > 0) html += `<div style="font-size:12px;color:#4caf84;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t('metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
+      if (gain > 0) html += `<div style="font-size:12px;color:var(--gain);font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t('metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
       else html += `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px">${isEl ? 'Χωρίς κέρδος (τιμή ≥ αξία)' : 'No gain (price ≥ value)'}</div>`;
     }
   }
@@ -31778,7 +31792,7 @@ function invAddSimilar(sourceId) {
       <div id="invAddSimPhotoWrap" style="margin-bottom:12px"></div>
       <div id="invAddSimPreview" style="background:var(--dark-3);border-radius:8px;padding:9px 12px;font-family:var(--font-mono);font-size:12px;color:var(--gold);margin-bottom:6px;word-break:break-all">${_existingQR||'—'}</div>
       <div id="invAddSimPriceNote" style="font-family:var(--font-mono);font-size:12px;color:var(--gold-light);margin-bottom:6px"></div>
-      <div id="invAddSimCounter" style="font-size:12px;color:#4caf84;text-align:center;min-height:18px;margin-bottom:6px;font-family:var(--font-body);font-weight:600"></div>
+      <div id="invAddSimCounter" style="font-size:12px;color:var(--gain);text-align:center;min-height:18px;margin-bottom:6px;font-family:var(--font-body);font-weight:600"></div>
       <div id="invAddSimStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:14px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
         <button id="invAddSimPrintBtn" style="flex:1.4;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase">🖨️ ${lang==='el'?'Εκτύπωση & Προσθήκη':'Print & Add'}</button>
@@ -32814,11 +32828,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.02', date: 'Αύγουστος 2026', items: [
-        "🧱 Νέα γραμμή «Κέρδος από άνοδο μετάλλου» στην πώληση. Το κέρδος που έδειχνε η εφαρμογή ήταν πάντα σε σχέση με το τι θα σας κόστιζε το κόσμημα ΣΗΜΕΡΑ. Αν το είχατε αγοράσει όταν ο χρυσός ήταν φθηνότερος, κερδίσατε στην πραγματικότητα περισσότερα — και αυτή η διαφορά δεν φαινόταν πουθενά. Τώρα φαίνεται, με το συνολικό κέρδος από κάτω. Παράδειγμα από το δικό σας απόθεμα: κολιέ με κέρδος €6.646,97 στην οθόνη, ενώ το πραγματικό ήταν €7.384,00.",
-        "📊 Το ίδιο και στην ανάλυση πωλήσεων: ξεχωριστή ενότητα «Κέρδος από το μέταλλο που κρατούσατε» με το άθροισμα και το συνολικό κέρδος. Μένει έξω από το ποσοστό περιθωρίου, γιατί αυτό μετράει το εμπορικό κέρδος — όπως κάναμε και με τα νομίσματα.",
-        "📌 Για τα κομμάτια που προσθέτετε από εδώ και πέρα το νούμερο είναι ακριβές: το κόστος «παγώνει» τη στιγμή που μπαίνει το κομμάτι στο απόθεμα. Για τις παλιότερες πωλήσεις υπολογίζεται κατά προσέγγιση από την αρχική τιμή και σημειώνεται με «≈» — η εφαρμογή δεν κρύβει ότι είναι εκτίμηση.",
-        "⚖️ Δεν αλλάζει τίποτα στα υπάρχοντα νούμερα: το καταγεγραμμένο κέρδος, τα σύνολα και τα μπόνους των υπαλλήλων μένουν ακριβώς όπως ήταν. Αν ο χρυσός έχει πέσει, η γραμμή δείχνει ζημιά — όπως πρέπει."
+      { version: 'v13.03', date: 'Αύγουστος 2026', items: [
+        "🌞 Στο φωτεινό θέμα τα νούμερα κέρδους/ζημιάς ήταν ξεθωριασμένα και δυσανάγνωστα — το πράσινο μόλις 2.6 στα 21 σε αναγνωσιμότητα (το ελάχιστο αποδεκτό είναι 4.5). Τώρα είναι βαθύ πράσινο και βαθύ κόκκινο, καθαρά διαβαστά. Το ίδιο και το πορτοκαλί (πουλημένα, υπόλοιπα, προειδοποιήσεις), που ήταν ακόμη χειρότερο στο 2.1.",
+        "🎨 Τα χρώματα «κέρδος», «ζημιά» και «προειδοποίηση» έγιναν κανονικά χρώματα του θέματος αντί για σκόρπιους κωδικούς μέσα στον κώδικα, οπότε ακολουθούν πλέον μόνα τους όποιο θέμα έχετε. Στο σκούρο θέμα η εικόνα μένει ουσιαστικά ίδια: δύο σχεδόν πανομοιότυπες αποχρώσεις ενώθηκαν σε μία, ώστε να μην ξαναξεφύγει καμία."
       ]},
       ]
   },
@@ -32849,11 +32861,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.02', date: 'Aug 2026', items: [
-        "🧱 A new “Gain on metal held” line on a sale. The profit the app showed was always measured against what the piece would cost you TODAY. If you bought it when gold was cheaper you actually made more — and that difference appeared nowhere. Now it does, with the total underneath. From your own stock: a necklace showing €6,646.97 profit had really made €7,384.00.",
-        "📊 The same in the sales breakdown: its own “Gain on the metal you held” section with the total. It is kept out of the margin percentage, because that measures your trading margin — the same treatment coins already get.",
-        "📌 For pieces you add from now on the figure is exact: the cost is frozen the moment the piece goes into stock. For older sales it is worked out approximately from the initial price and marked with “≈” — the app does not pretend it is exact.",
-        "⚖️ Nothing already recorded changes: the stored profit, the totals and staff bonuses stay exactly as they were. If gold has fallen, the line shows a loss, as it should."
+      { version: 'v13.03', date: 'Aug 2026', items: [
+        "🌞 In the light theme the profit and loss figures were washed out and hard to read — the green measured just 2.6 out of 21 for readability, where 4.5 is the minimum. They are now a deep green and a deep red, clearly legible. Same for the amber used on sold pieces, balances and warnings, which was worse still at 2.1.",
+        "🎨 The \"gain\", \"loss\" and \"warning\" colours are now proper theme colours instead of codes scattered through the app, so they follow whichever theme you are using by themselves. The dark theme looks essentially unchanged: two near-identical shades were merged into one so none can drift again."
       ]},
           ]
   }
@@ -37591,7 +37601,7 @@ async function _findPhotoRun(file) {
 function _findRenderAi(r, file, checked) {
   const box = document.getElementById('findResults');
   const thumb = URL.createObjectURL(file);
-  const conf = { high: ['#4caf84', t('findConfHigh')], medium: ['#e0b25c', t('findConfMed')],
+  const conf = { high: ['var(--gain)', t('findConfHigh')], medium: ['var(--warn)', t('findConfMed')],
                  low: ['#c98d8d', t('findConfLow')] };
   let html =
     `<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;padding:0 2px">
@@ -37690,7 +37700,7 @@ function _renderAiDescPeekBtn() {
                      : (isEl ? 'Ανενεργό' : 'Off');
   b.style.background = on ? 'rgba(76,175,132,0.12)' : 'var(--wa06)';
   b.style.border = '1px solid ' + (on ? 'rgba(76,175,132,0.45)' : 'var(--wa15)');
-  b.style.color = on ? '#4caf84' : 'var(--text-muted)';
+  b.style.color = on ? 'var(--gain)' : 'var(--text-muted)';
 }
 
 function _toggleAiDescPeek() {
@@ -37940,7 +37950,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.02';
+const APP_VERSION = '13.03';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -38693,7 +38703,7 @@ async function saveAiKey() {
     const lim = (d.limit == null)
       ? (isEl ? 'χωρίς όριο' : 'no limit')
       : ((isEl ? 'όριο ' : 'limit ') + '$' + d.limit + (d.usage != null ? (isEl ? ', χρησιμοποιήθηκαν $' : ', used $') + Number(d.usage).toFixed(2) : ''));
-    say('✓ ' + (isEl ? 'Αποθηκεύτηκε και δουλεύει' : 'Saved and working') + ' · ' + lim, '#4caf84');
+    say('✓ ' + (isEl ? 'Αποθηκεύτηκε και δουλεύει' : 'Saved and working') + ' · ' + lim, 'var(--gain)');
     showToast(isEl ? '✓ Το κλειδί αποθηκεύτηκε' : '✓ Key saved');
   } catch (e) {
     say(isEl ? '❌ Δεν έγινε έλεγχος — δες τη σύνδεση' : '❌ Could not check — check your connection', '#e88');
@@ -38826,7 +38836,7 @@ async function notifCheckAndUpdateBadge() {
         // Green when only gift expiries are waiting; red the moment a message is.
         const _onlyGift = msgCount === 0;
         bellBtn.style.borderColor = _onlyGift ? 'rgba(46,158,99,0.5)' : 'rgba(229,57,53,0.5)';
-        bellBtn.style.color = _onlyGift ? '#7fd6b0' : '#e57373';
+        bellBtn.style.color = _onlyGift ? 'var(--profit)' : '#e57373';
         if (bellBadge) {
           bellBadge.style.background = _onlyGift ? '#2E9E63' : '#e53935';
           bellBadge.textContent = count > 9 ? '9+' : String(count);
@@ -38872,7 +38882,7 @@ function openNotifPanel() {
           return `<div id="notif_${id}" style="background:var(--dark-3);border:1px solid rgba(46,158,99,0.4);border-radius:12px;padding:14px;margin-bottom:10px">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
               <div>
-                <div style="font-family:var(--font-mono);font-size:12px;color:#7fd6b0;font-weight:600">🎁 ${_no}</div>
+                <div style="font-family:var(--font-mono);font-size:12px;color:var(--profit);font-weight:600">🎁 ${_no}</div>
                 <div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);margin-top:2px">${_gcEsc(n.buyerName || '')} · ${_cur}${_bal}</div>
               </div>
               <button onclick="notifDismissOne('${id}')" style="flex-shrink:0;background:transparent;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">✕</button>
@@ -38882,7 +38892,7 @@ function openNotifPanel() {
               : `Expires in ${n.days} day${n.days === 1 ? '' : 's'}${n.expiresAt ? ' (' + fmtDate(n.expiresAt) + ')' : ''}. Contact the customer.`}</div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
               <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${dt}</div>
-              <button onclick="_gcOpenFromNotif('${n.giftCardId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(46,158,99,0.25),rgba(46,158,99,0.1));border:1px solid rgba(46,158,99,0.45);border-radius:8px;color:#7fd6b0;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
+              <button onclick="_gcOpenFromNotif('${n.giftCardId}')" style="padding:7px 14px;background:linear-gradient(135deg,rgba(46,158,99,0.25),rgba(46,158,99,0.1));border:1px solid rgba(46,158,99,0.45);border-radius:8px;color:var(--profit);font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">${_isEl ? 'Άνοιγμα' : 'View'} →</button>
             </div>
           </div>`;
         }
@@ -39334,7 +39344,7 @@ function openInvGroup(gid) {
         const _pct = _diff / _initR * 100, _abs = Math.abs(_pct);
         const _pctStr = _abs < 0.05 ? '0.0' : _abs.toFixed(1);
         const _sign = _abs < 0.05 ? '±' : (_diff >= 0 ? '+' : '-');
-        const _col = _diff > 0.01 ? '#4caf84' : _diff < -0.01 ? '#e05a5a' : 'var(--text-dim)';
+        const _col = _diff > 0.01 ? 'var(--gain)' : _diff < -0.01 ? 'var(--loss)' : 'var(--text-dim)';
         const _added = it.dateAdded ? fmtDate(new Date(it.dateAdded)) : '';
         const _lbl = _added
           ? (lang === 'el' ? `${t('initialPriceLbl')} (προσθήκη ${_added})` : `${t('initialPriceLbl')} (added ${_added})`)
@@ -41710,7 +41720,7 @@ async function showClientPurchases(clientName) {
     const sub = [fmtDate(s.date), s.seqRef].filter(Boolean).join(' · ');
     return _chRow(`_sdmOpenFromClient(${s.id})`,
       `🎁 ${isEl ? 'Δώρο' : 'Gift'}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${_gcEsc(name)}</span>`,
-      sub, '📋 ' + (isEl ? 'Εγγραφή' : 'Record'), '#e0a85a');
+      sub, '📋 ' + (isEl ? 'Εγγραφή' : 'Record'), 'var(--warn)');
   }).join('');
 
   const ticketRow = r => {
@@ -41736,7 +41746,7 @@ async function showClientPurchases(clientName) {
       r.status === 'active' ? `${isEl ? 'Υπόλοιπο' : 'Balance'} ${fmtAmt(resBalance(r))}` : ''].filter(Boolean).join(' · ');
     return _chRow(`_clientOpenRecord('res','${r.id}')`,
       `${resNoFmt(r)}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${fmtAmt(parseFloat(r.agreedTotal) || 0)}</span>`,
-      sub, st, r.status === 'active' ? '#7fd6b0' : 'var(--text-dim)');
+      sub, st, r.status === 'active' ? 'var(--profit)' : 'var(--text-dim)');
   }).join('');
 
   const cardRows = cards.map(g => {
@@ -41749,7 +41759,7 @@ async function showClientPurchases(clientName) {
       bal > 0 ? `${isEl ? 'Υπόλοιπο' : 'Balance'} ${fmtAmt(bal)}` : ''].filter(Boolean).join(' · ');
     return _chRow(`_clientOpenRecord('gc','${g.id}')`,
       `${gcKindIcon(g)} ${gcNoFmt(g)}<span style="font-family:var(--font-body);font-size:12px;color:var(--text);font-weight:400;margin-left:8px">${fmtAmt(parseFloat(g.amount) || 0)}</span>`,
-      sub, st, g.status === 'active' ? '#7fd6b0' : 'var(--text-dim)');
+      sub, st, g.status === 'active' ? 'var(--profit)' : 'var(--text-dim)');
   }).join('');
 
   const nothing = !entries.length && !gifts.length && !tickets.length && !holds.length && !cards.length;
@@ -41767,10 +41777,10 @@ async function showClientPurchases(clientName) {
   const chip = (txt, c) => `<span style="display:inline-block;background:rgba(212,175,55,0.08);border:1px solid ${c};border-radius:10px;padding:2px 8px;margin:0 6px 6px 0;font-family:var(--font-mono);font-size:10px;color:${c}">${txt}</span>`;
   const chips = [
     entries.length ? chip(`🛍 ${entries.length} · ${fmtAmt(total)}`, 'rgba(212,175,55,0.5)') : '',
-    gifts.length ? chip(`🎁 ${gifts.length} ${isEl ? (gifts.length === 1 ? 'δώρο' : 'δώρα') : (gifts.length === 1 ? 'gift' : 'gifts')}`, '#e0a85a') : '',
+    gifts.length ? chip(`🎁 ${gifts.length} ${isEl ? (gifts.length === 1 ? 'δώρο' : 'δώρα') : (gifts.length === 1 ? 'gift' : 'gifts')}`, 'var(--warn)') : '',
     orders.length ? chip(`📦 ${orders.length}`, '#c9a0e0') : '',
-    repairs.length ? chip(`🔧 ${repairs.length}`, '#e0a85a') : '',
-    holds.length ? chip(`🔒 ${holds.length}`, '#7fd6b0') : '',
+    repairs.length ? chip(`🔧 ${repairs.length}`, 'var(--warn)') : '',
+    holds.length ? chip(`🔒 ${holds.length}`, 'var(--profit)') : '',
     cards.length ? chip(`🎟️ ${cards.length}`, '#7aa8ff') : ''
   ].filter(Boolean).join('');
 
