@@ -7326,7 +7326,11 @@ async function _gcApplyRedemption(cardId, amount, saleId, saleGroup) {
   });
   if (gcBalance(g) <= 0) g.status = 'redeemed';
   saveGiftCardsLocal(list);
-  await pushGiftCardsToCloud(list);
+  // Drawing a card down is a change to THAT card, queued before the attempt so a
+  // redemption made with no signal survives the next pull — otherwise the card
+  // would come back showing money that has already been spent.
+  _outboxAdd('/jewelprice_giftcards', g.id, 'put', JSON.stringify(g));
+  try { await pushGiftCardsToCloud(list); } catch (e) { console.warn('redemption push:', e); }
   _gcUpdateBadges();
 }
 
@@ -13665,7 +13669,21 @@ async function processReturn(origId, opts) {
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
-  await pushSalesToCloud(sales);
+  // Queued BEFORE the attempt, like every other sale-record writer. On a phone
+  // that booted with no signal _syncListToCloud cannot even establish a cloud
+  // baseline to diff against and returns having queued nothing, so without this
+  // the return would exist nowhere but this device — while the piece is already
+  // back in stock and a credit card may already be in the customer's hand — and
+  // the next successful pull would erase it (v11.65).
+  _outboxAdd('/jewelprice_sales', rec.id, 'put', JSON.stringify(rec));
+  // The ORIGINAL was mutated too when a debt was cancelled above, and that lives
+  // on its own record — queue it or the money owed would quietly come back.
+  if (_debtCleared > 0) _outboxAdd('/jewelprice_sales', orig.id, 'put', JSON.stringify(orig));
+  // A throw here must not abort what follows: the record and the outbox entry
+  // are already safe, the credit note may already exist, and the piece still has
+  // to go back on the shelf. The caller is told the truth instead (synced).
+  let _sent = false;
+  try { _sent = await pushSalesToCloud(sales); } catch (e) { console.warn('return push:', e); }
 
   if (restock) { try { await _restoreStockForSale(orig); } catch (e) { console.warn('return restore:', e); } }
   // The gold to hand back over the counter, so the caller can say so. Reported,
@@ -13675,7 +13693,7 @@ async function processReturn(origId, opts) {
     grams: parseFloat((( parseFloat(orig.tradeInGrams) || 0) * r).toFixed(2)),
     metal: orig.tradeInMetal || 'gold', karat: orig.tradeInKarat || ''
   } : null;
-  return { rec, card, creditAmt, tradeInBack,
+  return { rec, card, creditAmt, tradeInBack, synced: _sent,
            giftForced: (rec.refundMethod !== 'credit' && giftPart > 0) };
 }
 
@@ -13703,6 +13721,7 @@ async function processReturnGroup(groupId, opts) {
   const newGroup = 'g' + Date.now();
   const recs = [];
   let creditNeeded = 0;
+  let allSent = true;          // every line has to land before we can say "synced"
   // The physical metal is one lump, stamped on the transaction's FIRST record
   // only, so at most one line reports grams — but every line carries its share of
   // the value, which is summed so the notice names the whole amount.
@@ -13713,6 +13732,7 @@ async function processReturnGroup(groupId, opts) {
     });
     if (r) {
       recs.push(r.rec); creditNeeded += r.creditAmt || 0;
+      if (!r.synced) allSent = false;
       if (r.tradeInBack) {
         if (!tradeInBack) tradeInBack = { ...r.tradeInBack };
         else {
@@ -13739,10 +13759,19 @@ async function processReturnGroup(groupId, opts) {
       });
       _salesCache = list;
       localStorage.setItem('jpro_sales', JSON.stringify(list));
-      await pushSalesToCloud(list);
+      // Same reason as in processReturn: the card number stamped on each line is
+      // a change the cloud has not been told about yet.
+      recs.forEach(rc => {
+        const f = list.find(x => x.id === rc.id);
+        if (f) _outboxAdd('/jewelprice_sales', f.id, 'put', JSON.stringify(f));
+      });
+      let _s2 = false;
+      try { _s2 = await pushSalesToCloud(list); } catch (e) { console.warn('return push:', e); }
+      if (!_s2) allSent = false;
     }
   }
-  return { recs, card, creditAmt: parseFloat(creditNeeded.toFixed(2)), count: recs.length, tradeInBack };
+  return { recs, card, creditAmt: parseFloat(creditNeeded.toFixed(2)), count: recs.length,
+           tradeInBack, synced: allSent };
 }
 
 // The credit note. It IS a gift certificate (RETURNS_DESIGN.md §3) — same
@@ -13793,7 +13822,11 @@ async function _gcIssueReturnCredit(orig, retRec, amount, cust) {
   const list = getGiftCards();
   list.push(g);
   saveGiftCardsLocal(list);
-  await pushGiftCardsToCloud(list);
+  // Same protection the sale record gets: a credit issued with no signal must
+  // not be erased by the next pull of the cards node — the customer is walking
+  // out with the paper in their hand.
+  _outboxAdd('/jewelprice_giftcards', g.id, 'put', JSON.stringify(g));
+  try { await pushGiftCardsToCloud(list); } catch (e) { console.warn('credit push:', e); }
   _gcUpdateBadges();
   return g;
 }
@@ -13953,9 +13986,11 @@ async function _undoReturn(retId) {
   // The return cancelled a debt; undoing it puts that debt back, or the money
   // would quietly stop being owed because a return was made and then reversed.
   const _dc = parseFloat(rec.debtCleared) || 0;
+  let _origRestored = null;
   if (_dc > 0) {
     const _orig = filtered.find(s => s.id === rec.returnOfSaleId);
     if (_orig) {
+      _origRestored = _orig;
       _orig.owedAmt = parseFloat((saleOwed(_orig) + _dc).toFixed(2));
       _orig.owedOrig = Math.max(parseFloat(_orig.owedOrig) || 0, _orig.owedAmt);
       if (Array.isArray(_orig.owedLog)) {
@@ -13969,7 +14004,10 @@ async function _undoReturn(retId) {
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
   _queueRemoval('/jewelprice_sales', retId);
-  await pushSalesToCloud(filtered, { allowEmpty: true });
+  // The restored debt is a change to the ORIGINAL record — queue it too, or a
+  // pull would hand back the version where the money was no longer owed.
+  if (_origRestored) _outboxAdd('/jewelprice_sales', _origRestored.id, 'put', JSON.stringify(_origRestored));
+  try { await pushSalesToCloud(filtered, { allowEmpty: true }); } catch (e) { console.warn('undo push:', e); }
   if (rec.creditCardId) {
     const list = getGiftCards();
     const g = list.find(x => x.id === rec.creditCardId);
@@ -13977,7 +14015,10 @@ async function _undoReturn(retId) {
       g.status = 'cancelled';
       g.cancelledAt = Date.now();
       saveGiftCardsLocal(list);
-      await pushGiftCardsToCloud(list);
+      // A cancellation that never reached the cloud would let the card come back
+      // spendable — the opposite of what the undo just decided.
+      _outboxAdd('/jewelprice_giftcards', g.id, 'put', JSON.stringify(g));
+      try { await pushGiftCardsToCloud(list); } catch (e) { console.warn('undo card push:', e); }
       _gcUpdateBadges();
     }
   }
@@ -14511,7 +14552,11 @@ async function _returnDlgConfirm() {
   _retDlg = null;
   // Keep them in the client book, so the next visit already knows them.
   if (_cust.name) { try { await upsertClientFromSale(_cust.name, _cust.phone, _cust.email); } catch (e) {} }
-  showToast('↩️ ' + (isEl ? 'Επιστροφή καταχωρήθηκε' : 'Return recorded'));
+  // Recorded either way — it is in the outbox — but say so when it hasn't reached
+  // the cloud yet, rather than letting a clean tick imply the other phones know.
+  showToast((res.synced === false ? '⏳ ' : '↩️ ') + (isEl
+    ? ('Επιστροφή καταχωρήθηκε' + (res.synced === false ? ' — θα συγχρονιστεί μόλις υπάρξει σύνδεση' : ''))
+    : ('Return recorded' + (res.synced === false ? ' — it will sync as soon as there is a connection' : ''))));
   try { await renderSalesPanel(); } catch (e) {}
   try { renderInvList(); } catch (e) {}
   try { renderGiftCards(); } catch (e) {}
@@ -32863,8 +32908,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.05', date: 'Αύγουστος 2026', items: [
-        "📊 Στη σύνοψη της Ανάλυσης Πωλήσεων προστέθηκε τρίτη σειρά σε χρυσό: «Κέρδος μετάλλου» και «Συνολικό κέρδος» — τα νούμερα που πριν φαίνονταν μόνο πιο κάτω στη σελίδα. Έτσι το πραγματικό σύνολο είναι μπροστά σας μαζί με τα υπόλοιπα, χωρίς να χρειάζεται να κατεβείτε. Εμφανίζεται μόνο όταν υπάρχει κέρδος από το μέταλλο· διαφορετικά η σύνοψη μένει ακριβώς όπως ήταν."
+      { version: 'v13.06', date: 'Αύγουστος 2026', items: [
+        "📶 Η επιστροφή δεν χάνεται πια αν την καταχωρήσετε χωρίς internet. Μπαίνει πλέον στην ουρά αποστολής πριν σταλεί, όπως κάθε πώληση: πριν, μια επιστροφή με κλειστή σύνδεση ζούσε μόνο στο κινητό σας και ο επόμενος συγχρονισμός την έσβηνε αθόρυβα — ενώ το κόσμημα είχε ήδη γυρίσει στο απόθεμα και ο πελάτης μπορεί να κρατούσε ήδη την πίστωσή του στο χέρι.",
+        "🎟️ Το ίδιο και για τις πιστώσεις: η κάρτα πίστωσης που εκδίδεται από μια επιστροφή, και το ξόδεμα μιας δωροεπιταγής, μπαίνουν κι αυτά στην ουρά. Χωρίς αυτό, μια δωροεπιταγή μπορούσε να ξαναεμφανιστεί με λεφτά που είχαν ήδη ξοδευτεί.",
+        "✅ Και σας λέει την αλήθεια: αν η επιστροφή δεν πρόλαβε να φτάσει στο σύννεφο, το μήνυμα λέει «θα συγχρονιστεί μόλις υπάρξει σύνδεση» αντί για ένα σκέτο «καταχωρήθηκε»."
       ]},
       ]
   },
@@ -32895,8 +32942,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.05', date: 'Aug 2026', items: [
-        "📊 The Sales Breakdown summary gains a third row in gold: \"Metal gain\" and \"Total profit\" — the figures that were previously only further down the page. The real total now sits with the rest, without scrolling. It appears only when the period holds a gain on metal; otherwise the summary is exactly as it was."
+      { version: 'v13.06', date: 'Aug 2026', items: [
+        "📶 A return is no longer lost if you record it with no internet. It is now queued for upload before being sent, like every sale: before, a return recorded offline lived only on your phone and the next sync quietly erased it — while the piece was already back in stock and the customer might already have been holding their credit.",
+        "🎟️ The same for credits: the credit card issued by a return, and drawing a gift certificate down, are now queued too. Without it a certificate could come back showing money that had already been spent.",
+        "✅ And it tells you the truth: if the return has not reached the cloud yet, the message says “it will sync as soon as there is a connection” instead of a plain “recorded”."
       ]},
           ]
   }
@@ -37983,7 +38032,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.05';
+const APP_VERSION = '13.06';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
