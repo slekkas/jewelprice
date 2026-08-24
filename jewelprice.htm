@@ -3659,6 +3659,8 @@ const T = {
     metalKeptHint:'Μέταλλο που κόψατε από δικό σας κόσμημα (π.χ. κόντεμα αλυσίδας). Δεν πληρώσατε κάτι επιπλέον, οπότε η ανακτήσιμη αξία του καταγράφεται ως κέρδος στις σημερινές πωλήσεις.',
     metalKeptGainNote:'♻️ Κρατήθηκε από κόσμημα',
     metalGainKept:'Αξία που κρατήσατε',
+    keptMetalBtn:'Κράτησα μέταλλο',
+    keptGainRow:'Μέταλλο που κρατήσατε',
     scrapKeptTitle:'♻️ Μέταλλο από Κόσμημα',
     metalNewTotal:'Νέο σύνολο',
     metalAddMore:'＋ Προσθήκη',
@@ -4492,6 +4494,8 @@ const T = {
     metalKeptHint:'Metal you cut off a piece you already own (e.g. shortening a chain). You paid nothing extra for it, so its recoverable value is booked as a gain in today\'s sales.',
     metalKeptGainNote:'♻️ Kept from a piece',
     metalGainKept:'Value you kept',
+    keptMetalBtn:'Metal kept',
+    keptGainRow:'Metal you kept',
     scrapKeptTitle:'♻️ Metal Kept from a Piece',
     metalNewTotal:'New total',
     metalAddMore:'＋ Add',
@@ -12909,10 +12913,16 @@ function _sdMoney(v, cur) { const n = parseFloat(v) || 0; return (n < 0 ? '−' 
 // number look like it answers the first when it does not.
 function _saleGainRows(recs, profit, cur, mkRow, base) {
   const ti = (recs || []).reduce((a, r) => a + (parseFloat(r.tradeInGain) || 0), 0);
+  // Metal cut off the piece being sold (a shortened chain, a ring sized down).
+  // Its value is booked as its own gain entry, exactly like a trade-in's — the
+  // link is what lets the transaction show what it really made, instead of the
+  // jewel's percentage alone with the metal's worth filed somewhere else.
+  const km = (recs || []).reduce((a, r) => a + (parseFloat(r.keptMetalGain) || 0), 0);
   const hg = _holdGainTotal(recs);
-  const extra = parseFloat(((ti > 0 ? ti : 0) + hg.gain).toFixed(2));
-  if (!(ti > 0) && hg.n === 0) return;
+  const extra = parseFloat(((ti > 0 ? ti : 0) + (km > 0 ? km : 0) + hg.gain).toFixed(2));
+  if (!(ti > 0) && !(km > 0) && hg.n === 0) return;
   if (ti > 0) mkRow('♻️ ' + t('tiGainRow'), '+' + cur + ti.toFixed(2), 'var(--success)');
+  if (km > 0) mkRow('♻️ ' + t('keptGainRow'), '+' + cur + km.toFixed(2), 'var(--success)');
   if (hg.n !== 0 && hg.gain !== 0) {
     mkRow('🧱 ' + t('holdGainRow') + (hg.exact ? '' : ' ≈'),
       (hg.gain < 0 ? '−' : '+') + cur + Math.abs(hg.gain).toFixed(2),
@@ -13358,6 +13368,17 @@ async function deleteSaleRecord(id) {
     return;
   }
   const filtered = sales.filter(s => s.id !== id);
+  // Deleting a kept-metal entry must take its row off the sale with it, or the
+  // transaction would keep claiming a gain that no longer exists anywhere.
+  if (target.scrapForSaleId) {
+    const _ps = filtered.find(s => s.id === target.scrapForSaleId);
+    if (_ps) {
+      const left = parseFloat(((parseFloat(_ps.keptMetalGain) || 0) - (parseFloat(target.amount) || 0)).toFixed(2));
+      if (left > 0.004) _ps.keptMetalGain = left;
+      else { delete _ps.keptMetalGain; delete _ps.keptMetalGainId; }
+      _outboxAdd('/jewelprice_sales', _ps.id, 'put', JSON.stringify(_ps));
+    }
+  }
   _salesCache = filtered;
   localStorage.setItem('jpro_sales', JSON.stringify(filtered));
   _queueRemoval('/jewelprice_sales', id);
@@ -16925,6 +16946,18 @@ async function showSaleDetail(id, forceSingle) {
     acts.appendChild(docBtn);
   }
 
+  // ♻️ Metal kept off this piece — a chain shortened for the customer, a ring
+  // sized down. Offered HERE, on the sale, because that is the moment it happens
+  // and it is the only place the app can know which sale the metal came from.
+  // Gone once it has one, so the row cannot be booked twice by accident.
+  if (!s.isReturn && !_gainOnly && !s.keptMetalGain && (s.invId || s.invQr) && can('manage_stock')) {
+    const kmBtn = document.createElement('button');
+    kmBtn.style.cssText = 'flex:1;padding:11px;background:transparent;border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    kmBtn.textContent = '♻️ ' + t('keptMetalBtn');
+    kmBtn.onclick = () => keptMetalFromSale(s.id);
+    acts.appendChild(kmBtn);
+  }
+
   // 🎁 Exchange card — for the customer who asks for one after the fact, or a
   // reprint of a lost card (issueExchangeCard keeps the same number).
   if (!s.isReturn && !_gainOnly) {
@@ -18869,7 +18902,11 @@ function _sbRows(sales) {
         if (has(r.profit)) { profit += parseFloat(r.profit); hasProfit = true; }
       });
       return { e, recs, amount: e.amount || 0, cost: hasCost ? cost : null,
-               profit: hasProfit ? profit : null, segment: _sbSegment(recs) };
+               profit: hasProfit ? profit : null, segment: _sbSegment(recs),
+               // Metal kept off a jewel that was sold: a COST RECOVERY on a sale
+               // already counted, not a second sale. Its profit belongs in the
+               // margin, its amount does not — see the accumulation in _sbRender.
+               keptLink: !!(recs[0] && recs[0].scrapGain && recs[0].scrapForSaleId) };
     })
     .sort((a, b) => {
       const dd = (b.e.date || '').localeCompare(a.e.date || '');
@@ -18915,6 +18952,11 @@ function _sbIsCoinRec(rec) {
 
 function _sbSegment(recs) {
   const r = recs[0] || {};
+  // Metal kept off a jewel you sold belongs to the JEWELLERY trade, not to
+  // metal-buying: there was no dealer spread, the value came out of a piece you
+  // had already made and sold. Left under scrap it drops out of the jewelry
+  // margin, which is exactly what made that percentage read low.
+  if (r.scrapGain && r.scrapForSaleId) return 'jewelry';
   if (r.scrapGain) return 'scrap';
   if (r.repairIncome) return 'repair';
   if (r.giftBreakage) return 'card';
@@ -19005,7 +19047,10 @@ function _sbRender() {
     const s = seg[k] || (seg[k] = { amt: 0, cost: 0, profit: 0, knownAmt: 0 });
     s.amt += r.amount;
     if (r.cost !== null) s.cost += r.cost;
-    if (r.profit !== null) { s.profit += r.profit; tProfit += r.profit; s.knownAmt += r.amount; }
+    // A linked kept-metal entry recovers cost on a jewel whose revenue is already
+    // in the denominator; adding its value there too would read the margin DOWN
+    // (2650 sold at 51.6% would print 49.9%). Profit yes, revenue no.
+    if (r.profit !== null) { s.profit += r.profit; tProfit += r.profit; if (!r.keptLink) s.knownAmt += r.amount; }
   });
   // Margin is measured over the sales whose cost is actually known. Dividing the
   // profit by the WHOLE revenue would quietly read low, because a sale with no
@@ -31306,6 +31351,9 @@ function openMetalModal(mode, prefill) {
   const isEl = lang === 'el';
   window._metalMode = (mode === 'edit' || mode === 'take') ? mode : 'add';
   window._metalEditId = null;
+  // Set only when opened from a sale; cleared on every other open so a link can
+  // never leak onto the next unrelated pile of scrap.
+  window._metalSaleId = (window._metalMode === 'add' && prefill.saleId) ? prefill.saleId : null;
   const _isTake = window._metalMode === 'take';
 
   let initMetal = prefill.metal || 'gold';
@@ -31377,7 +31425,10 @@ function openMetalModal(mode, prefill) {
   // than teaching _toggleOptBtn about callers (assigning .onclick wins over the
   // inline attribute the helper writes).
   const _keptBtn = document.getElementById('metalKeptToggle');
-  if (_keptBtn) _keptBtn.onclick = () => { _toggleOptBtn('metalKeptToggle'); _metalKeptSync(); };
+  if (_keptBtn) {
+    _keptBtn.onclick = () => { _toggleOptBtn('metalKeptToggle'); _metalKeptSync(); };
+    if (prefill.kept) { _setOptBtnState(_keptBtn, true); _metalKeptSync(); }
+  }
   _metalSetMetal(initMetal);
   if (initKarat) {
     const sel = document.getElementById('metalKaratSelect');
@@ -31419,6 +31470,42 @@ function _metalSetMetal(metal) {
   ).join('') + `<option value="custom">${isEl ? '✏️ Άλλο…' : '✏️ Custom…'}</option>`;
   const cf = document.getElementById('metalCustFine'); if (cf) cf.placeholder = metal === 'silver' ? '925' : '750';
   _metalOnKaratChange();
+}
+
+// Tie a kept-metal gain to the sale the metal came off, in BOTH directions: the
+// sale carries the amount (so it can show what the transaction really made) and
+// the gain carries the sale id (so the breakdown files it under jewellery, and so
+// deleting it can clear the sale's row). Nothing else on either record moves —
+// the sale's own amount, cost and profit are untouched, exactly as the owner
+// chose: a recorded sale is not rewritten.
+async function _linkKeptMetalToSale(saleId, gainRecId) {
+  if (!saleId || !gainRecId) return false;
+  const sales = await getSales();
+  const sale = sales.find(s => s.id === saleId);
+  const gainRec = sales.find(s => s.id === gainRecId);
+  if (!sale || !gainRec) return false;
+  // Added, not replaced: a piece can legitimately give up metal twice (shortened,
+  // then a link removed), and each keeps its own entry.
+  sale.keptMetalGain = parseFloat(((parseFloat(sale.keptMetalGain) || 0) + (parseFloat(gainRec.amount) || 0)).toFixed(2));
+  sale.keptMetalGainId = gainRec.id;
+  gainRec.scrapForSaleId = saleId;
+  _salesCache = sales;
+  localStorage.setItem('jpro_sales', JSON.stringify(sales));
+  // Queued before the attempt, so a link made with no signal is not lost by the
+  // next successful pull (v11.65).
+  _outboxAdd('/jewelprice_sales', sale.id, 'put', JSON.stringify(sale));
+  _outboxAdd('/jewelprice_sales', gainRec.id, 'put', JSON.stringify(gainRec));
+  try { await pushSalesToCloud(sales); } catch (e) {}
+  return true;
+}
+
+// Entry point from a sale: record metal cut off THIS piece. Opens the ordinary
+// Add Metal form already in kept mode, with the sale remembered so the gain can
+// be tied to it. Owner/manager (it writes stock), and only for a real item sale.
+function keptMetalFromSale(saleId) {
+  if (!can('manage_stock')) return;
+  closeSaleDetailModal(true);
+  openMetalModal('add', { kept: true, saleId });
 }
 
 // "Kept from a piece" is on: nothing was paid, so the price field is HIDDEN rather
@@ -31782,12 +31869,23 @@ async function _metalConfirm() {
     return;
   }
   const gainBooked = _res.gain;
+  // Tie it to the sale it came off, when it was opened from one. Only for KEPT
+  // metal: a scrap purchase that happened to be made from a sale's screen is
+  // still a purchase and belongs under its own activity.
+  let _linked = false;
+  if (_kept && window._metalSaleId && _res.gainRecId) {
+    try { _linked = await _linkKeptMetalToSale(window._metalSaleId, _res.gainRecId); } catch (e) {}
+  }
+  const _saleId = window._metalSaleId;
+  window._metalSaleId = null;
 
   document.getElementById('metalOverlay')?.remove();
   const cur = state.currency || '€';
   showToast(gainBooked > 0
     ? `${t('metalAddedToast')} · ${t('metalGainToast').replace('{amt}', cur + gainBooked.toFixed(2))}`
     : t('metalAddedToast'));
+  // Reopen the sale so the new row is in front of him — he came from there.
+  if (_linked && _saleId) { try { await showSaleDetail(_saleId, true); } catch (e) {} }
   renderInvList();
   // Refresh the Sales tab if it happens to be the active panel
   if (gainBooked > 0 && document.getElementById('panel-sales')?.classList.contains('active') && typeof renderSales === 'function') { try { renderSales(); } catch(e) {} }
@@ -32962,10 +33060,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.07', date: 'Αύγουστος 2026', items: [
-        "♻️ Νέα επιλογή «Κρατήθηκε από κόσμημα» στην «Προσθήκη Μετάλλου» — για χρυσό ή ασήμι που κόψατε από δικό σας κόσμημα (κόντεμα αλυσίδας, σμίκρυνση δαχτυλιδιού). Πατάτε το, βάζετε καθαρότητα και βάρος, και τελειώσατε: το πεδίο «τιμή που πλήρωσα» κρύβεται, γιατί δεν πληρώσατε τίποτα.",
-        "💶 Και μετράει σωστά στα κέρδη. Η ανακτήσιμη αξία του μετάλλου (αξία μείον την απώλεια καθαρισμού 3%) καταγράφεται ως κέρδος στις σημερινές πωλήσεις. Πριν, αυτό το μέταλλο έμπαινε μεν στο απόθεμα αλλά η αξία του δεν φαινόταν ποτέ πουθενά ως κέρδος — επειδή το κόστος όλου του κοσμήματος είχε ήδη χρεωθεί στην πώλησή του.",
-        "🔎 Η εγγραφή δείχνει την ανάλυση: βάρος, καθαρό μέταλλο, ζωντανή αξία, απώλεια καθαρισμού και κέρδος — όλα παγωμένα τη στιγμή που το καταχωρήσατε."
+      { version: 'v13.08', date: 'Αύγουστος 2026', items: [
+        "📊 Το ποσοστό κέρδους δείχνει πλέον τι πραγματικά βγάλατε από τη συναλλαγή. Όταν κρατάτε μέταλλο από ένα κόσμημα που πουλάτε, το κέρδος του έμπαινε ως ξεχωριστή εγγραφή στο «Παλαιό» — άρα ούτε το ποσοστό της πώλησης ούτε το περιθώριο κοσμημάτων το μετρούσαν. Έδειχνε 48.3% ενώ η αλήθεια ήταν 51.6%.",
+        "♻️ Νέο κουμπί «Κράτησα μέταλλο» μέσα στην ίδια την πώληση. Ανοίγει την «Προσθήκη Μετάλλου» έτοιμη — βάζετε καθαρότητα και βάρος και τελειώσατε — και το συνδέει με αυτή την πώληση. Η πώληση δείχνει μετά: Κέρδος €1280.00 (48.3%) · ♻️ Μέταλλο που κρατήσατε +€86.90 · Σύνολο από τη συναλλαγή €1366.90 (51.6%). Ακριβώς όπως ήδη εμφανίζεται ο χρυσός που παίρνετε από πελάτη.",
+        "🧮 Τίποτα από την πώληση δεν ξαναγράφεται: ποσό, κόστος και κέρδος μένουν ακριβώς όπως καταχωρήθηκαν. Το μέταλλο κρατά τη δική του εγγραφή, και αν τη διαγράψετε φεύγει και η γραμμή από την πώληση.",
+        "📈 Και στην Ανάλυση Πωλήσεων το μέταλλο αυτό μετράει πια στα κοσμήματα (εκεί ανήκει — δεν είναι αγορά παλαιού), ως ανάκτηση κόστους και όχι ως δεύτερη πώληση. Οι κανονικές αγορές παλαιού μένουν ακριβώς όπως ήταν, στη δική τους γραμμή."
       ]},
       ]
   },
@@ -32996,10 +33095,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.07', date: 'Aug 2026', items: [
-        "♻️ New “Kept from a piece” option on Add Metal — for gold or silver you cut off a piece you already own (shortening a chain, sizing down a ring). Press it, enter purity and weight, done: the “price paid” field disappears, because you paid nothing.",
-        "💶 And it now counts towards your profit. The metal’s recoverable value (its value less the 3% refining loss) is booked as a gain in today’s sales. Before, that metal went into stock but its worth never showed up as profit anywhere — because the whole piece’s cost had already been charged to its own sale.",
-        "🔎 The entry shows the arithmetic: weight, pure metal, live value, refining loss and the gain — all frozen at the moment you recorded it."
+      { version: 'v13.08', date: 'Aug 2026', items: [
+        "📊 The profit percentage now shows what the transaction really made. When you keep metal off a piece you are selling, its gain went in as a separate entry under “Scrap” — so neither the sale’s percentage nor the jewellery margin counted it. It read 48.3% when the truth was 51.6%.",
+        "♻️ New “Metal kept” button on the sale itself. It opens Add Metal ready to go — enter purity and weight, done — and ties it to that sale. The sale then reads: Profit €1280.00 (48.3%) · ♻️ Metal you kept +€86.90 · Total from this transaction €1366.90 (51.6%). Exactly how gold taken from a customer already appears.",
+        "🧮 Nothing on the sale is rewritten: amount, cost and profit stay exactly as recorded. The metal keeps its own entry, and deleting that entry takes the row off the sale with it.",
+        "📈 In the Sales Breakdown this metal now counts under jewellery (where it belongs — it is not a scrap purchase), as a cost recovery rather than a second sale. Ordinary scrap purchases are exactly as they were, on their own line."
       ]},
           ]
   }
@@ -38086,7 +38186,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.07';
+const APP_VERSION = '13.08';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
