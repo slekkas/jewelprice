@@ -3598,6 +3598,8 @@ const T = {
     sbHoldTitle:'Κέρδος από το μέταλλο που κρατούσατε',
     sbHoldLine:'Άνοδος από την ημέρα που το αγοράσατε',
     sbHoldTotal:'Συνολικό κέρδος',
+    sbTileGain:'Κέρδος μετάλλου',
+    sbTileEst:'≈ εκτίμηση',
     sbHoldNote:'Το κέρδος πιο πάνω είναι με το σημερινό κόστος αντικατάστασης. Αυτή η γραμμή είναι όσα κέρδισε το μέταλλο όσο ήταν στο ράφι.',
     sbHoldEst:'≈ εκτίμηση σε {n} από αυτές (παλαιότερες πωλήσεις, χωρίς καταγεγραμμένο αρχικό κόστος)',
     cashBuyLbl:'Έκπτωση χρυσού — μετρητά (%)',
@@ -4179,6 +4181,8 @@ const T = {
     sbHoldTitle:'Gain on the metal you held',
     sbHoldLine:'Rise since the day you bought it',
     sbHoldTotal:'Total profit',
+    sbTileGain:'Metal gain',
+    sbTileEst:'≈ estimate',
     sbHoldNote:'The profit above is measured against what the pieces cost to replace today. This line is what the metal itself earned while it sat on the shelf.',
     sbHoldEst:'≈ estimated on {n} of them (older sales with no recorded original cost)',
     cashBuyLbl:'Gold deduction — cash (%)',
@@ -18982,6 +18986,12 @@ function _sbRender() {
     '<div class="sb-tile-val"' + (col ? ' style="color:' + col + '"' : '') + '>' + val + '</div>' +
     (sub ? '<div class="sb-tile-sub">' + sub + '</div>' : '') + '</div>';
 
+  // Worked out before the tiles because it now appears in them as well as in its
+  // own section further down (the section carries the explanation and the count
+  // of estimated sales, which will not fit in a tile).
+  const _sbHold = _holdGainTotal(_sbSales || []);
+  const _sbHoldShow = _sbHold.n > 0 && _sbHold.gain !== 0;
+
   let html = '<div class="sb-tiles">' +
     tile(isEl ? 'Πωλήσεις' : 'Sales', signed(tAmt)) +
     tile(isEl ? 'Κόστος' : 'Cost', signed(tCost), 'var(--text)') +
@@ -18989,6 +18999,19 @@ function _sbRender() {
     tile(isEl ? 'Περιθώριο' : 'Margin', margin === null ? '—' : margin.toFixed(1) + '%',
          margin !== null && margin < 0 ? 'var(--loss)' : 'var(--gain)',
          jewelryOnly ? (isEl ? 'μόνο κοσμήματα' : 'jewelry only') : '') +
+    // A third row, in the tiles' own gold, whenever the period holds a holding
+    // gain. Left uncoloured on purpose: gold is the default tile colour, which
+    // sets these apart from the green trading figures above without claiming to
+    // be the same kind of number. A NEGATIVE figure goes red even so — gold on a
+    // loss reads as a gain at a glance, and would contradict the same figure in
+    // its own section below.
+    (_sbHoldShow
+      ? tile(t('sbTileGain'), (_sbHold.gain < 0 ? '−' : '+') + money(_sbHold.gain),
+             _sbHold.gain < 0 ? 'var(--loss)' : null,
+             _sbHold.exact ? '' : t('sbTileEst')) +
+        tile(t('sbHoldTotal'), signed(tProfit + _sbHold.gain),
+             (tProfit + _sbHold.gain) < 0 ? 'var(--loss)' : null)
+      : '') +
     '</div>';
 
   // What the period is made of. Only drawn when there is more than one activity —
@@ -19010,12 +19033,11 @@ function _sbRender() {
   // day it sold, so on stock bought when gold was cheaper the profit above
   // understates what the sale really made. This is that difference.
   //
-  // Deliberately kept OUT of the tiles and out of the per-activity margins: those
-  // measure the TRADING margin, and a holding gain would distort them exactly as
-  // a bullion coin did (v12.74). It is a different kind of income, so it is
-  // stated separately and then added up.
-  const _sbHold = _holdGainTotal(_sbSales || []);
-  if (_sbHold.n > 0 && _sbHold.gain !== 0) {
+  // It has its own tiles above, but it stays OUT of the Profit and Margin tiles
+  // and out of the per-activity margins: those measure the TRADING margin, and a
+  // holding gain would distort them exactly as a bullion coin did (v12.74). It is
+  // a different kind of income, so it is stated separately and then added up.
+  if (_sbHoldShow) {
     const _hCol = _sbHold.gain < 0 ? 'var(--loss)' : 'var(--gain)';
     html += '<div class="sb-sec"><div class="sb-sec-t">🧱 ' + t('sbHoldTitle') + '</div>' +
       '<div class="sb-line"><span>' + t('sbHoldLine') + (_sbHold.exact ? '' : ' ≈') + '</span>' +
@@ -32841,8 +32863,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.04', date: 'Αύγουστος 2026', items: [
-        "📊 Στη γραμμή «Σύνολο από τη συναλλαγή» μπαίνει και ποσοστό, όπως έχει το «Κέρδος» από πάνω — π.χ. Κέρδος €326.42 (46.6%) και Σύνολο €351.34 (50.2%). Μετριέται με την ίδια βάση (το ποσό χωρίς ΦΠΑ), ώστε τα δύο ποσοστά να συγκρίνονται απευθείας."
+      { version: 'v13.05', date: 'Αύγουστος 2026', items: [
+        "📊 Στη σύνοψη της Ανάλυσης Πωλήσεων προστέθηκε τρίτη σειρά σε χρυσό: «Κέρδος μετάλλου» και «Συνολικό κέρδος» — τα νούμερα που πριν φαίνονταν μόνο πιο κάτω στη σελίδα. Έτσι το πραγματικό σύνολο είναι μπροστά σας μαζί με τα υπόλοιπα, χωρίς να χρειάζεται να κατεβείτε. Εμφανίζεται μόνο όταν υπάρχει κέρδος από το μέταλλο· διαφορετικά η σύνοψη μένει ακριβώς όπως ήταν."
       ]},
       ]
   },
@@ -32873,8 +32895,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.04', date: 'Aug 2026', items: [
-        "📊 The \"Total from this transaction\" line now carries a percentage too, like the \"Profit\" line above it — e.g. Profit €326.42 (46.6%) and Total €351.34 (50.2%). It is measured against the same base (the amount excluding VAT), so the two percentages can be read directly against each other."
+      { version: 'v13.05', date: 'Aug 2026', items: [
+        "📊 The Sales Breakdown summary gains a third row in gold: \"Metal gain\" and \"Total profit\" — the figures that were previously only further down the page. The real total now sits with the rest, without scrolling. It appears only when the period holds a gain on metal; otherwise the summary is exactly as it was."
       ]},
           ]
   }
@@ -37961,7 +37983,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.04';
+const APP_VERSION = '13.05';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
