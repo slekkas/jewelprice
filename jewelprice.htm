@@ -3655,6 +3655,11 @@ const T = {
     scrapRefLoss:'Απώλεια καθαρισμού {loss}%',
     scrapPaidRow:'Πλήρωσα',
     scrapNoBreakdown:'Παλαιότερη εγγραφή — δεν είχε καταγραφεί η ανάλυση',
+    metalKeptBtn:'♻️ Κρατήθηκε από κόσμημα',
+    metalKeptHint:'Μέταλλο που κόψατε από δικό σας κόσμημα (π.χ. κόντεμα αλυσίδας). Δεν πληρώσατε κάτι επιπλέον, οπότε η ανακτήσιμη αξία του καταγράφεται ως κέρδος στις σημερινές πωλήσεις.',
+    metalKeptGainNote:'♻️ Κρατήθηκε από κόσμημα',
+    metalGainKept:'Αξία που κρατήσατε',
+    scrapKeptTitle:'♻️ Μέταλλο από Κόσμημα',
     metalNewTotal:'Νέο σύνολο',
     metalAddMore:'＋ Προσθήκη',
     metalTakeBtn:'− Αφαίρεση',
@@ -4483,6 +4488,11 @@ const T = {
     scrapRefLoss:'Refining loss {loss}%',
     scrapPaidRow:'You paid',
     scrapNoBreakdown:'Older entry — the breakdown was not recorded',
+    metalKeptBtn:'♻️ Kept from a piece',
+    metalKeptHint:'Metal you cut off a piece you already own (e.g. shortening a chain). You paid nothing extra for it, so its recoverable value is booked as a gain in today\'s sales.',
+    metalKeptGainNote:'♻️ Kept from a piece',
+    metalGainKept:'Value you kept',
+    scrapKeptTitle:'♻️ Metal Kept from a Piece',
     metalNewTotal:'New total',
     metalAddMore:'＋ Add',
     metalScrapGainNote:'♻️ Scrap gain',
@@ -12945,9 +12955,11 @@ function _scrapGainRows(s, cur, mkRow, host) {
     mkRow(t('tiMeltLbl'), cur + melt.toFixed(2));
     if (lossAmt > 0) mkRow(t('scrapRefLoss').replace('{loss}', _fmtRate(loss)), '−' + cur + lossAmt.toFixed(2));
     mkRow(t('metalRecoverable').replace('{loss}', _fmtRate(loss)), cur + recover.toFixed(2));
-    mkRow(t('scrapPaidRow'), '−' + cur + paid.toFixed(2), 'var(--gold-light)');
+    // Metal kept from your own piece cost nothing, so there is no "you paid" row —
+    // a −€0.00 line would only invite the question of what it means.
+    if (!s.scrapKept) mkRow(t('scrapPaidRow'), '−' + cur + paid.toFixed(2), 'var(--gold-light)');
   }
-  mkRow(t('metalGain'), cur + gain.toFixed(2), gain >= 0 ? 'var(--success)' : 'var(--loss)');
+  mkRow(t(s.scrapKept ? 'metalGainKept' : 'metalGain'), cur + gain.toFixed(2), gain >= 0 ? 'var(--success)' : 'var(--loss)');
   if (!haveFigures && host) {
     const n = document.createElement('div');
     n.style.cssText = 'font-size:11px;color:var(--text-dim);padding:6px 0 0';
@@ -16678,7 +16690,7 @@ async function showSaleDetail(id, forceSingle) {
   // A scrap purchase is money going OUT for metal, not a sale — calling it one is
   // what made the VAT row below it look like it belonged.
   document.getElementById('sdmTitle').textContent = s.scrapGain
-    ? t('scrapDetailTitle')
+    ? (s.scrapKept ? t('scrapKeptTitle') : t('scrapDetailTitle'))
     : (lang === 'el' ? '📋 Λεπτομέρειες Πώλησης' : '📋 Sale Details');
   document.getElementById('sdmAmt').textContent = fmtAmt(s.amount);
   const _sgcb = document.getElementById('sdmGroupPayBtn');
@@ -31340,22 +31352,32 @@ function openMetalModal(mode, prefill) {
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${t('metalCustomFineLbl')}</div>
         <input id="metalCustFine" type="number" step="1" min="0" max="1000" inputmode="decimal" oninput="_metalUpdatePreview()" style="${_inS}">
       </div>
+      ${window._metalMode === 'add' ? `<div style="margin-bottom:12px">
+        ${_optToggleHtml('metalKeptToggle', 'metalKeptBtn')}
+        <div id="metalKeptHint" style="display:none;font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.45">${t('metalKeptHint')}</div>
+      </div>` : ''}
       <div style="display:flex;gap:8px;margin-bottom:${window._metalMode === 'add' ? '4px' : '14px'}">
         <div style="flex:1">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${_isTake ? t('metalTakeWeightLbl') : t('metalWeightLbl')}</div>
           <input id="metalWeightInput" type="number" step="0.01" min="0" inputmode="decimal" value="${initWeight}" oninput="_metalUpdatePreview()" style="${_inS}">
         </div>
-        ${window._metalMode === 'add' ? `<div style="flex:1">
+        ${window._metalMode === 'add' ? `<div id="metalPriceWrap" style="flex:1">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('metalPricePaidLbl')}</div>
           <input id="metalPriceInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${t('metalPricePaidPh')}" oninput="_metalUpdatePreview()" style="${_inS}">
         </div>` : ''}
       </div>
-      ${window._metalMode === 'add' ? `<div style="font-size:11px;color:var(--text-dim);margin:0 0 12px">${t('metalPricePaidHint')}</div>` : ''}
+      ${window._metalMode === 'add' ? `<div id="metalPricePaidHintEl" style="font-size:11px;color:var(--text-dim);margin:0 0 12px">${t('metalPricePaidHint')}</div>` : ''}
       <div id="metalPreview" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:10px;padding:12px 14px;margin-bottom:10px"></div>
       <button id="metalAddBtn" onclick="_metalConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${btnLbl}</button>
       <button onclick="document.getElementById('metalOverlay')?.remove()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl?'Άκυρο':'Cancel'}</button>
     </div>`;
   document.body.appendChild(overlay);
+  // The shared toggle helper only flips its own state; this one also has to hide
+  // the price field and redraw the preview, so its handler is replaced here rather
+  // than teaching _toggleOptBtn about callers (assigning .onclick wins over the
+  // inline attribute the helper writes).
+  const _keptBtn = document.getElementById('metalKeptToggle');
+  if (_keptBtn) _keptBtn.onclick = () => { _toggleOptBtn('metalKeptToggle'); _metalKeptSync(); };
   _metalSetMetal(initMetal);
   if (initKarat) {
     const sel = document.getElementById('metalKaratSelect');
@@ -31397,6 +31419,23 @@ function _metalSetMetal(metal) {
   ).join('') + `<option value="custom">${isEl ? '✏️ Άλλο…' : '✏️ Custom…'}</option>`;
   const cf = document.getElementById('metalCustFine'); if (cf) cf.placeholder = metal === 'silver' ? '925' : '750';
   _metalOnKaratChange();
+}
+
+// "Kept from a piece" is on: nothing was paid, so the price field is HIDDEN rather
+// than left beside it — two controls answering the same question is how a dialog
+// ends up half-answered. Any figure already typed is cleared with it, so a stale
+// number cannot linger behind the toggle.
+function _metalKeptSync() {
+  const on = _isOptBtn('metalKeptToggle');
+  const wrap = document.getElementById('metalPriceWrap');
+  const hint = document.getElementById('metalPricePaidHintEl');
+  const kHint = document.getElementById('metalKeptHint');
+  const inp = document.getElementById('metalPriceInput');
+  if (on && inp) inp.value = '';
+  if (wrap) wrap.style.display = on ? 'none' : '';
+  if (hint) hint.style.display = on ? 'none' : '';
+  if (kHint) kHint.style.display = on ? 'block' : 'none';
+  _metalUpdatePreview();
 }
 
 function _metalOnKaratChange() {
@@ -31441,17 +31480,21 @@ function _metalUpdatePreview() {
       html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:3px">${t('metalNewTotal')}: ${newW.toFixed(2)}g</div>`;
     }
   }
-  // Buy-cheap gain preview
+  // Buy-cheap gain preview. "Kept from a piece" is the same arithmetic with a price
+  // paid of zero: the metal came off a jewel whose whole cost was already charged to
+  // its own sale, so its full recoverable value is the gain.
   if (window._metalMode === 'add' && melt != null) {
-    const paid = parseFloat(document.getElementById('metalPriceInput')?.value);
-    if (!isNaN(paid) && paid > 0) {
+    const _kept = _isOptBtn('metalKeptToggle');
+    const paidTyped = parseFloat(document.getElementById('metalPriceInput')?.value);
+    const paid = _kept ? 0 : paidTyped;
+    if (_kept || (!isNaN(paid) && paid > 0)) {
       const loss = _refiningLossPct();
       // Rounded before subtracting, exactly as _metalAddToLot books it, so the
       // preview can never show a gain a cent away from the one recorded.
       const recover = Math.round(melt * (1 - loss / 100) * 100) / 100;
       const gain = Math.round((recover - Math.round(paid * 100) / 100) * 100) / 100;
       html += `<div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:6px;padding-top:6px;border-top:1px solid var(--wa08)">${t('metalRecoverable').replace('{loss}', loss)}: ${cur}${recover.toFixed(2)}</div>`;
-      if (gain > 0) html += `<div style="font-size:12px;color:var(--gain);font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t('metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
+      if (gain > 0) html += `<div style="font-size:12px;color:var(--gain);font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">${t(_kept ? 'metalGainKept' : 'metalGain')}: +${cur}${gain.toFixed(2)}<br><span style="font-size:10px;font-weight:400">${t('metalGainToSales')}</span></div>`;
       else html += `<div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px">${isEl ? 'Χωρίς κέρδος (τιμή ≥ αξία)' : 'No gain (price ≥ value)'}</div>`;
     }
   }
@@ -31502,7 +31545,14 @@ async function _recordScrapGain(gain, note, extra) {
 // Returns { ok, lotId, gain, created, addedG, addedPure }. The write is CHECKED
 // and rolled back on failure: an unchecked failed write is how a pile silently
 // lies about what is in the safe (v11.62).
-async function _metalAddToLot(spec, paid, noteLbl) {
+// `opts.kept` = the metal was cut off a piece you already own (a shortened chain,
+// a resized ring). Nothing was paid for it, but its value must still be booked:
+// the piece's WHOLE cost was charged against its own sale, and taking grams back
+// out of a lot never books anything either — so without this its worth would sit
+// in the safe and never appear as profit anywhere. Omitted by every other caller,
+// which keeps the original "gain only when a price was paid" gate exactly as it was.
+async function _metalAddToLot(spec, paid, noteLbl, opts) {
+  const kept = !!(opts && opts.kept);
   const spot = spec.metal === 'silver' ? getSilverPrice() : getGoldPrice();
   const meltNow = spot ? (spot / TROY_OZ_TO_GRAM) * spec.pure : 0;
   const ex = _findMetalLot(spec.metal, spec.karat);
@@ -31544,23 +31594,25 @@ async function _metalAddToLot(spec, paid, noteLbl) {
   // The record's id comes back with the result so a trade-in that is later
   // undone can unbook it: if the purchase never happened, neither did the gain.
   let gain = 0, gainRecId = null;
-  if (paid > 0 && meltNow > 0) {
+  if ((paid > 0 || kept) && meltNow > 0) {
     const loss = _refiningLossPct();
     // Each figure is rounded to the cent BEFORE the subtraction, so the rows the
     // sale detail draws (value − refining loss − paid = gain) always add up
     // exactly on screen rather than being a cent out on the last line.
     const meltR = Math.round(meltNow * 100) / 100;
     const recoverR = Math.round(meltNow * (1 - loss / 100) * 100) / 100;
-    const paidR = Math.round(paid * 100) / 100;
+    const paidR = Math.round((paid > 0 ? paid : 0) * 100) / 100;
     const g = Math.round((recoverR - paidR) * 100) / 100;
     if (g > 0) {
       gain = g;
       const note = `${noteLbl || t('metalScrapGainNote')} — ${spec.weight.toFixed(spec.weight < 10 ? 2 : 0)}g ${metalStockLabel({ metal: spec.metal, karat: spec.karat })}`;
-      const gRec = await _recordScrapGain(gain, note, {
+      const _extra = {
         scrapPaid: paidR, scrapMelt: meltR, scrapRecover: recoverR, scrapLossPct: loss,
         scrapGrams: spec.weight, scrapPure: spec.pure,
         scrapMetal: spec.metal, scrapKarat: spec.karat, scrapLotId: lotId
-      });
+      };
+      if (kept) _extra.scrapKept = true;
+      const gRec = await _recordScrapGain(gain, note, _extra);
       gainRecId = gRec ? gRec.id : null;
     }
   }
@@ -31717,9 +31769,11 @@ async function _metalConfirm() {
   }
 
   // ── ADD mode: merge into the existing lot of this metal+karat, else create a new one.
+  const _kept = _isOptBtn('metalKeptToggle');
   const paidRaw = parseFloat(document.getElementById('metalPriceInput')?.value);
-  const paid = (!isNaN(paidRaw) && paidRaw > 0) ? paidRaw : 0;
-  const _res = await _metalAddToLot(spec, paid, t('metalScrapGainNote'));
+  const paid = (!_kept && !isNaN(paidRaw) && paidRaw > 0) ? paidRaw : 0;
+  const _res = await _metalAddToLot(spec, paid,
+    _kept ? t('metalKeptGainNote') : t('metalScrapGainNote'), { kept: _kept });
   if (!_res.ok) {
     showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again');
     // Add mode is the only path that reaches here, so this is its own label
@@ -32908,10 +32962,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.06', date: 'Αύγουστος 2026', items: [
-        "📶 Η επιστροφή δεν χάνεται πια αν την καταχωρήσετε χωρίς internet. Μπαίνει πλέον στην ουρά αποστολής πριν σταλεί, όπως κάθε πώληση: πριν, μια επιστροφή με κλειστή σύνδεση ζούσε μόνο στο κινητό σας και ο επόμενος συγχρονισμός την έσβηνε αθόρυβα — ενώ το κόσμημα είχε ήδη γυρίσει στο απόθεμα και ο πελάτης μπορεί να κρατούσε ήδη την πίστωσή του στο χέρι.",
-        "🎟️ Το ίδιο και για τις πιστώσεις: η κάρτα πίστωσης που εκδίδεται από μια επιστροφή, και το ξόδεμα μιας δωροεπιταγής, μπαίνουν κι αυτά στην ουρά. Χωρίς αυτό, μια δωροεπιταγή μπορούσε να ξαναεμφανιστεί με λεφτά που είχαν ήδη ξοδευτεί.",
-        "✅ Και σας λέει την αλήθεια: αν η επιστροφή δεν πρόλαβε να φτάσει στο σύννεφο, το μήνυμα λέει «θα συγχρονιστεί μόλις υπάρξει σύνδεση» αντί για ένα σκέτο «καταχωρήθηκε»."
+      { version: 'v13.07', date: 'Αύγουστος 2026', items: [
+        "♻️ Νέα επιλογή «Κρατήθηκε από κόσμημα» στην «Προσθήκη Μετάλλου» — για χρυσό ή ασήμι που κόψατε από δικό σας κόσμημα (κόντεμα αλυσίδας, σμίκρυνση δαχτυλιδιού). Πατάτε το, βάζετε καθαρότητα και βάρος, και τελειώσατε: το πεδίο «τιμή που πλήρωσα» κρύβεται, γιατί δεν πληρώσατε τίποτα.",
+        "💶 Και μετράει σωστά στα κέρδη. Η ανακτήσιμη αξία του μετάλλου (αξία μείον την απώλεια καθαρισμού 3%) καταγράφεται ως κέρδος στις σημερινές πωλήσεις. Πριν, αυτό το μέταλλο έμπαινε μεν στο απόθεμα αλλά η αξία του δεν φαινόταν ποτέ πουθενά ως κέρδος — επειδή το κόστος όλου του κοσμήματος είχε ήδη χρεωθεί στην πώλησή του.",
+        "🔎 Η εγγραφή δείχνει την ανάλυση: βάρος, καθαρό μέταλλο, ζωντανή αξία, απώλεια καθαρισμού και κέρδος — όλα παγωμένα τη στιγμή που το καταχωρήσατε."
       ]},
       ]
   },
@@ -32942,10 +32996,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.06', date: 'Aug 2026', items: [
-        "📶 A return is no longer lost if you record it with no internet. It is now queued for upload before being sent, like every sale: before, a return recorded offline lived only on your phone and the next sync quietly erased it — while the piece was already back in stock and the customer might already have been holding their credit.",
-        "🎟️ The same for credits: the credit card issued by a return, and drawing a gift certificate down, are now queued too. Without it a certificate could come back showing money that had already been spent.",
-        "✅ And it tells you the truth: if the return has not reached the cloud yet, the message says “it will sync as soon as there is a connection” instead of a plain “recorded”."
+      { version: 'v13.07', date: 'Aug 2026', items: [
+        "♻️ New “Kept from a piece” option on Add Metal — for gold or silver you cut off a piece you already own (shortening a chain, sizing down a ring). Press it, enter purity and weight, done: the “price paid” field disappears, because you paid nothing.",
+        "💶 And it now counts towards your profit. The metal’s recoverable value (its value less the 3% refining loss) is booked as a gain in today’s sales. Before, that metal went into stock but its worth never showed up as profit anywhere — because the whole piece’s cost had already been charged to its own sale.",
+        "🔎 The entry shows the arithmetic: weight, pure metal, live value, refining loss and the gain — all frozen at the moment you recorded it."
       ]},
           ]
   }
@@ -38032,7 +38086,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.06';
+const APP_VERSION = '13.07';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
