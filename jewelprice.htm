@@ -3661,6 +3661,7 @@ const T = {
     metalGainKept:'Αξία που κρατήσατε',
     keptMetalBtn:'Κράτησα μέταλλο',
     keptGainRow:'Μέταλλο που κρατήσατε',
+    discAfterKept:'μετά το μέταλλο που κρατήσατε ({amt})',
     scrapKeptTitle:'♻️ Μέταλλο από Κόσμημα',
     metalNewTotal:'Νέο σύνολο',
     metalAddMore:'＋ Προσθήκη',
@@ -4496,6 +4497,7 @@ const T = {
     metalGainKept:'Value you kept',
     keptMetalBtn:'Metal kept',
     keptGainRow:'Metal you kept',
+    discAfterKept:'after the metal you kept ({amt})',
     scrapKeptTitle:'♻️ Metal Kept from a Piece',
     metalNewTotal:'New total',
     metalAddMore:'＋ Add',
@@ -12983,15 +12985,23 @@ function _scrapGainRows(s, cur, mkRow, host) {
 // Silent on a return (its amount is a negative mirror), on a giveaway (nothing was
 // paid, so "100% discount" would be nonsense), and on a premium — a sale above the
 // asking price is a rounding, not a markup worth its own row.
-function _saleListPriceRows(listPrice, amount, cur, mkRow) {
+function _saleListPriceRows(listPrice, amount, cur, mkRow, kept) {
   if (!(listPrice > 0)) return;
   mkRow(t('rListPrice'), cur + listPrice.toFixed(2));
-  const disc = parseFloat((listPrice - (parseFloat(amount) || 0)).toFixed(2));
+  // Metal kept off the piece came back to you, so it was never part of what you
+  // conceded — the price went low BECAUSE you kept it. Counting it as discount
+  // reads a €2650 sale that also retained €86.87 of gold as 17.4% given away,
+  // when the real concession was 14.7%. That figure prints on quotes.
+  const km = parseFloat(kept) || 0;
+  const disc = parseFloat((listPrice - (parseFloat(amount) || 0) - (km > 0 ? km : 0)).toFixed(2));
   if (disc > 0.01) {
     const pct = (disc / listPrice * 100).toFixed(1);
+    const note = km > 0
+      ? '<br><span style="font-size:10px;color:var(--text-dim)">' + t('discAfterKept').replace('{amt}', cur + km.toFixed(2)) + '</span>'
+      : '';
     // A theme token, not a literal — this box is read in both light and dark, and
     // gold-light is what the Payment row above already uses for emphasis here.
-    mkRow(t('rDiscount'), '−' + cur + disc.toFixed(2) + ' (−' + pct + '%)', 'var(--gold-light)');
+    mkRow(t('rDiscount') + note, '−' + cur + disc.toFixed(2) + ' (−' + pct + '%)', 'var(--gold-light)');
   }
 }
 
@@ -16438,7 +16448,8 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     if (!s.isReturn) {
       const _lps = members.map(m => (m.giveaway ? null : _saleListPrice(m)));
       if (_lps.every(Boolean)) {
-        _saleListPriceRows(parseFloat(_lps.reduce((a, x) => a + x, 0).toFixed(2)), total, cur, mkRow);
+        _saleListPriceRows(parseFloat(_lps.reduce((a, x) => a + x, 0).toFixed(2)), total, cur, mkRow,
+          members.reduce((a, m) => a + (parseFloat(m.keptMetalGain) || 0), 0));
       }
     }
     const amtExVat = members.reduce((a, x) => a + _saleExVat(x, vat), 0);
@@ -16750,7 +16761,7 @@ async function showSaleDetail(id, forceSingle) {
     // What the piece was on the shelf for, and what came off it — the first thing
     // you want when you open a sale you have just made.
     if (!s.isReturn && !s.giveaway) {
-      _saleListPriceRows(_saleListPrice(s), s.amount, cur, mkRow);
+      _saleListPriceRows(_saleListPrice(s), s.amount, cur, mkRow, s.keptMetalGain);
     }
     // Mirror addSaleRecord's portion split, or the ex-VAT shown here would
     // contradict the profit stored on a certificate-part-paid sale.
@@ -33060,11 +33071,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.08', date: 'Αύγουστος 2026', items: [
-        "📊 Το ποσοστό κέρδους δείχνει πλέον τι πραγματικά βγάλατε από τη συναλλαγή. Όταν κρατάτε μέταλλο από ένα κόσμημα που πουλάτε, το κέρδος του έμπαινε ως ξεχωριστή εγγραφή στο «Παλαιό» — άρα ούτε το ποσοστό της πώλησης ούτε το περιθώριο κοσμημάτων το μετρούσαν. Έδειχνε 48.3% ενώ η αλήθεια ήταν 51.6%.",
-        "♻️ Νέο κουμπί «Κράτησα μέταλλο» μέσα στην ίδια την πώληση. Ανοίγει την «Προσθήκη Μετάλλου» έτοιμη — βάζετε καθαρότητα και βάρος και τελειώσατε — και το συνδέει με αυτή την πώληση. Η πώληση δείχνει μετά: Κέρδος €1280.00 (48.3%) · ♻️ Μέταλλο που κρατήσατε +€86.90 · Σύνολο από τη συναλλαγή €1366.90 (51.6%). Ακριβώς όπως ήδη εμφανίζεται ο χρυσός που παίρνετε από πελάτη.",
-        "🧮 Τίποτα από την πώληση δεν ξαναγράφεται: ποσό, κόστος και κέρδος μένουν ακριβώς όπως καταχωρήθηκαν. Το μέταλλο κρατά τη δική του εγγραφή, και αν τη διαγράψετε φεύγει και η γραμμή από την πώληση.",
-        "📈 Και στην Ανάλυση Πωλήσεων το μέταλλο αυτό μετράει πια στα κοσμήματα (εκεί ανήκει — δεν είναι αγορά παλαιού), ως ανάκτηση κόστους και όχι ως δεύτερη πώληση. Οι κανονικές αγορές παλαιού μένουν ακριβώς όπως ήταν, στη δική τους γραμμή."
+      { version: 'v13.09', date: 'Αύγουστος 2026', items: [
+        "🏷️ Η έκπτωση δείχνει πλέον αυτό που πραγματικά δώσατε. Όταν κρατάτε μέταλλο από το κόσμημα, η τιμή έπεσε ΕΠΕΙΔΗ το κρατήσατε — δεν το χαρίσατε. Το βραχιόλι έγραφε «−€558.31 (−17.4%)» ενώ η πραγματική έκπτωση ήταν «−€471.44 (−14.7%)», με μια μικρή σημείωση από κάτω που το εξηγεί.",
+        "🧮 Κανένα ποσό δεν αλλάζει — μόνο το νούμερο της έκπτωσης. Πωλήσεις χωρίς μέταλλο που κρατήσατε εμφανίζονται ακριβώς όπως πριν."
       ]},
       ]
   },
@@ -33095,11 +33104,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.08', date: 'Aug 2026', items: [
-        "📊 The profit percentage now shows what the transaction really made. When you keep metal off a piece you are selling, its gain went in as a separate entry under “Scrap” — so neither the sale’s percentage nor the jewellery margin counted it. It read 48.3% when the truth was 51.6%.",
-        "♻️ New “Metal kept” button on the sale itself. It opens Add Metal ready to go — enter purity and weight, done — and ties it to that sale. The sale then reads: Profit €1280.00 (48.3%) · ♻️ Metal you kept +€86.90 · Total from this transaction €1366.90 (51.6%). Exactly how gold taken from a customer already appears.",
-        "🧮 Nothing on the sale is rewritten: amount, cost and profit stay exactly as recorded. The metal keeps its own entry, and deleting that entry takes the row off the sale with it.",
-        "📈 In the Sales Breakdown this metal now counts under jewellery (where it belongs — it is not a scrap purchase), as a cost recovery rather than a second sale. Ordinary scrap purchases are exactly as they were, on their own line."
+      { version: 'v13.09', date: 'Aug 2026', items: [
+        "🏷️ The discount now shows what you actually gave away. When you keep metal off the piece, the price came down BECAUSE you kept it — you did not concede it. The bracelet read “−€558.31 (−17.4%)” when the real discount was “−€471.44 (−14.7%)”, with a small note underneath explaining it.",
+        "🧮 No amount changes — only the discount figure. Sales with no metal kept look exactly as they did before."
       ]},
           ]
   }
@@ -38186,7 +38193,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.08';
+const APP_VERSION = '13.09';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
