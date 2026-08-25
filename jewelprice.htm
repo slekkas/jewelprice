@@ -1809,6 +1809,14 @@
         <div class="hint" data-i18n="autoRoundHint">Όταν σκανάρετε ή πληκτρολογείτε τον κωδικό ενός κομματιού, η τιμή που βλέπει ο πελάτης στρογγυλοποιείται (π.χ. 239,42 → 240). Η ακριβής τιμή δεν αλλάζει πουθενά — πατήστε ✕ δίπλα στη στρογγυλοποίηση για να τη δείτε.</div>
       </div>
       <div class="field"><label data-i18n="autoRoundMinLbl">Στρογγυλοποίηση μόνο από (€)</label><input type="number" id="autoRoundMinInput" placeholder="20" step="1" inputmode="decimal"><div class="hint" data-i18n="autoRoundMinHint">Κομμάτια φθηνότερα από αυτό το ποσό κρατούν την ακριβή τους τιμή (μια στρογγυλοποίηση 2,50€ είναι πολλή για ένα κομμάτι των 5€).</div></div>
+      <div class="field">
+        <label data-i18n="profitPctLbl">Το κέρδος % υπολογίζεται</label>
+        <select id="profitPctBaseSelect" style="width:100%;background:var(--dark-3);border:1px solid rgba(201,168,76,0.3);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 12px">
+          <option value="cost" data-i18n="profitPctCost">Στο κόστος — 100 → 200 = 100%</option>
+          <option value="sale" data-i18n="profitPctSale">Στην πώληση — 100 → 200 = 50%</option>
+        </select>
+        <div class="hint" data-i18n="profitPctHint">Και οι δύο τρόποι είναι σωστοί, απλώς απαντούν σε διαφορετική ερώτηση. «Στο κόστος» είναι ο τρόπος του μαγαζιού (πόσο βγάλατε πάνω σε αυτά που δώσατε) και τον δείχνει ήδη η ανάλυση τιμής στον Υπολογισμό. «Στην πώληση» είναι ο τρόπος του λογιστή. Αλλάζει μόνο το ποσοστό που εμφανίζεται — τα ευρώ του κέρδους μένουν ακριβώς τα ίδια. Στο CSV βγαίνουν και τα δύο.</div>
+      </div>
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
       <div class="field"><label data-i18n="refiningLossLbl">Απώλεια καθαρισμού μετάλλου (%)</label><input type="number" id="refiningLossInput" placeholder="3" step="0.1" inputmode="decimal"><div class="hint" data-i18n="refiningLossHint">Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.</div></div>
@@ -3633,6 +3641,10 @@ const T = {
     autoRoundNearest:'Στα πλησιέστερα',
     autoRoundMinLbl:'Στρογγυλοποίηση μόνο από (€)',
     autoRoundMinHint:'Κομμάτια φθηνότερα από αυτό το ποσό κρατούν την ακριβή τους τιμή (μια στρογγυλοποίηση 2,50€ είναι πολλή για ένα κομμάτι των 5€).',
+    profitPctLbl:'Το κέρδος % υπολογίζεται',
+    profitPctCost:'Στο κόστος — 100 → 200 = 100%',
+    profitPctSale:'Στην πώληση — 100 → 200 = 50%',
+    profitPctHint:'Και οι δύο τρόποι είναι σωστοί, απλώς απαντούν σε διαφορετική ερώτηση. «Στο κόστος» είναι ο τρόπος του μαγαζιού (πόσο βγάλατε πάνω σε αυτά που δώσατε) και τον δείχνει ήδη η ανάλυση τιμής στον Υπολογισμό. «Στην πώληση» είναι ο τρόπος του λογιστή. Αλλάζει μόνο το ποσοστό που εμφανίζεται — τα ευρώ του κέρδους μένουν ακριβώς τα ίδια. Στο CSV βγαίνουν και τα δύο.',
     invAddMetalBtn:'🧱 Προσθήκη μετάλλου',
     metalAddedValueLbl:'Αξία κατά την προσθήκη',
     metalModalAddTitle:'🧱 Προσθήκη μετάλλου',
@@ -4469,6 +4481,10 @@ const T = {
     autoRoundNearest:'Nearest',
     autoRoundMinLbl:'Only round from (€)',
     autoRoundMinHint:'Pieces cheaper than this keep their exact price (a €2.50 rounding is a lot on a €5 piece).',
+    profitPctLbl:'Profit % is measured',
+    profitPctCost:'On cost — 100 → 200 = 100%',
+    profitPctSale:'On sale — 100 → 200 = 50%',
+    profitPctHint:'Both are correct; they answer different questions. "On cost" is the way the shop has always said it (what you made on what you laid out), and it is what the Calc price breakdown already shows. "On sale" is the accountant\'s convention. Only the percentage shown changes — the profit in euros stays exactly the same. The CSV carries both.',
     invAddMetalBtn:'🧱 Add Metal',
     metalAddedValueLbl:'Value when added',
     metalModalAddTitle:'🧱 Add metal',
@@ -4933,7 +4949,7 @@ function defaultState() {
     // Only used until applyCloudConfig loads the owner's saved value.
     vat: 17, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
     coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3, tradeInDeduct: 10, cashBuyDeduct: 20,
-    autoRoundStep: 5, autoRoundMin: 20
+    autoRoundStep: 5, autoRoundMin: 20, profitPctBase: 'cost'
   };
 }
 
@@ -5356,6 +5372,7 @@ function cloudConfig() {
            customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
            tradeInDeduct: state.tradeInDeduct, cashBuyDeduct: state.cashBuyDeduct,
            autoRoundStep: state.autoRoundStep, autoRoundMin: state.autoRoundMin,
+           profitPctBase: state.profitPctBase,
            aiKey: localStorage.getItem('jpro_ai_key') || '',
            imgbbKey: localStorage.getItem('jpro_imgbb_key') || '',
            cldName: localStorage.getItem('jpro_cld_name') || '',
@@ -5417,6 +5434,7 @@ function applyCloudConfig(cfg) {
   if (cfg.cashBuyDeduct !== undefined) state.cashBuyDeduct = cfg.cashBuyDeduct;
   if (cfg.autoRoundStep !== undefined) state.autoRoundStep = cfg.autoRoundStep;
   if (cfg.autoRoundMin !== undefined) state.autoRoundMin = cfg.autoRoundMin;
+  if (cfg.profitPctBase !== undefined) state.profitPctBase = cfg.profitPctBase;
   // Sync owner PIN so employees are prompted when switching to Owner
   if (cfg.ownerPin) localStorage.setItem('jpro_owner_pin', cfg.ownerPin);
   if (cfg.telegramToken) {
@@ -12909,11 +12927,61 @@ function _holdGainTotal(recs) {
 // Byte-identical to the old `cur + v.toFixed(2)` for any positive figure.
 function _sdMoney(v, cur) { const n = parseFloat(v) || 0; return (n < 0 ? '−' : '') + cur + Math.abs(n).toFixed(2); }
 
-// `base` = the sale's ex-VAT value, the SAME denominator the Profit row above
-// uses — so the two percentages sit directly under each other and can be read
-// against one another (46.6% → 50.2%). Any other base would make the second
-// number look like it answers the first when it does not.
-function _saleGainRows(recs, profit, cur, mkRow, base) {
+// ── HOW A PROFIT PERCENTAGE IS MEASURED ──────────────────────────────────────
+// Two conventions. Both are correct; they answer different questions. Buy at
+// €100, sell at €200:
+//   ON COST (markup) — €100 made on €100 spent = 100%. What the shop has always
+//     said out loud, and what the Calc breakdown has ALWAYS shown ("Profit after
+//     discount", which divides by baseCost).
+//   ON SALE (margin) — €100 in €200 taken = 50%. The accountant's convention,
+//     and what the sale detail and the breakdown used to show.
+// So one sale read 90% on the Calc screen and 47.5% on its own sale sheet. The
+// basis is now ONE setting — defaulting to on-cost, the store's own convention —
+// and every screen goes through the helpers below, so they cannot drift again.
+//
+// Display only. The profit in euros is computed and stored by _saleExVat at sale
+// time and is not touched by any of this.
+function _profitBase() { return state.profitPctBase === 'sale' ? 'sale' : 'cost'; }
+
+function _profitPctBaseVal(exVat, cost) { return parseFloat(_profitBase() === 'cost' ? cost : exVat); }
+
+// profit ÷ (cost | ex-VAT revenue). Null when the chosen base is missing or zero:
+// a percentage of nothing is UNKNOWN, not 0% — a scrap purchase and a manual sale
+// legitimately have no cost at all. ANY non-zero base, so a return (whose amount
+// and cost are both negative) still mirrors the sale it reverses, which is what
+// the breakdown table has always shown.
+function _profitPct(profit, exVat, cost) {
+  const p = parseFloat(profit);
+  if (!isFinite(p)) return null;
+  const b = _profitPctBaseVal(exVat, cost);
+  return (isFinite(b) && b !== 0) ? (p / b) * 100 : null;
+}
+// " (90.3%)" to sit after a row's value on the SALE SHEET, which has its own,
+// stricter rule: a positive base only, so a return shows its money and no
+// percentage. Both rules are the ones each site already used — keeping them
+// apart is what makes the on-sale setting byte-identical to before.
+function _profitPctStr(profit, exVat, cost) {
+  const b = _profitPctBaseVal(exVat, cost);
+  if (!(isFinite(b) && b > 0)) return '';
+  const v = _profitPct(profit, exVat, cost);
+  return v === null ? '' : ' (' + v.toFixed(1) + '%)';
+}
+// The WORD for whichever basis is in force: a tile headed "Margin" reading 90%
+// would be the wrong term, not merely a different number.
+function _profitPctLabel() {
+  const isEl = lang === 'el';
+  return _profitBase() === 'cost' ? (isEl ? 'Κέρδος %' : 'Markup') : (isEl ? 'Περιθώριο' : 'Margin');
+}
+function _profitPctSub() {
+  const isEl = lang === 'el';
+  return _profitBase() === 'cost' ? (isEl ? 'στο κόστος' : 'on cost') : (isEl ? 'στην πώληση' : 'on sale');
+}
+
+// `base`/`baseCost` = the SAME denominators the Profit row above uses — so the
+// two percentages sit directly under each other and can be read against one
+// another (46.6% → 50.2%). Any other base would make the second number look like
+// it answers the first when it does not.
+function _saleGainRows(recs, profit, cur, mkRow, base, baseCost) {
   const ti = (recs || []).reduce((a, r) => a + (parseFloat(r.tradeInGain) || 0), 0);
   // Metal cut off the piece being sold (a shortened chain, a ring sized down).
   // Its value is booked as its own gain entry, exactly like a trade-in's — the
@@ -12933,8 +13001,7 @@ function _saleGainRows(recs, profit, cur, mkRow, base) {
   const p = parseFloat(profit);
   if (isFinite(p) && extra !== 0) {
     const tot = p + extra;
-    const pct = (parseFloat(base) > 0) ? ' (' + ((tot / parseFloat(base)) * 100).toFixed(1) + '%)' : '';
-    mkRow(t('tiGainTotalRow'), _sdMoney(tot, cur) + pct, 'var(--gold-light)');
+    mkRow(t('tiGainTotalRow'), _sdMoney(tot, cur) + _profitPctStr(tot, base, baseCost), 'var(--gold-light)');
   }
 }
 
@@ -16483,11 +16550,12 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     if ((!s.cashSale || _grpSplit) && vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
     if (totCost != null) mkRow(lang === 'el' ? 'Κόστος' : 'Cost', cur + totCost.toFixed(2));
     if (totProfit != null) {
-      const profitPct = amtExVat > 0 ? ' (' + ((totProfit / amtExVat) * 100).toFixed(1) + '%)' : '';
-      mkRow(lang === 'el' ? 'Κέρδος' : 'Profit', _sdMoney(totProfit, cur) + profitPct, totProfit >= 0 ? 'var(--success)' : 'var(--loss)');
+      mkRow(lang === 'el' ? 'Κέρδος' : 'Profit',
+        _sdMoney(totProfit, cur) + _profitPctStr(totProfit, amtExVat, totCost),
+        totProfit >= 0 ? 'var(--success)' : 'var(--loss)');
     }
     // Summed over the lines, though the physical metal is stamped on one of them.
-    _saleGainRows(members, totProfit, cur, mkRow, amtExVat);
+    _saleGainRows(members, totProfit, cur, mkRow, amtExVat, totCost);
     if (totBonus > 0) mkRow('🎁 Bonus', cur + totBonus.toFixed(2), 'var(--gold)');
   }
 
@@ -16771,13 +16839,11 @@ async function showSaleDetail(id, forceSingle) {
     if (vatAmt > 0) mkRow((lang === 'el' ? 'ΦΠΑ ' : 'VAT ') + vat + '%', cur + vatAmt.toFixed(2));
     if (s.cost != null) mkRow(lang === 'el' ? 'Κόστος' : 'Cost', cur + parseFloat(s.cost).toFixed(2));
     if (s.profit != null) {
-      const base = amtExVat;
-      const profitPct = base > 0 ? ' (' + ((s.profit / base) * 100).toFixed(1) + '%)' : '';
       mkRow(lang === 'el' ? 'Κέρδος' : 'Profit',
-        _sdMoney(s.profit, cur) + profitPct,
+        _sdMoney(s.profit, cur) + _profitPctStr(s.profit, amtExVat, s.cost),
         s.profit >= 0 ? 'var(--success)' : 'var(--loss)');
     }
-    _saleGainRows([s], s.profit, cur, mkRow, amtExVat);
+    _saleGainRows([s], s.profit, cur, mkRow, amtExVat, s.cost);
     if (s.bonusAmt > 0) mkRow('🎁 Bonus', cur + parseFloat(s.bonusAmt).toFixed(2), 'var(--gold)');
   }
 
@@ -19055,20 +19121,27 @@ function _sbRender() {
     if (r.cost !== null) tCost += r.cost;
     if (r.profit === null) unknown++;
     const k = r.segment;
-    const s = seg[k] || (seg[k] = { amt: 0, cost: 0, profit: 0, knownAmt: 0 });
+    const s = seg[k] || (seg[k] = { amt: 0, cost: 0, profit: 0, knownAmt: 0, knownCost: 0 });
     s.amt += r.amount;
     if (r.cost !== null) s.cost += r.cost;
     // A linked kept-metal entry recovers cost on a jewel whose revenue is already
     // in the denominator; adding its value there too would read the margin DOWN
-    // (2650 sold at 51.6% would print 49.9%). Profit yes, revenue no.
-    if (r.profit !== null) { s.profit += r.profit; tProfit += r.profit; if (!r.keptLink) s.knownAmt += r.amount; }
+    // (2650 sold at 51.6% would print 49.9%). Profit yes, revenue no. On the COST
+    // basis it needs no special case: such an entry carries no cost, so it stays
+    // out of that denominator by itself.
+    if (r.profit !== null) {
+      s.profit += r.profit; tProfit += r.profit;
+      if (!r.keptLink) s.knownAmt += r.amount;
+      if (r.cost !== null) s.knownCost += r.cost;
+    }
   });
-  // Margin is measured over the sales whose cost is actually known. Dividing the
-  // profit by the WHOLE revenue would quietly read low, because a sale with no
-  // recorded cost adds to the bottom of the fraction but nothing to the top.
+  // Measured over the sales whose cost is actually known, on whichever base the
+  // owner has chosen. Dividing by the WHOLE revenue (or the whole cost) would
+  // quietly read low, because a sale with no recorded cost adds to the bottom of
+  // the fraction but nothing to the top.
   const segMargin = k => {
     const s = seg[k];
-    return (s && s.knownAmt !== 0) ? (s.profit / s.knownAmt) * 100 : null;
+    return s ? _profitPct(s.profit, s.knownAmt, s.knownCost) : null;
   };
   // The headline margin is JEWELRY's. When the period holds nothing but other
   // activity (a day of only coins) there is no jewelry margin to show, so it
@@ -19077,8 +19150,9 @@ function _sbRender() {
   const splitOut = segKeys.length > 1;
   const jewelryOnly = splitOut && !!seg.jewelry;
   const knownAmtAll = segKeys.reduce((a, k) => a + seg[k].knownAmt, 0);
+  const knownCostAll = segKeys.reduce((a, k) => a + seg[k].knownCost, 0);
   const margin = jewelryOnly ? segMargin('jewelry')
-    : (knownAmtAll !== 0 ? (tProfit / knownAmtAll) * 100 : null);
+    : _profitPct(tProfit, knownAmtAll, knownCostAll);
 
   // Payment regimes, over the raw records (a transaction can be mixed line by line).
   let pCash = 0, pRec = 0, pGift = 0, pGold = 0;
@@ -19109,15 +19183,17 @@ function _sbRender() {
   // tile above is showing jewelry alone, this one says "overall", or the two would
   // look like they answer the same question on the same basis when they do not.
   const _sbTot = tProfit + _sbHold.gain;
-  const _sbTotPct = knownAmtAll !== 0 ? (_sbTot / knownAmtAll) * 100 : null;
+  const _sbTotPct = _profitPct(_sbTot, knownAmtAll, knownCostAll);
 
   let html = '<div class="sb-tiles">' +
     tile(isEl ? 'Πωλήσεις' : 'Sales', signed(tAmt)) +
     tile(isEl ? 'Κόστος' : 'Cost', signed(tCost), 'var(--text)') +
     tile(isEl ? 'Κέρδος' : 'Profit', signed(tProfit), tProfit < 0 ? 'var(--loss)' : 'var(--gain)') +
-    tile(isEl ? 'Περιθώριο' : 'Margin', margin === null ? '—' : margin.toFixed(1) + '%',
+    // The label follows the basis (Markup vs Margin) — a tile headed "Margin"
+    // showing a markup figure would be the wrong word, not just a bigger number.
+    tile(_profitPctLabel(), margin === null ? '—' : margin.toFixed(1) + '%',
          margin !== null && margin < 0 ? 'var(--loss)' : 'var(--gain)',
-         jewelryOnly ? (isEl ? 'μόνο κοσμήματα' : 'jewelry only') : '') +
+         (jewelryOnly ? (isEl ? 'μόνο κοσμήματα' : 'jewelry only') + '<br>' : '') + _profitPctSub()) +
     // A third row, in the tiles' own gold, whenever the period holds a holding
     // gain. Left uncoloured on purpose: gold is the default tile colour, which
     // sets these apart from the green trading figures above without claiming to
@@ -19199,7 +19275,7 @@ function _sbRender() {
 
   html += rows.map(r => {
     const e = r.e;
-    const m = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    const m = _profitPct(r.profit, r.amount, r.cost);
     // The meta line names WHAT was sold and nothing else. Customer, vendor and
     // salesperson were deliberately dropped: they are one tap away in the sale
     // itself and in the CSV, and on a busy day they crowded the numbers — which
@@ -19272,31 +19348,43 @@ function _sbExport() {
                 isEl ? 'Κωδικός' : 'Ref', isEl ? 'Περιγραφή' : 'Description', isEl ? 'Πελάτης' : 'Customer',
                 isEl ? 'Προμηθευτής' : 'Vendor', isEl ? 'Πωλητής' : 'Salesperson',
                 isEl ? 'Σύνολο' : 'Total', isEl ? 'Κόστος' : 'Cost', isEl ? 'Κέρδος' : 'Profit',
-                isEl ? 'Περιθώριο %' : 'Margin %', isEl ? 'Πληρωμή' : 'Payment'];
+                // BOTH bases, always, whatever the on-screen setting says: the
+                // accountant works in margin-on-sale, the owner in markup-on-cost,
+                // and a column costs nothing where a wrong convention costs a
+                // conversation. Neither column depends on _profitBase().
+                isEl ? 'Περιθώριο %' : 'Margin %', isEl ? 'Κέρδος % (κόστος)' : 'Markup % (on cost)',
+                isEl ? 'Πληρωμή' : 'Payment'];
   const lines = [head.join(',')];
-  let tAmt = 0, tCost = 0, tProfit = 0, jAmt = 0, jProfit = 0, knownAmt = 0;
+  let tAmt = 0, tCost = 0, tProfit = 0, jAmt = 0, jProfit = 0, knownAmt = 0, jCost = 0, knownCost = 0;
   rows.forEach(r => {
     const e = r.e;
     let cash = 0, rec = 0;
     r.recs.forEach(s => { const p = _sbPayParts(s); cash += p.cash; rec += p.receipt; });
     const pay = (cash !== 0 && rec !== 0) ? (isEl ? 'Μικτή' : 'Split') : (rec !== 0 ? (isEl ? 'Με απόδειξη' : 'Receipt') : (isEl ? 'Μετρητά' : 'Cash'));
-    const m = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    const m  = (r.profit !== null && r.amount !== 0) ? (r.profit / r.amount) * 100 : null;
+    const mk = (r.profit !== null && r.cost !== null && r.cost > 0) ? (r.profit / r.cost) * 100 : null;
     const d = SB_SEGMENTS[r.segment] || SB_SEGMENTS.jewelry;
     tAmt += r.amount; if (r.cost !== null) tCost += r.cost;
     if (r.profit !== null) {
       tProfit += r.profit; knownAmt += r.amount;
-      if (r.segment === 'jewelry') { jProfit += r.profit; jAmt += r.amount; }
+      if (r.cost !== null) knownCost += r.cost;
+      if (r.segment === 'jewelry') {
+        jProfit += r.profit; jAmt += r.amount;
+        if (r.cost !== null) jCost += r.cost;
+      }
     }
     lines.push([esc(fmtDate(e.date)), esc(isEl ? d.el : d.en), esc((r.recs[0] || {}).seqRef || ''),
       esc(e.note || ''), esc(e.customer || ''), esc(e.vendor || ''),
       esc(e.employeeName || ''), r.amount.toFixed(2), r.cost === null ? '' : r.cost.toFixed(2),
-      r.profit === null ? '' : r.profit.toFixed(2), m === null ? '' : m.toFixed(1), esc(pay)].join(','));
+      r.profit === null ? '' : r.profit.toFixed(2), m === null ? '' : m.toFixed(1),
+      mk === null ? '' : mk.toFixed(1), esc(pay)].join(','));
   });
   // Same margin as the sheet's headline: jewelry only, over the sales whose
   // profit is known. The Activity column lets the rest be totalled separately.
+  const _tm = jAmt !== 0 ? (jProfit / jAmt) * 100 : (knownAmt !== 0 ? (tProfit / knownAmt) * 100 : null);
+  const _tk = jCost > 0 ? (jProfit / jCost) * 100 : (knownCost > 0 ? (tProfit / knownCost) * 100 : null);
   lines.push([esc(isEl ? 'ΣΥΝΟΛΟ' : 'TOTAL'), '', '', '', '', '', '', tAmt.toFixed(2), tCost.toFixed(2), tProfit.toFixed(2),
-    jAmt !== 0 ? ((jProfit / jAmt) * 100).toFixed(1)
-      : (knownAmt !== 0 ? ((tProfit / knownAmt) * 100).toFixed(1) : ''), ''].join(','));
+    _tm === null ? '' : _tm.toFixed(1), _tk === null ? '' : _tk.toFixed(1), ''].join(','));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -23317,6 +23405,7 @@ function loadSettingsForm() {
   { const _cb = document.getElementById('cashBuyDeductInput'); if (_cb) _cb.value = _cashBuyDeductPct(); }
   { const _ar = document.getElementById('autoRoundStepSelect'); if (_ar) _ar.value = String(_autoRoundStep()); }
   { const _arm = document.getElementById('autoRoundMinInput'); if (_arm) _arm.value = _autoRoundMin(); }
+  { const _pb = document.getElementById('profitPctBaseSelect'); if (_pb) _pb.value = _profitBase(); }
   renderCustomCoinsManager();
   // Populate weight tier rows
   const tierInputRows = document.querySelectorAll('.tier-row');
@@ -23342,6 +23431,7 @@ function saveSettings() {
   { const _cbv = document.getElementById('cashBuyDeductInput'); const _cbn = _cbv ? parseFloat(_cbv.value) : NaN; state.cashBuyDeduct = isNaN(_cbn) ? CASHBUY_DEDUCT_DEFAULT : Math.max(0, Math.min(100, _cbn)); }
   { const _arv = document.getElementById('autoRoundStepSelect'); const _arn = _arv ? parseFloat(_arv.value) : NaN; state.autoRoundStep = isNaN(_arn) ? 5 : Math.max(0, _arn); }
   { const _armv = document.getElementById('autoRoundMinInput'); const _armn = _armv ? parseFloat(_armv.value) : NaN; state.autoRoundMin = isNaN(_armn) ? 20 : Math.max(0, _armn); }
+  { const _pbv = document.getElementById('profitPctBaseSelect'); state.profitPctBase = (_pbv && _pbv.value === 'sale') ? 'sale' : 'cost'; }
   // Collect weight tiers
   const tierRows = document.querySelectorAll('.tier-row');
   state.weightTiers = [];
@@ -33094,10 +33184,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.11', date: 'Αύγουστος 2026', items: [
-        "🔗 Διορθώθηκε: με φίλτρο «Πουλημένα», μια ομάδα όμοιων κομματιών εμφανιζόταν σαν μία φωτεινή κάρτα που έγραφε «2 σε απόθεμα» ενώ και τα δύο ήταν πουλημένα — και το κουμπί «Δες 2 κομμάτια» άνοιγε άδειο.",
-        "📦 Πλέον στην ομαδική κάρτα μπαίνουν μόνο τα κομμάτια που είναι όντως στο ράφι. Ένα πουλημένο (ή επιστραμμένο) κομμάτι παίρνει τη δική του κάρτα, σβηστή, με «Δες Πώληση» και «Διαγραφή» — όπως κάθε άλλο πουλημένο.",
-        "🧮 Έτσι διορθώνεται και ο αριθμός σε μεικτή προβολή: 2 στο ράφι + 1 πουλημένο έγραφε «3 σε απόθεμα». Τίποτα δεν αλλάζει στα δεδομένα — η ομάδα ξαναφτιάχνεται μόνη της."
+      { version: 'v13.12', date: 'Αύγουστος 2026', items: [
+        "📊 Το ποσοστό κέρδους υπολογίζεται πλέον ΣΤΟ ΚΟΣΤΟΣ, όπως το λέτε πάντα στο μαγαζί: αγορά 100 → πώληση 200 = 100% κέρδος (πριν έγραφε 50%).",
+        "🧾 Άλλαξε ΜΟΝΟ το ποσοστό που βλέπετε. Τα ευρώ του κέρδους, το κόστος και οι πωλήσεις μένουν ακριβώς τα ίδια — τίποτα δεν ξαναγράφεται στις εγγραφές.",
+        "⚙️ Ρυθμίσεις → Φόρος & Περιθώριο → «Το κέρδος % υπολογίζεται»: αν το προτιμάτε αλλιώς, γυρίστε το σε «Στην πώληση» και όλα επιστρέφουν όπως ήταν.",
+        "🔗 Έτσι συμφωνεί επιτέλους με την ανάλυση τιμής στον Υπολογισμό, που πάντα έδειχνε το κέρδος στο κόστος.",
+        "📁 Στην εξαγωγή CSV βγαίνουν και οι δύο στήλες — «Περιθώριο %» για τον λογιστή και «Κέρδος % (κόστος)» για εσάς."
       ]},
       ]
   },
@@ -33128,10 +33220,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.11', date: 'Aug 2026', items: [
-        "🔗 Fixed: with the “Sold” filter on, a group of similar pieces showed as one bright card reading “2 in stock” when both had been sold — and its “View 2 pieces” button opened an empty sheet.",
-        "📦 A group card now holds only the pieces actually on the shelf. A sold (or returned) piece gets its own dimmed card with “View Sale” and “Delete”, like every other sold piece.",
-        "🧮 This also fixes the count in a mixed view: 2 on the shelf + 1 sold used to read “3 in stock”. Nothing changes in the data — the group re-forms by itself."
+      { version: 'v13.12', date: 'Aug 2026', items: [
+        "📊 The profit percentage is now measured ON COST, the way the shop has always said it: buy at 100, sell at 200 = 100% profit (it used to read 50%).",
+        "🧾 Only the percentage changed. The profit in euros, the cost and the sales totals are exactly the same — nothing is rewritten on any record.",
+        "⚙️ Settings → Tax & Margin → “Profit % is measured”: if you prefer the old way, switch it to “On sale” and everything reads as before.",
+        "🔗 It finally agrees with the Calc price breakdown, which has always shown profit on cost.",
+        "📁 The CSV export now carries both columns — “Margin %” for the accountant and “Markup % (on cost)” for you."
       ]},
           ]
   }
@@ -38218,7 +38312,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.11';
+const APP_VERSION = '13.12';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
