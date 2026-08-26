@@ -3715,7 +3715,7 @@ const T = {
     save:'Αποθήκευση', cloudSync:'Συγχρονισμός Cloud',
     cloudSyncDesc:'Όλες οι συσκευές παραμένουν συγχρονισμένες αυτόματα. Οι αλλαγές του ιδιοκτήτη ανεβαίνουν στο cloud αμέσως.',
     notConfigured:'Δεν έχει ρυθμιστεί ακόμα',
-    owner:'👑 Ιδιοκτήτης', employee:'👤 Υπάλληλος',
+    owner:'👑 Ιδιοκτήτης', employee:'👤 Υπάλληλος', temporary:'⏱️ Προσωρινός',
     apiKeyLabel:'JSONBin API Key', apiKeyHint:'Από jsonbin.io → καρτέλα API Keys',
     binIdLabel:'Bin ID (αφήστε κενό για νέο)', autoCreated:'Δημιουργείται αυτόματα',
     binIdHint:'Μετά την πρώτη αποθήκευση, αντιγράψτε αυτό το ID για τους υπαλλήλους',
@@ -4278,7 +4278,7 @@ const T = {
     save:'Save', cloudSync:'Cloud Sync',
     cloudSyncDesc:'All devices stay in sync automatically. Owner changes push to the cloud instantly — employees pull the latest config every time they open the app.',
     notConfigured:'Not configured yet',
-    owner:'👑 Owner', employee:'👤 Employee',
+    owner:'👑 Owner', employee:'👤 Employee', temporary:'⏱️ Temporary',
     apiKeyLabel:'JSONBin API Key (X-Master-Key)', apiKeyHint:'From jsonbin.io → API Keys tab',
     binIdLabel:'Bin ID (leave blank to create new)', autoCreated:'Auto-created on first save',
     binIdHint:'After first save, copy this ID for employees',
@@ -5727,7 +5727,8 @@ const PERMISSIONS = [
   'export',        // CSV export + stale-stock report
   'settings',      // global money rules: VAT, margin, currency, data recovery
   'sync',          // Firebase URL, DB secret, owner PIN
-  'backup'         // create AND restore cloud backups
+  'backup',        // create AND restore cloud backups
+  'stock_full'     // see the WHOLE stock: sold pieces, bullion coins, raw/scrap metal
 ];
 
 const ROLE_PERMISSIONS = {
@@ -5737,16 +5738,38 @@ const ROLE_PERMISSIONS = {
   // change the money rules, touch the sync/secret/PIN, restore a backup, or promote people.
   manager: {
     see_cost: true, manage_stock: true, vendors: true, desk_admin: true,
-    sales_admin: true, stocktake: true, export: true,
+    sales_admin: true, stocktake: true, export: true, stock_full: true,
     settings: false, sync: false, backup: false
   },
   // Everyday counter work only: calc, scan, sell, reserve, look things up, add clients.
-  employee: Object.fromEntries(PERMISSIONS.map(p => [p, false]))
+  employee: { ...Object.fromEntries(PERMISSIONS.map(p => [p, false])), stock_full: true },
+  // Temporary cover — a friend standing in for a few days while the employee is away.
+  // Counter work on the pieces that are actually on the shelf and nothing else: Calc,
+  // Stock and Vendors (see ROLE_PANELS). No sales history, no clients, no desk — and no
+  // sold pieces, bullion coins or scrap metal inside Stock.
+  temporary: Object.fromEntries(PERMISSIONS.map(p => [p, false]))
 };
 
+// Is this a role the app actually defines? Asked with hasOwnProperty because the role can
+// arrive from a URL parameter, and a plain lookup is truthy for 'constructor'/'toString'.
+function isKnownRole(r) { return Object.prototype.hasOwnProperty.call(ROLE_PERMISSIONS, r); }
+
 function can(perm) {
-  const table = ROLE_PERMISSIONS[creds.role] || ROLE_PERMISSIONS.employee;
+  const table = isKnownRole(creds.role) ? ROLE_PERMISSIONS[creds.role] : ROLE_PERMISSIONS.employee;
   return !!table[perm];
+}
+
+// Some roles are defined by WHICH SCREENS they may open rather than by what they may do
+// inside them, so that is stated here directly instead of inventing a permission per tab.
+// A role listed here may open ONLY the panels named; a role that is not listed may open
+// any panel its permissions already allow (owner, manager and employee are unchanged).
+// This is the whole definition of the temporary role's navigation — one line to edit.
+const ROLE_PANELS = {
+  temporary: ['calc', 'inventory', 'vendors']
+};
+function canOpenPanel(name) {
+  const allowed = Object.prototype.hasOwnProperty.call(ROLE_PANELS, creds.role) ? ROLE_PANELS[creds.role] : null;
+  return !allowed || allowed.indexOf(name) !== -1;
 }
 
 // Team management is the one power that is not a plain yes/no: an owner may create anyone,
@@ -5754,7 +5777,7 @@ function can(perm) {
 function canManageTeam() { return creds.role === 'owner' || creds.role === 'manager'; }
 function canAssignRole(role) {
   if (creds.role === 'owner') return true;
-  if (creds.role === 'manager') return role === 'employee';
+  if (creds.role === 'manager') return role === 'employee' || role === 'temporary';
   return false;
 }
 
@@ -5774,12 +5797,19 @@ function applyRoleUI() {
     const el = document.getElementById(id);
     if (el) el.style.display = visible ? (mode || '') : 'none';
   };
-  document.getElementById('nav-sales').style.display = ''; // all roles see Sales tab
-  document.getElementById('nav-inventory').style.display = ''; // all roles see Stock tab
-  { const _ndk = document.getElementById('nav-desk'); if (_ndk) _ndk.style.display = ''; } // all roles see Desk
+  // Tabs every ordinary role sees. They still go through canOpenPanel() so a role that is
+  // limited to a few screens (temporary) is hidden the rest — in ONE place, not per tab.
+  show('nav-calc',      canOpenPanel('calc'));
+  show('nav-inventory', canOpenPanel('inventory'));
+  show('nav-sales',     canOpenPanel('sales'));
+  show('nav-clients',   canOpenPanel('clients'));
+  show('nav-desk',      canOpenPanel('desk'));
+  show('nav-vendors',   canOpenPanel('vendors'));
+  show('nav-find',      canOpenPanel('find'));
+  show('nav-about',     canOpenPanel('about'));
 
   // ── Settings tab + its sections ──
-  show('nav-settings', _canSeeSettingsTab());
+  show('nav-settings', canOpenPanel('settings') && _canSeeSettingsTab());
   show('taxMarginSection', can('settings'));   // VAT / margin / currency — owner only
   show('recoverySection',  can('settings'));   // force-restore from device — owner only
   show('stoneCacheSection', can('see_cost'));
@@ -5795,16 +5825,17 @@ function applyRoleUI() {
   // labelHistorySection hidden permanently — print tags now available directly from inventory cards
 
   // ── Sync tab (Firebase URL / DB secret / PIN) — owner only ──
-  show('nav-sync', can('sync'));
+  show('nav-sync', canOpenPanel('sync') && can('sync'));
 
   // ── Team (its own screen in the ☰ menu) ──
-  show('nav-team', canManageTeam());
+  show('nav-team', canOpenPanel('team') && canManageTeam());
 
   // Someone standing on a panel they may no longer open gets moved somewhere safe.
-  const activePanel = document.querySelector('.panel.active')?.id;
-  if ((activePanel === 'panel-sync' && !can('sync')) ||
-      (activePanel === 'panel-team' && !canManageTeam()) ||
-      (activePanel === 'panel-settings' && !_canSeeSettingsTab())) {
+  const activePanel = (document.querySelector('.panel.active')?.id || '').replace(/^panel-/, '');
+  if ((activePanel === 'sync' && !can('sync')) ||
+      (activePanel === 'team' && !canManageTeam()) ||
+      (activePanel === 'settings' && !_canSeeSettingsTab()) ||
+      (activePanel && !canOpenPanel(activePanel))) {
     showPanel('calc');
   }
 
@@ -5930,6 +5961,10 @@ function updateSpotDisplay() {
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 function showPanel(name) {
+  // Hiding a nav button is presentation; this is the guard. 'jpro_lastPanel' is restored
+  // on open and deep links call in from outside, so a limited role could otherwise be put
+  // on a screen it may not have.
+  if (!canOpenPanel(name)) name = 'calc';
   _jpTrackPanel(name);
   closeMoreMenu(); // close the ☰ More dropdown on any navigation
   // Close the full-screen customer price view on any tab change — never let it
@@ -16966,7 +17001,7 @@ async function showSaleDetail(id, forceSingle) {
   // ── Action buttons
   const acts = document.getElementById('sdmActions');
   acts.innerHTML = '';
-  const canEdit = creds.role !== 'employee' || s.employee === creds.userName;
+  const canEdit = can('sales_admin') || s.employee === creds.userName;
 
   // 💰 Take the money when the customer comes back with it. First in the row on
   // an unpaid sale, because it is the only reason you opened it.
@@ -26545,7 +26580,11 @@ function openInvFilterSheet() {
   });
   const STONE_PRIORITY = ['Diamond','Emerald','Ruby','Sapphire','Pearl'];
   const stoneTypes = [...STONE_PRIORITY.filter(s => stoneTypeSet.has(s)), ...[...stoneTypeSet].filter(s => !STONE_PRIORITY.includes(s)).sort()];
-  const statuses = ['in_stock','sold','returned','consign','reserved','grouped','set','hidden','nophoto'];
+  let statuses = ['in_stock','sold','returned','consign','reserved','grouped','set','hidden','nophoto'];
+  // A temporary works the counter with what is on the shelf, so the pills that would
+  // reveal a piece that has already left it are not offered. (Coins and scrap metal are
+  // already stripped from the Type list above by the same reasoning.)
+  if (!can('stock_full')) statuses = statuses.filter(st => st !== 'sold' && st !== 'returned');
 
   // Pills for small fixed sets (metal, karat, status)
   function pillGroup(labelKey, vals, selectedArr, groupKey, labelFn) {
@@ -27044,8 +27083,10 @@ function renderInvSummary(filteredItems) {
   const _coinFilterOn = (_invFilters.types || []).includes('coin');
   const _metalFilterOn = (_invFilters.types || []).includes('metal');
   const _searchActive = !!(document.getElementById('invSearchInput')?.value || '').trim();
-  const _countCoins = _coinFilterOn || _searchActive;
-  const _countMetal = _metalFilterOn || _searchActive;   // raw metal stock, same rule as coins
+  // …and a role without stock_full never counts them at all, since it never sees them.
+  const _seeAllStock = can('stock_full');
+  const _countCoins = (_coinFilterOn || _searchActive) && _seeAllStock;
+  const _countMetal = (_metalFilterOn || _searchActive) && _seeAllStock;   // raw metal, same rule as coins
   // PIECES = items matching the current filter (incl. sold if the filter includes them),
   // minus coins & raw-metal lots unless we're counting them (their VALUE still always counts).
   const totalFiltered = source.filter(i => (i.isCoin ? _countCoins : (i.isMetal ? _countMetal : true))).length;
@@ -27334,6 +27375,9 @@ function renderInvList() {
 
   // Apply search query
   const searchQuery = (document.getElementById('invSearchInput')?.value || '').trim().toLowerCase();
+  // Whether this role sees anything beyond what is on the shelf (sold pieces, bullion
+  // coins, raw/scrap metal). Read once per render.
+  const _seeAllStock = can('stock_full');
   const searchClear = document.getElementById('invSearchClear');
   if (searchClear) searchClear.style.display = searchQuery ? '' : 'none';
 
@@ -27457,6 +27501,10 @@ function renderInvList() {
     // 'hidden' and 'grouped' are cross-cutting flags, not real statuses; when selected the
     // item must be hidden-from-showroom / part of a similar-items group. The in_stock/sold
     // pills still apply (so "Rings + Grouped" narrows to in-stock ring groups).
+    // Hiding the sold/returned pills is presentation; this is the guard. A stale filter, a
+    // search or a notification must not get a piece that has left the shelf onto a
+    // temporary's screen either.
+    if (!_seeAllStock && (isSoldItem || isRetItem)) return false;
     if (f.status.includes('hidden') && !item.hideFromShowroom) return false;
     if (f.status.includes('grouped') && !(item.groupId && !item.isMetal && (_grpLive.get(item.groupId) || 0) > 1)) return false;
     // 'set' — cross-cutting flag: a piece belonging to a matching set (necklace/ring/etc.).
@@ -27523,7 +27571,12 @@ function renderInvList() {
     const _types = _invFilters.types || [];
     // _notifOn: a notification names the pieces explicitly, so a notified coin or metal
     // lot must show too — dropping it here would be the same "I cannot see it" bug.
-    if (!searchQuery && !_notifOn) {
+    // A role without stock_full never sees bullion coins or scrap metal at all — a search
+    // and a notification are not exceptions for them, which is what makes this a guard
+    // rather than a default.
+    if (!_seeAllStock) {
+      filtered = filtered.filter(([, it]) => !it.isCoin && !it.isMetal);
+    } else if (!searchQuery && !_notifOn) {
       if (!_types.includes('coin'))  filtered = filtered.filter(([, it]) => !it.isCoin);
       if (!_types.includes('metal')) filtered = filtered.filter(([, it]) => !it.isMetal);
     }
@@ -33184,12 +33237,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.12', date: 'Αύγουστος 2026', items: [
-        "📊 Το ποσοστό κέρδους υπολογίζεται πλέον ΣΤΟ ΚΟΣΤΟΣ, όπως το λέτε πάντα στο μαγαζί: αγορά 100 → πώληση 200 = 100% κέρδος (πριν έγραφε 50%).",
-        "🧾 Άλλαξε ΜΟΝΟ το ποσοστό που βλέπετε. Τα ευρώ του κέρδους, το κόστος και οι πωλήσεις μένουν ακριβώς τα ίδια — τίποτα δεν ξαναγράφεται στις εγγραφές.",
-        "⚙️ Ρυθμίσεις → Φόρος & Περιθώριο → «Το κέρδος % υπολογίζεται»: αν το προτιμάτε αλλιώς, γυρίστε το σε «Στην πώληση» και όλα επιστρέφουν όπως ήταν.",
-        "🔗 Έτσι συμφωνεί επιτέλους με την ανάλυση τιμής στον Υπολογισμό, που πάντα έδειχνε το κέρδος στο κόστος.",
-        "📁 Στην εξαγωγή CSV βγαίνουν και οι δύο στήλες — «Περιθώριο %» για τον λογιστή και «Κέρδος % (κόστος)» για εσάς."
+      { version: 'v13.13', date: 'Αύγουστος 2026', items: [
+        "⏱️ Νέος ρόλος «Προσωρινός» — για κάποιον που αναπληρώνει λίγες μέρες.",
+        "👁️ Βλέπει ΜΟΝΟ τρεις καρτέλες: Υπολογισμός, Απόθεμα, Προμηθευτές. Πωλήσεις, Πελάτες, Γραφείο, Ρυθμίσεις και Συγχρονισμός δεν εμφανίζονται καθόλου.",
+        "📦 Στο Απόθεμα βλέπει μόνο ό,τι είναι στο ράφι: πωλημένα, νομίσματα και παλιό μέταλλο είναι κρυμμένα — ακόμα και στην αναζήτηση.",
+        "👥 Ομάδα → Νέο Μέλος → «⏱️ Προσωρινός», και στείλτε του τον σύνδεσμο όπως σε κάθε υπάλληλο. Όταν φύγει, πατήστε ⏸ για απενεργοποίηση."
       ]},
       ]
   },
@@ -33220,12 +33272,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.12', date: 'Aug 2026', items: [
-        "📊 The profit percentage is now measured ON COST, the way the shop has always said it: buy at 100, sell at 200 = 100% profit (it used to read 50%).",
-        "🧾 Only the percentage changed. The profit in euros, the cost and the sales totals are exactly the same — nothing is rewritten on any record.",
-        "⚙️ Settings → Tax & Margin → “Profit % is measured”: if you prefer the old way, switch it to “On sale” and everything reads as before.",
-        "🔗 It finally agrees with the Calc price breakdown, which has always shown profit on cost.",
-        "📁 The CSV export now carries both columns — “Margin %” for the accountant and “Markup % (on cost)” for you."
+      { version: 'v13.13', date: 'Aug 2026', items: [
+        "⏱️ New “Temporary” role — for someone standing in for a few days.",
+        "👁️ They see ONLY three tabs: Calc, Stock and Vendors. Sales, Clients, Desk, Settings and Sync do not appear at all.",
+        "📦 In Stock they see only what is on the shelf: sold pieces, bullion coins and scrap metal are hidden — including from a search.",
+        "👥 Team → New Member → “⏱️ Temporary”, then share the link as you would for any employee. When they leave, press ⏸ to deactivate."
       ]},
           ]
   }
@@ -36739,7 +36790,11 @@ function _roleChoices() {
     { role: 'employee', icon: '👤',
       name: isEl ? 'Υπάλληλος' : 'Employee',
       desc: isEl ? 'Καθημερινή δουλειά στον πάγκο: υπολογισμός, σάρωση, πώληση, κρατήσεις. Χωρίς κόστη ή διαχείριση.'
-                 : 'Everyday counter work: calc, scan, sell, reserve. No costs or admin.' }
+                 : 'Everyday counter work: calc, scan, sell, reserve. No costs or admin.' },
+    { role: 'temporary', icon: '⏱️',
+      name: isEl ? 'Προσωρινός' : 'Temporary',
+      desc: isEl ? 'Για κάποιον που αναπληρώνει λίγες μέρες. Μόνο Υπολογισμός, Απόθεμα και Προμηθευτές — χωρίς πωλήσεις, πελάτες ή Γραφείο, και χωρίς πωλημένα, νομίσματα ή παλιό μέταλλο.'
+                 : 'For someone standing in for a few days. Calc, Stock and Vendors only — no sales, clients or desk, and no sold pieces, coins or scrap metal.' }
   ].filter(c => canAssignRole(c.role));
 }
 
@@ -36885,8 +36940,9 @@ function shareUserLink(slug, name, nameEn, role) {
   if (!firebaseUrl) { showToast(lang==='el' ? '⚠️ Αποθηκεύστε πρώτα το Firebase URL' : '⚠️ Save Firebase URL first'); return; }
   // Owner is a real choice now, so it must survive into the link — collapsing anything that
   // isn't "manager" to "employee" would have silently invited a co-owner as an employee.
-  const resolvedRole = (role === 'owner' || role === 'manager') ? role : 'employee';
-  const roleIcon = resolvedRole === 'owner' ? '👑' : resolvedRole === 'manager' ? '🔑' : '👤';
+  const resolvedRole = isKnownRole(role) ? role : 'employee';
+  const roleIcon = resolvedRole === 'owner' ? '👑' : resolvedRole === 'manager' ? '🔑'
+                 : resolvedRole === 'temporary' ? '⏱️' : '👤';
   let url = `${appUrl}?firebase=${encodeURIComponent(firebaseUrl)}&role=${resolvedRole}&user=${encodeURIComponent(slug)}&name=${encodeURIComponent(name)}`;
   if (creds.dbSecret) url += `&secret=${encodeURIComponent(creds.dbSecret)}`;
   if (nameEn) url += `&name_en=${encodeURIComponent(nameEn)}`;
@@ -36921,7 +36977,8 @@ function renderTeamList(users) {
     const u = users[slug];
     const initial = (u.name||'?').charAt(0).toUpperCase();
     const color = vendorAvatarColor(slug);
-    const roleLabel = u.role === 'manager' ? t('manager') : u.role === 'owner' ? t('owner') : t('employee');
+    const roleLabel = u.role === 'manager' ? t('manager') : u.role === 'owner' ? t('owner')
+                    : u.role === 'temporary' ? t('temporary') : t('employee');
     const bonusTag = u.bonus > 0
       ? `<span style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:2px 7px;font-family:var(--font-mono);font-size:10px;color:var(--gold)">🎁 ${u.bonus}%</span>`
       : '';
@@ -37060,7 +37117,8 @@ function renderIdentityCard() {
   const roleMap = {
     owner: t('owner'),
     manager: t('manager'),
-    employee: t('employee')
+    employee: t('employee'),
+    temporary: t('temporary')
   };
   const roleLabel = roleMap[creds.role] || creds.role;
 
@@ -38312,7 +38370,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.12';
+const APP_VERSION = '13.13';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -38558,13 +38616,15 @@ renderSetupSteps();
 const urlParams = new URLSearchParams(window.location.search);
 const firebaseParam = urlParams.get('firebase');
 const userParam = urlParams.get('user');     // slug e.g. 'petros'
-const roleParam = urlParams.get('role');     // 'employee' | 'manager'
+const roleParam = urlParams.get('role');     // 'employee' | 'temporary' | 'manager' | 'owner'
 const nameParam = urlParams.get('name');     // display name e.g. 'Πέτρος'
 const nameEnParam = urlParams.get('name_en'); // English name e.g. 'Petros'
 const secretParam = urlParams.get('secret'); // Firebase Database Secret
 
 if (firebaseParam) {
-  const resolvedRole = (roleParam === 'owner') ? 'owner' : (roleParam === 'manager') ? 'manager' : 'employee';
+  // Any role the permission table knows is honoured; anything else falls back to the
+  // least-privileged everyday role rather than being guessed at.
+  const resolvedRole = isKnownRole(roleParam) ? roleParam : 'employee';
   creds.role = resolvedRole;
   creds.binId = firebaseParam.trim();
   creds.apiKey = '';
