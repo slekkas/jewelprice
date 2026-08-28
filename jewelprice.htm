@@ -27848,7 +27848,7 @@ function renderInvList() {
       : item.metal === 'other'
       ? otherMaterialLabel(item.otherMaterial)  // material (brass/steel/plated…) if set, else blank
       : item.isBulk
-        ? `${metalLabel} · ${karatLabel} · <strong style="color:var(--gold-light)">${parseFloat(item.weight).toFixed(1)}g ${t('bulkRemaining')}</strong>`
+        ? `${metalLabel} · ${karatLabel} · <strong style="color:var(--gold-light)">${parseFloat(item.weight).toFixed(1)} ${t('bulkRemaining')}</strong>`
         : `${metalLabel} · ${karatLabel} · ${parseFloat(item.weight).toFixed(2)}g${secondMetalLabel(item) ? ` · ${secondMetalLabel(item)} · ${secondMetalWeightStr(item)}` : ''}`;
     // Look up live catName from state.vendors so it always shows in the current language
     const _liveCatName = (function() {
@@ -27933,7 +27933,7 @@ function renderInvList() {
             <button onclick="invLoadToCalc('${id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Load to Calc">+</button>
             <button onclick="invShareSingle('${id}')" class="inv-share-btn" title="Share" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
             ${(!_gone && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invReserveOrView('${id}')" class="inv-share-btn" title="${_held ? (lang==='el'?'Κρατημένο':'Reserved') : (lang==='el'?'Κράτηση':'Reserve')}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${_held ? 'rgba(212,175,55,0.25)' : 'var(--wa07)'};border:1px solid ${_held ? 'var(--gold)' : 'var(--wa20)'};color:${_held ? 'var(--gold-light)' : 'var(--text-muted)'};cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>` : ''}
-            ${(!_gone && !item.isBulk && !item.isCoin && !item.isMetal) ? `<button onclick="invGiveaway('${id}')" class="inv-share-btn" title="${lang==='el'?'Δώρο':'Give as gift'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">🎁</button>` : ''}
+            ${(!_gone && !item.isCoin && !item.isMetal) ? `<button onclick="invGiveaway('${id}')" class="inv-share-btn" title="${lang==='el'?'Δώρο':'Give as gift'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">🎁</button>` : ''}
             </div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:8px;flex-shrink:0">
@@ -30256,7 +30256,7 @@ function openBulkSellSheet(id) {
     <div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:0 0 20px 20px;padding:24px 20px 40px;max-width:480px;width:100%;min-height:100vh;box-sizing:border-box">
       <div style="width:36px;height:4px;background:var(--wa15);border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--font-heading);font-size:20px;color:var(--gold-light);margin-bottom:4px">${t('bulkSellTitle')}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${_itemDesc(item)} · ${item.karat}${item.metal==='gold'?'K':''} · ${parseFloat(item.weight).toFixed(1)}g ${t('bulkRemaining')}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${_itemDesc(item)} · ${item.karat}${item.metal==='gold'?'K':''} · ${parseFloat(item.weight).toFixed(1)} ${t('bulkRemaining')}</div>
 
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">${t('bulkSellWeight')}</label>
       <input type="number" id="bulkSellWeightInput" inputmode="decimal" step="0.1" min="0.1"
@@ -30660,7 +30660,7 @@ async function confirmBulkRestock(id) {
   _inventoryCache[id] = item;
   await saveInventoryItem(id, item);
   document.getElementById('bulkRestockOverlay')?.remove();
-  showToast(t('bulkRestockToast') + ' — ' + item.weight.toFixed(1) + 'g ' + t('bulkRemaining'));
+  showToast(t('bulkRestockToast') + ' — ' + item.weight.toFixed(1) + ' ' + t('bulkRemaining'));
   renderInvList();
 }
 
@@ -30722,27 +30722,69 @@ function openSaleModalFromInventory(id) {
 // dashboard shows €0 added to revenue while the period profit reflects what the
 // gift cost. All roles (an employee can hand a small gift over at the counter).
 // Deleting the record restores the piece, exactly like an ordinary sale (v12.16).
-function _invGiveawayCost(item) {
+//
+// A by-the-gram chain is a QUANTITY, not a piece, so the SAME dialog asks how
+// many grams are being given: it deducts them from the batch and books the cost
+// of that cut, exactly as a by-the-gram sale does. One gift dialog, not two
+// (v13.14).
+function _invGiveawayCost(item, grams) {
+  // A batch's gift costs what the GRAMS handed over cost, never what the whole
+  // remaining batch cost. Routed through the same helper the by-the-gram SALE
+  // uses, so a cut of chain can never be costed two different ways. Returns
+  // null when it cannot be worked out (no spot price) — never a fabricated 0.
+  if (item.isBulk) {
+    const g = parseFloat(grams) || 0;
+    return g > 0 ? _bulkSoldCost(item, g) : null;
+  }
   if (item.purchaseCost != null && item.purchaseCost !== '' && !isNaN(parseFloat(item.purchaseCost)))
     return parseFloat(item.purchaseCost);
   const p = calcInvItemPrice(item);
   return (p && p.baseCost != null) ? (parseFloat(p.baseCost) || 0) : 0;
 }
 
+// What the cost box says. Shared by the first paint and the live update as grams
+// are typed, so the figure on screen and the figure booked are one function.
+function _giftCostText(item, grams) {
+  const isEl = lang === 'el';
+  const c = _invGiveawayCost(item, grams);
+  // Nothing typed yet is simply blank; a cost that genuinely cannot be worked
+  // out (no metal price) says so rather than showing a fabricated €0.00.
+  if (c == null) {
+    return (item.isBulk && !(parseFloat(grams) > 0)) ? '—' : (isEl ? '— άγνωστο' : '— unknown');
+  }
+  return (state.currency || '€') + parseFloat(c).toFixed(2);
+}
+
+function _invGiveawayGrams(id) {
+  const item = _inventoryCache[id];
+  if (!item) return;
+  const el = document.getElementById('invGiveawayCostVal');
+  if (el) el.textContent = _giftCostText(item, document.getElementById('invGiveawayWeight')?.value);
+}
+
 function invGiveaway(id) {
   const item = _inventoryCache[id];
   if (!item) return;
   const isEl = lang === 'el';
-  // Reserved / coin / metal / bulk pieces are not everyday counter gifts.
+  // Reserved pieces are not everyday counter gifts. (Bullion coins and raw metal
+  // never reach here — the card offers them no gift button.)
   if (item.reservationId || _holdFor(id)) {
     showToast('⚠️ ' + (isEl ? 'Το κομμάτι είναι κρατημένο — δεν μπορεί να δοθεί ως δώρο' : 'This piece is reserved — it cannot be given away'));
     return;
   }
-  const cur = state.currency || '€';
-  const cost = _invGiveawayCost(item);
+  const _bulk = !!item.isBulk;
+  const _remain = _bulk ? (parseFloat(item.weight) || 0) : 0;
+  if (_bulk && _remain <= 0) {
+    showToast('⚠️ ' + (isEl ? 'Η παρτίδα δεν έχει υπόλοιπο βάρος' : 'The batch has no weight left'));
+    return;
+  }
   const typeStr = item.jewelryType ? invTypeLabel(item.jewelryType) : '';
   const nameStr = [typeStr, _itemDesc(item)].filter(Boolean).join(' · ') || (item.seqId ? itemRefCode(item) : (item.qrCode || item.code || ''));
-  const refStr = item.seqId ? itemRefCode(item) : (item.qrCode || '');
+  // A batch has no reference code to show; what you need under its name is how
+  // much of it is left, exactly as the sell sheet says.
+  const refStr = _bulk
+    ? `${item.karat}${item.metal === 'gold' ? 'K' : ''} · ${_remain.toFixed(1)} ${t('bulkRemaining')}`
+    : (item.seqId ? itemRefCode(item) : (item.qrCode || ''));
   const existing = document.getElementById('invGiveawayOverlay');
   if (existing) existing.remove();
   // Same field styling as the rest of this dialog, handed to the SHARED customer
@@ -30762,57 +30804,96 @@ function invGiveaway(id) {
       </div>
       <div style="font-size:13px;color:var(--text)">${nameStr}</div>
       <div style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;margin:2px 0 14px">${refStr}</div>
+      ${_bulk ? `
+      <label style="${_gLbl}">${isEl ? 'Βάρος που δίνεται (g)' : 'Weight given away (g)'}</label>
+      <input id="invGiveawayWeight" type="number" inputmode="decimal" step="0.1" min="0.1" max="${_remain}"
+        placeholder="0.0" oninput="_invGiveawayGrams('${id}')"
+        style="${_gFld};font-family:'DM Mono',monospace;font-size:20px;font-weight:700;margin-bottom:14px">` : ''}
       ${_saleCustBlockHtml('gift', { fld: _gFld, lbl: _gLbl })}
       <div style="font-size:11px;color:var(--text-dim);margin:-6px 0 14px">${isEl ? 'Με όνομα, το δώρο μπαίνει στο ιστορικό του πελάτη.' : 'With a name, the gift appears in that client\'s history.'}</div>
       <label style="${_gLbl}">${isEl ? 'Σημείωση (προαιρετικά)' : 'Note (optional)'}</label>
       <input id="invGiveawayNote" type="text" placeholder="${isEl ? 'π.χ. για την κόρη της' : 'e.g. for her daughter'}" style="${_gFld};margin-bottom:14px">
       <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.22);border-radius:10px;padding:11px 13px;margin-bottom:16px">
         <div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Κόστος (χρεώνεται ως έξοδο καλής θέλησης)' : 'Cost (booked as a goodwill expense)'}</div>
-        <div style="font-size:18px;color:var(--gold-light);font-weight:700;font-family:'DM Mono',monospace;margin-top:2px">${cur}${cost.toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--text-dim);margin-top:4px">${isEl ? 'Καμία εγγραφή εσόδου. Αφαιρείται από το απόθεμα.' : 'No revenue recorded. Removed from stock.'}</div>
+        <div id="invGiveawayCostVal" style="font-size:18px;color:var(--gold-light);font-weight:700;font-family:'DM Mono',monospace;margin-top:2px">${_giftCostText(item, null)}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px">${_bulk
+          ? (isEl ? 'Καμία εγγραφή εσόδου. Τα γραμμάρια αφαιρούνται από την παρτίδα.' : 'No revenue recorded. The grams come off the batch.')
+          : (isEl ? 'Καμία εγγραφή εσόδου. Αφαιρείται από το απόθεμα.' : 'No revenue recorded. Removed from stock.')}</div>
       </div>
       <button onclick="_invGiveawayConfirm('${id}')" style="width:100%;padding:14px;background:linear-gradient(135deg,#c9a84c,#b8973c);border:none;border-radius:11px;color:var(--ink);font-family:var(--font-body);font-size:15px;font-weight:800;cursor:pointer">🎁 ${isEl ? 'Δώσε το δώρο' : 'Give the gift'}</button>
     </div>`;
   document.body.appendChild(overlay);
-  setTimeout(() => { const n = document.getElementById('giftCustName'); if (n) n.focus(); }, 50);
+  // The grams are the first thing to answer on a batch; the name on a piece.
+  setTimeout(() => {
+    const n = document.getElementById(_bulk ? 'invGiveawayWeight' : 'giftCustName');
+    if (n) n.focus();
+  }, 50);
 }
 
 async function _invGiveawayConfirm(id) {
   const item = _inventoryCache[id];
   if (!item) return;
   const isEl = lang === 'el';
+  const _bulk = !!item.isBulk;
+  const _remain = _bulk ? (parseFloat(item.weight) || 0) : 0;
+  // A batch is given away BY WEIGHT. Check the grams FIRST, before anything is
+  // read or written, and leave the dialog open on a refusal so the number can
+  // simply be corrected — the same guards confirmBulkSell applies.
+  let grams = 0;
+  if (_bulk) {
+    grams = parseFloat(document.getElementById('invGiveawayWeight')?.value);
+    if (!grams || grams <= 0) {
+      showToast('⚠️ ' + (isEl ? 'Εισάγετε βάρος' : 'Enter weight')); return;
+    }
+    if (grams > _remain) {
+      showToast('⚠️ ' + (isEl ? 'Υπερβαίνει το υπόλοιπο βάρος' : 'Exceeds remaining weight')); return;
+    }
+  }
   const noteEl = document.getElementById('invGiveawayNote');
   const userNote = noteEl ? noteEl.value.trim() : '';
   // Who it went to. Read BEFORE the overlay is removed, or the fields are gone.
   const _cust = _saleCustRead('gift');
   const ov = document.getElementById('invGiveawayOverlay');
   if (ov) ov.remove();
-  const cost = _invGiveawayCost(item);
+  const cost = _invGiveawayCost(item, grams);
   const typeStr = item.jewelryType ? invTypeLabel(item.jewelryType) : '';
   const nameStr = [typeStr, _itemDesc(item)].filter(Boolean).join(' · ') || (item.seqId ? itemRefCode(item) : (item.qrCode || item.code || ''));
-  const note = `🎁 ${isEl ? 'Δώρο' : 'Gift'} — ${nameStr}` + (userNote ? ` (${userNote})` : '');
+  // A cut of chain is named by what actually left: the batch, its karat, the grams.
+  const whatStr = _bulk
+    ? `${nameStr} · ${item.karat}${item.metal === 'gold' ? 'K' : ''} · ${grams.toFixed(1)}g`
+    : nameStr;
+  const note = `🎁 ${isEl ? 'Δώρο' : 'Gift'} — ${whatStr}` + (userNote ? ` (${userNote})` : '');
 
-  // 1) Take the piece out of stock. Check the write LANDED before booking the
-  //    record — a fire-and-forget status flip is how a piece stays "in stock" in
-  //    the cloud while looking gone locally (v11.62).
+  // 1) Take it out of stock — the grams off the batch, or the piece itself. Check
+  //    the write LANDED before booking the record: a fire-and-forget change is how
+  //    stock stays intact in the cloud while looking gone locally (v11.62). On a
+  //    failure the cache is put back exactly as it was.
   const _prevStatus = item.status;
-  item.status = 'sold';
-  item.dateSold = Date.now();
-  item.giveaway = true;
+  const _prevWeight = item.weight;
+  if (_bulk) {
+    item.weight = parseFloat(Math.max(0, _remain - grams).toFixed(2));
+  } else {
+    item.status = 'sold';
+    item.dateSold = Date.now();
+    item.giveaway = true;
+  }
   const _ok = await saveInventoryItem(id, item);
   if (!_ok) {
-    item.status = _prevStatus; delete item.dateSold; delete item.giveaway;
+    if (_bulk) item.weight = _prevWeight;
+    else { item.status = _prevStatus; delete item.dateSold; delete item.giveaway; }
     _inventoryCache[id] = item;
     showToast('⚠️ ' + (isEl ? 'Δεν αποθηκεύτηκε — δοκιμάστε ξανά με σύνδεση' : 'Could not save — try again with a connection'));
     return;
   }
   _inventoryCache[id] = item;
 
-  // 2) Book the cost as a loss: a €0 record, cost = the piece's cost, profit =
-  //    −cost, linked to the piece by invId so deleting it restores the exact
-  //    record (v10.59). Built the robust way (unique id + outbox) so an offline
-  //    gift is never lost (v11.65).
-  const _cost = cost > 0 ? parseFloat(cost.toFixed(2)) : null;
+  // 2) Book the cost as a loss: a €0 record, cost = what it cost you, profit =
+  //    −cost. A discrete piece is linked by invId so deleting the record restores
+  //    that exact record (v10.59); a batch carries bulkInvId + bulkSoldWeight —
+  //    the same two fields an ordinary by-the-gram sale carries, so deleting it
+  //    puts the GRAMS back through the same restore path. Built the robust way
+  //    (unique id + outbox) so an offline gift is never lost (v11.65).
+  const _cost = (cost != null && cost > 0) ? parseFloat(parseFloat(cost).toFixed(2)) : null;
   const sales = await getSales();
   const rec = {
     id: _nextSaleId(sales),
@@ -30820,11 +30901,13 @@ async function _invGiveawayConfirm(id) {
     vendor: '', customer: _cust.name || '', email: _cust.email || '',
     employee: creds.userName || '', employeeName: creds.displayName || '',
     bonusAmt: 0, bonusPct: 0,
-    invQr: item.qrCode || item.code || '', invId: id,
+    invQr: item.qrCode || item.code || '',
     seqRef: item.seqId ? itemRefCode(item) : '',
     cost: _cost, profit: _cost !== null ? parseFloat((-_cost).toFixed(2)) : null,
     cashSale: true, salePhotoUrl: '', salePhotoName: '', giveaway: true
   };
+  if (_bulk) { rec.bulkInvId = id; rec.bulkSoldWeight = grams; }
+  else { rec.invId = id; }
   sales.push(rec);
   _salesCache = sales;
   localStorage.setItem('jpro_sales', JSON.stringify(sales));
@@ -30833,9 +30916,12 @@ async function _invGiveawayConfirm(id) {
   // in the client book exactly as a sale's would — a phone typed here is not lost.
   if (_cust.name) { try { await upsertClientFromSale(_cust.name, _cust.phone, _cust.email); } catch (e) {} }
   const _sent = await pushSalesToCloud(sales);
+  const _gramsMsg = _bulk
+    ? ' — ' + grams.toFixed(1) + 'g ' + (isEl ? 'αφαιρέθηκαν από την παρτίδα' : 'came off the batch')
+    : '';
   showToast('🎁 ' + (isEl
-    ? (_sent ? 'Το δώρο καταχωρήθηκε' : 'Το δώρο καταχωρήθηκε — θα συγχρονιστεί μόλις υπάρξει σύνδεση')
-    : (_sent ? 'Gift recorded' : 'Gift recorded — it will sync when there is a connection')));
+    ? (_sent ? 'Το δώρο καταχωρήθηκε' + _gramsMsg : 'Το δώρο καταχωρήθηκε — θα συγχρονιστεί μόλις υπάρξει σύνδεση')
+    : (_sent ? 'Gift recorded' + _gramsMsg : 'Gift recorded — it will sync when there is a connection')));
   renderInvList();
 }
 
@@ -33237,11 +33323,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.13', date: 'Αύγουστος 2026', items: [
-        "⏱️ Νέος ρόλος «Προσωρινός» — για κάποιον που αναπληρώνει λίγες μέρες.",
-        "👁️ Βλέπει ΜΟΝΟ τρεις καρτέλες: Υπολογισμός, Απόθεμα, Προμηθευτές. Πωλήσεις, Πελάτες, Γραφείο, Ρυθμίσεις και Συγχρονισμός δεν εμφανίζονται καθόλου.",
-        "📦 Στο Απόθεμα βλέπει μόνο ό,τι είναι στο ράφι: πωλημένα, νομίσματα και παλιό μέταλλο είναι κρυμμένα — ακόμα και στην αναζήτηση.",
-        "👥 Ομάδα → Νέο Μέλος → «⏱️ Προσωρινός», και στείλτε του τον σύνδεσμο όπως σε κάθε υπάλληλο. Όταν φύγει, πατήστε ⏸ για απενεργοποίηση."
+      { version: 'v13.14', date: 'Αύγουστος 2026', items: [
+        "🎁 Δώρο και από αλυσίδα με το γραμμάριο — το κουμπί 🎁 υπάρχει πλέον και στην κάρτα της παρτίδας.",
+        "⚖️ Σας ρωτάει πόσα γραμμάρια δίνετε: αφαιρούνται από την παρτίδα και καταγράφεται το κόστος ΑΥΤΩΝ των γραμμαρίων — όχι όλης της παρτίδας.",
+        "📇 Ίδιο παράθυρο με τα υπόλοιπα κοσμήματα: όνομα πελάτη (μπαίνει στο ιστορικό του), σημείωση, καμία είσπραξη.",
+        "↩️ Αν διαγράψετε την εγγραφή, τα γραμμάρια επιστρέφουν στην παρτίδα.",
+        "🔤 Διόρθωση: έγραφε «46.5g γρ. υπόλοιπο» — τώρα «46.5 γρ. υπόλοιπο»."
       ]},
       ]
   },
@@ -33272,11 +33359,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.13', date: 'Aug 2026', items: [
-        "⏱️ New “Temporary” role — for someone standing in for a few days.",
-        "👁️ They see ONLY three tabs: Calc, Stock and Vendors. Sales, Clients, Desk, Settings and Sync do not appear at all.",
-        "📦 In Stock they see only what is on the shelf: sold pieces, bullion coins and scrap metal are hidden — including from a search.",
-        "👥 Team → New Member → “⏱️ Temporary”, then share the link as you would for any employee. When they leave, press ⏸ to deactivate."
+      { version: 'v13.14', date: 'Aug 2026', items: [
+        "🎁 Give away part of a by-the-gram chain — the 🎁 button is now on the batch card too.",
+        "⚖️ It asks how many grams you are giving: they come off the batch and the cost of THOSE grams is booked — not the whole batch.",
+        "📇 Same dialog as every other gift: customer name (it goes into their history), a note, no payment taken.",
+        "↩️ Delete the record and the grams go back on the batch.",
+        "🔤 Fixed: it read “46.5g g remaining” — now “46.5 g remaining”."
       ]},
           ]
   }
@@ -38370,7 +38458,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.13';
+const APP_VERSION = '13.14';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
