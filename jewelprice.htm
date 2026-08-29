@@ -1329,6 +1329,13 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
           </button>
           <div id="moreMenu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--dark-2);border:1px solid var(--card-border);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.55);padding:6px;min-width:184px;z-index:99999">
+            <!-- Doubles as the "who is this app right now" indicator: on a shared counter
+                 machine that is the question people actually need answered. -->
+            <button class="more-item" id="nav-switchuser" onclick="openSwitchUser()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M16 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4"/><path d="M1 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2"/></svg>
+              <span style="line-height:1.25"><span data-i18n="switchUser">Αλλαγή Χρήστη</span><span id="moreCurrentUser" style="display:block;font-size:10px;color:var(--text-muted);letter-spacing:0.04em"></span></span>
+            </button>
+            <div style="height:1px;background:var(--wa12);margin:5px 8px"></div>
             <button class="more-item" id="nav-find" onclick="showPanel('find');closeMoreMenu()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
               <span data-i18n="findTitle">Βρες Κόσμημα</span>
@@ -3886,6 +3893,7 @@ const T = {
     userDisplayName:'Πλήρες Όνομα', userSlugLabel:'Username (για το link)',
     userRoleLabel:'Ρόλος', manager:'👑 Διευθυντής',
     userBonusLabel:'Bonus Πωλήσεων (%)', userBonusHint:'% σε κάθε πώληση · 0 = χωρίς bonus',
+    switchUser:'Αλλαγή Χρήστη', userPinLabel:'PIN Αλλαγής Χρήστη (προαιρετικό)',
     bonusLabel:'Bonus', bonusTotal:'Σύνολο Bonus',
     teamShareLink:'Αντιγραφή Link', teamDeactivate:'Απενεργοποίηση', teamActivate:'Επανενεργοποίηση',
     teamInactive:'Ανενεργός', teamNoUsers:'Δεν υπάρχουν ακόμα μέλη. Πατήστε + Πρόσθεσε.',
@@ -4448,6 +4456,7 @@ const T = {
     userDisplayName:'Full Name', userSlugLabel:'Username (for the link)',
     userRoleLabel:'Role', manager:'👑 Manager',
     userBonusLabel:'Sales Bonus (%)', userBonusHint:'% on each sale · 0 = no bonus',
+    switchUser:'Switch User', userPinLabel:'Switch PIN (optional)',
     bonusLabel:'Bonus', bonusTotal:'Total Bonus',
     teamShareLink:'Copy Link', teamDeactivate:'Deactivate', teamActivate:'Reactivate',
     teamInactive:'Inactive', teamNoUsers:'No team members yet. Tap + Add Person.',
@@ -4849,6 +4858,7 @@ function setLang(l) {
   document.querySelectorAll('[data-opt-btn]').forEach(btn => {
     btn.textContent = t(btn.dataset.optKey || '') + (btn.classList.contains('opt-active') ? ' ✓' : '');
   });
+  renderIdentityCard();   // the ☰ menu shows the current person's name in the active language
 }
 
 function applyTranslations() {
@@ -5322,12 +5332,26 @@ async function migrateSharedLists() {
 // while a sale/return dialog is open so nothing shifts under someone's hands.
 let _refreshingLists = false;
 let _lastListRefresh = 0;
+// Is one of these dialogs actually on screen?
+//
+// The obvious test — el.offsetParent !== null — is WRONG for every dialog in this app:
+// they are all position:fixed, and a fixed element's offsetParent is null whether it is
+// visible or not. So the guard it was written for never fired once. Measured: an open
+// #saleModal reports offsetParent null with a 1265x720 rect, a closed one 0x0. The rect
+// is what tells them apart, and it also catches a parent being hidden.
+function _dialogBusy(ids) {
+  return ids.some(id => {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  });
+}
+
 async function _refreshSharedLists(force) {
   if (!creds.binId || _refreshingLists) return;
   if (!force && Date.now() - _lastListRefresh < 20000) return;
-  const busy = ['saleModal', 'returnDlgOverlay', 'giftModalOverlay', 'repairModalOverlay']
-    .some(id => { const el = document.getElementById(id); return el && el.style.display !== 'none' && el.offsetParent !== null; });
-  if (busy) return;
+  if (_dialogBusy(['saleModal', 'returnDlgOverlay', 'giftModalOverlay', 'repairModalOverlay'])) return;
   _refreshingLists = true;
   try {
     // Send anything still waiting BEFORE pulling, so our own work is in the
@@ -5476,6 +5500,10 @@ async function autoSync() {
   if (creds.userName) {
     try { await syncIdentityFromCloud(); } catch(e) { /* silent */ }
   }
+  // On a shared device, hand the app back to whoever it belongs to. Needs the users list,
+  // so it goes here rather than in the DOMContentLoaded block. No-op when no home user is
+  // set, which is every phone.
+  try { await _goHomeUser('open'); } catch(e) { /* silent */ }
   // One-time conversion of the shared lists from a single whole-list node to
   // records keyed by id, so each save can touch one record instead of all of
   // them (v11.64). Owner/manager device only, no-ops once converted, and must
@@ -5630,13 +5658,28 @@ function _applyRole(role) {
 }
 
 // ─── PIN OVERLAY ──────────────────────────────────────────────────────────────
+// Two kinds of PIN go through this one overlay: the Owner-mode PIN, which is stored in
+// plain text on the device, and a per-user switch PIN, which is stored HASHED on the
+// user's cloud record. opts.hash selects the second. Everything else — the four boxes,
+// the auto-submit at four digits, the retry on a wrong PIN — is shared, so the two can
+// never drift apart.
 let _pinStoredPin = '';
+let _pinStoredHash = '';    // SHA-256 hex; when set it wins over _pinStoredPin
 let _pinCallback = null;
+let _pinCancelCb = null;
 
-function openPinOverlay(storedPin, onSuccess) {
-  _pinStoredPin = storedPin;
+// opts.hash   — compare against a SHA-256 hex instead of a plain PIN
+// opts.title  — overrides the "Enter Owner PIN" heading
+// opts.onCancel — called if the overlay is dismissed without a correct PIN
+// All three are RESET on every open, so an Owner-PIN prompt can never inherit a hash
+// (or a cancel handler) left behind by a user switch.
+function openPinOverlay(storedPin, onSuccess, opts) {
+  opts = opts || {};
+  _pinStoredPin = storedPin || '';
+  _pinStoredHash = opts.hash || '';
   _pinCallback = onSuccess;
-  document.getElementById('pinOverlayTitle').textContent = t('pinOverlayTitle');
+  _pinCancelCb = opts.onCancel || null;
+  document.getElementById('pinOverlayTitle').textContent = opts.title || t('pinOverlayTitle');
   document.getElementById('pinError').textContent = '';
   const inp = document.getElementById('pinHiddenInput');
   inp.value = '';
@@ -5651,15 +5694,28 @@ function closePinOverlay() {
   document.getElementById('pinHiddenInput').value = '';
   _pinRenderBoxes('');
   _pinCallback = null;
+  _pinStoredHash = '';
+  const cc = _pinCancelCb; _pinCancelCb = null;
+  if (cc) cc();
 }
 
-function confirmPinOverlay() {
+async function confirmPinOverlay() {
   const entered = document.getElementById('pinHiddenInput').value;
-  if (entered === _pinStoredPin) {
+  const cb = _pinCallback;
+  let ok;
+  if (_pinStoredHash) {
+    // Hashing is async, so the overlay could be closed (or reopened for something else)
+    // while we wait — check we are still answering the same question before acting.
+    try { ok = (await _sha256Hex(entered)) === _pinStoredHash; } catch (e) { ok = false; }
+    if (_pinCallback !== cb) return;
+  } else {
+    ok = entered === _pinStoredPin;
+  }
+  if (ok) {
     document.getElementById('pinHiddenInput').blur();
     document.getElementById('pinOverlay').style.display = 'none';
     _pinRenderBoxes('');
-    const cb = _pinCallback; _pinCallback = null;
+    _pinCallback = null; _pinStoredHash = ''; _pinCancelCb = null;   // a correct PIN is not a cancel
     if (cb) cb();
   } else {
     document.getElementById('pinError').textContent = t('pinWrong');
@@ -21303,6 +21359,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _tiMount('saleEdit', 'saleEditTradeInWrap');
   _jpInitBackGuard();
   _requestPersistentStorage();
+  _initUserSwitching();
 });
 
 // Ask the browser to mark this origin's storage as PERSISTENT.
@@ -33323,12 +33380,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.14', date: 'Αύγουστος 2026', items: [
-        "🎁 Δώρο και από αλυσίδα με το γραμμάριο — το κουμπί 🎁 υπάρχει πλέον και στην κάρτα της παρτίδας.",
-        "⚖️ Σας ρωτάει πόσα γραμμάρια δίνετε: αφαιρούνται από την παρτίδα και καταγράφεται το κόστος ΑΥΤΩΝ των γραμμαρίων — όχι όλης της παρτίδας.",
-        "📇 Ίδιο παράθυρο με τα υπόλοιπα κοσμήματα: όνομα πελάτη (μπαίνει στο ιστορικό του), σημείωση, καμία είσπραξη.",
-        "↩️ Αν διαγράψετε την εγγραφή, τα γραμμάρια επιστρέφουν στην παρτίδα.",
-        "🔤 Διόρθωση: έγραφε «46.5g γρ. υπόλοιπο» — τώρα «46.5 γρ. υπόλοιπο»."
+      { version: 'v13.15', date: 'Αύγουστος 2026', items: [
+        "👥 Αλλαγή χρήστη χωρίς επανεγκατάσταση — από το ☰ μενού επιλέγετε ποιος χρησιμοποιεί την εφαρμογή. Ιδανικό για τον υπολογιστή του καταστήματος.",
+        "🔒 Προαιρετικό PIN 4 ψηφίων για κάθε άτομο (Ομάδα → ✏️). Κενό = χωρίς PIN. Ζητείται μόνο όταν κάποιος μπαίνει στον λογαριασμό.",
+        "🏠 Αυτόματη επιστροφή: η συσκευή γυρνάει στον βασικό της χρήστη μετά από αδράνεια και σε κάθε άνοιγμα — ώστε η επόμενη πώληση να μην γραφτεί σε λάθος όνομα.",
+        "🧾 Το ☰ μενού δείχνει πάντα ποιος είναι ο τρέχων χρήστης.",
+        "🛡️ Ποτέ δεν αλλάζει χρήστης ενώ είναι ανοιχτό παράθυρο πώλησης, επιστροφής ή επισκευής."
       ]},
       ]
   },
@@ -33359,12 +33416,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.14', date: 'Aug 2026', items: [
-        "🎁 Give away part of a by-the-gram chain — the 🎁 button is now on the batch card too.",
-        "⚖️ It asks how many grams you are giving: they come off the batch and the cost of THOSE grams is booked — not the whole batch.",
-        "📇 Same dialog as every other gift: customer name (it goes into their history), a note, no payment taken.",
-        "↩️ Delete the record and the grams go back on the batch.",
-        "🔤 Fixed: it read “46.5g g remaining” — now “46.5 g remaining”."
+      { version: 'v13.15', date: 'Aug 2026', items: [
+        "👥 Switch user without re-installing — pick who is using the app from the ☰ menu. Made for the shop computer.",
+        "🔒 An optional 4-digit PIN per person (Team → ✏️). Blank = no PIN. It is only asked when someone switches INTO that account.",
+        "🏠 Automatic return: the device goes back to its own person after being left idle, and every time the app opens — so the next sale is not filed under the wrong name.",
+        "🧾 The ☰ menu always shows who the app is currently signed in as.",
+        "🛡️ It never switches user while a sale, return or repair dialog is open."
       ]},
           ]
   }
@@ -36906,6 +36963,39 @@ function setUserRole(role) {
   _renderRoleOptions();
 }
 
+// ── Switch PIN on the team form ──
+// A PIN is stored hashed, so there is nothing to prefill. That leaves three states to make
+// legible: this person has no PIN, has one (kept unless you type a new one), or is having
+// it removed by this save.
+let _pinFormRemove = false;
+
+function _syncUserPinUI(hasPin) {
+  const btn = document.getElementById('userPinClearBtn');
+  const hint = document.getElementById('userPinHint');
+  const isEl = lang === 'el';
+  if (btn) {
+    btn.style.display = (hasPin && !_pinFormRemove) ? '' : 'none';
+    btn.textContent = isEl ? '🗑 Αφαίρεση' : '🗑 Remove';
+    btn.dataset.has = hasPin ? '1' : '';
+  }
+  if (hint) {
+    hint.textContent = _pinFormRemove
+      ? (isEl ? 'Το PIN θα αφαιρεθεί με την αποθήκευση.' : 'The PIN will be removed when you save.')
+      : hasPin
+        ? (isEl ? '4 ψηφία. Έχει οριστεί PIN — αφήστε το κενό για να μείνει ως έχει.'
+                : '4 digits. A PIN is set — leave blank to keep it as it is.')
+        : (isEl ? '4 ψηφία. Ζητείται όταν κάποιος αλλάζει σε αυτόν τον χρήστη. Κενό = χωρίς PIN.'
+                : '4 digits, asked for when someone switches into this account. Blank = no PIN.');
+    hint.style.color = _pinFormRemove ? 'var(--warn)' : 'var(--text-muted)';
+  }
+}
+
+function _userClearPin() {
+  _pinFormRemove = true;
+  document.getElementById('userPinInput').value = '';
+  _syncUserPinUI(true);
+}
+
 function openAddUserModal(slug) {
   _editingUserSlug = slug || null;
   _addUserRole = 'employee';
@@ -36919,6 +37009,11 @@ function openAddUserModal(slug) {
   document.getElementById('userBonusInput').value = '';
   document.getElementById('userTelegramInput').value = '';
   document.getElementById('addUserStatus').textContent = '';
+  // The stored PIN is a hash, so it can never be shown back. The box always opens empty:
+  // leaving it that way keeps whatever is set, typing replaces it, and the button removes it.
+  document.getElementById('userPinInput').value = '';
+  _pinFormRemove = false;
+  _syncUserPinUI(false);
 
   if (slug && _usersCache && _usersCache[slug]) {
     const u = _usersCache[slug];
@@ -36929,6 +37024,7 @@ function openAddUserModal(slug) {
     document.getElementById('userBonusInput').value = u.bonus || '';
     document.getElementById('userTelegramInput').value = u.telegramChatId || '';
     _addUserRole = u.role || 'employee';
+    _syncUserPinUI(!!u.pinHash);
   } else {
     if (title) title.textContent = lang==='el' ? 'Νέο Μέλος' : 'New Member';
   }
@@ -37000,6 +37096,28 @@ async function saveUser() {
     createdAt: (oldSlug && users[oldSlug]) ? users[oldSlug].createdAt : Date.now()
   };
   if (telegramChatId) entry.telegramChatId = telegramChatId;
+
+  // ── Switch PIN ──
+  // entry is built from scratch, so anything not copied across is silently dropped by an
+  // edit — exactly how saveClientEdit used to lose dateAdded (v12.75). Carry the existing
+  // hash forward unless a new PIN was typed or Remove was pressed.
+  const pinRaw = (document.getElementById('userPinInput')?.value || '').trim();
+  if (pinRaw) {
+    if (!/^\d{4}$/.test(pinRaw)) {
+      statusEl.textContent = lang === 'el' ? 'Το PIN πρέπει να είναι 4 ψηφία' : 'The PIN must be 4 digits';
+      return;
+    }
+    // Hashed because /jewelprice_users is in BACKUP_PATHS — a plain PIN would sit in every
+    // JSON backup. Four digits is not strong; it stops a casual switch, which is the point.
+    try {
+      entry.pinHash = await _sha256Hex(pinRaw);
+    } catch (e) {
+      statusEl.textContent = lang === 'el' ? 'Δεν ήταν δυνατή η αποθήκευση του PIN' : 'Could not save the PIN';
+      return;
+    }
+  } else if (!_pinFormRemove && oldSlug && users[oldSlug] && users[oldSlug].pinHash) {
+    entry.pinHash = users[oldSlug].pinHash;
+  }
 
   // If slug changed during edit, remove old entry
   if (oldSlug && oldSlug !== slug) {
@@ -37142,7 +37260,10 @@ async function pushSelfToUsersCloud() {
   try {
     const users = await getUsers();
     const existing = users[creds.userName] || {};
+    // Spread `existing` first: this rebuilds the record, so any field not named below —
+    // pinHash, telegramChatId — would otherwise be silently dropped (the v12.75 trap).
     users[creds.userName] = {
+      ...existing,
       name: creds.displayName || existing.name || '',
       nameEn: creds.displayNameEn !== undefined ? creds.displayNameEn : (existing.nameEn || ''),
       role: creds.role,
@@ -37153,6 +37274,215 @@ async function pushSelfToUsersCloud() {
     _usersCache = users;
     await pushUsersToCloud(users);
   } catch(e) { /* silent */ }
+}
+
+// ─── SWITCH USER (shared device) ──────────────────────────────────────────────
+// The desktop at the counter is used by whoever is standing at it, and re-installing the
+// app per person is not a real option. Switching is cheap here because NOTHING caches the
+// identity: every place that records "who did this" reads creds.userName / displayName
+// live, at the moment of use. So a switch is four fields plus applyRoleUI(), which already
+// hides the right tabs and already moves someone off a screen they may no longer open.
+//
+// Be clear about what the PIN does and does not protect. Every setup link carries the
+// master database secret (see shareUserLink), so ANY installed device can already read the
+// whole database — separate installations never were a data boundary, and switching users
+// inside one app is exactly as safe as installing it twice. The PIN stops someone at the
+// counter tapping into another person's account. It is not a lock against someone with
+// developer tools, and nothing here pretends otherwise.
+//
+// PINs are stored HASHED on the user record, because /jewelprice_users is in BACKUP_PATHS
+// — a plain PIN would sit in every JSON backup on Google Drive.
+//
+// NEVER reset any of these on a switch. They belong to the DEVICE, not the person:
+//   jpro_device_salt   record-id uniqueness across phones (v11.64)
+//   jpro_outbox        work recorded offline, still waiting to go up (v11.65)
+//   _cloudSnap         this device's baseline of what the cloud holds (v12.99)
+//   creds.binId / creds.dbSecret   same shop, same database
+const HOME_IDLE_DEFAULT = 5;          // minutes
+let _lastActivityAt = Date.now();
+let _homeCheckTimer = null;
+
+function _homeUser() { return localStorage.getItem('jpro_home_user') || ''; }
+function _homeIdleMin() {
+  const raw = localStorage.getItem('jpro_home_idle');
+  if (raw === null) return HOME_IDLE_DEFAULT;
+  const v = parseInt(raw, 10);
+  return (Number.isFinite(v) && v >= 0) ? v : HOME_IDLE_DEFAULT;
+}
+function _switchTouch() { _lastActivityAt = Date.now(); }
+
+// The switch itself. Deliberately does not touch binId/dbSecret or any device-scoped key.
+function _applyUserIdentity(slug, u) {
+  creds.userName = slug;
+  creds.displayName = u.name || '';
+  creds.displayNameEn = u.nameEn || '';
+  creds.role = isKnownRole(u.role) ? u.role : 'employee';
+  saveCreds();
+  _switchTouch();
+  // If the device was sitting on a deactivated account, an active person has now signed in,
+  // so the lock screen no longer describes the truth.
+  const dead = document.getElementById('deactivatedOverlay');
+  if (dead) dead.remove();
+  renderIdentityCard();
+  applyRoleUI();        // hides the tabs AND moves us off a panel this role may not open
+  showPanel('calc');    // land on the one screen every role can see
+  closeMoreMenu();
+  showToast('👤 ' + (creds.displayName || slug));
+}
+
+// Going DOWN to the home user is always free — no PIN. Going into any other account asks
+// for that person's PIN if they have set one.
+async function _switchToUser(slug, skipPin) {
+  const users = await getUsers();
+  const u = users && users[slug];
+  if (!u) { showToast(lang === 'el' ? '⚠️ Ο χρήστης δεν βρέθηκε' : '⚠️ User not found'); return; }
+  if (u.active === false) { showToast(lang === 'el' ? '⚠️ Ανενεργός λογαριασμός' : '⚠️ Account is deactivated'); return; }
+  if (slug === creds.userName) { closeSwitchUser(); return; }
+  if (!u.pinHash || skipPin) { closeSwitchUser(); _applyUserIdentity(slug, u); return; }
+  // The PIN overlay is z-index 9999, well below this sheet, so it has to come down first
+  // (same reason _gcScanForSale removes the picker before opening the camera). Cancelling
+  // brings the sheet back rather than dead-ending.
+  closeSwitchUser();
+  openPinOverlay('', () => _applyUserIdentity(slug, u), {
+    hash: u.pinHash,
+    title: (lang === 'el' ? 'PIN — ' : 'PIN — ') + (u.name || slug),
+    onCancel: () => openSwitchUser()
+  });
+}
+
+async function openSwitchUser() {
+  closeMoreMenu();
+  const old = document.getElementById('switchUserSheet');
+  if (old) old.remove();
+  const isEl = lang === 'el';
+  const ov = document.createElement('div');
+  ov.id = 'switchUserSheet';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99997;background:rgba(0,0,0,0.72);display:flex;align-items:flex-end;justify-content:center';
+  ov.onclick = e => { if (e.target === ov) closeSwitchUser(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="font-family:var(--font-heading);font-size:19px;color:var(--gold)">${isEl ? 'Αλλαγή Χρήστη' : 'Switch User'}</div>
+        <button onclick="closeSwitchUser()" style="width:32px;height:32px;border-radius:50%;background:var(--wa07);border:1px solid var(--wa12);color:var(--text-muted);font-size:15px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-bottom:14px">${isEl ? 'Οι πωλήσεις και οι εργασίες καταγράφονται στο όνομα του χρήστη που είναι επιλεγμένος.' : 'Sales and jobs are recorded under whoever is selected here.'}</div>
+      <div id="switchUserList"></div>
+      <div id="switchUserHomeBox" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--wa12)"></div>
+    </div>`;
+  document.body.appendChild(ov);
+  _renderSwitchUserList(await pullUsersFromCloud());
+}
+
+function closeSwitchUser() {
+  const ov = document.getElementById('switchUserSheet');
+  if (ov) ov.remove();
+}
+
+function _renderSwitchUserList(users) {
+  const el = document.getElementById('switchUserList');
+  if (!el) return;
+  const isEl = lang === 'el';
+  const slugs = Object.keys(users || {}).filter(s => users[s] && users[s].active !== false);
+  if (!slugs.length) {
+    // pullUsersFromCloud returns {} both when the team is empty AND when it could not be
+    // read at all, so this must not claim there is nobody — say what we actually know.
+    el.innerHTML = `<div style="font-family:var(--font-body);font-size:12px;color:var(--text-muted);text-align:center;padding:18px;line-height:1.6">${isEl
+      ? 'Δεν φορτώθηκε η λίστα. Ελέγξτε τη σύνδεση, ή προσθέστε άτομα από την Ομάδα.'
+      : 'Could not load the team list. Check your connection, or add people in the Team screen.'}</div>`;
+    _renderSwitchHomeBox(users);
+    return;
+  }
+  const home = _homeUser();   // the role line below already carries its own icon via t(role)
+  el.innerHTML = slugs.sort((a, b) => (users[a].name || a).localeCompare(users[b].name || b, isEl ? 'el' : 'en')).map(slug => {
+    const u = users[slug];
+    const me = slug === creds.userName;
+    const nm = (isEl ? u.name : (u.nameEn || u.name)) || slug;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:11px 12px;margin-bottom:8px;background:${me ? 'rgba(212,175,55,0.12)' : 'var(--wa05)'};border:1px solid ${me ? 'rgba(212,175,55,0.4)' : 'var(--wa12)'};border-radius:10px">
+        <div style="flex:1;min-width:0;cursor:${me ? 'default' : 'pointer'}" ${me ? '' : `onclick="_switchToUser('${slug}')"`}>
+          <div style="font-family:var(--font-body);font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_gcEsc(nm)}${u.pinHash ? ' 🔒' : ''}</div>
+          <div style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-top:2px">${me ? (isEl ? 'Τρέχων χρήστης' : 'Current user') : (t(u.role) || u.role)}${slug === home ? ' · 🏠' : ''}</div>
+        </div>
+        ${me ? `<span style="font-size:16px;color:var(--gold)">✓</span>`
+             : `<button onclick="_switchToUser('${slug}')" style="flex-shrink:0;padding:8px 14px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer">${isEl ? 'Επιλογή' : 'Use'}</button>`}
+      </div>`;
+  }).join('');
+  _renderSwitchHomeBox(users);
+}
+
+// The "come back to this person" setting. Without it the app stays on whoever was last
+// chosen — which on a shared desktop means the next sale is filed under the wrong name
+// (and the wrong bonus) if someone checks a cost and walks away.
+function _renderSwitchHomeBox(users) {
+  const box = document.getElementById('switchUserHomeBox');
+  if (!box) return;
+  const isEl = lang === 'el';
+  const home = _homeUser();
+  const hu = home && users ? users[home] : null;
+  const idle = _homeIdleMin();
+  const opts = [0, 2, 5, 15, 30].map(m => `<option value="${m}" ${m === idle ? 'selected' : ''}>${m === 0 ? (isEl ? 'Ποτέ' : 'Never') : m + (isEl ? ' λεπτά' : ' min')}</option>`).join('');
+  box.innerHTML = `
+    <div style="font-family:var(--font-body);font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">🏠 ${isEl ? 'Αυτόματη επιστροφή' : 'Automatic return'}</div>
+    <div style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);line-height:1.6;margin-bottom:10px">${home && hu
+      ? (isEl ? `Η συσκευή επιστρέφει στον/στην <b style="color:var(--gold-light)">${_gcEsc(hu.name || home)}</b> όταν μείνει αχρησιμοποίητη και κάθε φορά που ανοίγει η εφαρμογή.`
+              : `This device returns to <b style="color:var(--gold-light)">${_gcEsc(hu.name || home)}</b> when left idle and every time the app is opened.`)
+      : (isEl ? 'Ανενεργό. Επιλέξτε ποιος είναι ο βασικός χρήστης αυτής της συσκευής.'
+              : 'Off. Choose who this device belongs to by default.')}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button onclick="_setHomeUser('${creds.userName}')" style="flex:1;min-width:150px;padding:10px;background:var(--wa07);border:1px solid var(--wa12);color:var(--text);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">${isEl ? 'Ορισμός τρέχοντος' : 'Use current person'}</button>
+      ${home ? `<button onclick="_setHomeUser('')" style="flex-shrink:0;padding:10px 12px;background:transparent;border:1px solid rgba(224,80,80,0.4);color:var(--danger);border-radius:8px;font-family:var(--font-body);font-size:11px;cursor:pointer">${isEl ? 'Απενεργοποίηση' : 'Turn off'}</button>` : ''}
+    </div>
+    ${home ? `<div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+      <span style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);flex:1">${isEl ? 'Μετά από αδράνεια' : 'After idle for'}</span>
+      <select onchange="_setHomeIdle(this.value)" style="width:auto;padding:8px 10px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:6px;color:var(--text);font-family:var(--font-body);font-size:12px">${opts}</select>
+    </div>` : ''}`;
+}
+
+function _setHomeUser(slug) {
+  if (slug) localStorage.setItem('jpro_home_user', slug);
+  else localStorage.removeItem('jpro_home_user');
+  _switchTouch();
+  _renderSwitchHomeBox(_usersCache || {});
+  showToast(slug ? '🏠 ' + (lang === 'el' ? 'Αποθηκεύτηκε' : 'Saved')
+                 : (lang === 'el' ? 'Αυτόματη επιστροφή: ανενεργή' : 'Automatic return: off'));
+}
+
+function _setHomeIdle(v) {
+  localStorage.setItem('jpro_home_idle', String(parseInt(v, 10) || 0));
+  _switchTouch();
+}
+
+// Returns to the home user. Never asks for a PIN — dropping to the device's own person is
+// always allowed; it is climbing INTO an account that is gated.
+async function _goHomeUser(reason) {
+  const home = _homeUser();
+  if (!home || home === creds.userName) return;
+  const users = await getUsers();
+  const u = users && users[home];
+  if (!u || u.active === false) return;    // never strand the device on a dead account
+  closeSwitchUser();
+  _applyUserIdentity(home, u);
+  showToast('🏠 ' + (u.name || home));
+}
+
+function _homeIdleCheck() {
+  const home = _homeUser();
+  if (!home || home === creds.userName) return;
+  const mins = _homeIdleMin();
+  if (!mins) return;
+  if (Date.now() - _lastActivityAt < mins * 60000) return;
+  // Never change the salesperson out from under a transaction being written.
+  if (_dialogBusy(['saleModal', 'returnDlgOverlay', 'giftModalOverlay', 'repairModalOverlay',
+                   'pinOverlay', 'switchUserSheet'])) return;
+  _goHomeUser('idle');
+}
+
+function _initUserSwitching() {
+  ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev =>
+    document.addEventListener(ev, _switchTouch, { capture: true, passive: true }));
+  if (_homeCheckTimer) clearInterval(_homeCheckTimer);
+  _homeCheckTimer = setInterval(_homeIdleCheck, 30000);
+  // A backgrounded phone freezes its timers, so the interval alone would miss a long
+  // absence — re-check the moment the app comes back into view.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _homeIdleCheck(); });
 }
 
 // ─── BONUS PREVIEW IN SALE MODAL ─────────────────────────────────────────────
@@ -37209,6 +37539,10 @@ function renderIdentityCard() {
     temporary: t('temporary')
   };
   const roleLabel = roleMap[creds.role] || creds.role;
+
+  // ☰ menu line — the "who is this app right now" answer, reachable from any tab
+  const moreCur = document.getElementById('moreCurrentUser');
+  if (moreCur) moreCur.textContent = (lang === 'el' ? creds.displayName : (creds.displayNameEn || creds.displayName)) || '';
 
   // Sync panel card
   const nameEl = document.getElementById('identityName');
@@ -38458,7 +38792,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.14';
+const APP_VERSION = '13.15';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -42610,6 +42944,18 @@ function addVfOtherCatRow(name='', multiplier='', abbr='', abbrLatin='', origIdx
           style="width:100px;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;box-sizing:border-box;outline:none">
         <span style="font-family:var(--font-body);font-size:12px;color:var(--text-muted)" data-i18n="userBonusHint">% σε κάθε πώληση · 0 = χωρίς bonus</span>
       </div>
+    </div>
+
+    <!-- Switch PIN. Deliberately type="text" + .masked-field, never type="password" — see
+         the note on .masked-field in the CSS (v12.02). Stored hashed on the user record. -->
+    <div style="margin-bottom:20px">
+      <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px" data-i18n="userPinLabel">PIN Αλλαγής Χρήστη (προαιρετικό)</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="text" class="masked-field" id="userPinInput" maxlength="4" inputmode="numeric" placeholder="1234" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other"
+          style="width:110px;padding:10px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;letter-spacing:0.3em;box-sizing:border-box;outline:none">
+        <button id="userPinClearBtn" onclick="_userClearPin()" style="display:none;flex-shrink:0;padding:9px 12px;background:transparent;border:1px solid rgba(224,80,80,0.4);color:var(--danger);border-radius:6px;font-family:var(--font-body);font-size:11px;cursor:pointer"></button>
+      </div>
+      <div id="userPinHint" style="font-size:10px;color:var(--text-muted);margin-top:4px"></div>
     </div>
 
     <div style="margin-bottom:20px">
