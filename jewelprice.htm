@@ -2247,8 +2247,13 @@
 <!-- CLIENTS PANEL -->
   <div id="panel-clients" class="panel">
     <div style="padding:14px 14px 0">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold-light)" data-i18n="clientsTitle">👥 Πελάτες</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold-light)" data-i18n="clientsTitle">👥 Πελάτες</div>
+          <!-- Always the whole database, never the filtered view. A SIBLING of the title,
+               not a child: data-i18n overwrites textContent and would wipe it. -->
+          <span id="clientTotalCount" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);letter-spacing:0.05em;white-space:nowrap"></span>
+        </div>
         <button onclick="openClientEditModal(null)" style="background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:4px;padding:7px 14px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase" data-i18n="clientAdd">+ Προσθήκη</button>
       </div>
       <div style="position:relative;margin-bottom:12px">
@@ -4847,6 +4852,7 @@ function setLang(l) {
   if (activePanel === 'panel-vendors') renderVendors();
   if (activePanel === 'panel-sync') { renderSetupSteps(); _srSyncGateUI(); }
   if (activePanel === 'panel-inventory') renderInvList(); // Fix: re-render on lang change
+  if (activePanel === 'panel-clients') renderClients();  // count word + card labels follow the language
   // Re-render result if visible
   if (document.getElementById('resultCard').classList.contains('show')) calculate();
   // Re-render inv status chip if a QR was scanned (so language updates immediately)
@@ -33380,12 +33386,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.15', date: 'Αύγουστος 2026', items: [
-        "👥 Αλλαγή χρήστη χωρίς επανεγκατάσταση — από το ☰ μενού επιλέγετε ποιος χρησιμοποιεί την εφαρμογή. Ιδανικό για τον υπολογιστή του καταστήματος.",
-        "🔒 Προαιρετικό PIN 4 ψηφίων για κάθε άτομο (Ομάδα → ✏️). Κενό = χωρίς PIN. Ζητείται μόνο όταν κάποιος μπαίνει στον λογαριασμό.",
-        "🏠 Αυτόματη επιστροφή: η συσκευή γυρνάει στον βασικό της χρήστη μετά από αδράνεια και σε κάθε άνοιγμα — ώστε η επόμενη πώληση να μην γραφτεί σε λάθος όνομα.",
-        "🧾 Το ☰ μενού δείχνει πάντα ποιος είναι ο τρέχων χρήστης.",
-        "🛡️ Ποτέ δεν αλλάζει χρήστης ενώ είναι ανοιχτό παράθυρο πώλησης, επιστροφής ή επισκευής."
+      { version: 'v13.16', date: 'Αύγουστος 2026', items: [
+        "👥 Ο συνολικός αριθμός πελατών φαίνεται πλέον δίπλα στον τίτλο «Πελάτες» — πάντα το σύνολο της βάσης, ό,τι κι αν έχετε φιλτράρει.",
+        "🔍 Όταν ψάχνετε ή φιλτράρετε με ημερομηνία, η λίστα δείχνει «5 από 24» ώστε να βλέπετε πόσο μέρος του συνόλου βλέπετε.",
+        "🇬🇷 Η καρτέλα Πελάτες ενημερώνεται αμέσως όταν αλλάζετε γλώσσα."
       ]},
       ]
   },
@@ -33416,12 +33420,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.15', date: 'Aug 2026', items: [
-        "👥 Switch user without re-installing — pick who is using the app from the ☰ menu. Made for the shop computer.",
-        "🔒 An optional 4-digit PIN per person (Team → ✏️). Blank = no PIN. It is only asked when someone switches INTO that account.",
-        "🏠 Automatic return: the device goes back to its own person after being left idle, and every time the app opens — so the next sale is not filed under the wrong name.",
-        "🧾 The ☰ menu always shows who the app is currently signed in as.",
-        "🛡️ It never switches user while a sale, return or repair dialog is open."
+      { version: 'v13.16', date: 'Aug 2026', items: [
+        "👥 The total number of clients now sits beside the Clients title — always the whole database, whatever you have filtered.",
+        "🔍 While searching or filtering by date the list says \"5 of 24\", so you can see how much of the total you are looking at.",
+        "🇬🇷 The Clients tab now updates straight away when you switch language."
       ]},
           ]
   }
@@ -36278,8 +36280,20 @@ function _restoreClientSort() {
   if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
 }
 
+// One place both the header badge and the filtered summary get their wording,
+// so the two can never disagree about the plural.
+function _clientsWord(n) {
+  return lang === 'el' ? (n === 1 ? 'πελάτης' : 'πελάτες') : (n === 1 ? 'client' : 'clients');
+}
+
 function renderClients(filter) {
   _restoreClientSort();
+  // The header count is the whole database - the answer to "how many clients do
+  // I have", which a search or a date range must not change. Set before every
+  // early return below, so an empty result still shows the real total.
+  const _allClients = getClients();
+  const _cntEl = document.getElementById('clientTotalCount');
+  if (_cntEl) _cntEl.textContent = `${_allClients.length} ${_clientsWord(_allClients.length)}`;
   const q = (filter || document.getElementById('clientSearch')?.value || '').toLowerCase();
   const sort = document.getElementById('clientSort')?.value || 'name_asc';
   const fromV = document.getElementById('clientDateFrom')?.value || '';
@@ -36297,7 +36311,7 @@ function renderClients(filter) {
   }
   if (document.getElementById('clientDatePanel')?.style.display !== 'none') renderClientSeasonChips();
 
-  let list = getClients().filter(c =>
+  let list = _allClients.filter(c =>
     !q || (c.name||'').toLowerCase().includes(q) || (c.email||'').toLowerCase().includes(q) || (c.phone||'').includes(q)
   );
   if (fromTs !== null || toTs !== null) {
@@ -36328,8 +36342,10 @@ function renderClients(filter) {
     el.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:30px 0">${emptyMsg}</div>`;
     return;
   }
-  const summary = rangeActive
-    ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:0.05em;margin-bottom:10px">${list.length} ${lang==='el'?(list.length===1?'πελάτης':'πελάτες'):(list.length===1?'client':'clients')}</div>`
+  // Shown whenever the view is narrowed (search or date range), as "5 of 24" -
+  // the header keeps stating the total, this says how much of it you are seeing.
+  const summary = (q || rangeActive)
+    ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:0.05em;margin-bottom:10px">${list.length} ${lang==='el'?'από':'of'} ${_allClients.length} ${_clientsWord(_allClients.length)}</div>`
     : '';
   el.innerHTML = summary + list.map(c => {
     const avatarColor = vendorAvatarColor(c.name);
@@ -38792,7 +38808,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.15';
+const APP_VERSION = '13.16';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
