@@ -4088,6 +4088,7 @@ const T = {
     consignOwedShort:'οφείλεται', consignBringBack:'Επιστροφή στο απόθεμα',
     consignMark:'Σήμανση ως παρακαταθήκη', consignUnmark:'Αφαίρεση παρακαταθήκης',
     consignReturn:'Επιστροφή στον προμηθευτή', consignMore:'Περισσότερα',
+    paidBasis:'Τιμή μετάλλου που πλήρωσα', paidBasisDone:'Ενημερώθηκαν',
     consignReport:'🤝 Εκκαθάριση παρακαταθήκης', consignOwe:'Οφείλετε', consignSettle:'Εξόφληση',
     consignSettled:'Εξοφλήθηκε', consignHere:'Στο κατάστημα', consignBack:'Επιστράφηκαν',
     hideShowroomLabel:'Απόκρυψη από βιτρίνα', hideShowroomHint:'Δεν θα εμφανίζεται στο online showroom',
@@ -4714,6 +4715,7 @@ const T = {
     consignOwedShort:'owed', consignBringBack:'Back to stock',
     consignMark:'Mark as consignment', consignUnmark:'Remove consignment',
     consignReturn:'Return to vendor', consignMore:'More',
+    paidBasis:'Metal price I paid', paidBasisDone:'Updated',
     consignReport:'🤝 Consignment settlement', consignOwe:'You owe', consignSettle:'Settle',
     consignSettled:'Settled', consignHere:'Still here', consignBack:'Returned',
     hideShowroomLabel:'Hide from showroom', hideShowroomHint:'Won\'t appear in the online showroom',
@@ -25811,7 +25813,7 @@ function getItemCat(item) {
   return cats[item.catIdx] || null;
 }
 
-function calcInvItemPrice(item) {
+function calcInvItemPrice(item, basis) {
   const cur = state.currency || '€';
   const vat = parseFloat(state.vat) || 0;
   const globalMargin = parseFloat(state.margin) || 0;
@@ -25849,10 +25851,10 @@ function calcInvItemPrice(item) {
 
   let spotPriceOz, purity;
   if (item.metal === 'gold') {
-    spotPriceOz = getGoldPrice();
+    spotPriceOz = (basis && basis.goldOz > 0) ? basis.goldOz : getGoldPrice();
     purity = karatPurity[parseInt(item.karat)] || 0;
   } else {
-    spotPriceOz = getSilverPrice();
+    spotPriceOz = (basis && basis.silverOz > 0) ? basis.silverOz : getSilverPrice();
     purity = silverPurityMap[parseInt(item.karat)] || 0;
   }
   if (!spotPriceOz || !purity || !item.weight) return null;
@@ -25917,10 +25919,10 @@ function calcInvItemPrice(item) {
     if (_sw > 0) {
       let _sSpot, _sPurity;
       if (item.secondaryMetal === 'gold') {
-        _sSpot = getGoldPrice();
+        _sSpot = (basis && basis.goldOz > 0) ? basis.goldOz : getGoldPrice();
         _sPurity = karatPurity[parseInt(item.secondaryKarat)] || 0;
       } else {
-        _sSpot = getSilverPrice();
+        _sSpot = (basis && basis.silverOz > 0) ? basis.silverOz : getSilverPrice();
         _sPurity = silverPurityMap[parseInt(item.secondaryKarat)] || 0;
       }
       if (_sSpot && _sPurity) secMetalCostInv = (_sSpot / TROY_OZ_TO_GRAM) * _sPurity * _sw;
@@ -25966,6 +25968,56 @@ function _perItemSetFromTarget(item, targetRetail) {
   if (!(baseCost > 0)) return false;
   item.laborCost = labor;
   item.itemMargin = ((targetRetail / (1 + vat / 100)) / baseCost - 1) * 100;
+  return true;
+}
+
+// ── COST BASIS: the metal price a delivery was actually bought at ─────────────────────
+// You order from Italy with gold at €128.40/g of pure and the parcel lands weeks later at
+// €122.82. The SELLING price should follow today's spot — it does, and must — but what the
+// piece COST you is the invoice price, and that is the figure the app freezes at add time
+// as `initialBaseCost` (v13.02) and later stamps on the sale as `heldCost`. Left at the
+// live spot, the gap reappears later as a “gain on metal held” that was never made.
+//
+// So: add the delivery as usual, select it in Stock and state the price on the invoice.
+// The three add-time baselines are RECOMPUTED from the piece's own weight/karat/vendor at
+// that price — never scaled — so applying it twice, or correcting a mistyped price, lands
+// on the same numbers. Nothing else moves: same tag, same QR, same live selling price.
+const _ozFromGram = g => g * TROY_OZ_TO_GRAM;
+const _gramFromOz = oz => oz / TROY_OZ_TO_GRAM;
+
+// Why a piece is skipped, or null when it can take a basis. Deliberately the same shape as
+// _itemHeldCost's rule: only a piece whose cost the app RECOMPUTES from metal has a gap to
+// correct. A per-item category and a stored purchaseCost are both euro figures off the
+// invoice already; and a sold piece's baseline is frozen on its SALE record, where editing
+// the item would fix nothing.
+function _paidBasisSkip(item) {
+  if (!item) return 'gone';
+  if (item.isCoin || item.isMetal || item.isBulk) return 'kind';
+  if (item.metal !== 'gold' && item.metal !== 'silver') return 'kind';
+  if (item.status !== 'in_stock') return 'gone';
+  if (parseFloat(item.purchaseCost) > 0) return 'fixed';
+  if ((getItemCat(item) || {}).rateType === 'peritem') return 'fixed';
+  return null;
+}
+
+// Recompute the add-time baselines at the given €/g prices of PURE metal. Returns false
+// (→ _consignApply skips the write) when the piece is not eligible or the price cannot be
+// computed, so a basis can never half-apply. A secondary metal with no price given keeps
+// the live spot — it is worth a few euro and the primary is what the invoice was about.
+function _applyPaidBasis(item, goldGram, silverGram) {
+  if (_paidBasisSkip(item)) return false;
+  const paid = item.metal === 'gold' ? goldGram : silverGram;
+  if (!(paid > 0)) return false;
+  const p = calcInvItemPrice(item, {
+    goldOz: goldGram > 0 ? _ozFromGram(goldGram) : 0,
+    silverOz: silverGram > 0 ? _ozFromGram(silverGram) : 0
+  });
+  if (!p || !(p.retail > 0) || !(p.baseCost > 0)) return false;
+  item.initialRetail = parseFloat(p.retail.toFixed(2));
+  item.initialBaseCost = parseFloat(p.baseCost.toFixed(2));
+  if (Number.isFinite(p.metalValue)) item.initialMetalValue = parseFloat(p.metalValue.toFixed(2));
+  item.paidMetalGram = parseFloat(paid.toFixed(4));   // what the invoice charged, for audit
+  item.paidMetalAt = Date.now();
   return true;
 }
 
@@ -26207,6 +26259,7 @@ function openInvMoreActions() {
   const nPlain = items.length - nCons;
   const nLive = items.filter(i => i.status === 'in_stock').length;
   const nRet = items.filter(isReturnedToVendor).length;
+  const nPaid = can('see_cost') ? items.filter(i => !_paidBasisSkip(i)).length : 0;
   document.getElementById('invMoreOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'invMoreOverlay';
@@ -26225,9 +26278,97 @@ function openInvMoreActions() {
     ${nCons ? row('✋', t('consignUnmark'), isEl ? `${nCons} ${_piecesWord(nCons)}` : `${nCons} ${_piecesWord(nCons)}`, `_invMoreDo('unmark')`) : ''}
     ${nLive ? row('↩️', t('consignReturn'), isEl ? `${nLive} ${_piecesWord(nLive)} — φεύγουν από το απόθεμα, η καρτέλα μένει` : `${nLive} ${_piecesWord(nLive)} — they leave stock, the record stays`, `_invMoreDo('return')`) : ''}
     ${nRet ? row('📥', t('consignBringBack'), isEl ? `${nRet} ${_piecesWord(nRet)} — γύρισαν από τον προμηθευτή` : `${nRet} ${_piecesWord(nRet)} — back from the vendor`, `_invMoreDo('back')`, '#6fc9a8') : ''}
+    ${nPaid ? row('💰', t('paidBasis'), isEl ? `${nPaid} ${_piecesWord(nPaid)} — αν το μέταλλο είχε άλλη τιμή όταν τα παραγγείλατε` : `${nPaid} ${_piecesWord(nPaid)} — if metal cost a different price when you ordered them`, `_invMoreDo('paid')`, 'var(--gold-light)') : ''}
   </div>`;
   document.body.appendChild(ov);
 }
+// State the invoice price for a delivery that is already in stock. Typing, so the sheet is
+// anchored to the TOP (v11.53) — the preview under the fields is the whole point of it and
+// the keyboard would sit on exactly that.
+function openPaidBasisDialog(ids) {
+  if (!can('see_cost')) return;
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const rows = (ids || []).map(id => [id, (_inventoryCache || {})[id]]).filter(([, it]) => it);
+  const live = rows.filter(([, it]) => !_paidBasisSkip(it));
+  if (!live.length) { showToast(isEl ? '⚠️ Κανένα κομμάτι με κόστος που υπολογίζεται από το μέταλλο' : '⚠️ No pieces whose cost is computed from metal'); return; }
+  const hasG = live.some(([, it]) => it.metal === 'gold' || it.secondaryMetal === 'gold');
+  const hasS = live.some(([, it]) => it.metal === 'silver' || it.secondaryMetal === 'silver');
+  const nSkip = rows.length - live.length;
+  // Prefill from a basis already stated for this lot, so correcting a typo is one edit.
+  const pre = m => { const h = live.find(([, it]) => it.metal === m && parseFloat(it.paidMetalGram) > 0); return h ? parseFloat(h[1].paidMetalGram).toFixed(2) : ''; };
+  const perG = (oz, dp) => oz > 0 ? _gramFromOz(oz).toFixed(dp) : '';
+  const fld = (id, lbl, val, oz, dp) => `<div style="${_resLbl}">${lbl}</div>
+    <input id="${id}" type="number" step="0.01" inputmode="decimal" value="${val}" oninput="_paidBasisSync()" placeholder="${isEl ? 'π.χ.' : 'e.g.'} ${perG(oz, dp) || '128.40'}" style="${_resInp};margin-bottom:4px">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${perG(oz, dp) ? `${isEl ? 'σήμερα' : 'today'} ${cur}${perG(oz, dp)}/g` : ''}</div>`;
+  document.getElementById('paidBasisOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'paidBasisOverlay';
+  ov.dataset.ids = live.map(([id]) => id).join(',');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px;margin:auto">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">💰 ${t('paidBasis')}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
+      ? 'Η τιμή που χρέωσε το τιμολόγιο, όχι η σημερινή. Διορθώνει το κόστος και την αρχική τιμή των επιλεγμένων κομματιών — η τιμή πώλησης μένει στη ζωντανή τιμή.'
+      : 'The price your invoice charged, not today&#39;s. It corrects the cost and the initial price of the selected pieces — the selling price stays at the live rate.'}</div>
+    ${hasG ? fld('pbGold', isEl ? 'Χρυσός — € ανά γραμμάριο καθαρού' : 'Gold — € per gram of pure', pre('gold'), getGoldPrice(), 2) : ''}
+    ${hasS ? fld('pbSilver', isEl ? 'Ασήμι — € ανά γραμμάριο καθαρού' : 'Silver — € per gram of pure', pre('silver'), getSilverPrice(), 3) : ''}
+    <div id="pbPrev" style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:12px"></div>
+    ${nSkip ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${isEl ? `${nSkip} ${_piecesWord(nSkip)} δεν αλλάζουν (πουλημένα, νομίσματα/μέταλλο, ή τιμή ανά τεμάχιο).` : `${nSkip} ${_piecesWord(nSkip)} will not change (sold, coins/metal, or priced per piece).`}</div>` : ''}
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('paidBasisOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+      <button id="pbApply" onclick="_paidBasisApply()" style="flex:1;padding:12px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Εφαρμογή' : 'Apply'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  _paidBasisSync();
+  document.getElementById(hasG ? 'pbGold' : 'pbSilver')?.focus();
+}
+
+// Live preview: what the selection cost at today's spot, against the price typed. Prices
+// each piece twice, which v10.23 measured at ~15ms for 1000 items — cheap per keystroke.
+function _paidBasisSync() {
+  const ov = document.getElementById('paidBasisOverlay'); if (!ov) return;
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const g = parseFloat(document.getElementById('pbGold')?.value);
+  const sv = parseFloat(document.getElementById('pbSilver')?.value);
+  const basis = { goldOz: g > 0 ? _ozFromGram(g) : 0, silverOz: sv > 0 ? _ozFromGram(sv) : 0 };
+  let now = 0, paid = 0, n = 0;
+  (ov.dataset.ids || '').split(',').filter(Boolean).forEach(id => {
+    const it = (_inventoryCache || {})[id];
+    if (!it || _paidBasisSkip(it)) return;
+    if (!((it.metal === 'gold' ? g : sv) > 0)) return;
+    const a = calcInvItemPrice(it), b = calcInvItemPrice(it, basis);
+    if (!a || !b || !(a.baseCost > 0) || !(b.baseCost > 0)) return;
+    now += a.baseCost; paid += b.baseCost; n++;
+  });
+  const el = document.getElementById('pbPrev'), btn = document.getElementById('pbApply');
+  if (btn) { btn.disabled = !n; btn.style.opacity = n ? '1' : '0.45'; }
+  if (!el) return;
+  if (!n) { el.innerHTML = `<div style="font-size:12px;color:var(--text-muted)">${isEl ? 'Δώστε την τιμή από το τιμολόγιο' : 'Enter the price from the invoice'}</div>`; return; }
+  const d = paid - now;
+  const money = v => cur + Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const col = Math.abs(d) < 0.005 ? 'var(--text-muted)' : d > 0 ? 'var(--gain)' : 'var(--loss)';
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">${n} ${_piecesWord(n)} · ${isEl ? 'κόστος σήμερα' : 'cost today'}</span><span style="font-family:var(--font-mono);color:var(--text-muted)">${money(now)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:7px;padding-top:7px;border-top:1px solid var(--card-border)"><span style="color:var(--text-muted)">${isEl ? 'Όσο πλήρωσα' : 'What you paid'}</span><span style="font-family:var(--font-mono);font-weight:700;color:var(--gold-light)">${money(paid)}</span></div>
+    <div style="text-align:right;font-size:11px;font-family:var(--font-mono);color:${col};margin-top:3px">${d >= 0 ? '+' : '−'}${money(d)}</div>`;
+}
+
+// Every write checked and rolled back on failure — an unchecked failure here does not look
+// like an error, it looks like success (v11.62), and this decides what the pieces cost.
+async function _paidBasisApply() {
+  const ov = document.getElementById('paidBasisOverlay'); if (!ov) return;
+  const isEl = lang === 'el';
+  const g = parseFloat(document.getElementById('pbGold')?.value);
+  const sv = parseFloat(document.getElementById('pbSilver')?.value);
+  if (!(g > 0) && !(sv > 0)) { showToast(isEl ? '⚠️ Δώστε τιμή' : '⚠️ Enter a price'); return; }
+  const ids = (ov.dataset.ids || '').split(',').filter(Boolean);
+  ov.remove();
+  const res = await _consignApply(ids, it => _applyPaidBasis(it, g, sv));
+  _consignToast(res, t('paidBasisDone'));
+  renderInvList();
+}
+
 function _invMoreDo(what) {
   const ids = [...(_invSelected || [])];
   document.getElementById('invMoreOverlay')?.remove();
@@ -26235,6 +26376,7 @@ function _invMoreDo(what) {
   else if (what === 'unmark') invSetConsignment(ids, false);
   else if (what === 'return') invReturnToVendor(ids);
   else if (what === 'back') invBringBack(ids);
+  else if (what === 'paid') openPaidBasisDialog(ids);
 }
 
 async function invBringBack(idOrIds) {
@@ -33386,10 +33528,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.16', date: 'Αύγουστος 2026', items: [
-        "👥 Ο συνολικός αριθμός πελατών φαίνεται πλέον δίπλα στον τίτλο «Πελάτες» — πάντα το σύνολο της βάσης, ό,τι κι αν έχετε φιλτράρει.",
-        "🔍 Όταν ψάχνετε ή φιλτράρετε με ημερομηνία, η λίστα δείχνει «5 από 24» ώστε να βλέπετε πόσο μέρος του συνόλου βλέπετε.",
-        "🇬🇷 Η καρτέλα Πελάτες ενημερώνεται αμέσως όταν αλλάζετε γλώσσα."
+      { version: 'v13.17', date: 'Αύγουστος 2026', items: [
+        "💰 Νέα ενέργεια «Τιμή μετάλλου που πλήρωσα». Όταν παραγγέλνετε από το εξωτερικό και το δέμα φτάνει μέρες αργότερα με τον χρυσό σε άλλη τιμή, δηλώνετε την τιμή του τιμολογίου και τα κομμάτια κοστολογούνται με αυτήν.",
+        "📦 Πώς: προσθέτετε την παραλαβή κανονικά → Απόθεμα → επιλέγετε τα κομμάτια → ⋯ → «Τιμή μετάλλου που πλήρωσα» → π.χ. 128,40 € ανά γραμμάριο καθαρού.",
+        "👁️ Πριν πατήσετε «Εφαρμογή» βλέπετε τι θα αλλάξει: «κόστος σήμερα €417,74 → Όσο πλήρωσα €434,93».",
+        "🏷️ Η τιμή πώλησης ΔΕΝ αγγίζεται — μένει στη ζωντανή τιμή του χρυσού. Αλλάζει μόνο το κόστος και η αρχική τιμή, ώστε το κέρδος και το «κέρδος από άνοδο μετάλλου» να βγαίνουν σωστά όταν πουληθεί το κομμάτι.",
+        "✅ Δουλεύει και για όσα έχετε ήδη προσθέσει. Αφήνει έξω πουλημένα, νομίσματα, παλιό μέταλλο και κομμάτια με τιμή ανά τεμάχιο (εκεί το κόστος είναι ήδη σε ευρώ) — και σας λέει πόσα άφησε έξω."
       ]},
       ]
   },
@@ -33420,10 +33564,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.16', date: 'Aug 2026', items: [
-        "👥 The total number of clients now sits beside the Clients title — always the whole database, whatever you have filtered.",
-        "🔍 While searching or filtering by date the list says \"5 of 24\", so you can see how much of the total you are looking at.",
-        "🇬🇷 The Clients tab now updates straight away when you switch language."
+      { version: 'v13.17', date: 'Aug 2026', items: [
+        "💰 A new action, “Metal price I paid”. When you order from abroad and the parcel arrives days later with gold at a different price, you state the price your invoice charged and the pieces are costed at it.",
+        "📦 How: add the delivery as usual → Stock → select the pieces → ⋯ → “Metal price I paid” → e.g. 128.40 € per gram of pure.",
+        "👁️ Before you press Apply you see exactly what will change: “cost today €417.74 → What you paid €434.93”.",
+        "🏷️ The selling price is NOT touched — it stays on the live gold price. Only the cost and the initial price move, so the profit and the “gain on metal held” come out right when the piece sells.",
+        "✅ It works on pieces you have already added. It leaves out sold pieces, coins, scrap metal and pieces priced per item (their cost is already a euro figure) — and tells you how many it left out."
       ]},
           ]
   }
@@ -38808,7 +38954,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.16';
+const APP_VERSION = '13.17';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
