@@ -3098,6 +3098,7 @@
           <div style="display:flex;flex-direction:column;align-items:center;flex:1">
             <span style="color:var(--text-muted);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px" data-i18n="selTotalCost">Κόστος</span>
             <span id="invSelTotalCost" style="color:#f0d87a;font-weight:700;font-size:13px">—</span>
+            <span id="invSelInitCost" style="display:none;color:var(--text-muted);font-size:10px;margin-top:1px;white-space:nowrap"></span>
           </div>
           <div style="width:1px;background:var(--wa10);flex-shrink:0"></div>
           <div style="display:flex;flex-direction:column;align-items:center;flex:1">
@@ -4079,7 +4080,7 @@ const T = {
     invSortResNewest:'Ημ. κράτησης: Νεότερη → Παλαιότερη', invSortResOldest:'Ημ. κράτησης: Παλαιότερη → Νεότερη',
     invFilterBtn:'Φίλτρο', invFilterTitle:'Φίλτρα', invFilterClear:'Καθαρισμός', invFilterApply:'Εφαρμογή',
     invDateFrom:'Από', invDateTo:'Έως', invDateRange:'Εύρος Ημερομηνιών',
-    selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο',
+    selTotalCost:'Κόστος', selTotalRetail:'Λιανική', selTotalMetal:'Μέταλλο', selInitCost:'αρχικό',
     invSelectBtn:'Επιλογή', invSelectDone:'Τέλος', invShareBtn:'Κοινοποίηση',
     invSelAll:'Όλα', invSelGroup:'Ομάδα', invSelSold:'Πώληση', invSelReserve:'Κράτηση', invShowSel:'Επιλεγμένα',
     invFilterReturned:'↩️ Στον προμηθευτή', invFilterConsign:'🤝 Παρακαταθήκη',
@@ -4706,7 +4707,7 @@ const T = {
     invSortResNewest:'Reserved date: Newest → Oldest', invSortResOldest:'Reserved date: Oldest → Newest',
     invFilterBtn:'Filter', invFilterTitle:'Filters', invFilterClear:'Clear', invFilterApply:'Apply',
     invDateFrom:'From', invDateTo:'To', invDateRange:'Date Range',
-    selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal',
+    selTotalCost:'Cost', selTotalRetail:'Retail', selTotalMetal:'Metal', selInitCost:'initial',
     invSelectBtn:'Select', invSelectDone:'Done', invShareBtn:'Share',
     invSelAll:'All', invSelGroup:'Group', invSelSold:'Sell', invSelReserve:'Reserve', invShowSel:'Selected',
     invFilterReturned:'↩️ With vendor', invFilterConsign:'🤝 Consignment',
@@ -23782,6 +23783,44 @@ function _invSaleCost(item) {
   return (p && p.baseCost != null && isFinite(p.baseCost)) ? parseFloat(p.baseCost) : null;
 }
 
+// The historical counterpart of _invSaleCost: what a piece cost WHEN IT WAS ADDED,
+// not what it would cost to replace today. A per-gram piece's cost is recomputed
+// live from the metal price, so on stock bought when gold stood elsewhere the live
+// figure is not what the shop paid — the same gap v13.02 reports on a sale as the
+// "gain on the metal held".
+//
+// Exact wherever a figure was genuinely frozen (`initialBaseCost`, v13.02 — which is
+// what the invoice said once a paid-metal basis has been applied, v13.17) or where
+// the cost never floated at all: a stored `purchaseCost` IS the historical price,
+// and an other-type piece keeps a fixed cost in its QR. Coins and raw metal use
+// their own melt baseline.
+//
+// Everything else falls back to the v13.02 estimate — `initialRetail` converted with
+// today's cost/retail ratio — and says so with `exact: false`, because the margin,
+// the VAT rate and the labour rate have all moved since. Returns NULL when there is
+// no baseline at all: a piece with nothing frozen is counted as missing by the
+// caller, never as zero, so a total that is short can say it is short.
+function _itemInitialCost(item, p) {
+  if (!item) return null;
+  const pc = parseFloat(item.purchaseCost);
+  if (pc > 0) return { cost: pc, exact: true };
+  if (item.isCoin || item.isMetal) {
+    const m = parseFloat(item.initialMelt);
+    return m > 0 ? { cost: m, exact: true } : null;
+  }
+  if (item.metal === 'other') {                    // cost fixed in the QR — never floats
+    const c = _invOtherCost(item);
+    return c > 0 ? { cost: c, exact: true } : null;
+  }
+  const ibc = parseFloat(item.initialBaseCost);
+  if (ibc > 0) return { cost: ibc, exact: true };
+  p = p || calcInvItemPrice(item);
+  const ir = parseFloat(item.initialRetail);
+  if (ir > 0 && p && p.retail > 0 && p.baseCost > 0)
+    return { cost: parseFloat((ir * (p.baseCost / p.retail)).toFixed(2)), exact: false };
+  return null;
+}
+
 // Pure precious-metal grams in one item (exact for coins/scrap, weight×purity else).
 function _invPureGrams(item) {
   if (!item) return 0;
@@ -33528,12 +33567,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.17', date: 'Αύγουστος 2026', items: [
-        "💰 Νέα ενέργεια «Τιμή μετάλλου που πλήρωσα». Όταν παραγγέλνετε από το εξωτερικό και το δέμα φτάνει μέρες αργότερα με τον χρυσό σε άλλη τιμή, δηλώνετε την τιμή του τιμολογίου και τα κομμάτια κοστολογούνται με αυτήν.",
-        "📦 Πώς: προσθέτετε την παραλαβή κανονικά → Απόθεμα → επιλέγετε τα κομμάτια → ⋯ → «Τιμή μετάλλου που πλήρωσα» → π.χ. 128,40 € ανά γραμμάριο καθαρού.",
-        "👁️ Πριν πατήσετε «Εφαρμογή» βλέπετε τι θα αλλάξει: «κόστος σήμερα €417,74 → Όσο πλήρωσα €434,93».",
-        "🏷️ Η τιμή πώλησης ΔΕΝ αγγίζεται — μένει στη ζωντανή τιμή του χρυσού. Αλλάζει μόνο το κόστος και η αρχική τιμή, ώστε το κέρδος και το «κέρδος από άνοδο μετάλλου» να βγαίνουν σωστά όταν πουληθεί το κομμάτι.",
-        "✅ Δουλεύει και για όσα έχετε ήδη προσθέσει. Αφήνει έξω πουλημένα, νομίσματα, παλιό μέταλλο και κομμάτια με τιμή ανά τεμάχιο (εκεί το κόστος είναι ήδη σε ευρώ) — και σας λέει πόσα άφησε έξω."
+      { version: 'v13.18', date: 'Σεπτέμβριος 2026', items: [
+        "💰 Όταν επιλέγετε κομμάτια στο Απόθεμα, κάτω από το σύνολο «Κόστος» εμφανίζεται και το «αρχικό» — τι κόστιζαν ΟΤΑΝ ΤΑ ΠΡΟΣΘΕΣΑΤΕ, όχι στη σημερινή τιμή του μετάλλου.",
+        "🧾 Έτσι επιλέγετε μια παραλαβή και τη συγκρίνετε κατευθείαν με το τιμολόγιο του προμηθευτή — ειδικά αν έχετε δηλώσει την «Τιμή μετάλλου που πλήρωσα».",
+        "≈ Αν κάποιο κομμάτι δεν έχει καταγεγραμμένο αρχικό κόστος, το ποσό είναι κατά προσέγγιση και μπαίνει «≈». Αν κάποια δεν έχουν καθόλου, φαίνεται πόσα μετρήθηκαν (π.χ. «7/9»)."
       ]},
       ]
   },
@@ -33564,12 +33601,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.17', date: 'Aug 2026', items: [
-        "💰 A new action, “Metal price I paid”. When you order from abroad and the parcel arrives days later with gold at a different price, you state the price your invoice charged and the pieces are costed at it.",
-        "📦 How: add the delivery as usual → Stock → select the pieces → ⋯ → “Metal price I paid” → e.g. 128.40 € per gram of pure.",
-        "👁️ Before you press Apply you see exactly what will change: “cost today €417.74 → What you paid €434.93”.",
-        "🏷️ The selling price is NOT touched — it stays on the live gold price. Only the cost and the initial price move, so the profit and the “gain on metal held” come out right when the piece sells.",
-        "✅ It works on pieces you have already added. It leaves out sold pieces, coins, scrap metal and pieces priced per item (their cost is already a euro figure) — and tells you how many it left out."
+      { version: 'v13.18', date: 'Sep 2026', items: [
+        "💰 When you select pieces in Stock, an “initial” figure now sits under the Cost total — what they cost WHEN YOU ADDED THEM, not at today's metal price.",
+        "🧾 So you can select a delivery and check it straight against the supplier's invoice — especially once you have stated the “Metal price I paid”.",
+        "≈ If a piece has no recorded initial cost the figure is an estimate and is marked “≈”. If some have none at all, it shows how many were counted (e.g. “7/9”)."
       ]},
           ]
   }
@@ -38954,7 +38989,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.17';
+const APP_VERSION = '13.18';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -40191,17 +40226,44 @@ function updateInvShareBar() {
     if (totalsRow && can('see_cost') && n > 0) {
       const cur = state.currency || '€';
       let totalCost = 0, totalRetail = 0, totalMetal = 0;
+      // ...and the same cost as it stood when the pieces were ADDED, so a delivery
+      // bought at a different metal price can be checked against its invoice.
+      let totalInit = 0, nInit = 0, nEst = 0, nSeen = 0;
       [..._invSelected].forEach(id => {
         const item = (_inventoryCache || {})[id];
         if (!item) return;
+        nSeen++;
         const p = calcInvItemPrice(item);
         if (p) { totalRetail += p.retail || 0; totalMetal += p.metalValue || 0; }
         // Cost: the stored purchase cost when set (per-item vendors), else the computed
         // production cost (metal + labour + stone) so per-gram items show a real cost
         // instead of a blank "—".
-        totalCost += parseFloat(item.purchaseCost) || (p && p.baseCost) || 0;
+        const liveCost = parseFloat(item.purchaseCost) || (p && p.baseCost) || 0;
+        totalCost += liveCost;
+        // Only a piece the live line could actually cost enters the "when added"
+        // line, so the two always describe the SAME pieces — one of them quietly
+        // covering more would make the comparison a lie.
+        const ic = liveCost > 0 ? _itemInitialCost(item, p) : null;
+        if (ic) { totalInit += ic.cost; nInit++; if (!ic.exact) nEst++; }
       });
       document.getElementById('invSelTotalCost').textContent = totalCost > 0 ? cur + Math.round(totalCost).toLocaleString() : '—';
+      // The "when added" sub-line. Hidden when nothing was frozen, and when every
+      // piece's cost never moved (the two figures would read as one number twice).
+      const _initEl = document.getElementById('invSelInitCost');
+      if (_initEl) {
+        const _initTxt = cur + Math.round(totalInit).toLocaleString();
+        const _same = nInit === nSeen && !nEst && _initTxt === cur + Math.round(totalCost).toLocaleString();
+        if (nInit > 0 && !_same) {
+          // "≈" when any member had to be estimated; "n/N" when some piece has no
+          // baseline at all — a total is only as honest as its softest part.
+          _initEl.textContent = (nEst ? '≈ ' : '') + t('selInitCost') + ' ' + _initTxt
+            + (nInit < nSeen ? ' (' + nInit + '/' + nSeen + ')' : '');
+          _initEl.style.display = 'block';
+        } else {
+          _initEl.textContent = '';          // never leave a stale figure behind it
+          _initEl.style.display = 'none';
+        }
+      }
       document.getElementById('invSelTotalRetail').textContent = totalRetail > 0 ? cur + Math.round(totalRetail).toLocaleString() : '—';
       document.getElementById('invSelTotalMetal').textContent = totalMetal > 0 ? cur + Math.round(totalMetal).toLocaleString() : '—';
       totalsRow.style.display = 'block';
