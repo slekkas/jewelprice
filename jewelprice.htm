@@ -7885,16 +7885,17 @@ async function _resMarkItems(ids, resId) {
     const it = _inventoryCache && _inventoryCache[id];
     if (!it) { failed.push(id); continue; }   // was a silent `continue` — a lost hold with no word
     const before = it.reservationId;
-    if (resId) it.reservationId = resId; else delete it.reservationId;
     _inventoryCache[id] = it;
+    // Only the flag is written (PATCH, not PUT): this can run long after the cache
+    // was loaded, and a whole-record write would revert whatever another device has
+    // changed on the piece meanwhile. null deletes the key. See _invHealPatch.
     let ok = false;
-    try { ok = await saveInventoryItem(id, it); } catch (e) { ok = false; }
+    try { ok = await _invHealPatch(id, { reservationId: resId || null }); } catch (e) { ok = false; }
     if (!ok) {
       if (before) it.reservationId = before; else delete it.reservationId;
       failed.push(id);
       continue;
     }
-    try { syncPublicItem(id, it); } catch (e) {}
   }
   return { ok: !failed.length, failed };
 }
@@ -7930,12 +7931,13 @@ async function _resReconcileReservedFlags() {
     if (want === have) continue;
     if (!want && !mayClear) continue;
     if (want) it.reservationId = want; else delete it.reservationId;
-    fixed.push(id);
+    fixed.push([id, want]);
   }
-  for (const id of fixed) {
-    let ok = false;
-    try { ok = await saveInventoryItem(id, _inventoryCache[id]); } catch (e) { ok = false; }
-    if (ok) { try { syncPublicItem(id, _inventoryCache[id]); } catch (e) {} }
+  for (const [id, want] of fixed) {
+    // Patch the one flag. This heal runs fire-and-forget from renderInvList, which
+    // draws from a cache that may be a whole session old, so a whole-record write
+    // here would quietly undo another device's work. See _invHealPatch.
+    try { await _invHealPatch(id, { reservationId: want || null }); } catch (e) {}
   }
   return fixed.length;
 }
@@ -25588,6 +25590,62 @@ async function saveInventoryItem(id, item) {
   } catch(e) { return false; }
 }
 
+// ── BACKGROUND SELF-HEALS MUST PATCH, NEVER PUT (v13.19) ─────────────────────
+// saveInventoryItem writes the WHOLE record, which is right when a person is
+// looking at a form they just filled in — and wrong for a self-heal. A heal fires
+// automatically, fire-and-forget, from _inventoryCache — and renderInvList draws
+// from that cache INSTANTLY, before the background refresh lands (v10.23), so the
+// object it hands over can be a whole session old. Writing it back as a PUT
+// silently reverts every field another device has written since.
+//
+// That is exactly how a matching set made on the PC and a paid-metal basis of
+// €128.40/g both vanished from two pieces the moment the phone opened Stock: the
+// phone's copy predated both, the baseline heal fired on it, and the PUT restored
+// the record to how it was created. Same disease as the whole-node PUT of sales
+// (v11.64) and of the public feed (v12.71); this is the record-level one.
+//
+// So a heal patches ONLY the fields it heals. A PATCH of {handmade:true} cannot
+// touch setId however stale the object is — the protection is structural, not a
+// matter of remembering to refresh first.
+//
+// `guard` names a field that must still be EMPTY in the cloud for the heal to
+// apply. Scoping the write is not enough on its own for a value computed from the
+// stale copy: the baseline heal fires on `!item.initialRetail`, so a phone holding
+// a pre-basis copy would still overwrite the initialRetail the PC had just set.
+// When the guard is already filled the heal stands down and adopts the cloud's
+// value instead of fighting it; if the check itself fails, nothing is written —
+// an unreadable answer is not permission to guess (v11.61).
+async function _invHealPatch(id, fields, guard) {
+  const base = invFbBase();
+  if (!base || !id || !fields) return false;
+  try {
+    if (guard) {
+      const g = await fetch(fbUrl(INV_FB_PATH + '/' + id + '/' + guard + '.json'), { cache: 'no-store' });
+      if (!g.ok) return false;
+      const cur = await g.json();
+      if (cur !== null && cur !== undefined && cur !== '') {
+        const held = _inventoryCache && _inventoryCache[id];
+        if (held && (held[guard] === null || held[guard] === undefined)) held[guard] = cur;
+        return false;
+      }
+    }
+    const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!res.ok) return false;
+    const it = _inventoryCache && _inventoryCache[id];
+    if (it) {
+      Object.assign(it, fields);
+      // Drop any key the patch deleted, so the cache says what the cloud says.
+      for (const k in fields) if (fields[k] === null) delete it[k];
+      try { syncPublicItem(id, it); } catch(e) {}
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
 // ── PUBLIC SHOWROOM FEED ─────────────────────────────────────────────────────
 // showroom.htm and item.htm are served publicly, so they must NOT carry the
 // master DB secret or read the private inventory (which holds cost / margin /
@@ -27954,16 +28012,20 @@ function renderInvList() {
     // Self-heal: store initialRetail if missing (existing items added before v9.24).
     // Coins are excluded — their value floats with spot, so a baseline is meaningless.
     if (p && item.metal !== 'other' && !item.isCoin && !item.initialRetail && !_gone) {
-      item.initialRetail = parseFloat(p.retail.toFixed(2));
+      const _heal = { initialRetail: parseFloat(p.retail.toFixed(2)) };
       // Capture the metal-value baseline at the same moment (add-date for new items).
       // Only fires for items missing a baseline — i.e. freshly-created ones; existing
       // stock already has initialRetail, so it keeps the May-2025 anchor instead.
-      if (!item.isMetal && Number.isFinite(p.metalValue)) item.initialMetalValue = parseFloat(p.metalValue.toFixed(2));
+      if (!item.isMetal && Number.isFinite(p.metalValue)) _heal.initialMetalValue = parseFloat(p.metalValue.toFixed(2));
       // What the piece COST on the day it was added. Frozen here because the app
       // recomputes a per-gram cost live, so without this there is no trace of what
       // was actually paid — and the difference is real money the sale never reports.
-      if (Number.isFinite(p.baseCost)) item.initialBaseCost = parseFloat(p.baseCost.toFixed(2));
-      saveInventoryItem(id, item).catch(() => {});
+      if (Number.isFinite(p.baseCost)) _heal.initialBaseCost = parseFloat(p.baseCost.toFixed(2));
+      // Guarded on initialRetail: this card may have been drawn from a session-old
+      // cache, and a paid-metal basis set on another device since then has already
+      // written all three. Patch, never PUT — see _invHealPatch.
+      Object.assign(item, _heal);
+      _invHealPatch(id, _heal, 'initialRetail').catch(() => {});
     }
     // Appreciation line for owner/manager (hidden from employees)
     let appreciationHtml = '';
@@ -28001,7 +28063,7 @@ function renderInvList() {
     // vendor/category data, only the saved item) never sees the badge
     if (_isHandmade && !item.handmade && !_gone) {
       item.handmade = true;
-      saveInventoryItem(id, item).catch(() => {});
+      _invHealPatch(id, { handmade: true }).catch(() => {});
     }
     // Self-heal: repair Other-type stonesDesc corrupted by the pre-v9.84 QR parser,
     // which read the code's ID/cost segments as a giant Diamond carat (e.g. an item
@@ -28018,7 +28080,7 @@ function renderInvList() {
           carat: s.carat || '', clarity: s.clarity || '', color: s.color || '', shape: ''
         }));
         item.stonesDesc = buildStoneDescription(_shStones);
-        saveInventoryItem(id, item).catch(() => {});
+        _invHealPatch(id, { stonesDesc: item.stonesDesc }).catch(() => {});
       }
     }
     const handmadeBadge = _isHandmade ? `<span class="inv-card-badge" style="background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.35);color:var(--gold-light)">✋</span>` : '';
@@ -28286,7 +28348,7 @@ function renderInvList() {
       if (_mHm) _grpAnyHm = true;
       if (_mHm && !it.handmade && it.status !== 'sold') {
         it.handmade = true;
-        saveInventoryItem(mid, it).catch(() => {});
+        _invHealPatch(mid, { handmade: true }).catch(() => {});
       }
     });
     const _grpHandmade = _grpAnyHm
@@ -33567,10 +33629,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.18', date: 'Σεπτέμβριος 2026', items: [
-        "💰 Όταν επιλέγετε κομμάτια στο Απόθεμα, κάτω από το σύνολο «Κόστος» εμφανίζεται και το «αρχικό» — τι κόστιζαν ΟΤΑΝ ΤΑ ΠΡΟΣΘΕΣΑΤΕ, όχι στη σημερινή τιμή του μετάλλου.",
-        "🧾 Έτσι επιλέγετε μια παραλαβή και τη συγκρίνετε κατευθείαν με το τιμολόγιο του προμηθευτή — ειδικά αν έχετε δηλώσει την «Τιμή μετάλλου που πλήρωσα».",
-        "≈ Αν κάποιο κομμάτι δεν έχει καταγεγραμμένο αρχικό κόστος, το ποσό είναι κατά προσέγγιση και μπαίνει «≈». Αν κάποια δεν έχουν καθόλου, φαίνεται πόσα μετρήθηκαν (π.χ. «7/9»)."
+      { version: 'v13.19', date: 'Σεπτέμβριος 2026', items: [
+        "🛡️ ΔΙΟΡΘΩΣΗ: δουλειά που κάνατε σε μια συσκευή μπορούσε να σβηστεί από άλλη. Ένα σετ φτιαγμένο στον υπολογιστή και μια «Τιμή μετάλλου που πλήρωσα» εξαφανίστηκαν μόλις άνοιξε το Απόθεμα στο κινητό.",
+        "🔎 Αιτία: το κινητό κρατούσε παλιό αντίγραφο των κομματιών και, σε αυτόματη συντήρηση στο παρασκήνιο, ξανάγραφε ΟΛΟΚΛΗΡΗ την καρτέλα από αυτό — σβήνοντας ό,τι είχε γραφτεί εν τω μεταξύ αλλού.",
+        "✅ Πλέον αυτές οι αυτόματες διορθώσεις αγγίζουν ΜΟΝΟ το πεδίο που φτιάχνουν, ποτέ ολόκληρη την καρτέλα. Καμία ενέργειά σας δεν αλλάζει — απλώς δεν χάνεται τίποτα."
       ]},
       ]
   },
@@ -33601,10 +33663,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.18', date: 'Sep 2026', items: [
-        "💰 When you select pieces in Stock, an “initial” figure now sits under the Cost total — what they cost WHEN YOU ADDED THEM, not at today's metal price.",
-        "🧾 So you can select a delivery and check it straight against the supplier's invoice — especially once you have stated the “Metal price I paid”.",
-        "≈ If a piece has no recorded initial cost the figure is an estimate and is marked “≈”. If some have none at all, it shows how many were counted (e.g. “7/9”)."
+      { version: 'v13.19', date: 'Sep 2026', items: [
+        "🛡️ FIX: work done on one device could be wiped by another. A set made on the PC and a “Metal price I paid” both vanished the moment Stock was opened on the phone.",
+        "🔎 Cause: the phone still held an older copy of those pieces and, during routine background housekeeping, wrote the WHOLE record back from it — erasing anything saved elsewhere in between.",
+        "✅ Those automatic repairs now touch ONLY the one field they are fixing, never the whole record. Nothing you do changes — things just stop going missing."
       ]},
           ]
   }
@@ -38989,7 +39051,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.18';
+const APP_VERSION = '13.19';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
