@@ -25656,6 +25656,45 @@ async function _saveToInventoryFromLabel(labelData) {
   return ok;
 }
 
+// ── AN EDIT WRITES WHAT IT CHANGED, NOT THE WHOLE PIECE (v13.21) ─────────────
+// _invSnap holds each record AS THE CLOUD LAST GAVE IT TO US, as a JSON string.
+// saveInventoryItem diffs against it and writes only the difference, so a save can
+// only ever change what THIS user changed — a field someone else edited meanwhile
+// was never in our copy to differ, so it is never written and never lost. Same rule
+// as _syncListToCloud (v11.64), the config (v13.20) and _invHealPatch (v13.19).
+//
+// The baseline must be what we last SAW, never a fresh read of the cloud: diffing
+// against the cloud as it is now would count another device's change as our own and
+// put it straight back. That distinction is the whole mechanism.
+const _invSnap = {};
+function _invSnapSet(id, item) {
+  try { _invSnap[id] = JSON.stringify(item); } catch (e) { delete _invSnap[id]; }
+}
+// Move a record's baseline on by the fields a PATCH just wrote, so the next full save
+// does not mistake them for an edit of ours. EVERY direct PATCH of an inventory record
+// must call this, or it will quietly write its own stale value back over a newer one.
+function _invSnapMerge(id, fields) {
+  if (_invSnap[id] === undefined) return;
+  try {
+    const s = JSON.parse(_invSnap[id]);
+    for (const k in fields) { if (fields[k] === null) delete s[k]; else s[k] = fields[k]; }
+    _invSnap[id] = JSON.stringify(s);
+  } catch (e) { delete _invSnap[id]; }
+}
+// Fields we changed since that snapshot. A key we dropped becomes null, which is how
+// Firebase deletes it — without that, "remove from set" would silently do nothing.
+function _invDiffFromSnap(item, snap) {
+  const out = {};
+  for (const k in item) {
+    if (item[k] === undefined) continue;
+    if (JSON.stringify(item[k]) !== JSON.stringify(snap[k])) out[k] = item[k];
+  }
+  for (const k in snap) {
+    if (item[k] === undefined && snap[k] !== undefined) out[k] = null;
+  }
+  return out;
+}
+
 async function loadInventory() {
   const base = invFbBase();
   if (!base) { _invLoadFailed = false; return {}; }   // no cloud configured — local IS the truth
@@ -25664,7 +25703,11 @@ async function loadInventory() {
     if (!res.ok) { _invLoadFailed = true; return {}; }
     const data = await res.json();
     _invLoadFailed = false;
-    return data && typeof data === 'object' ? data : {};
+    const out = data && typeof data === 'object' ? data : {};
+    // Re-baseline every record: this is the only place the cloud's own copy arrives.
+    for (const k in _invSnap) delete _invSnap[k];
+    for (const id in out) _invSnapSet(id, out[id]);
+    return out;
   } catch(e) { _invLoadFailed = true; return {}; }
 }
 
@@ -25672,12 +25715,36 @@ async function saveInventoryItem(id, item) {
   const base = invFbBase();
   if (!base) return false;
   try {
-    const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
+    // A piece we have a baseline for is EDITED: send the difference, so the save
+    // cannot carry a stale copy of everything else along with it. A piece we have
+    // never seen is being CREATED, and a create is genuinely the whole record.
+    let snapRaw = _invSnap[id], res;
+    if (snapRaw !== undefined) {
+      let snapObj = null;
+      try { snapObj = JSON.parse(snapRaw); } catch (e) { snapObj = null; }
+      if (snapObj && typeof snapObj === 'object') {
+        const diff = _invDiffFromSnap(item, snapObj);
+        if (!Object.keys(diff).length) {   // the cloud already says exactly this
+          _invSnapSet(id, item);
+          if (_inventoryCache && !_inventoryCache[id]) _inventoryCache[id] = item;
+          syncPublicItem(id, item);
+          _autoDescribe(id, item);
+          return true;
+        }
+        res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(diff)
+        });
+      }
+    }
+    if (!res) res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
     if (res.ok) {
+      _invSnapSet(id, item);      // what the cloud holds now, for the next edit
       // The cache must reflect the saved piece BEFORE _autoDescribe runs. The describe
       // queue (and _findDescribeBatch / _findSaveDesc under it) resolves the piece by id
       // out of _inventoryCache — but a NEWLY created item is cached by its caller only
@@ -25744,6 +25811,7 @@ async function _invHealPatch(id, fields, guard) {
       for (const k in fields) if (fields[k] === null) delete it[k];
       try { syncPublicItem(id, it); } catch(e) {}
     }
+    _invSnapMerge(id, fields);
     return true;
   } catch(e) { return false; }
 }
@@ -25965,7 +26033,10 @@ async function deleteInventoryItem(id) {
   if (!base) return false;
   try {
     const res = await fetch(fbUrl(INV_FB_PATH + '/' + id + '.json'), { method: 'DELETE' });
-    if (res.ok) syncPublicDelete(id); // drop it from the public showroom feed too
+    if (res.ok) {
+      delete _invSnap[id];            // no baseline for a piece that no longer exists
+      syncPublicDelete(id);           // drop it from the public showroom feed too
+    }
     return res.ok;
   } catch(e) { return false; }
 }
@@ -33731,6 +33802,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.21', date: 'Σεπτέμβριος 2026', items: [
+        "🛡️ Και η επεξεργασία κομματιού γράφει πλέον ΜΟΝΟ όσα αλλάξατε. Αν δύο άτομα ανοίξουν το ίδιο κόσμημα, ο ένας δεν σβήνει τη διόρθωση του άλλου.",
+        "🤝 Μαζί με τις προηγούμενες αλλαγές, κάθε κοινόχρηστο κομμάτι της εφαρμογής — πωλήσεις, κρατήσεις, επισκευές, πελάτες, ρυθμίσεις, απόθεμα — αποθηκεύεται πλέον ανά πεδίο.",
+        "✅ Δεν αλλάζει τίποτα στον τρόπο που δουλεύετε. Απλώς μπορούν πλέον τρία άτομα να δουλεύουν ταυτόχρονα με ασφάλεια."
+      ]},
       { version: 'v13.20', date: 'Σεπτέμβριος 2026', items: [
         "🤝 Ετοιμασία για δύο ακόμη άτομα: οι ρυθμίσεις και οι προμηθευτές ήταν το τελευταίο σημείο όπου η αποθήκευση ενός ατόμου μπορούσε να σβήσει την αλλαγή κάποιου άλλου.",
         "🔄 Τώρα, μόλις ανοίγετε «Προμηθευτές» ή «Ρυθμίσεις», διαβάζονται ξανά οι τρέχουσες τιμές — βλέπετε ό,τι άλλαξε κάποιος άλλος σήμερα.",
@@ -33770,6 +33846,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.21', date: 'Sep 2026', items: [
+        "🛡️ Editing a piece now saves ONLY what you changed too. If two people open the same jewel, one no longer erases the other's correction.",
+        "🤝 With the last two updates, every shared part of the app — sales, reservations, repairs, clients, settings and stock — now saves field by field.",
+        "✅ Nothing changes in how you work. It simply means three people can now work at once safely."
+      ]},
       { version: 'v13.20', date: 'Sep 2026', items: [
         "🤝 Getting ready for two more people: settings and vendors were the last place where one person saving could erase someone else's change.",
         "🔄 Opening “Vendors” or “Settings” now re-reads the current values first, so you see anything a colleague changed today.",
@@ -38596,6 +38677,7 @@ async function _findSaveDesc(id, text) {
     });
     if (!res.ok) return false;
     it.aiDesc = text; it.aiDescPhoto = it.photoUrl; it.aiDescV = AI_DESC_VERSION;
+    _invSnapMerge(id, { aiDesc: text, aiDescPhoto: it.photoUrl, aiDescV: AI_DESC_VERSION });
     return true;
   } catch (e) { return false; }
 }
@@ -39056,6 +39138,7 @@ async function _migrateItemPhotos(id, it) {
   if (!res.ok) throw new Error('save-failed-' + res.status);
   Object.assign(it, patch);
   _inventoryCache[id] = it;
+  _invSnapMerge(id, patch); // baseline follows the write — see _invSnapMerge
   syncPublicItem(id, it);   // the showroom must point at the new URL too
   return true;
 }
@@ -39163,7 +39246,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.20';
+const APP_VERSION = '13.21';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
