@@ -5429,14 +5429,105 @@ function cloudConfig() {
 // RULE: never put an API key, token or secret in this file. It is a public document.
 function _aiKey() { return (localStorage.getItem('jpro_ai_key') || '').trim(); }
 
+// ── THE CONFIG IS SHARED TOO (v13.20) ────────────────────────────────────────
+// Vendors, VAT, margins, currency, coin markup and the rest all live in ONE node,
+// and until now saving any of them PUT the whole thing — the last whole-node write
+// left in the app, after sales/gift cards/reservations/repairs/clients (v11.64)
+// and the public feed (v12.71). It is also read only at app open. So with three
+// people: a manager opens the app at 9am, the owner changes a gold rate at 2pm, the
+// manager saves any vendor at 4pm — and the manager's 9am copy silently puts the
+// rate back. Rare while one person owns the settings; not rare with a team, and
+// vendor rates price every item in the shop.
+//
+// _cfgSnap is the config AS THE CLOUD LAST GAVE IT TO US. A push writes only the
+// keys that differ from it, so a device can only ever change what its user actually
+// changed. Same rule as _syncListToCloud: never write what you were not asked to.
+let _cfgSnap = null;
+function _cfgSnapSet(cfg) {
+  try { _cfgSnap = JSON.parse(JSON.stringify(cfg || {})); } catch (e) { _cfgSnap = null; }
+}
+
+// Re-read the config from the cloud and apply it. Called as the Vendors and Settings
+// screens open, so the values being edited are current AND the diff baseline above is
+// fresh — after this, anything that still differs on save really is this user's edit.
+// Skipped mid-edit: nothing may reach in and change the vendor a form is holding.
+async function _cfgRefresh() {
+  if (!creds.binId || !isOwnerOrManager()) return false;
+  if (editingVendorIndex !== null) return false;
+  try {
+    const cfg = await pullFromCloud(creds.binId, creds.dbSecret);
+    if (!cfg) return false;
+    applyCloudConfig(cfg);
+    _cfgSnapSet(cfg);
+    return true;
+  } catch (e) { return false; }   // offline — keep what we have, say nothing
+}
+
+// The pull lands a moment after the screen opens, so repainting it blindly would wipe
+// whatever the user had already started typing. Repaint only if they are still on that
+// screen and not in the middle of a field.
+function _cfgMayRepaint(panelId) {
+  const p = document.getElementById(panelId);
+  if (!p || !p.classList.contains('active')) return false;
+  const a = document.activeElement;
+  if (a && a !== document.body && p.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
+  return true;
+}
+
 async function pushToCloud() {
   if (!creds.binId) throw new Error('No Firebase URL set');
-  const res = await fetch(fbUrl('/jewelprice.json'), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cloudConfig())
-  });
-  if (!res.ok) throw new Error('Push failed: ' + res.status);
+  const cfg = cloudConfig();
+  // No baseline (a boot with no signal, so nothing was ever read back): keep the
+  // old whole-node write rather than guess at a diff. No worse than before, and
+  // _cfgRefresh normally establishes a fresh baseline before any edit screen opens.
+  if (!_cfgSnap) {
+    const res = await fetch(fbUrl('/jewelprice.json'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    });
+    if (!res.ok) throw new Error('Push failed: ' + res.status);
+    _cfgSnapSet(cfg);
+    return;
+  }
+  const changed = {};
+  for (const k in cfg) {
+    if (JSON.stringify(cfg[k]) !== JSON.stringify(_cfgSnap[k])) changed[k] = cfg[k];
+  }
+  // `vendors` is ONE key holding the whole list, so writing it still replaces every
+  // vendor — a manager adding a supplier would put back a rate the owner changed an
+  // hour ago. Vendors are append-only (retired, never removed, so indices stay put —
+  // v11.12), which means each one has a stable address of its own and only the ones
+  // actually edited need writing. Firebase stores an array as numeric keys, so a
+  // PATCH of {"1": {...}} on /vendors touches vendor 1 and nothing else.
+  let vendorPatch = null;
+  const snapV = _cfgSnap.vendors, newV = cfg.vendors;
+  if (changed.vendors && Array.isArray(snapV) && Array.isArray(newV) && newV.length >= snapV.length) {
+    vendorPatch = {};
+    for (let i = 0; i < newV.length; i++) {
+      if (JSON.stringify(newV[i]) !== JSON.stringify(snapV[i])) vendorPatch[i] = newV[i];
+    }
+    delete changed.vendors;
+  }
+  const hasRest = Object.keys(changed).length > 0;
+  if (!hasRest && !(vendorPatch && Object.keys(vendorPatch).length)) return;   // nothing of ours to say
+  if (vendorPatch && Object.keys(vendorPatch).length) {
+    const vres = await fetch(fbUrl('/jewelprice/vendors.json'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(vendorPatch)
+    });
+    if (!vres.ok) throw new Error('Push failed: ' + vres.status);
+  }
+  if (hasRest) {
+    const res = await fetch(fbUrl('/jewelprice.json'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changed)
+    });
+    if (!res.ok) throw new Error('Push failed: ' + res.status);
+  }
+  _cfgSnapSet(cfg);
 }
 
 async function pullFromCloud(binId, secret) {
@@ -5501,6 +5592,7 @@ async function autoSync() {
   try {
     const cfg = await pullFromCloud(creds.binId);
     applyCloudConfig(cfg);
+    _cfgSnapSet(cfg);   // baseline for the per-key config diff — see pushToCloud
     setSyncStatus('synced', t(isOwnerOrManager() ? 'syncedOwner' : 'syncedEmp'));
   } catch(e) {
     setSyncStatus('error', t('syncFail'));
@@ -5602,6 +5694,10 @@ async function ownerSaveAndPush() {
       body: JSON.stringify(merged)
     });
     if (!res.ok) throw new Error('Push failed: ' + res.status);
+    // Deliberately a whole-node write: this is first-time setup and the user has just
+    // been asked, explicitly, whose copy wins. Record it as the diff baseline so every
+    // ordinary save from here on writes only what it changed.
+    _cfgSnapSet(merged);
     saveState();
     showStatus('ownerStatus', t('pushOk'), 'ok');
     setSyncStatus('synced', t('syncedOwner'));
@@ -5622,6 +5718,7 @@ async function employeeConnect() {
     const cfg = await pullFromCloud(binId, secret);
     if (!cfg) throw new Error('Empty response');
     applyCloudConfig(cfg);
+    _cfgSnapSet(cfg);
     creds.role = 'employee';
     creds.binId = binId;
     creds.dbSecret = secret;
@@ -6063,8 +6160,13 @@ function showPanel(name) {
   if (name === 'vendors') {
     renderVendors();
     if (document.getElementById('laborList').children.length === 0) addLaborRow();
+    // Read the shared settings back before anything is edited, so a rate another
+    // person changed today is on screen — and so the save below it writes only
+    // what THIS user changes. See _cfgRefresh / pushToCloud.
+    _cfgRefresh().then(ok => { if (ok && _cfgMayRepaint('panel-vendors')) renderVendors(); });
   }
-  if (name === 'settings') { loadSettingsForm(); _renderAiDescPeekBtn(); if (can('manage_stock')) _photoMigRefreshBox(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); } }
+  if (name === 'settings') { loadSettingsForm(); _renderAiDescPeekBtn(); if (can('manage_stock')) _photoMigRefreshBox(); if (can('see_cost')) { _stoneCacheMem = null; renderStoneCacheSettings(); }
+    _cfgRefresh().then(ok => { if (ok && _cfgMayRepaint('panel-settings')) loadSettingsForm(); }); }
   if (name === 'sync') {
     const _syncPin = localStorage.getItem('jpro_owner_pin') || '';
     if (_syncPin && creds.role !== 'owner') {
@@ -33629,6 +33731,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.20', date: 'Σεπτέμβριος 2026', items: [
+        "🤝 Ετοιμασία για δύο ακόμη άτομα: οι ρυθμίσεις και οι προμηθευτές ήταν το τελευταίο σημείο όπου η αποθήκευση ενός ατόμου μπορούσε να σβήσει την αλλαγή κάποιου άλλου.",
+        "🔄 Τώρα, μόλις ανοίγετε «Προμηθευτές» ή «Ρυθμίσεις», διαβάζονται ξανά οι τρέχουσες τιμές — βλέπετε ό,τι άλλαξε κάποιος άλλος σήμερα.",
+        "✅ Και η αποθήκευση στέλνει ΜΟΝΟ όσα αλλάξατε εσείς, όχι ολόκληρο το μπλοκ ρυθμίσεων. Πωλήσεις, κρατήσεις, επισκευές και πελάτες ήταν ήδη ασφαλή."
+      ]},
       { version: 'v13.19', date: 'Σεπτέμβριος 2026', items: [
         "🛡️ ΔΙΟΡΘΩΣΗ: δουλειά που κάνατε σε μια συσκευή μπορούσε να σβηστεί από άλλη. Ένα σετ φτιαγμένο στον υπολογιστή και μια «Τιμή μετάλλου που πλήρωσα» εξαφανίστηκαν μόλις άνοιξε το Απόθεμα στο κινητό.",
         "🔎 Αιτία: το κινητό κρατούσε παλιό αντίγραφο των κομματιών και, σε αυτόματη συντήρηση στο παρασκήνιο, ξανάγραφε ΟΛΟΚΛΗΡΗ την καρτέλα από αυτό — σβήνοντας ό,τι είχε γραφτεί εν τω μεταξύ αλλού.",
@@ -33663,6 +33770,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.20', date: 'Sep 2026', items: [
+        "🤝 Getting ready for two more people: settings and vendors were the last place where one person saving could erase someone else's change.",
+        "🔄 Opening “Vendors” or “Settings” now re-reads the current values first, so you see anything a colleague changed today.",
+        "✅ And saving sends ONLY what you changed, not the whole settings block. Sales, reservations, repairs and clients were already safe."
+      ]},
       { version: 'v13.19', date: 'Sep 2026', items: [
         "🛡️ FIX: work done on one device could be wiped by another. A set made on the PC and a “Metal price I paid” both vanished the moment Stock was opened on the phone.",
         "🔎 Cause: the phone still held an older copy of those pieces and, during routine background housekeeping, wrote the WHOLE record back from it — erasing anything saved elsewhere in between.",
@@ -39051,7 +39163,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.19';
+const APP_VERSION = '13.20';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
