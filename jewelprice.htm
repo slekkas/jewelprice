@@ -8122,6 +8122,96 @@ function _resItemFromInv(id) {
     photoUrl: it.photoUrl || '', price: _pr, listPrice: _pr, cost: p ? (p.baseCost != null ? p.baseCost : null) : null };
 }
 
+// ── LIST PRICE OF A HELD PIECE — TODAY's, not the figure frozen at reserve time ──────
+// This is deliberately the OPPOSITE of a sale document (v12.79, where the asking price is
+// frozen because the sale already happened). A hold is a LIVE offer on a piece that is
+// still in stock and still repricing with the metal every day, so the number the owner
+// quotes at the counter has to be today's: if gold rises between the hold and the pickup
+// date, the customer's saving grew and he wants to be able to say so.
+//
+// Returns null when it cannot be worked out — the piece was deleted, the stock has not
+// loaded, there is no spot price, an other-type piece has no fixed retail. Never a guess.
+function _resLiveListPrice(it) {
+  if (!it) return null;
+  try {
+    const id = it.isBulk ? it.bulkInvId : it.invId;
+    const piece = id ? (_inventoryCache || {})[id] : null;
+    if (!piece) return null;
+    const p = calcInvItemPrice(piece);
+    if (!p || !(p.retail > 0)) return null;
+    if (it.isBulk) {
+      // A cut of a batch: the batch's retail covers its whole REMAINING weight, so price
+      // the grams held at the batch's own per-gram rate — the same rule the bulk sell
+      // modal and _ordMaterialsCost use, so the three can never disagree.
+      const w = parseFloat(piece.weight) || 0, g = parseFloat(it.soldWeight) || 0;
+      if (!(w > 0) || !(g > 0)) return null;
+      return parseFloat(((p.retail / w) * g).toFixed(2));
+    }
+    return parseFloat(p.retail.toFixed(2));
+  } catch (e) { return null; }
+}
+// A finished hold is history, so its list price is frozen like a sale's. An EXPIRED one
+// is still negotiable (it can be reactivated), so it stays live.
+function _resListIsLive(r) { return !!r && (r.status === 'active' || r.status === 'expired'); }
+function _resNeedsStock(r) { return ((r && (r.items || r.itemsSnapshot)) || []).some(i => i && (i.invId || i.bulkInvId)); }
+
+// Σ list price over a hold's items, both today's and the figure stored when it was made.
+// Each total is all-or-nothing: a sum missing one line looks exactly like a whole one and
+// would silently understate it (the v12.79 rule for a multi-item sale).
+function _resListTotals(r) {
+  const items = (r && (r.items || r.itemsSnapshot)) || [];
+  if (!items.length) return null;
+  const live = _resListIsLive(r);
+  let l = 0, s = 0, lAll = live, sAll = true;
+  for (const it of items) {
+    if (live) { const v = _resLiveListPrice(it); if (v != null) l += v; else lAll = false; }
+    const v2 = parseFloat(it.listPrice);
+    if (isFinite(v2) && v2 > 0) s += v2; else sAll = false;
+  }
+  return { live: lAll ? parseFloat(l.toFixed(2)) : null, stored: sAll ? parseFloat(s.toFixed(2)) : null };
+}
+
+// The list price + discount rows shown ABOVE the agreed price in the detail sheet. The
+// owner negotiates off these: "the list price is X, you already have it at Y".
+function _resListPriceRows(r, cur) {
+  const isEl = lang === 'el';
+  const tot = _resListTotals(r);
+  const agreed = parseFloat(r.agreedTotal) || 0;
+  const rowCss = 'display:flex;justify-content:space-between;font-size:13px;margin:6px 0';
+  const subCss = 'font-size:11px;color:var(--text-muted);margin:-3px 0 7px;line-height:1.45';
+  const listNow = tot ? (tot.live != null ? tot.live : tot.stored) : null;
+  const isLive = !!(tot && tot.live != null);
+  let out = '';
+  if (listNow != null && listNow > 0) {
+    out += `<div style="${rowCss}"><span style="color:var(--text-muted)">${t('rListPrice')}</span><span style="color:var(--text)">${cur}${listNow.toFixed(2)}</span></div>`;
+    // Moved since the hold was made? That movement IS the extra the customer gained by
+    // reserving — the sentence the owner wants to be able to say at the counter.
+    const moved = (isLive && tot.stored != null) ? Math.round((listNow - tot.stored) * 100) / 100 : 0;
+    if (Math.abs(moved) >= 1) {
+      const up = moved > 0;
+      const was = cur + tot.stored.toFixed(2), mv = cur + Math.abs(moved).toFixed(2);
+      out += `<div style="${subCss}">${isEl
+        ? `Στην κράτηση ήταν ${was} — ${up ? `ο πελάτης κερδίζει επιπλέον <span style="color:var(--gain)">${mv}</span>` : `τώρα ${mv} χαμηλότερα`}`
+        : `${was} when reserved — ${up ? `the customer gains a further <span style="color:var(--gain)">${mv}</span>` : `now ${mv} lower`}`}</div>`;
+    }
+    const dAmt = Math.round((listNow - agreed) * 100) / 100;
+    const dPct = dAmt / listNow * 100;
+    if (dAmt > 0 && (dPct >= DISC_BADGE_MIN_PCT || dAmt >= DISC_BADGE_MIN_AMT)) {
+      out += `<div style="${rowCss}"><span style="color:var(--text-muted)">${t('rDiscount')}</span><span style="color:var(--gold-light)">−${cur}${dAmt.toFixed(2)} (−${dPct.toFixed(1)}%)</span></div>`;
+    }
+  }
+  // A figure that is NOT today's must say so: "the stock did not load" and "there is no
+  // discount" must never look the same on screen (the v12.92 lesson).
+  if (tot && _resListIsLive(r) && !isLive) {
+    out += `<div style="${subCss}">${_stockColdFor(_resNeedsStock(r)) && _ordStockLoading
+      ? (isEl ? 'Ενημέρωση τιμής από το απόθεμα…' : 'Updating the price from stock…')
+      : '⚠️ ' + (listNow != null
+        ? (isEl ? 'Τιμή κατά την κράτηση — η σημερινή δεν υπολογίστηκε' : 'Price when reserved — the current one could not be worked out')
+        : (isEl ? 'Η τιμή καταλόγου δεν υπολογίστηκε' : 'The list price could not be worked out'))}</div>`;
+  }
+  return out;
+}
+
 // Shared Reserve dialog. `items` = resolved reservation items (from calc / cart / stock).
 function openReserveDialog(items, source) {
   if (!creds.binId) { showToast(lang === 'el' ? 'Απαιτείται σύνδεση' : 'Sign-in required'); return; }
@@ -8301,6 +8391,11 @@ function openReservationDetail(id) {
   _clientBackTo = null;
   _repBackToSale = null;
   const r = getReservations().find(x => x.id === id); if (!r) return;
+  // The live list price is read out of _inventoryCache, which nothing loads at boot — so on
+  // a device that went straight to Desk it would silently fall back to the frozen figure.
+  // Started BEFORE the HTML is built so the first paint can say "updating" rather than
+  // warning about a price that is merely still on its way (v12.92).
+  _deskStockThenRedraw(_resNeedsStock(r), 'reservationDetailOverlay', r.id, () => openReservationDetail(r.id));
   const isEl = lang === 'el'; const cur = state.currency || '€';
   const bal = resBalance(r), paid = resPaid(r), active = r.status === 'active';
   document.getElementById('reservationDetailOverlay')?.remove();
@@ -8317,6 +8412,7 @@ function openReservationDetail(id) {
       </div>
     </div>
     <div style="margin-bottom:10px">${itemsHtml}</div>
+    ${_resListPriceRows(r, cur)}
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Συμφωνημένη τιμή' : 'Agreed price'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.agreedTotal) || 0).toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0"><span style="color:var(--text-muted)">${isEl ? 'Πληρωμένα' : 'Paid'}</span><span style="color:var(--profit)">${cur}${paid.toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 0"><span style="color:var(--text)">${isEl ? 'Υπόλοιπο' : 'Balance'}</span><span style="color:${bal > 0 ? 'var(--warn)' : 'var(--profit)'}">${cur}${bal.toFixed(2)}</span></div>
@@ -8332,7 +8428,7 @@ function openReservationDetail(id) {
       <button onclick="shareReservationForm('${r.id}')" style="flex:1;padding:12px;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">📤 ${isEl ? 'Αποστολή' : 'Share'}</button>
     </div>
     ${active ? `<div style="display:flex;gap:8px;margin-top:10px">
-      <input id="resPayAmt" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? '€ πληρωμή' : '€ payment'}" style="flex:1;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px">
+      <input id="resPayAmt" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? '€ πληρωμή' : '€ payment'}" style="flex:1;width:auto;min-width:0;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px">
       <select id="resPayMethod" style="flex:0 0 auto;width:auto;padding:10px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:13px"><option value="cash">${isEl ? 'Μετρητά' : 'Cash'}</option><option value="card">${isEl ? 'Κάρτα' : 'Card'}</option></select>
       <button onclick="_resAddPayment('${r.id}')" style="flex:0 0 auto;width:auto;padding:10px 15px;background:rgba(212,175,55,0.14);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light);border-radius:8px;font-size:16px;cursor:pointer">＋</button>
     </div>
@@ -8342,6 +8438,7 @@ function openReservationDetail(id) {
     ${_resCanRevive(r) ? `<button onclick="_resReactivate('${r.id}')" style="width:100%;margin-top:10px;padding:13px;background:rgba(76,175,132,0.12);border:1px solid rgba(76,175,132,0.45);color:var(--revive);border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer">↩️ ${isEl ? 'Ενεργοποίηση ξανά' : 'Reactivate'}</button>` : ''}
     ${(r.status === 'cancelled' || r.status === 'expired') ? `<button onclick="_resDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}`}
   </div>`;
+  ov.dataset.rid = r.id;   // the background stock load only redraws the SAME hold
   document.body.appendChild(ov);
 }
 
@@ -10028,29 +10125,44 @@ async function shareRepairForm(id) {
 // else populated.
 let _ordStockLoading = false, _ordStockFailedAt = 0;
 const ORD_STOCK_RETRY_MS = 20000;
+// Generic, because the reservation sheet has exactly the same problem (v13.22): any Desk
+// detail that resolves pieces out of _inventoryCache is blank on a device that went
+// straight to Desk. The state below is about the STOCK CACHE, not about tickets, so it is
+// shared rather than copied.
+function _stockColdFor(needs) { return !!needs && !(_inventoryCache && Object.keys(_inventoryCache).length); }
+// The detail sheet must not wait for a download: it opens instantly and is redrawn once
+// the stock lands — and only if it is still showing the same record.
+// The redraw calls this again, so a load that FAILED must not start another one — or a
+// phone with no signal would hammer the network in a loop. A cooldown lets a later reopen
+// try again once the connection is back.
+function _deskStockThenRedraw(needs, overlayId, rid, reopen) {
+  if (!_stockColdFor(needs) || _ordStockLoading) return;
+  if (Date.now() - _ordStockFailedAt < ORD_STOCK_RETRY_MS) return;
+  _ordStockLoading = true;
+  // _invEnsureForScan keeps the last good cache when the network is down rather than
+  // reporting an empty stock (v11.74).
+  (async () => { try { await _invEnsureForScan(); } catch (e) {} })().then(() => {
+    _ordStockLoading = false;
+    if (_stockColdFor(needs)) _ordStockFailedAt = Date.now();  // still nothing — say so, don't retry
+    const ov = document.getElementById(overlayId);
+    if (!ov || ov.dataset.rid !== rid) return;
+    // Every Desk opener CLEARS the return targets on its first line (so a detail reached
+    // any other way never bounces back), and _clientOpenRecord sets them AFTER opening —
+    // so a redraw would silently eat the caller's one-step-back. Carry them across.
+    const _bc = _clientBackTo, _bs = _repBackToSale;
+    reopen();
+    _clientBackTo = _bc; _repBackToSale = _bs;
+  });
+}
 function _ordNeedsStock(r) { return !!r && ((((r.invIds || []).length) > 0) || (((r.materials || []).length) > 0)); }
-function _ordStockCold(r) { return _ordNeedsStock(r) && !(_inventoryCache && Object.keys(_inventoryCache).length); }
-// Awaited by anything that decides MONEY from the pieces. _invEnsureForScan keeps the last
-// good cache when the network is down rather than reporting an empty stock (v11.74).
+function _ordStockCold(r) { return _stockColdFor(_ordNeedsStock(r)); }
+// Awaited by anything that decides MONEY from the pieces.
 async function _ordEnsureStock(r) {
   if (!_ordStockCold(r)) return;
   try { await _invEnsureForScan(); } catch (e) {}
 }
-// The detail sheet must not wait for a download: it opens instantly and is redrawn once
-// the stock lands — and only if it is still showing the same ticket.
-// The redraw calls this again, so a load that FAILED must not start another one — or a
-// phone with no signal would hammer the network in a loop. A cooldown lets a later reopen
-// try again once the connection is back.
 function _ordEnsureStockThenRedraw(r) {
-  if (!_ordStockCold(r) || _ordStockLoading) return;
-  if (Date.now() - _ordStockFailedAt < ORD_STOCK_RETRY_MS) return;
-  _ordStockLoading = true;
-  _ordEnsureStock(r).catch(() => {}).then(() => {
-    _ordStockLoading = false;
-    if (_ordStockCold(r)) _ordStockFailedAt = Date.now();   // still nothing — say so, don't retry
-    const ov = document.getElementById('repairDetailOverlay');
-    if (ov && ov.dataset.rid === r.id) openRepairDetail(r.id);
-  });
+  _deskStockThenRedraw(_ordNeedsStock(r), 'repairDetailOverlay', r.id, () => openRepairDetail(r.id));
 }
 
 // A block whose pieces could not be resolved must SAY so. Without this the ticket reads
@@ -33802,6 +33914,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.22', date: 'Σεπτέμβριος 2026', items: [
+        "🏷️ Η κράτηση δείχνει πλέον πρώτα την ΤΙΜΗ ΚΑΤΑΛΟΓΟΥ και την έκπτωση, πάνω από τη συμφωνημένη τιμή — για να λέτε αμέσως στον πελάτη πόσα κέρδισε.",
+        "📈 Η τιμή καταλόγου ενημερώνεται ΖΩΝΤΑΝΑ με την τιμή του μετάλλου. Αν ανέβει ο χρυσός μέχρι τη λήξη της κράτησης, βλέπετε πόσα παραπάνω κέρδισε ο πελάτης κλείνοντας νωρίς.",
+        "🖨️ Το εκτυπωμένο έντυπο κράτησης δεν αλλάζει — κρατά την τιμή της ημέρας που έγινε η κράτηση."
+      ]},
       { version: 'v13.21', date: 'Σεπτέμβριος 2026', items: [
         "🛡️ Και η επεξεργασία κομματιού γράφει πλέον ΜΟΝΟ όσα αλλάξατε. Αν δύο άτομα ανοίξουν το ίδιο κόσμημα, ο ένας δεν σβήνει τη διόρθωση του άλλου.",
         "🤝 Μαζί με τις προηγούμενες αλλαγές, κάθε κοινόχρηστο κομμάτι της εφαρμογής — πωλήσεις, κρατήσεις, επισκευές, πελάτες, ρυθμίσεις, απόθεμα — αποθηκεύεται πλέον ανά πεδίο.",
@@ -33811,11 +33928,6 @@ const ABOUT = {
         "🤝 Ετοιμασία για δύο ακόμη άτομα: οι ρυθμίσεις και οι προμηθευτές ήταν το τελευταίο σημείο όπου η αποθήκευση ενός ατόμου μπορούσε να σβήσει την αλλαγή κάποιου άλλου.",
         "🔄 Τώρα, μόλις ανοίγετε «Προμηθευτές» ή «Ρυθμίσεις», διαβάζονται ξανά οι τρέχουσες τιμές — βλέπετε ό,τι άλλαξε κάποιος άλλος σήμερα.",
         "✅ Και η αποθήκευση στέλνει ΜΟΝΟ όσα αλλάξατε εσείς, όχι ολόκληρο το μπλοκ ρυθμίσεων. Πωλήσεις, κρατήσεις, επισκευές και πελάτες ήταν ήδη ασφαλή."
-      ]},
-      { version: 'v13.19', date: 'Σεπτέμβριος 2026', items: [
-        "🛡️ ΔΙΟΡΘΩΣΗ: δουλειά που κάνατε σε μια συσκευή μπορούσε να σβηστεί από άλλη. Ένα σετ φτιαγμένο στον υπολογιστή και μια «Τιμή μετάλλου που πλήρωσα» εξαφανίστηκαν μόλις άνοιξε το Απόθεμα στο κινητό.",
-        "🔎 Αιτία: το κινητό κρατούσε παλιό αντίγραφο των κομματιών και, σε αυτόματη συντήρηση στο παρασκήνιο, ξανάγραφε ΟΛΟΚΛΗΡΗ την καρτέλα από αυτό — σβήνοντας ό,τι είχε γραφτεί εν τω μεταξύ αλλού.",
-        "✅ Πλέον αυτές οι αυτόματες διορθώσεις αγγίζουν ΜΟΝΟ το πεδίο που φτιάχνουν, ποτέ ολόκληρη την καρτέλα. Καμία ενέργειά σας δεν αλλάζει — απλώς δεν χάνεται τίποτα."
       ]},
       ]
   },
@@ -33846,6 +33958,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.22', date: 'Sep 2026', items: [
+        "🏷️ A reservation now shows the LIST PRICE and the discount first, above the agreed price — so you can tell the customer straight away what they saved.",
+        "📈 That list price now follows the LIVE metal price. If gold rises before the hold runs out, you can see exactly how much extra the customer gained by reserving early.",
+        "🖨️ The printed reservation form is unchanged — it keeps the price from the day the hold was made."
+      ]},
       { version: 'v13.21', date: 'Sep 2026', items: [
         "🛡️ Editing a piece now saves ONLY what you changed too. If two people open the same jewel, one no longer erases the other's correction.",
         "🤝 With the last two updates, every shared part of the app — sales, reservations, repairs, clients, settings and stock — now saves field by field.",
@@ -33855,11 +33972,6 @@ const ABOUT = {
         "🤝 Getting ready for two more people: settings and vendors were the last place where one person saving could erase someone else's change.",
         "🔄 Opening “Vendors” or “Settings” now re-reads the current values first, so you see anything a colleague changed today.",
         "✅ And saving sends ONLY what you changed, not the whole settings block. Sales, reservations, repairs and clients were already safe."
-      ]},
-      { version: 'v13.19', date: 'Sep 2026', items: [
-        "🛡️ FIX: work done on one device could be wiped by another. A set made on the PC and a “Metal price I paid” both vanished the moment Stock was opened on the phone.",
-        "🔎 Cause: the phone still held an older copy of those pieces and, during routine background housekeeping, wrote the WHOLE record back from it — erasing anything saved elsewhere in between.",
-        "✅ Those automatic repairs now touch ONLY the one field they are fixing, never the whole record. Nothing you do changes — things just stop going missing."
       ]},
           ]
   }
@@ -39246,7 +39358,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.21';
+const APP_VERSION = '13.22';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
