@@ -1827,6 +1827,7 @@
       <div class="field"><label data-i18n="coinMarkupLbl">Κέρδος χρυσού νομίσματος (€)</label><input type="number" id="coinMarkupInput" placeholder="30" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupHint">Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (τελική τιμή ρυθμίζεται στην πώληση).</div></div>
       <div class="field"><label data-i18n="coinMarkupSilverLbl">Κέρδος ασημένιου νομίσματος (€)</label><input type="number" id="coinMarkupSilverInput" placeholder="0" step="1" inputmode="decimal"><div class="hint" data-i18n="coinMarkupSilverHint">0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.</div></div>
       <div class="field"><label data-i18n="refiningLossLbl">Απώλεια καθαρισμού μετάλλου (%)</label><input type="number" id="refiningLossInput" placeholder="3" step="0.1" inputmode="decimal"><div class="hint" data-i18n="refiningLossHint">Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.</div></div>
+      <div class="field"><label data-i18n="metalWasteLbl">Φύρα μετάλλου (%)</label><input type="number" id="metalWastageInput" placeholder="10" step="0.5" inputmode="decimal"><div class="hint" data-i18n="metalWasteHint">Όσο χάνεται όταν δουλεύετε δικό σας μέταλλο — χύτευση, λιμάρισμα, γυάλισμα. Προτείνεται όταν βάζετε παλαιό μέταλλο σε μια δουλειά — μπορείτε να το αλλάξετε σε κάθε δουλειά.</div></div>
       <div class="field"><label data-i18n="tiDeductLbl">Έκπτωση χρυσού — ανταλλαγή (%)</label><input type="number" id="tradeInDeductInput" placeholder="10" step="0.5" inputmode="decimal"><div class="hint" data-i18n="tiDeductHint">Όταν ο πελάτης δίνει χρυσό για να πάρει κόσμημα, πόσο κάτω από την αξία του μετάλλου τον παίρνετε. 10% σε αξία 85,04 € σημαίνει πίστωση 76,54 €. Μπορείτε να το αλλάξετε και σε κάθε πώληση χωριστά. 0 = πλήρης αξία.</div></div>
       <div class="field"><label data-i18n="cashBuyLbl">Έκπτωση χρυσού — μετρητά (%)</label><input type="number" id="cashBuyDeductInput" placeholder="20" step="0.5" inputmode="decimal"><div class="hint" data-i18n="cashBuyHint">Όταν ο πελάτης θέλει ΧΡΗΜΑΤΑ αντί για κόσμημα. Πάντα μεγαλύτερη από την ανταλλαγή — στην ανταλλαγή κερδίζετε και από το κόσμημα που πουλάτε, ενώ εδώ βγάζετε μόνο από το μέταλλο. Στην αγορά: 10–15% για ανταλλαγή, 20–40% για μετρητά.</div></div>
       <div class="field"><label data-i18n="myCoinsLbl">Τα νομίσματά μου</label><div class="hint" data-i18n="myCoinsHint">Νομίσματα που προσθέσατε εσείς (αναγνωρίζονται από βάρος). Διαγράψτε όποιο δεν χρειάζεστε.</div><div id="customCoinsList" style="margin-top:8px"></div></div>
@@ -3602,6 +3603,8 @@ const T = {
     coinMarkupHint:'Προτεινόμενο κέρδος πάνω από την αξία χρυσού για κάθε νόμισμα (η τελική τιμή ρυθμίζεται στην πώληση).',
     coinMarkupSilverLbl:'Κέρδος ασημένιου νομίσματος (€)',
     coinMarkupSilverHint:'0 = εμφανίζεται μόνο η αξία αργύρου, χωρίς προτεινόμενη τιμή πώλησης.',
+    metalWasteLbl:'Φύρα μετάλλου (%)',
+    metalWasteHint:'Όσο χάνεται όταν δουλεύετε δικό σας μέταλλο — χύτευση, λιμάρισμα, γυάλισμα. Προτείνεται όταν βάζετε παλαιό μέταλλο σε μια δουλειά — μπορείτε να το αλλάξετε σε κάθε δουλειά.',
     refiningLossLbl:'Απώλεια καθαρισμού μετάλλου (%)',
     refiningLossHint:'Πόσο χάνεται όταν λιώνετε/καθαρίζετε scrap σε καθαρό χρυσό/ασήμι. Χρησιμοποιείται για το κέρδος όταν αγοράζετε μέταλλο κάτω από την αξία του.',
     tiDeductLbl:'Έκπτωση χρυσού — ανταλλαγή (%)',
@@ -4199,6 +4202,8 @@ const T = {
     coinMarkupHint:'Suggested profit above gold value for each coin (final price is set at the sale).',
     coinMarkupSilverLbl:'Silver coin profit (€)',
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
+    metalWasteLbl:'Metal wastage (%)',
+    metalWasteHint:'How much is lost when you work your own metal — casting, filing, polishing. Suggested when you put scrap metal into a job — you can change it per job.',
     refiningLossLbl:'Metal refining loss (%)',
     refiningLossHint:'How much is lost when you melt/refine scrap into pure gold/silver. Used for the gain when you buy metal below its value.',
     tiDeductLbl:'Gold deduction — exchange (%)',
@@ -4489,6 +4494,8 @@ const T = {
     coinMarkupHint:'Suggested profit above gold value for each coin (final price is set at the sale).',
     coinMarkupSilverLbl:'Silver coin profit (€)',
     coinMarkupSilverHint:'0 = show the silver value only, with no suggested selling price.',
+    metalWasteLbl:'Metal wastage (%)',
+    metalWasteHint:'How much is lost when you work your own metal — casting, filing, polishing. Suggested when you put scrap metal into a job — you can change it per job.',
     refiningLossLbl:'Metal refining loss (%)',
     refiningLossHint:'How much is lost when you melt/refine scrap into pure gold/silver. Used for the gain when you buy metal below its value.',
     autoRoundLbl:'Automatic price rounding',
@@ -4957,6 +4964,13 @@ let editingVendorIndex = null;
 // _freezeVendorAbbrs). Null while adding a brand-new vendor.
 let _editVendorAbbr = null, _editVendorAbbrLatin = null;
 
+// Φύρα on metal you work yourself: the gold that disappears between the pile and the
+// finished piece — casting, filing, polishing. So when a job needs 14g of gold IN the
+// piece, more than 14g actually leaves the safe, and the job has to carry the cost of
+// all of it. Read through a helper, never off `state` directly: a device whose saved
+// jpro_state predates the key would otherwise read `undefined` (the v12.14 lesson).
+const METAL_WASTE_DEFAULT = 10;
+function _metalWastePct() { const v = parseFloat(state.metalWastage); return isNaN(v) ? METAL_WASTE_DEFAULT : Math.max(0, Math.min(100, v)); }
 function defaultState() {
   return {
     vendors: [{ name: 'Default Supplier', laborCategories: [
@@ -4967,7 +4981,7 @@ function defaultState() {
     // 17% = Karpathos reduced island VAT rate (not the 24% mainland rate).
     // Only used until applyCloudConfig loads the owner's saved value.
     vat: 17, margin: 35, currency: '€', manualGold: '', manualSilver: '', weightTiers: [], dateLocale: 'el-GR',
-    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3, tradeInDeduct: 10, cashBuyDeduct: 20,
+    coinMarkup: 30, coinMarkupSilver: 0, customCoins: [], refiningLoss: 3, metalWastage: METAL_WASTE_DEFAULT, tradeInDeduct: 10, cashBuyDeduct: 20,
     autoRoundStep: 5, autoRoundMin: 20, profitPctBase: 'cost'
   };
 }
@@ -5402,7 +5416,7 @@ function cloudConfig() {
            currency: state.currency, manualGold: state.manualGold, manualSilver: state.manualSilver,
            weightTiers: state.weightTiers, dateLocale: state.dateLocale || 'el-GR', ownerPin: pin,
            telegramToken: tgToken, coinMarkup: state.coinMarkup, coinMarkupSilver: state.coinMarkupSilver,
-           customCoins: state.customCoins || [], refiningLoss: state.refiningLoss,
+           customCoins: state.customCoins || [], refiningLoss: state.refiningLoss, metalWastage: state.metalWastage,
            tradeInDeduct: state.tradeInDeduct, cashBuyDeduct: state.cashBuyDeduct,
            autoRoundStep: state.autoRoundStep, autoRoundMin: state.autoRoundMin,
            profitPctBase: state.profitPctBase,
@@ -5554,6 +5568,7 @@ function applyCloudConfig(cfg) {
   if (cfg.coinMarkupSilver !== undefined) state.coinMarkupSilver = cfg.coinMarkupSilver;
   if (cfg.customCoins !== undefined) state.customCoins = cfg.customCoins;
   if (cfg.refiningLoss !== undefined) state.refiningLoss = cfg.refiningLoss;
+  if (cfg.metalWastage !== undefined) state.metalWastage = cfg.metalWastage;
   if (cfg.tradeInDeduct !== undefined) state.tradeInDeduct = cfg.tradeInDeduct;
   if (cfg.cashBuyDeduct !== undefined) state.cashBuyDeduct = cfg.cashBuyDeduct;
   if (cfg.autoRoundStep !== undefined) state.autoRoundStep = cfg.autoRoundStep;
@@ -10241,12 +10256,41 @@ function _ordMaterialEntries(r) {
   return out;
 }
 
+// ── A cut of RAW METAL (scrap) that goes into the job ───────────────────────
+// The pure grams are FROZEN on the entry when it is added (mt.pure): a lot's average
+// fineness moves as other metal is added or taken out, and the grams he melted had the
+// purity they had that day. An older entry falls back to the lot's current average —
+// never to the karat preset, because a pile built from several buys sits slightly off
+// it and removing at the preset would leave the remainder's purity quietly wrong
+// (v11.72, the same rule the lot's own "− Remove" follows).
+function _ordMetalPure(item, grams, stored) {
+  const p = parseFloat(stored);
+  if (p > 0) return _gRound(p);
+  const gross = parseFloat(item.metalGross) || parseFloat(item.weight) || 0;
+  const pure = parseFloat(item.metalPure) || 0;
+  const f = gross > 0 ? (pure / gross) : (parseFloat(item.metalFineness) || 0);
+  return _gRound((parseFloat(grams) || 0) * f);
+}
+// What those grams cost the job: the LIVE melt value of the pure metal taken. That is
+// pro-rata of the very number the lot's card shows ("Live gold value"), and it is what
+// calcInvItemPrice already calls a metal lot's baseCost — so this agrees with how the
+// app values that stock everywhere else, exactly as _bulkSoldCost does for a cut of
+// chain. Null, never a guess, when the spot price has not loaded.
+function _ordMetalCost(item, grams, stored) {
+  const pure = _ordMetalPure(item, grams, stored);
+  if (!(pure > 0)) return null;
+  const spot = item.metal === 'silver' ? getSilverPrice() : getGoldPrice();
+  if (!spot) return null;
+  return parseFloat(((spot / TROY_OZ_TO_GRAM) * pure).toFixed(2));
+}
+
 // What the materials cost you. Every line goes through the SAME single source of truth
 // the sale path uses — _invSaleCost (an other-type piece keeps its cost in the QR, so
-// purchaseCost||baseCost would report €0, v12.45) and _bulkSoldCost for grams off a
-// batch — so a job's cost can never disagree with what that same piece would have cost
-// had it been sold on its own. A line whose cost cannot be worked out (no spot price)
-// is counted as UNKNOWN and said so, never silently as zero.
+// purchaseCost||baseCost would report €0, v12.45), _bulkSoldCost for grams off a
+// batch, and _ordMetalCost for grams off a scrap lot — so a job's cost can never
+// disagree with what that same stock is worth anywhere else in the app. A line whose
+// cost cannot be worked out (no spot price) is counted as UNKNOWN and said so, never
+// silently as zero.
 // It also reports what the same stock would have SOLD for (`retail`). That is NOT the
 // cost and is never booked as one — costing the pendant at its selling price would
 // quietly delete the margin you had already earned on it from your books. It is shown
@@ -10257,9 +10301,16 @@ function _ordMaterialsCost(r) {
   const lines = [];
   for (const [id, it, mt] of _ordMaterialEntries(r)) {
     let c = null, rt = null;
-    try { c = mt.bulk ? _bulkSoldCost(it, parseFloat(mt.grams) || 0) : _invSaleCost(it); } catch (e) { c = null; }
     try {
-      const p = calcInvItemPrice(it);
+      c = mt.metal ? _ordMetalCost(it, parseFloat(mt.grams) || 0, mt.pure)
+        : mt.bulk ? _bulkSoldCost(it, parseFloat(mt.grams) || 0)
+        : _invSaleCost(it);
+    } catch (e) { c = null; }
+    // Raw metal is never left OUT of a sale by going into the job — it is held to be
+    // melted, and its "retail" IS its melt, i.e. the same figure as the cost. Counting
+    // it here would pad the "would have sold for" line by the cost itself.
+    try {
+      const p = mt.metal ? null : calcInvItemPrice(it);
       if (p && p.retail > 0) {
         const w = parseFloat(it.weight) || 0;
         rt = mt.bulk ? (w > 0 ? (p.retail / w) * (parseFloat(mt.grams) || 0) : null) : p.retail;
@@ -10273,17 +10324,28 @@ function _ordMaterialsCost(r) {
   return { total: parseFloat(total.toFixed(2)), retail: parseFloat(retail.toFixed(2)), unknown: unknown, lines: lines };
 }
 
-// Grams of a by-the-gram batch promised to live tickets — shown on the batch card so
-// the last of a chain is not sold out from under a job already under way.
+// Grams of STOCK MEASURED BY WEIGHT promised to live tickets — a by-the-gram chain or a
+// raw-metal lot. Shown on that card so the last of a chain (or of a scrap pile) is not
+// sold or melted out from under a job already under way, and used to cap what a new job
+// may claim. Both kinds are a QUANTITY rather than a piece, which is why they are
+// promised rather than held.
 function _ordBulkPromised(batchId) {
   let g = 0;
   for (const r of getRepairs()) {
     if (!_ordLive(r)) continue;
     for (const mt of (r.materials || [])) {
-      if (mt && mt.bulk && !mt.done && mt.invId === batchId) g += parseFloat(mt.grams) || 0;
+      if (mt && (mt.bulk || mt.metal) && !mt.done && mt.invId === batchId) g += parseFloat(mt.grams) || 0;
     }
   }
   return parseFloat(g.toFixed(2));
+}
+// How many grams of that stock a NEW job may still claim — what is physically there,
+// less what other live jobs have already spoken for.
+function _ordFreeGrams(id, it) {
+  const have = it.isMetal
+    ? (parseFloat(it.metalGross) || parseFloat(it.weight) || 0)
+    : (parseFloat(it.weight) || 0);
+  return parseFloat(Math.max(0, have - _ordBulkPromised(id)).toFixed(2));
 }
 
 // Take the materials out of stock. Called once, at collection, from BOTH collect paths.
@@ -10299,6 +10361,20 @@ async function _ordConsumeMaterials(r) {
   for (const mt of (r.materials || [])) {
     if (!mt || !mt.invId || mt.done) continue;
     const it = (_inventoryCache || {})[mt.invId]; if (!it) continue;
+    // Raw metal leaves through the lot's own removal path, which scales the pile's
+    // accumulated value and what was paid by the pure-grams ratio and deletes the lot
+    // when it empties — so the remainder's cost and gain % stay true. It rolls itself
+    // back on a failed write and REFUSES rather than guessing when the grams are no
+    // longer there, which is why `done` is set only when it actually reduced the pile.
+    if (mt.metal) {
+      const g = parseFloat(mt.grams) || 0;
+      if (!(g > 0) || !it.isMetal) continue;
+      let res = null;
+      try { res = await _metalRemoveFromLot(it.metal, it.karat, g, _ordMetalPure(it, g, mt.pure), mt.invId); }
+      catch (e) { res = null; }
+      if (res && res.ok) { mt.done = true; out.ok++; } else out.failed++;
+      continue;
+    }
     const snap = JSON.parse(JSON.stringify(it));
     if (mt.bulk) {
       const g = parseFloat(mt.grams) || 0;
@@ -10334,10 +10410,17 @@ function _ordMaterialsBlock(r) {
   const list = rows.map(([id, it, mt]) => {
     const line = mc.lines.find(l => l.id === id && l.mat === mt);
     const used = mt.done;
+    // The wastage is spelled out on its own line rather than squeezed into the name:
+    // the row is nowrap, and "14.00g + 10% φύρα" is the part worth reading twice.
+    const wLine = (mt.metal && mt.waste > 0 && mt.net > 0)
+      ? `<div style="font-size:11px;color:var(--text-dim);margin-top:1px">${(parseFloat(mt.net) || 0).toFixed(2)}g ${isEl ? 'στο κόσμημα' : 'in the piece'} + ${mt.waste}% ${isEl ? 'φύρα' : 'wastage'}</div>` : '';
     return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0">
       <div onclick="_ordOpenPiece('${id}')" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer">
         ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
-        <span style="flex:1;min-width:0;font-size:12px;color:${used ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${mt.bulk ? ` · <b>${(parseFloat(mt.grams) || 0).toFixed(1)}g</b>` : ''}${used ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:${used ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${(mt.bulk || mt.metal) ? ` · <b>${(parseFloat(mt.grams) || 0).toFixed(mt.metal ? 2 : 1)}g</b>` : ''}${used ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</div>
+          ${wLine}
+        </div>
       </div>
       ${seeCost ? `<span style="flex:0 0 auto;font-size:11px;font-family:var(--font-mono);color:var(--text-dim)">${line && line.cost != null ? cur + line.cost.toFixed(2) : '—'}</span>` : ''}
       ${live && !used ? `<button onclick="_ordUnlinkMaterial('${r.id}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>` : ''}
@@ -10356,7 +10439,7 @@ function _ordMaterialsBlock(r) {
   return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
     <div style="${_resLbl};margin-top:0">🧩 ${rows.length ? (isEl ? `Υλικά από το απόθεμα (${rows.length})` : `Materials from stock (${rows.length})`) : (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock')}</div>
     ${_ordStockColdNote(r)}
-    ${list || (_ordStockCold(r) ? '' : `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια ή αλυσίδα που μπαίνουν σε αυτή τη δουλειά. Κρατούνται για τον πελάτη και το κόστος τους μπαίνει στην παραλαβή.' : 'Your own pieces or chain that go into this job. They are held for the customer and their cost is added at collection.'}</div>`)}
+    ${list || (_ordStockCold(r) ? '' : `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια, αλυσίδα ή παλαιό μέταλλο που μπαίνουν σε αυτή τη δουλειά. Το κόστος τους μπαίνει στην παραλαβή, οπότε και φεύγουν από το απόθεμα.' : 'Your own pieces, chain or scrap metal that go into this job. Their cost is added at collection, which is when they leave stock.'}</div>`)}
     ${totalRow}
     ${live ? `<button onclick="openOrderAddPieces('${r.id}','material')" style="width:100%;margin-top:8px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">🧩 ${rows.length ? (isEl ? 'Προσθήκη κι άλλων' : 'Add more') : (isEl ? 'Προσθήκη από το απόθεμα' : 'Add from stock')}</button>` : ''}
   </div>`;
@@ -10483,10 +10566,10 @@ function _ordMaterialCardLine(id, item) {
     if (!r) return '';
     return `<div onclick="event.stopPropagation();openRepairDetail('${r.id}')" style="font-size:11px;color:var(--gold-light);font-family:'DM Mono',monospace;margin-bottom:4px;cursor:pointer">🧩 ${isEl ? 'Χρησιμοποιήθηκε' : 'Used in'} ${repNoFmt(r)}${r.clientName ? ' · ' + _ordEsc(r.clientName) : ''}</div>`;
   }
-  if (!item || !item.isBulk || item.status !== 'in_stock') return '';
+  if (!item || !(item.isBulk || item.isMetal) || item.status !== 'in_stock') return '';
   const g = _ordBulkPromised(id);
   if (!(g > 0)) return '';
-  return `<div style="font-size:11px;color:var(--gold-light);font-family:'DM Mono',monospace;margin-bottom:4px">🔒 ${g.toFixed(1)}g ${isEl ? 'δεσμευμένα σε δουλειά' : 'promised to a job'}</div>`;
+  return `<div style="font-size:11px;color:var(--gold-light);font-family:'DM Mono',monospace;margin-bottom:4px">🔒 ${g.toFixed(item.isMetal ? 2 : 1)}g ${isEl ? 'δεσμευμένα σε δουλειά' : 'promised to a job'}</div>`;
 }
 
 // A ticket holds its stock while it is live. Derived from the ticket record — there is
@@ -10494,13 +10577,14 @@ function _ordMaterialCardLine(id, item) {
 // reservations and is left alone), so cancelling or collecting releases by itself.
 function _ordLive(r) { return !!r && (r.status === 'in_progress' || r.status === 'ready'); }
 // The ids a ticket holds: the products it is waiting for (orders only) and the materials
-// taken out of stock for it (any kind). A by-the-gram batch is a QUANTITY, not a piece,
-// so it is never held — its grams show as promised on the card and come off at
-// collection; holding the whole batch would block selling a chain you still have.
+// taken out of stock for it (any kind). A by-the-gram batch and a raw-metal lot are a
+// QUANTITY, not a piece, so neither is ever held — their grams show as promised on the
+// card and come off at collection; holding the whole batch would block selling a chain
+// you still have, or melting a pile you still mostly own.
 function _ordHeldIds(r) {
   const out = [];
   if (repIsOrder(r)) for (const id of (r.invIds || [])) if (id) out.push(id);
-  for (const mt of (r.materials || [])) if (mt && mt.invId && !mt.bulk && !mt.done) out.push(mt.invId);
+  for (const mt of (r.materials || [])) if (mt && mt.invId && !mt.bulk && !mt.metal && !mt.done) out.push(mt.invId);
   return out;
 }
 // invId -> live ticket, for a whole-inventory pass.
@@ -10576,7 +10660,7 @@ async function openOrderAddPieces(ticketId, mode) {
         <button onclick="closeOrderAddPieces(true)" class="modal-x">✕</button>
       </div>
       <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin:8px 0 12px">${_mat
-        ? (isEl ? 'Σαρώστε την ετικέτα ή αναζητήστε το κομμάτι. Κρατείται για τον πελάτη· στην παραλαβή φεύγει από το απόθεμα και το κόστος του μπαίνει στη δουλειά. Για αλυσίδα με το γραμμάριο θα ζητηθούν τα γραμμάρια.' : 'Scan the tag or search for the piece. It is held for the customer; at collection it leaves stock and its cost is added to the job. A by-the-gram chain will ask you how many grams.')
+        ? (isEl ? 'Σαρώστε την ετικέτα ή αναζητήστε το κομμάτι. Στην παραλαβή φεύγει από το απόθεμα και το κόστος του μπαίνει στη δουλειά. Για αλυσίδα με το γραμμάριο ή παλαιό μέταλλο θα ζητηθούν τα γραμμάρια — γράψτε «μέταλλο» ή το καράτι για να το βρείτε.' : 'Scan the tag or search for the piece. At collection it leaves stock and its cost is added to the job. A by-the-gram chain or scrap metal will ask you how many grams — type “metal” or the karat to find a scrap lot.')
         : (isEl ? 'Προσθέστε πρώτα τα κομμάτια στο απόθεμα ως συνήθως, μετά σαρώστε την ετικέτα του καθενός εδώ. Θα κρατηθούν για τον πελάτη μέχρι την παραλαβή.' : 'Add the pieces to stock as usual first, then scan each new tag here. They will be held for the customer until collection.')}</div>
       <div id="ordAddVideoWrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px">
         <video id="ordAddVideo" playsinline muted style="width:100%;display:block;max-height:38vh;object-fit:cover"></video>
@@ -10733,25 +10817,21 @@ async function _ordAddMaterialCode(raw) {
   // A code may name several pieces (identical grouped pieces, a coin batch). Take one
   // that is on the shelf and not already committed somewhere.
   const linked = new Set(((r.materials || []).map(m => m.invId)));
-  let pick = null, sawSold = false, sawLinked = false, blockedBy = null, sawMetal = false;
+  let pick = null, sawSold = false, sawLinked = false, blockedBy = null;
   for (const [id, it] of res.matches) {
     if (linked.has(id)) { sawLinked = true; continue; }
-    if (it.isMetal) { sawMetal = true; continue; }
     if (it.status !== 'in_stock') { sawSold = true; continue; }
-    if (!it.isBulk) { const h = _holdFor(id); if (h) { blockedBy = h; continue; } }
+    if (!it.isBulk && !it.isMetal) { const h = _holdFor(id); if (h) { blockedBy = h; continue; } }
     pick = [id, it]; break;
   }
   if (!pick) {
     if (sawLinked) _ordAddSay('ℹ️ ' + (isEl ? `Το <b>${code}</b> είναι ήδη σε αυτή τη δουλειά` : `<b>${code}</b> is already on this job`), 'var(--text-muted)');
-    // Raw metal has its own "− Remove" action on the lot, which keeps the pile's average
-    // fineness right; taking grams from here would quietly get that wrong.
-    else if (sawMetal) _ordAddSay('⚠️ ' + (isEl ? 'Το ακατέργαστο μέταλλο αφαιρείται από την ίδια την παρτίδα (− Αφαίρεση)' : 'Raw metal is taken off the lot itself (− Remove)'), '#e57373');
     else if (blockedBy) _ordAddSay('⚠️ ' + (isEl ? `Το <b>${code}</b> είναι κρατημένο${blockedBy.clientName ? ' για ' + _ordEsc(blockedBy.clientName) : ''} (${blockedBy.no})` : `<b>${code}</b> is held${blockedBy.clientName ? ' for ' + _ordEsc(blockedBy.clientName) : ''} (${blockedBy.no})`), '#e57373');
     else if (sawSold) _ordAddSay('⚠️ ' + (isEl ? `Το <b>${code}</b> δεν είναι στο απόθεμα` : `<b>${code}</b> is not in stock`), '#e57373');
     else _ordAddSay('⚠️ ' + (isEl ? 'Δεν μπορεί να προστεθεί' : 'Cannot be added'), '#e57373');
     buzz([60, 40, 60]); return;
   }
-  if (pick[1].isBulk) { _ordGramsAsk(pick[0]); return; }
+  if (pick[1].isBulk || pick[1].isMetal) { _ordGramsAsk(pick[0]); return; }
   _ordMaterialAdd(pick[0], null);
 }
 
@@ -10768,10 +10848,17 @@ function _ordAddSearchRender() {
   const isEl = lang === 'el';
   const rows = [];
   for (const [id, it] of Object.entries(_inventoryCache || {})) {
-    if (!it || it.status !== 'in_stock' || it.isMetal) continue;
+    if (!it || it.status !== 'in_stock') continue;
     if (linked.has(id)) continue;
-    if (!it.isBulk && _holdFor(id)) continue;          // promised elsewhere
-    const hay = [it.seqId ? itemRefCode(it) : '', it.qrCode || '', _itemDesc(it) || '',
+    if (!it.isBulk && !it.isMetal && _holdFor(id)) continue;          // promised elsewhere
+    // A scrap lot carries no tag, code or description, so it is searched by what it is —
+    // its karat and the words for metal/scrap in either language.
+    const hay = it.isMetal
+      // Both the accented and the plain Greek forms, because the search matches the
+      // letters exactly and «μέταλλο» is as likely to be typed without the tonos.
+      ? [metalStockLabel(it), it.karat || '', 'metal scrap μεταλλο μέταλλο παλαιο παλαιό σκραπ',
+         it.metal === 'silver' ? 'silver ασημι ασήμι' : 'gold χρυσος χρυσός'].join(' ').toLowerCase()
+      : [it.seqId ? itemRefCode(it) : '', it.qrCode || '', _itemDesc(it) || '',
       it.jewelryType ? invTypeLabel(it.jewelryType) : '', it.vendorName || ''].join(' ').toLowerCase();
     if (!terms.every(tm => hay.indexOf(tm) !== -1)) continue;
     rows.push([id, it]);
@@ -10781,27 +10868,35 @@ function _ordAddSearchRender() {
   box.innerHTML = rows.map(([id, it]) => `
     <div onclick="_ordMaterialPick('${id}')" style="display:flex;align-items:center;gap:9px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;margin-bottom:6px;cursor:pointer">
       ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
-      <span style="flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${it.isBulk ? ` · <b style="color:var(--gold-light)">${(parseFloat(it.weight) || 0).toFixed(1)}g</b>` : ''}</span>
+      <span style="flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${(it.isBulk || it.isMetal) ? ` · <b style="color:var(--gold-light)">${_ordFreeGrams(id, it).toFixed(it.isMetal ? 2 : 1)}g</b>` : ''}</span>
       <span style="flex:0 0 auto;color:var(--gold-light);font-size:15px">＋</span>
     </div>`).join('');
 }
 
-// Tapped a search result: a batch asks for grams first, a piece goes straight on.
+// Tapped a search result: anything measured by weight (a chain batch, a scrap lot) asks
+// for grams first, a piece goes straight on.
 function _ordMaterialPick(invId) {
   const it = (_inventoryCache || {})[invId]; if (!it) return;
-  if (it.isBulk) { _ordGramsAsk(invId); return; }
+  if (it.isBulk || it.isMetal) { _ordGramsAsk(invId); return; }
   _ordMaterialAdd(invId, null);
 }
 
-function _ordMaterialAdd(invId, grams) {
+// `grams` is always the TOTAL that leaves the stock. For a scrap lot that includes the
+// wastage, with `net` (what ends up in the piece) and `waste` kept alongside purely so
+// the screens can show the breakdown — every consumer (the promise, the removal, the
+// cost) reads `grams` and needs no knowledge of the wastage at all.
+function _ordMaterialAdd(invId, grams, pure, opts) {
   const list = getRepairs(); const r = list.find(x => x.id === _ordAdd.ticketId); if (!r) return false;
   const it = (_inventoryCache || {})[invId]; if (!it) return false;
-  const entry = (grams != null)
-    ? { invId: invId, grams: parseFloat(parseFloat(grams).toFixed(2)), bulk: true }
-    : { invId: invId };
+  const entry = (grams == null) ? { invId: invId }
+    : it.isMetal
+      ? { invId: invId, grams: parseFloat(parseFloat(grams).toFixed(2)), pure: _gRound(pure), metal: true }
+      : { invId: invId, grams: parseFloat(parseFloat(grams).toFixed(2)), bulk: true };
+  if (opts && opts.waste > 0) { entry.net = parseFloat(parseFloat(opts.net).toFixed(2)); entry.waste = opts.waste; }
   r.materials = (r.materials || []).concat([entry]);
   saveRepairsLocal(list); pushRepairsToCloud(list);
-  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)) + (grams != null ? ` · ${parseFloat(grams).toFixed(1)}g` : ''), 'var(--profit)');
+  _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)) + (grams != null ? ` · ${parseFloat(grams).toFixed(it.isMetal ? 2 : 1)}g` : '')
+    + (entry.waste > 0 ? ` (${entry.net.toFixed(2)}g + ${entry.waste}% ${lang === 'el' ? 'φύρα' : 'wastage'})` : ''), 'var(--profit)');
   try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
   const mi = document.getElementById('ordAddManual'); if (mi) mi.value = '';
   _ordAddSearchRender();
@@ -10810,14 +10905,16 @@ function _ordMaterialAdd(invId, grams) {
   return true;
 }
 
-// How much of a by-the-gram batch goes into the job. Asked when it is added (not at
-// collection) so the card can warn that the chain is spoken for.
+// How many grams of a chain batch — or of a scrap lot — go into the job. Asked when it
+// is added (not at collection) so the card can warn that the metal is spoken for.
 function _ordGramsAsk(invId) {
   const it = (_inventoryCache || {})[invId]; if (!it) return;
   const isEl = lang === 'el';
-  const have = parseFloat(it.weight) || 0;
+  const _isM = !!it.isMetal;
+  const have = _isM ? (parseFloat(it.metalGross) || parseFloat(it.weight) || 0) : (parseFloat(it.weight) || 0);
   const promised = _ordBulkPromised(invId);
-  const free = parseFloat(Math.max(0, have - promised).toFixed(2));
+  const free = _ordFreeGrams(invId, it);
+  const _dp = _isM ? 2 : 1;
   document.getElementById('ordGramsOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'ordGramsOverlay';
@@ -10827,9 +10924,12 @@ function _ordGramsAsk(invId) {
   ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:360px">
     <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);margin-bottom:4px">${isEl ? 'Πόσα γραμμάρια;' : 'How many grams?'}</div>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${_ordEsc(_ordPieceLine(it))}</div>
-    <div style="${_resLbl}">${isEl ? 'Γραμμάρια για αυτή τη δουλειά' : 'Grams for this job'}</div>
-    <input id="ordGramsInput" type="number" step="0.01" inputmode="decimal" style="${_resInp}">
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${isEl ? 'Διαθέσιμα' : 'Available'}: <b style="color:var(--gold-light)">${free.toFixed(1)}g</b>${promised > 0 ? ` (${have.toFixed(1)}g ${isEl ? 'σύνολο, ' : 'total, '}${promised.toFixed(1)}g ${isEl ? 'δεσμευμένα' : 'promised'})` : ''}</div>
+    <div style="${_resLbl}">${_isM ? (isEl ? 'Γραμμάρια μέσα στο κόσμημα' : 'Grams that go into the piece') : (isEl ? 'Γραμμάρια για αυτή τη δουλειά' : 'Grams for this job')}</div>
+    <input id="ordGramsInput" type="number" step="0.01" inputmode="decimal" oninput="_ordGramsSync('${invId}')" style="${_resInp}">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:${_isM ? '10px' : '12px'}">${isEl ? 'Διαθέσιμα' : 'Available'}: <b style="color:var(--gold-light)">${free.toFixed(_dp)}g</b>${promised > 0 ? ` (${have.toFixed(_dp)}g ${isEl ? 'σύνολο, ' : 'total, '}${promised.toFixed(_dp)}g ${isEl ? 'δεσμευμένα' : 'promised'})` : ''}</div>
+    ${_isM ? `<div style="${_resLbl}">${isEl ? 'Φύρα' : 'Wastage'} (%)</div>
+    <input id="ordWasteInput" type="number" step="0.5" inputmode="decimal" value="${_metalWastePct()}" oninput="_ordGramsSync('${invId}')" style="${_resInp}">
+    <div id="ordGramsVal" style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6"></div>` : ''}
     <div id="ordGramsStatus" style="font-size:12px;color:#e57373;min-height:16px;margin-bottom:8px"></div>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('ordGramsOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
@@ -10844,16 +10944,63 @@ function _ordGramsAsk(invId) {
   }
 }
 
+// The wastage typed into the dialog, as a fraction of what goes into the piece.
+function _ordWasteVal() {
+  const v = parseFloat(document.getElementById('ordWasteInput')?.value);
+  return isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
+}
+// Total metal that actually leaves the pile for a job needing `net` grams in the piece.
+// The wasted gold is gone from the safe just as surely as the gold in the rings, so this
+// is the ONE figure the cost, the promise and the removal all work from.
+function _ordWasteGross(net, wastePct) {
+  return _gRound((parseFloat(net) || 0) * (1 + (parseFloat(wastePct) || 0) / 100));
+}
+
+// Live preview for a scrap lot, showing the whole chain before anything is committed:
+// what goes into the piece, what the wastage adds, what therefore leaves the pile, and
+// what the job will be charged for it.
+function _ordGramsSync(invId) {
+  const box = document.getElementById('ordGramsVal'); if (!box) return;
+  const it = (_inventoryCache || {})[invId]; if (!it) return;
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const net = parseFloat(document.getElementById('ordGramsInput')?.value) || 0;
+  if (!(net > 0)) { box.innerHTML = ''; return; }
+  const w = _ordWasteVal();
+  const g = _ordWasteGross(net, w);
+  const pure = _ordMetalPure(it, g, null);
+  const c = _ordMetalCost(it, g, null);
+  const free = _ordFreeGrams(invId, it);
+  box.innerHTML =
+    (w > 0 ? `<div>${net.toFixed(2)}g + ${w}% ${isEl ? 'φύρα' : 'wastage'} = <b style="color:var(--gold-light)">${g.toFixed(2)}g</b> ${isEl ? 'από την παρτίδα' : 'off the lot'}</div>` : '')
+    + `<div>${isEl ? 'Καθαρό' : 'Pure'}: <b style="color:var(--text)">${pure.toFixed(2)}g</b>`
+    + (c != null ? ` · ${isEl ? 'κόστος στη δουλειά' : 'cost to the job'}: <b style="color:var(--gold-light)">${cur}${c.toFixed(2)}</b>`
+                 : ` · <span style="color:var(--warn)">${isEl ? 'χωρίς τιμή μετάλλου' : 'no metal price yet'}</span>`) + `</div>`
+    + (g > free + 0.001 ? `<div style="color:var(--warn)">${isEl ? 'Η παρτίδα έχει μόνο' : 'The lot only has'} ${free.toFixed(2)}g</div>` : '');
+}
+
 function _ordGramsConfirm(invId) {
   const isEl = lang === 'el';
   const it = (_inventoryCache || {})[invId]; if (!it) return;
   const st = document.getElementById('ordGramsStatus');
-  const g = parseFloat(document.getElementById('ordGramsInput')?.value) || 0;
-  const free = parseFloat(Math.max(0, (parseFloat(it.weight) || 0) - _ordBulkPromised(invId)).toFixed(2));
-  if (!(g > 0)) { if (st) st.textContent = isEl ? '⚠️ Βάλτε γραμμάρια' : '⚠️ Enter the grams'; return; }
-  if (g > free + 0.001) { if (st) st.textContent = (isEl ? '⚠️ Η παρτίδα έχει μόνο ' : '⚠️ The batch only has ') + free.toFixed(1) + 'g'; return; }
+  const net = parseFloat(document.getElementById('ordGramsInput')?.value) || 0;
+  const _isM = !!it.isMetal;
+  const waste = _isM ? _ordWasteVal() : 0;
+  // Everything downstream measures against the TOTAL that leaves the pile, never the
+  // grams that end up in the piece — including this check, or a job could promise more
+  // metal than the lot holds once the wastage is added.
+  const g = _isM ? _ordWasteGross(net, waste) : net;
+  const free = _ordFreeGrams(invId, it);
+  const _dp = _isM ? 2 : 1;
+  if (!(net > 0)) { if (st) st.textContent = isEl ? '⚠️ Βάλτε γραμμάρια' : '⚠️ Enter the grams'; return; }
+  if (g > free + 0.001) {
+    if (st) st.textContent = (isEl ? '⚠️ Υπάρχουν μόνο ' : '⚠️ There is only ') + free.toFixed(_dp) + 'g'
+      + (waste > 0 ? (isEl ? ` — χρειάζονται ${g.toFixed(2)}g με τη φύρα` : ` — ${g.toFixed(2)}g needed with the wastage`) : '');
+    return;
+  }
   document.getElementById('ordGramsOverlay')?.remove();
-  _ordMaterialAdd(invId, g);
+  // The lot's purity is frozen onto the entry now, while it is known: by collection the
+  // pile may have been topped up at a different fineness.
+  _ordMaterialAdd(invId, g, _isM ? _ordMetalPure(it, g, null) : null, _isM ? { net: net, waste: waste } : null);
 }
 
 function _ordUnlinkMaterial(ticketId, invId) {
@@ -10870,6 +11017,9 @@ function _ordUnlinkMaterial(ticketId, invId) {
 }
 
 function _ordPieceLine(it) {
+  // A scrap lot has no ref code and no description — "Metal" alone would not say which
+  // pile it came out of, so it is named the way its own card names it.
+  if (it.isMetal) return '🧱 ' + metalStockLabel(it);
   const bits = [];
   if (it.seqId) bits.push(itemRefCode(it));
   const t = it.jewelryType ? invTypeLabel(it.jewelryType) : '';
@@ -10888,7 +11038,7 @@ function _ordAddRenderList() {
     box.innerHTML = `<div style="${_resLbl}">${isEl ? `Υλικά (${mats.length})` : `Materials (${mats.length})`}</div>` + mats.map(([id, it, mt]) => `
       <div style="display:flex;align-items:center;gap:9px;background:var(--dark-3);border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;margin-bottom:6px">
         ${it.photoUrl ? `<img src="${it.photoUrl}" style="width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0">` : ''}
-        <span style="flex:1;min-width:0;font-size:12px;color:${mt.done ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${mt.bulk ? ` · <b style="color:var(--gold-light)">${(parseFloat(mt.grams) || 0).toFixed(1)}g</b>` : ''}${mt.done ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
+        <span style="flex:1;min-width:0;font-size:12px;color:${mt.done ? 'var(--text-dim)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_ordEsc(_ordPieceLine(it))}${(mt.bulk || mt.metal) ? ` · <b style="color:var(--gold-light)">${(parseFloat(mt.grams) || 0).toFixed(mt.metal ? 2 : 1)}g</b>` : ''}${(mt.metal && mt.waste > 0) ? ` <span style="color:var(--text-dim)">(+${mt.waste}%)</span>` : ''}${mt.done ? ' · ' + (isEl ? 'αναλώθηκε' : 'used') : ''}</span>
         ${mt.done ? '' : `<button onclick="_ordUnlinkMaterial('${_ordAdd.ticketId}','${id}')" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1">✕</button>`}
       </div>`).join('');
     return;
@@ -23150,6 +23300,13 @@ function _invFocusCard(fbKey, quiet) {
     // for both pills explicitly. (The old code set it to [] and then still couldn't find
     // a sold piece: it wiped the owner's filter for nothing.)
     _invFilters.status = ['in_stock', 'sold'];
+    // A coin or a raw-metal lot is dropped from the list unless its OWN type filter is
+    // on, so widening the status alone would still land on a list without it — and
+    // clearInvFilters() below empties the types, which would drop it again.
+    const _tgt = _inventoryCache[fbKey];
+    const _needType = (_tgt.isCoin || _tgt.isMetal) ? (_tgt.jewelryType || (_tgt.isCoin ? 'coin' : 'metal')) : null;
+    const _withType = () => { if (_needType && _invFilters.types.indexOf(_needType) === -1) _invFilters.types.push(_needType); };
+    _withType();
     renderInvList();
     if (!_invEnsureRendered(fbKey)) {
       // Something else is hiding it — a search term, a type/vendor/date filter. The owner
@@ -23157,6 +23314,7 @@ function _invFocusCard(fbKey, quiet) {
       const s = document.getElementById('invSearchInput'); if (s) s.value = '';
       clearInvFilters();
       _invFilters.status = ['in_stock', 'sold'];
+      _withType();
       updateInvFilterBadge();
       renderInvList();
       _invEnsureRendered(fbKey);
@@ -23718,6 +23876,7 @@ function loadSettingsForm() {
   { const _cm = document.getElementById('coinMarkupInput'); if (_cm) _cm.value = (state.coinMarkup != null && state.coinMarkup !== '') ? state.coinMarkup : ''; }
   { const _cms = document.getElementById('coinMarkupSilverInput'); if (_cms) _cms.value = (state.coinMarkupSilver != null && state.coinMarkupSilver !== '') ? state.coinMarkupSilver : ''; }
   { const _rl = document.getElementById('refiningLossInput'); if (_rl) _rl.value = (state.refiningLoss != null && state.refiningLoss !== '') ? state.refiningLoss : ''; }
+  { const _mw = document.getElementById('metalWastageInput'); if (_mw) _mw.value = (state.metalWastage != null && state.metalWastage !== '') ? state.metalWastage : ''; }
   { const _td = document.getElementById('tradeInDeductInput'); if (_td) _td.value = _tradeInDeductPct(); }
   { const _cb = document.getElementById('cashBuyDeductInput'); if (_cb) _cb.value = _cashBuyDeductPct(); }
   { const _ar = document.getElementById('autoRoundStepSelect'); if (_ar) _ar.value = String(_autoRoundStep()); }
@@ -23744,6 +23903,7 @@ function saveSettings() {
   { const _cmv = document.getElementById('coinMarkupInput'); const _cmn = _cmv ? parseFloat(_cmv.value) : NaN; state.coinMarkup = isNaN(_cmn) ? 30 : _cmn; }
   { const _cmsv = document.getElementById('coinMarkupSilverInput'); const _cmsn = _cmsv ? parseFloat(_cmsv.value) : NaN; state.coinMarkupSilver = isNaN(_cmsn) ? 0 : _cmsn; }
   { const _rlv = document.getElementById('refiningLossInput'); const _rln = _rlv ? parseFloat(_rlv.value) : NaN; state.refiningLoss = isNaN(_rln) ? 3 : Math.max(0, Math.min(100, _rln)); }
+  { const _mwv = document.getElementById('metalWastageInput'); const _mwn = _mwv ? parseFloat(_mwv.value) : NaN; state.metalWastage = isNaN(_mwn) ? METAL_WASTE_DEFAULT : Math.max(0, Math.min(100, _mwn)); }
   { const _tdv = document.getElementById('tradeInDeductInput'); const _tdn = _tdv ? parseFloat(_tdv.value) : NaN; state.tradeInDeduct = isNaN(_tdn) ? TRADEIN_DEDUCT_DEFAULT : Math.max(0, Math.min(100, _tdn)); }
   { const _cbv = document.getElementById('cashBuyDeductInput'); const _cbn = _cbv ? parseFloat(_cbv.value) : NaN; state.cashBuyDeduct = isNaN(_cbn) ? CASHBUY_DEDUCT_DEFAULT : Math.max(0, Math.min(100, _cbn)); }
   { const _arv = document.getElementById('autoRoundStepSelect'); const _arn = _arv ? parseFloat(_arv.value) : NaN; state.autoRoundStep = isNaN(_arn) ? 5 : Math.max(0, _arn); }
@@ -28290,6 +28450,7 @@ function renderInvList() {
           <div class="inv-card-meta">${_metaLine}${_dateLine ? '<br>' + _dateLine : ''}</div>
           ${_priceHtml}
           ${_initLine}
+          ${_ordMaterialCardLine(id, item)}
           ${_actions}
         </div>`;
     }
@@ -33914,10 +34075,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.22', date: 'Σεπτέμβριος 2026', items: [
-        "🏷️ Η κράτηση δείχνει πλέον πρώτα την ΤΙΜΗ ΚΑΤΑΛΟΓΟΥ και την έκπτωση, πάνω από τη συμφωνημένη τιμή — για να λέτε αμέσως στον πελάτη πόσα κέρδισε.",
-        "📈 Η τιμή καταλόγου ενημερώνεται ΖΩΝΤΑΝΑ με την τιμή του μετάλλου. Αν ανέβει ο χρυσός μέχρι τη λήξη της κράτησης, βλέπετε πόσα παραπάνω κέρδισε ο πελάτης κλείνοντας νωρίς.",
-        "🖨️ Το εκτυπωμένο έντυπο κράτησης δεν αλλάζει — κρατά την τιμή της ημέρας που έγινε η κράτηση."
+      { version: 'v13.23', date: 'Σεπτέμβριος 2026', items: [
+        "🧱 Βάλτε ΠΑΛΑΙΟ ΜΕΤΑΛΛΟ σε μια δουλειά: στα «Υλικά από το απόθεμα» βρείτε την παρτίδα (γράψτε «μέταλλο» ή το καράτι) και δώστε τα γραμμάρια που μπαίνουν στο κόσμημα.",
+        "⚗️ Προστίθεται ΦΥΡΑ 10% (αλλάζει σε κάθε δουλειά, και στις Ρυθμίσεις): 14g στο κόσμημα σημαίνει 15.40g από την παρτίδα, γιατί τόσα φεύγουν πραγματικά από το χρηματοκιβώτιο.",
+        "💰 Η αξία τους μπαίνει αυτόματα στο κόστος της δουλειάς — μαζί με ό,τι πληρώσατε στον χρυσοχόο — οπότε το κέρδος βγαίνει σωστό.",
+        "⚖️ Στην παραλαβή τα γραμμάρια ΦΕΥΓΟΥΝ μόνα τους από την παρτίδα. Μέχρι τότε η κάρτα της παρτίδας τα δείχνει «δεσμευμένα», ώστε να μην τα πουλήσετε κατά λάθος."
       ]},
       { version: 'v13.21', date: 'Σεπτέμβριος 2026', items: [
         "🛡️ Και η επεξεργασία κομματιού γράφει πλέον ΜΟΝΟ όσα αλλάξατε. Αν δύο άτομα ανοίξουν το ίδιο κόσμημα, ο ένας δεν σβήνει τη διόρθωση του άλλου.",
@@ -33958,10 +34120,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.22', date: 'Sep 2026', items: [
-        "🏷️ A reservation now shows the LIST PRICE and the discount first, above the agreed price — so you can tell the customer straight away what they saved.",
-        "📈 That list price now follows the LIVE metal price. If gold rises before the hold runs out, you can see exactly how much extra the customer gained by reserving early.",
-        "🖨️ The printed reservation form is unchanged — it keeps the price from the day the hold was made."
+      { version: 'v13.23', date: 'Sep 2026', items: [
+        "🧱 Put SCRAP METAL into a job: under “Materials from stock”, find the lot (type “metal” or the karat) and enter the grams that go INTO the piece.",
+        "⚗️ 10% WASTAGE is added on top (change it per job, or in Settings): 14g in the piece means 15.40g off the lot, because that is what really leaves the safe.",
+        "💰 Its value is added to what the job costs you automatically — alongside whatever you paid the goldsmith — so the profit comes out right.",
+        "⚖️ At collection those grams come OFF the lot by themselves. Until then the lot’s card shows them as promised, so you can’t sell them by mistake."
       ]},
       { version: 'v13.21', date: 'Sep 2026', items: [
         "🛡️ Editing a piece now saves ONLY what you changed too. If two people open the same jewel, one no longer erases the other's correction.",
@@ -39358,7 +39521,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.22';
+const APP_VERSION = '13.23';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
