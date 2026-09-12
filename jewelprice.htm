@@ -9825,7 +9825,7 @@ async function _repairCollectConfirm(id) {
       metal: _tiFields.tradeInMetal, karat: _tiFields.tradeInKarat,
       fineness: (METAL_STOCK_KARATS[_tiFields.tradeInMetal] || []).find(x => x.k === _tiFields.tradeInKarat)?.f || 0,
       weight: _tiFields.tradeInGrams, pure: _tiFields.tradeInPure
-    }, _tiTotal, t('tiScrapNote'));
+    }, _tiTotal, t('tiScrapNote'), { kind: 'trade' });
     if (_tiRes.ok) { _tiLotId = _tiRes.lotId; _tiGain = _tiRes.gain; _tiGainId = _tiRes.gainRecId; }
     else _tiStockFailed = true;
     // Kept on the ticket too, so a collected job says how it was actually paid.
@@ -10370,7 +10370,11 @@ async function _ordConsumeMaterials(r) {
       const g = parseFloat(mt.grams) || 0;
       if (!(g > 0) || !it.isMetal) continue;
       let res = null;
-      try { res = await _metalRemoveFromLot(it.metal, it.karat, g, _ordMetalPure(it, g, mt.pure), mt.invId); }
+      // The ref names the exact material line, so the lot's history recognises this
+      // movement and never lists it twice alongside the ticket it came from.
+      const _mi = (r.materials || []).indexOf(mt);
+      try { res = await _metalRemoveFromLot(it.metal, it.karat, g, _ordMetalPure(it, g, mt.pure), mt.invId,
+              null, { kind: 'job', ref: r.id + '#' + _mi, note: repNoFmt(r) }); }
       catch (e) { res = null; }
       if (res && res.ok) { mt.done = true; out.ok++; } else out.failed++;
       continue;
@@ -13963,7 +13967,8 @@ async function _tradeInReverseForSale(target) {
     // worth going in, so those come straight back off rather than being scaled.
     const res = await _metalRemoveFromLot(metal, karat, grams,
       parseFloat(target.tradeInPure) || 0, target.tradeInLotId,
-      { cost: ti, melt: parseFloat(target.tradeInMelt) || 0 });
+      { cost: ti, melt: parseFloat(target.tradeInMelt) || 0 },
+      { kind: 'undo', amt: ti });
     if (res.ok) showToast(t('tiRevDone').replace('{g}', grams.toFixed(2)));
     else showToast(t('tiRevFail').replace('{g}', grams.toFixed(2))
       .replace('{m}', metalStockLabel({ metal, karat })));
@@ -15871,7 +15876,7 @@ async function _gcheckPayCash() {
   const res = await _metalAddToLot({
     metal: spec.metal, karat: spec.karat, fineness: spec.fineness,
     weight: spec.grams, pure: spec.pure
-  }, spec.cash, t('gcheckCashNote'));
+  }, spec.cash, t('gcheckCashNote'), { kind: 'buy' });
   document.getElementById('gcheckOverlay')?.remove();
   if (!res.ok) { showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again'); return; }
   showToast(t('tiAddedToast').replace('{g}', spec.grams.toFixed(2))
@@ -18539,7 +18544,7 @@ async function _confirmSaleInner() {
       metal: _tiFields.tradeInMetal, karat: _tiFields.tradeInKarat,
       fineness: (METAL_STOCK_KARATS[_tiFields.tradeInMetal] || []).find(x => x.k === _tiFields.tradeInKarat)?.f || 0,
       weight: _tiFields.tradeInGrams, pure: _tiFields.tradeInPure
-    }, _tiTotal, t('tiScrapNote'));
+    }, _tiTotal, t('tiScrapNote'), { kind: 'trade' });
     if (_tiRes.ok) { _tiLotId = _tiRes.lotId; _tiGain = _tiRes.gain; _tiGainId = _tiRes.gainRecId; }
     else _tiStockFailed = true;
   }
@@ -28444,6 +28449,7 @@ function renderInvList() {
           <div class="inv-card-top">
             <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0">
               <div class="inv-card-code" style="flex:1;min-width:0;word-break:break-all">🧱 ${metalStockLabel(item)}</div>
+              ${_isEmpInv ? '' : `<button onclick="openMetalHistory('${id}')" class="inv-share-btn" title="${lang==='el'?'Κινήσεις':'Movements'}" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:var(--wa07);border:1px solid var(--wa20);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-size:14px">📜</button>`}
             </div>
             <div class="inv-badge-col" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${_badge}</div>
           </div>
@@ -32653,11 +32659,27 @@ async function _recordScrapGain(gain, note, extra) {
 // out of a lot never books anything either — so without this its worth would sit
 // in the safe and never appear as profit anywhere. Omitted by every other caller,
 // which keeps the original "gain only when a price was paid" gate exactly as it was.
+// `opts.kind` names the movement for the lot's history ('buy' | 'kept' | 'trade' |
+// 'add'); omitted, it is read off the price paid and the kept flag.
 async function _metalAddToLot(spec, paid, noteLbl, opts) {
   const kept = !!(opts && opts.kept);
   const spot = spec.metal === 'silver' ? getSilverPrice() : getGoldPrice();
   const meltNow = spot ? (spot / TROY_OZ_TO_GRAM) * spec.pure : 0;
-  const ex = _findMetalLot(spec.metal, spec.karat);
+  // Work from what the CLOUD says the pile holds, not this device's cache — a pile
+  // is an accumulating total and a stale copy silently loses the other phone's grams.
+  let ex = _findMetalLot(spec.metal, spec.karat);
+  if (ex) {
+    const _fresh = await _metalFreshLot(ex.id);
+    ex = _fresh ? { id: ex.id, item: _fresh } : null;   // emptied elsewhere: start a new pile
+  } else if (invFbBase()) {
+    // No lot of this metal+karat HERE — but another phone may have started one, and
+    // adding blind would leave two piles of the same karat. One reload settles it;
+    // this only happens the first time a karat is bought, so the cost lands rarely.
+    try {
+      const _all = await loadInventory();
+      if (!_invLoadFailed && _all && Object.keys(_all).length) { _inventoryCache = _all; ex = _findMetalLot(spec.metal, spec.karat); }
+    } catch (e) {}
+  }
   let lotId, created = false, snap = null, item;
   if (ex) {
     item = ex.item; lotId = ex.id;
@@ -32718,6 +32740,12 @@ async function _metalAddToLot(spec, paid, noteLbl, opts) {
       gainRecId = gRec ? gRec.id : null;
     }
   }
+  await _metalLogWrite(lotId, item, {
+    d: 'in', g: spec.weight, p: spec.pure,
+    k: (opts && opts.kind) || (kept ? 'kept' : (paid > 0 ? 'buy' : 'add')),
+    a: (opts && opts.amt != null) ? opts.amt : paid,
+    r: (opts && opts.ref) || gainRecId || '', n: (opts && opts.note) || ''
+  });
   return { ok: true, lotId, gain, gainRecId, created, addedG: spec.weight, addedPure: spec.pure };
 }
 
@@ -32735,14 +32763,18 @@ async function _metalAddToLot(spec, paid, noteLbl, opts) {
 // the cost behind (undoing a €76.54 buy out of a €1276.54 pile scaled to €72.26
 // and stranded €4.28). Omitted by the generic "− Remove" flow, which genuinely
 // cannot know what any particular gram cost, so it keeps scaling.
-async function _metalRemoveFromLot(metal, karat, grams, pure, lotId, exact) {
+// `log` = { kind, ref, amt, note } names the movement for the lot's history. A lot
+// that EMPTIES is deleted, so its history goes with it — there is no card left to
+// open, and the grams are accounted for on the job or sale that took them.
+async function _metalRemoveFromLot(metal, karat, grams, pure, lotId, exact, log) {
   const g = _gRound(grams), p = _gRound(pure);
   if (!(g > 0)) return { ok: true, reason: 'nothing' };
-  let id = lotId, item = id ? _inventoryCache[id] : null;
+  // Fresh figures before any arithmetic — see _metalFreshLot.
+  let id = lotId, item = id ? await _metalFreshLot(id) : null;
   if (!item || !item.isMetal || item.status === 'sold') {
     const ex = _findMetalLot(metal, karat);
     if (!ex) return { ok: false, reason: 'no-lot' };
-    id = ex.id; item = ex.item;
+    id = ex.id; item = (await _metalFreshLot(ex.id)) || ex.item;
   }
   const haveG = _gRound(parseFloat(item.metalGross) || parseFloat(item.weight) || 0);
   const havePure = _gRound(parseFloat(item.metalPure) || 0);
@@ -32777,7 +32809,291 @@ async function _metalRemoveFromLot(metal, karat, grams, pure, lotId, exact) {
   _inventoryCache[id] = item;
   const okSave = await saveInventoryItem(id, item);
   if (!okSave) { Object.assign(item, snap); _inventoryCache[id] = item; return { ok: false, reason: 'write' }; }
+  await _metalLogWrite(id, item, { d: 'out', g: g, p: p, k: (log && log.kind) || 'take',
+                                   a: log && log.amt, r: log && log.ref, n: log && log.note });
   return { ok: true, reason: 'reduced' };
+}
+
+
+// ── METAL MOVEMENT HISTORY (v13.24) ───────────────────────────────────────────
+// A scrap pile is a running quantity, so the card could only ever answer "how much
+// is in the safe" — never "did I already take those 14g out for the custom order?".
+// Every movement is now recorded against the lot, and the card opens the list.
+//
+// Two things had to be true for this to be useful on the day it ships:
+//
+//  1. It must cover the movements that leave NO trace anywhere else. A purchase
+//     books a scrap-gain sale record and a job records its grams on its ticket —
+//     but a plain "− Remove", a price-less add and a weight correction were written
+//     nowhere at all, so this is the only way those can ever be seen.
+//
+//  2. It must answer for work already done. A log-only feature shows an empty sheet
+//     for every movement made before it shipped, which is exactly the question being
+//     asked. So the two derivable kinds (scrap-gain records and consumed job
+//     materials) are read back out of the records that already hold them.
+//
+// ── Why a movement is its OWN record, not a field on the lot ──────────────────
+// A pile is shared: two managers can both move it. If the history lived in one
+// field of the lot, the second phone to save would write its whole copy of that
+// field over the first phone's line and one movement would vanish. So each
+// movement is written to its own path under the lot, keyed by a globally-unique
+// id (_stampId, v11.64) — two phones writing different movements touch different
+// paths, and neither can lose the other's. This is the same rule the rest of the
+// app already follows (v11.64 per record, v13.21 per field): a record is a record.
+//
+// Dedup against the reconstructed half is by REF — the id of the sale record or the
+// job material a movement came from — never by comparing timestamps. Exact,
+// order-independent, and it cannot be fooled by a gain record written a moment
+// either side of its own movement line.
+
+// Read the log whatever shape it is in. Tolerates the flat array an earlier cut of
+// this used, so a lot written by a device still on that version is read, not ignored.
+function _metalLogList(item) {
+  const raw = item && item.metalLog;
+  if (!raw) return [];
+  const rows = Array.isArray(raw)
+    ? raw.slice()
+    : Object.keys(raw).map(k => Object.assign({ _id: k }, raw[k]));
+  return rows.filter(r => r && parseFloat(r.g) > 0);
+}
+
+// Write ONE movement, to its own path, AFTER the grams have already landed — so the
+// history can never claim a change that did not happen. A line that fails to send is
+// queued like any other unsent work (v11.65), shows in the header badge, and goes up
+// on the next flush; the pile's own figures are already right either way.
+async function _metalLogWrite(lotId, item, e) {
+  if (!lotId || !item || !e) return false;
+  const g = _gRound(e.g);
+  if (!(g > 0)) return false;                   // a no-op movement is not a movement
+  const row = {
+    t: parseFloat(e.t) || Date.now(),
+    d: e.d === 'out' ? 'out' : 'in',
+    g: g, p: _gRound(e.p || 0),
+    k: e.k || 'add',
+    u: creds.displayName || creds.userName || ''
+  };
+  if (parseFloat(e.a) > 0) row.a = parseFloat(parseFloat(e.a).toFixed(2));
+  if (e.r) row.r = String(e.r);
+  if (e.n) row.n = String(e.n).slice(0, 60);
+  // Local first, so the sheet shows the movement whatever the network does.
+  if (!item.metalLog || Array.isArray(item.metalLog)) {
+    const prev = _metalLogList(item);
+    item.metalLog = {};
+    prev.forEach((r, i) => { item.metalLog['m0' + i] = r; });
+  }
+  const mid = 'm' + _stampId();
+  item.metalLog[mid] = row;
+  const path = INV_FB_PATH + '/' + lotId + '/metalLog';
+  if (!invFbBase()) return true;                // no cloud configured — local IS the truth
+  let ok = false;
+  try {
+    // PATCH at the log's own path is a shallow merge: it adds this one key and
+    // leaves every sibling — including a line another phone wrote a second ago —
+    // exactly as it is.
+    const res = await fetch(fbUrl(path + '.json'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [mid]: row })
+    });
+    ok = res.ok;
+  } catch (err) { ok = false; }
+  // The baseline follows the write either way, so an ordinary save of the lot never
+  // sends the whole log back and cannot flatten anyone else's line (v13.21's rule:
+  // every direct PATCH of an inventory record must move its snapshot on).
+  _invSnapMerge(lotId, { metalLog: item.metalLog });
+  if (!ok) _outboxAdd(path, mid, 'put', JSON.stringify(row));
+  return ok;
+}
+
+// Re-read a lot from the cloud immediately before its grams are changed.
+//
+// A pile is an ACCUMULATING total, so a cache even minutes old silently loses the
+// other phone's grams: both read 20, both add 5, both write 25 and 5g is gone with
+// nothing to show for it. That is worse than the same race on a jewel, where a stale
+// save reverts a field somebody can see. Reading here shrinks the window from
+// however long this app has been open to the moment between this read and the write.
+//
+// A read that FAILS falls back to the cache — exactly the old behaviour, no worse.
+// A read that succeeds and says the lot is GONE (another phone emptied it) drops it
+// from the cache rather than letting the caller write it back from memory; every
+// caller already guards for a missing lot.
+async function _metalFreshLot(lotId) {
+  const cached = () => (_inventoryCache || {})[lotId] || null;
+  if (!lotId || !invFbBase()) return cached();
+  try {
+    const r = await fetch(fbUrl(INV_FB_PATH + '/' + lotId + '.json'), { cache: 'no-store' });
+    if (!r.ok) return cached();
+    const fresh = await r.json();
+    if (fresh === null) { if (_inventoryCache) delete _inventoryCache[lotId]; delete _invSnap[lotId]; return null; }
+    if (!fresh || typeof fresh !== 'object' || !fresh.isMetal) return cached();
+    if (_inventoryCache) _inventoryCache[lotId] = fresh;
+    _invSnapSet(lotId, fresh);       // the diff baseline must be what we have just read
+    return fresh;
+  } catch (e) { return cached(); }
+}
+
+// What each kind of movement is called, in the owner's own words.
+function _metalMoveLabel(k) {
+  const el = lang === 'el';
+  switch (k) {
+    case 'buy':   return el ? 'Αγορά'                 : 'Bought';
+    case 'kept':  return el ? 'Κρατήθηκε από κόσμημα' : 'Kept from a piece';
+    case 'trade': return el ? 'Ανταλλαγή σε πώληση'   : 'Traded in on a sale';
+    case 'take':  return el ? 'Αφαίρεση'              : 'Removed by hand';
+    case 'job':   return el ? 'Σε δουλειά'            : 'Used in a job';
+    case 'undo':  return el ? 'Επιστροφή στον πελάτη' : 'Returned to customer';
+    case 'edit':  return el ? 'Διόρθωση βάρους'       : 'Weight corrected';
+    default:      return el ? 'Προσθήκη'              : 'Added';
+  }
+}
+
+// Movements reconstructed from the records that already hold them, for the period
+// before this lot kept its own history — and, on a phone that has not received a
+// colleague's movement line yet, for that too. A movement the log already holds is
+// skipped by its REF, so the two sources converge instead of double-counting.
+function _metalDerivedMoves(id, item, sales, tickets) {
+  const seen = new Set(_metalLogList(item).map(r => r.r).filter(Boolean).map(String));
+  const mm = item.metal, kk = String(item.karat);
+  const out = [];
+  for (const s of (sales || [])) {
+    if (!s || !s.scrapGain) continue;
+    const g = parseFloat(s.scrapGrams) || 0;
+    if (!(g > 0)) continue;
+    // Prefer the stored lot id, but fall back to metal+karat: a pile that was
+    // emptied and started again has a new id, and a lot is unique per metal+karat
+    // (_findMetalLot), so gold 14K scrap can only ever have gone to the 14K lot.
+    if (!(s.scrapLotId === id || (s.scrapMetal === mm && String(s.scrapKarat) === kk))) continue;
+    if (seen.has(String(s.id))) continue;        // already in the log, by its own id
+    const hasTs = parseFloat(s.ts) > 0;
+    const ts = hasTs ? parseFloat(s.ts) : (s.date ? Date.parse(s.date + 'T12:00:00') : 0);
+    out.push({ t: ts, noTime: !hasTs, d: 'in', g: _gRound(g), p: _gRound(s.scrapPure || 0),
+               k: s.scrapKept ? 'kept' : 'buy', a: parseFloat(s.scrapPaid) || 0,
+               u: s.employeeName || '', sale: s.id });
+  }
+  for (const r of (tickets || [])) {
+    if (!r) continue;
+    (r.materials || []).forEach((mt, i) => {
+      // Only a CONSUMED material moved metal. One still promised is shown on the
+      // card as promised and has not left the safe.
+      if (!mt || !mt.metal || !mt.done || mt.invId !== id) return;
+      const g = parseFloat(mt.grams) || 0;
+      if (!(g > 0)) return;
+      if (seen.has(r.id + '#' + i)) return;      // already in the log
+      const ts = parseFloat(r.dateCollected) || parseFloat(r.ts) || parseFloat(r.dateCreated) || 0;
+      out.push({ t: ts, d: 'out', g: _gRound(g), p: _gRound(mt.pure || 0),
+                 k: 'job', r: r.id, n: repNoFmt(r), u: r.createdBy || '' });
+    });
+  }
+  return out;
+}
+
+function _metalMoveWhen(m) {
+  if (!(m.t > 0)) return '—';
+  const d = new Date(m.t);
+  // A derived entry whose source stored only a calendar date has no real clock
+  // time — printing one would be a fabrication, so the date stands alone.
+  if (m.noTime) return fmtDate(d);
+  return fmtDate(d) + ' · ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function closeMetalHistory() {
+  const ov = document.getElementById('metalHistOverlay');
+  if (ov) ov.remove();
+}
+
+// The sheet. Read-only — it writes nothing and changes no stock.
+async function openMetalHistory(id) {
+  if (!can('see_cost')) return;
+  const item = (_inventoryCache || {})[id];
+  if (!item || !item.isMetal) return;
+  const el = lang === 'el', cur = state.currency || '€';
+  // Both lists are pulled once at boot and this sheet can be the first thing opened
+  // on a device, so a missing movement must never be able to mean "never loaded"
+  // (v11.61). One attempt each; an offline device pays for it once.
+  let sales = [], tickets = [];
+  try { sales = await getSales(); } catch (e) { sales = []; }
+  try { await _saleEnsureTickets(); } catch (e) {}
+  try { tickets = getRepairs(); } catch (e) { tickets = []; }
+
+  const logged = _metalLogList(item).map(r => Object.assign({}, r));
+  const derived = _metalDerivedMoves(id, item, sales, tickets);
+  const moves = logged.concat(derived).sort((a, b) => (b.t || 0) - (a.t || 0));
+
+  let tIn = 0, tOut = 0;
+  for (const m of moves) { if (m.d === 'out') tOut += m.g; else tIn += m.g; }
+  tIn = _gRound(tIn); tOut = _gRound(tOut);
+  const net = _gRound(tIn - tOut);
+  const have = _gRound(parseFloat(item.metalGross) || parseFloat(item.weight) || 0);
+  const gap = _gRound(have - net);
+
+  const rows = moves.length ? moves.map(m => {
+    const isIn = m.d !== 'out';
+    const col = isIn ? 'var(--gain)' : 'var(--loss)';
+    const bits = [_metalMoveLabel(m.k)];
+    if (m.n) bits.push(m.n);
+    if (parseFloat(m.a) > 0) bits.push(cur + parseFloat(m.a).toFixed(2));
+    const foot = [_metalMoveWhen(m), m.u].filter(Boolean).join(' · ');
+    // Only a movement that points at something openable is tappable — a logged
+    // purchase is written before its sale record exists, so it carries no link.
+    const tap = (m.k === 'job' && m.r) ? `closeMetalHistory();openRepairDetail('${m.r}')`
+              : (m.sale ? `closeMetalHistory();showSaleDetail('${m.sale}')` : '');
+    return `
+      <div ${tap ? `onclick="${tap}" ` : ''}style="display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid var(--wa08)${tap ? ';cursor:pointer' : ''}">
+        <div style="flex:0 0 24px;text-align:center;font-size:15px;color:${col};line-height:1.3">${isIn ? '↓' : '↑'}</div>
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:${col}">${isIn ? '+' : '−'}${m.g.toFixed(2)}g</span>
+            ${m.p > 0 ? `<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${m.p.toFixed(2)}g ${el ? 'καθαρό' : 'pure'}</span>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${_resEsc(bits.join(' · '))}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${_resEsc(foot)}</div>
+        </div>
+        ${tap ? `<div style="flex:0 0 auto;color:var(--text-dim);font-size:14px;line-height:1.3">›</div>` : ''}
+      </div>`;
+  }).join('') : `<div style="padding:18px 2px;text-align:center;font-size:12px;color:var(--text-muted)">${el ? 'Καμία καταγεγραμμένη κίνηση.' : 'No recorded movements.'}</div>`;
+
+  // The reconciliation is the point of the totals, not decoration: it says whether
+  // the list above accounts for everything in the safe. A history that quietly came
+  // up short would be worse than none — a short total must say it is short.
+  const okBal = Math.abs(gap) < 0.005;
+  const balHtml = okBal
+    ? `<div style="font-size:11px;color:var(--gain);margin-top:6px">✓ ${el ? 'Οι κινήσεις συμφωνούν με το απόθεμα.' : 'The movements account for the whole pile.'}</div>`
+    : `<div style="font-size:11px;color:var(--warn);margin-top:6px">${el
+        ? `Διαφορά ${gap > 0 ? '+' : '−'}${Math.abs(gap).toFixed(2)}g — μέταλλο από πριν, ή κίνηση που δεν καταγράφηκε.`
+        : `${Math.abs(gap).toFixed(2)}g ${gap > 0 ? 'more' : 'less'} than these movements — metal from before, or a movement that was never recorded.`}</div>`;
+
+  const notes = [];
+  if (derived.length) notes.push(el
+    ? 'Οι παλαιότερες κινήσεις ανασυντάχθηκαν από τις πωλήσεις και τα δελτία εργασίας. Μια χειροκίνητη αφαίρεση εκείνης της περιόδου δεν καταγραφόταν πουθενά, οπότε δεν μπορεί να εμφανιστεί.'
+    : 'Older movements are reconstructed from sales and job tickets. A removal made by hand back then was written nowhere, so it cannot appear.');
+
+  const sumRow = (lbl, val, color) => `<div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0"><span style="color:var(--text-muted)">${lbl}</span><span style="font-family:var(--font-mono);color:${color || 'var(--text)'}">${val}</span></div>`;
+  const ov = document.createElement('div');
+  ov.id = 'metalHistOverlay';
+  // A list you only scroll — no typing — so it stays bottom-anchored per the app's rule.
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99996;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;padding:0';
+  ov.onclick = (e) => { if (e.target === ov) closeMetalHistory(); };
+  ov.innerHTML = `
+    <div style="background:var(--dark-2,#14110c);border-top-left-radius:18px;border-top-right-radius:18px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 24px;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);font-weight:700">📜 ${el ? 'Κινήσεις' : 'Movements'}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.06em;margin-top:2px">🧱 ${metalStockLabel(item)} · ${have.toFixed(2)}g</div>
+        </div>
+        <button onclick="closeMetalHistory()" class="modal-x">✕</button>
+      </div>
+      <div style="background:var(--wa04);border:1px solid var(--wa12);border-radius:12px;padding:12px 13px;margin-bottom:12px">
+        ${sumRow(el ? 'Μπήκαν' : 'Came in', '+' + tIn.toFixed(2) + 'g', 'var(--gain)')}
+        ${sumRow(el ? 'Βγήκαν' : 'Went out', '−' + tOut.toFixed(2) + 'g', 'var(--loss)')}
+        <div style="height:1px;background:var(--wa12);margin:7px 0"></div>
+        ${sumRow(el ? 'Σύνολο κινήσεων' : 'These movements', (net < 0 ? '−' : '') + Math.abs(net).toFixed(2) + 'g')}
+        ${sumRow(el ? 'Στο απόθεμα τώρα' : 'In the pile now', have.toFixed(2) + 'g', 'var(--gold-light)')}
+        ${balHtml}
+      </div>
+      <div>${rows}</div>
+      ${notes.map(n => `<div style="font-size:10.5px;color:var(--text-muted);line-height:1.5;margin-top:10px">${n}</div>`).join('')}
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 async function _metalConfirm() {
@@ -32796,8 +33112,8 @@ async function _metalConfirm() {
   // and what was paid) are scaled down by the same ratio as the metal, so the pile's
   // remaining cost and gain % stay true to what is actually left.
   if (window._metalMode === 'take') {
-    const id = window._metalEditId; const item = id ? _inventoryCache[id] : null;
-    if (!item) { document.getElementById('metalOverlay')?.remove(); return; }
+    const id = window._metalEditId; const item = id ? await _metalFreshLot(id) : null;
+    if (!item) { document.getElementById('metalOverlay')?.remove(); renderInvList(); return; }
     const haveG = _gRound(parseFloat(item.metalGross) || parseFloat(item.weight) || 0);
     const havePure = _gRound(parseFloat(item.metalPure) || 0);
     if (spec.weight > haveG) {
@@ -32839,6 +33155,9 @@ async function _metalConfirm() {
       renderInvList();
       return;
     }
+    // The one movement written NOWHERE else — no sale, no ticket — so without this
+    // line a removal by hand could never be seen again.
+    await _metalLogWrite(id, item, { d: 'out', g: spec.weight, p: spec.pure, k: 'take' });
     document.getElementById('metalOverlay')?.remove();
     showToast(t('metalTakeDone').replace('{g}', spec.weight.toFixed(2)).replace('{left}', leftG.toFixed(2)));
     renderInvList();
@@ -32846,9 +33165,21 @@ async function _metalConfirm() {
   }
 
   if (window._metalMode === 'edit') {
-    const id = window._metalEditId; const item = id ? _inventoryCache[id] : null;
+    const id = window._metalEditId; const item = id ? await _metalFreshLot(id) : null;
     if (item) {
       const oldPure = parseFloat(item.metalPure) || 0;
+      const oldGross = parseFloat(item.metalGross) || parseFloat(item.weight) || 0;
+      // Snapshot BEFORE anything moves: the write below is now checked, so a
+      // failure must leave neither a changed weight nor a movement that never
+      // happened sitting in the cache (v11.62).
+      const _eSnap = { metal: item.metal, karat: item.karat, metalFineness: item.metalFineness,
+                      metalGross: item.metalGross, weight: item.weight, metalPure: item.metalPure,
+                      initialMelt: item.initialMelt, initialRetail: item.initialRetail,
+                      purchaseCost: item.purchaseCost };
+      // A correction is still a movement of grams, recorded in whichever direction it
+      // went so the history's running total keeps agreeing with the pile.
+      const _dG = _gRound(spec.weight - oldGross);
+      const _dP = Math.abs(_gRound(spec.pure - oldPure));
       item.metal = spec.metal; item.karat = spec.karat; item.metalFineness = spec.fineness;
       item.metalGross = spec.weight; item.weight = spec.weight; item.metalPure = spec.pure;
       // Rescale the accumulated baselines to the new pure grams (a correction, not a buy),
@@ -32862,7 +33193,17 @@ async function _metalConfirm() {
         item.initialMelt = parseFloat(meltNow.toFixed(2)); item.initialRetail = item.initialMelt;
       }
       _inventoryCache[id] = item;
-      await saveInventoryItem(id, item);
+      const okEdit = await saveInventoryItem(id, item);
+      if (!okEdit) {
+        Object.assign(item, _eSnap); _inventoryCache[id] = item;
+        showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again');
+        if (btn) { btn.disabled = false; btn.textContent = t('metalSaveBtn'); }
+        renderInvList();
+        return;
+      }
+      if (Math.abs(_dG) >= 0.0005) await _metalLogWrite(id, item, {
+        d: _dG > 0 ? 'in' : 'out', g: Math.abs(_dG), p: _dP, k: 'edit'
+      });
     }
     document.getElementById('metalOverlay')?.remove();
     showToast(isEl ? '✅ Αποθηκεύτηκε' : '✅ Saved');
@@ -34075,6 +34416,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.24', date: 'Σεπτέμβριος 2026', items: [
+        "📜 ΚΙΝΗΣΕΙΣ στο παλαιό μέταλλο: πατήστε το 📜 πάνω δεξιά σε μια παρτίδα και δείτε τι μπήκε και τι βγήκε — πότε, πόσα γραμμάρια και από ποιόν.",
+        "🔍 Καταγράφεται κάθε κίνηση: αγορά, ανταλλαγή σε πώληση, μέταλλο που κρατήσατε από κόσμημα, χειροκίνητη αφαίρεση, διόρθωση βάρους και ό,τι φεύγει σε δουλειά.",
+        "⏪ Οι παλιές κινήσεις ανασυντάχθηκαν από τις πωλήσεις και τα δελτία εργασίας, οπότε βλέπετε ήδη τι πήρε κάθε παραγγελία. Πατήστε τη γραμμή για να ανοίξει η δουλειά.",
+        "✅ Πάνω-πάνω λέει αν οι κινήσεις συμφωνούν με όσα γραμμάρια δείχνει τώρα η παρτίδα."
+      ]},
       { version: 'v13.23', date: 'Σεπτέμβριος 2026', items: [
         "🧱 Βάλτε ΠΑΛΑΙΟ ΜΕΤΑΛΛΟ σε μια δουλειά: στα «Υλικά από το απόθεμα» βρείτε την παρτίδα (γράψτε «μέταλλο» ή το καράτι) και δώστε τα γραμμάρια που μπαίνουν στο κόσμημα.",
         "⚗️ Προστίθεται ΦΥΡΑ 10% (αλλάζει σε κάθε δουλειά, και στις Ρυθμίσεις): 14g στο κόσμημα σημαίνει 15.40g από την παρτίδα, γιατί τόσα φεύγουν πραγματικά από το χρηματοκιβώτιο.",
@@ -34120,6 +34467,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.24', date: 'Sep 2026', items: [
+        "📜 MOVEMENTS on your scrap metal: tap the 📜 at the top right of a lot and see what came in and what went out — when, how many grams, and who did it.",
+        "🔍 Every movement is recorded from now on: a purchase, metal traded in on a sale, metal you kept off a piece, a manual removal, a weight correction, and anything used in a job.",
+        "⏪ Older movements were reconstructed from your sales and job tickets, so you can already see what each order took. Tap a line to open that job.",
+        "✅ The top of the sheet says whether the movements add up to what the lot holds now."
+      ]},
       { version: 'v13.23', date: 'Sep 2026', items: [
         "🧱 Put SCRAP METAL into a job: under “Materials from stock”, find the lot (type “metal” or the karat) and enter the grams that go INTO the piece.",
         "⚗️ 10% WASTAGE is added on top (change it per job, or in Settings): 14g in the piece means 15.40g off the lot, because that is what really leaves the safe.",
@@ -39521,7 +39874,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.23';
+const APP_VERSION = '13.24';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
