@@ -816,6 +816,27 @@
   .sb-tot { padding-top:9px; margin-top:2px; border-top:2px solid rgba(212,175,55,0.35); }
   .sb-tot .sb-num { font-size:14px; font-weight:700; color:var(--gold-light); }
 
+  /* ── Stats panel ── */
+  .st-periods { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+  .st-card { background:var(--wa04); border:1px solid rgba(212,175,55,0.16); border-radius:12px; padding:13px 12px; margin-bottom:12px; }
+  .st-h { font-family:var(--font-body); font-size:10px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--gold-light); margin-bottom:3px; }
+  .st-why { font-family:var(--font-body); font-size:10.5px; color:var(--text-muted); line-height:1.5; margin-bottom:10px; }
+  .st-row { padding:6px 0; border-top:1px solid var(--wa06); }
+  .st-row:first-of-type { border-top:none; }
+  .st-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .st-name { font-family:var(--font-body); font-size:12.5px; color:var(--text); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .st-val { font-family:var(--font-mono); font-size:12.5px; color:var(--gold-light); flex-shrink:0; }
+  .st-bar { height:6px; background:var(--dark-3); border-radius:3px; overflow:hidden; margin:4px 0 3px; }
+  .st-bar > div { height:100%; background:var(--gold); border-radius:3px; }
+  .st-sub { font-family:var(--font-mono); font-size:10px; color:var(--text-muted); letter-spacing:0.02em; line-height:1.5; }
+  .st-note { font-family:var(--font-body); font-size:10.5px; color:var(--text-muted); line-height:1.5; margin-top:8px; }
+  .st-cols { display:flex; align-items:flex-end; gap:3px; height:92px; margin:6px 0 2px; }
+  .st-col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; min-width:0; }
+  .st-col > div { width:100%; max-width:26px; background:var(--gold); border-radius:3px 3px 0 0; min-height:2px; }
+  .st-col.st-zero > div { background:var(--dark-3); }
+  .st-col-lbls { display:flex; gap:3px; }
+  .st-col-lbls span { flex:1; text-align:center; font-family:var(--font-mono); font-size:9px; color:var(--text-muted); min-width:0; }
+
   .sp-back-btn {
     background: rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.3); color:var(--gold);
     border-radius:var(--radius-sm); width:30px; height:30px; font-size:18px; cursor:pointer;
@@ -1049,7 +1070,7 @@
     #panel-inventory.panel { max-width:1120px; }
     #panel-sales.panel { max-width:1120px; width:1120px; }
     /* Form/list panels stay comfortably readable, centred inside the wide frame */
-    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about, #panel-desk, #panel-team, #panel-find { max-width:560px; margin-left:auto; margin-right:auto; }
+    #panel-calc, #panel-vendors, #panel-clients, #panel-settings, #panel-sync, #panel-about, #panel-desk, #panel-team, #panel-find, #panel-stats { max-width:560px; margin-left:auto; margin-right:auto; }
     .sales-panel-inner { max-width:560px; margin-left:auto; margin-right:auto; }
     .customer-price-bar { max-width:560px; width:560px; }
     #cartPanel { max-width:560px !important; }
@@ -1339,6 +1360,10 @@
             <button class="more-item" id="nav-find" onclick="showPanel('find');closeMoreMenu()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
               <span data-i18n="findTitle">Βρες Κόσμημα</span>
+            </button>
+            <button class="more-item" id="nav-stats" onclick="showPanel('stats');closeMoreMenu()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><line x1="4" y1="20" x2="20" y2="20"/><rect x="5" y="11" width="3" height="7"/><rect x="10.5" y="6" width="3" height="12"/><rect x="16" y="13" width="3" height="5"/></svg>
+              <span data-i18n="statsTitle">Στατιστικά</span>
             </button>
             <button class="more-item" id="nav-vendors" onclick="showPanel('vendors');closeMoreMenu()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -2157,6 +2182,17 @@
     </div>
 
     <div id="findResults"></div>
+  </div>
+
+  <!-- STATS PANEL (owner/manager) — what sold, from which supplier, at what price and weight -->
+  <div id="panel-stats" class="panel">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.6"><line x1="4" y1="20" x2="20" y2="20"/><rect x="5" y="11" width="3" height="7"/><rect x="10.5" y="6" width="3" height="12"/><rect x="16" y="13" width="3" height="5"/></svg>
+      <span style="font-family:var(--font-heading);font-size:22px;font-weight:700;color:var(--gold-light)" data-i18n="statsTitle">Στατιστικά</span>
+    </div>
+    <p style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);line-height:1.6;margin:0 0 12px 0" data-i18n="statsDesc">Τι πουλήθηκε, από ποιον προμηθευτή, σε τι τιμή και βάρος.</p>
+    <div id="statsPeriods" class="st-periods"></div>
+    <div id="statsBody"></div>
   </div>
 
   <!-- ABOUT PANEL -->
@@ -3776,6 +3812,8 @@ const T = {
       'Στείλτε το ίδιο URL στους υπαλλήλους. Αυτοί επιλέγουν <strong>Υπάλληλος</strong> → επικολλούν το URL → <strong>Σύνδεση</strong>.'
     ],
     navCalc:'Υπολ.', navVendors:'Προμ.', navSettings:'Ρυθμ.', navSync:'Συγχρ.', navAbout:'Πληρ.', navSales:'Πωλ.',
+    statsTitle:'Στατιστικά',
+    statsDesc:'Τι πουλήθηκε, από ποιον προμηθευτή, σε τι τιμή και βάρος.',
     findTitle:'Βρες Κόσμημα',
     findDesc:'Έχασες την ετικέτα; Διάλεξε τι είναι το κόσμημα, ζύγισέ το, και βρες το στο απόθεμα.',
     findWeightLbl:'Βάρος στη ζυγαριά',
@@ -4343,6 +4381,8 @@ const T = {
       'Send the same URL to your employees. They select <strong>Employee</strong> → paste the URL → <strong>Connect</strong>.'
     ],
     navCalc:'Calc', navVendors:'Vendors', navSettings:'Settings', navSync:'Sync', navAbout:'Info', navSales:'Sales',
+    statsTitle:'Stats',
+    statsDesc:'What sold, from which supplier, at what price and weight.',
     findTitle:'Find Jewelry',
     findDesc:'Lost the tag? Pick what the piece is, weigh it, and find it in stock.',
     findWeightLbl:'Weight on the scale',
@@ -4863,6 +4903,7 @@ function setLang(l) {
   if (activePanel === 'panel-sync') { renderSetupSteps(); _srSyncGateUI(); }
   if (activePanel === 'panel-inventory') renderInvList(); // Fix: re-render on lang change
   if (activePanel === 'panel-clients') renderClients();  // count word + card labels follow the language
+  if (activePanel === 'panel-stats') renderStats();
   // Re-render result if visible
   if (document.getElementById('resultCard').classList.contains('show')) calculate();
   // Re-render inv status chip if a QR was scanned (so language updates immediately)
@@ -5945,6 +5986,8 @@ const ROLE_PANELS = {
   temporary: ['calc', 'inventory', 'vendors']
 };
 function canOpenPanel(name) {
+  // Stats show cost and profit, so they follow the same permission as every other money figure.
+  if (name === 'stats' && !can('see_cost')) return false;
   const allowed = Object.prototype.hasOwnProperty.call(ROLE_PANELS, creds.role) ? ROLE_PANELS[creds.role] : null;
   return !allowed || allowed.indexOf(name) !== -1;
 }
@@ -5983,6 +6026,7 @@ function applyRoleUI() {
   show('nav-desk',      canOpenPanel('desk'));
   show('nav-vendors',   canOpenPanel('vendors'));
   show('nav-find',      canOpenPanel('find'));
+  show('nav-stats',     canOpenPanel('stats'));
   show('nav-about',     canOpenPanel('about'));
 
   // ── Settings tab + its sections ──
@@ -6211,6 +6255,7 @@ function showPanel(name) {
   }
   if (name === 'desk') deskShow('reservations');
   if (name === 'find') openFindPanel();
+  if (name === 'stats') openStatsPanel();
 }
 
 // ─── ☰ MORE MENU (Vendors / Sync / Settings / Info) ───────────────────────────
@@ -19384,6 +19429,440 @@ async function renderSalesPanel() {
     _spRenderSalesList('spSalesList', selDaySales);
     spSetDate('spManualDate2', 'spManualDate2Text', selDayStr);
   }
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+// What sold, from which supplier, at what price and weight — for buying decisions
+// at the end of a season. Every money figure is READ BACK from the sale records
+// (their stored amount / cost / profit), exactly as the Sales breakdown does, and
+// joined to the piece each record names. A sale typed in by hand names no piece,
+// so every breakdown by an attribute of the piece says how much of the money it
+// covers instead of quietly describing part of the business as if it were all.
+//
+// Coins are kept OUT of the jewelry breakdowns (a sovereign is bullion at a
+// dealer spread; its price and gross weight would distort every average) and are
+// listed on their own line, so the headline still agrees with the Sales tab.
+let _stPeriodKey = null;
+try { _stPeriodKey = localStorage.getItem('jpro_statsPeriod'); } catch (e) {}
+
+const ST_PRICE_BANDS  = [50, 100, 200, 300, 500, 1000, Infinity];
+const ST_WEIGHT_BANDS = [1, 2, 3, 5, 10, Infinity];
+const ST_SHELF_BANDS  = [7, 30, 90, 180, Infinity];
+const ST_DOW_FULL_EL = ['Δευτέρα','Τρίτη','Τετάρτη','Πέμπτη','Παρασκευή','Σάββατο','Κυριακή'];
+const ST_DOW_FULL_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+function _stEsc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+// Whole euros: these are totals to compare, and cents are noise at this scale.
+function _stMoney(n) {
+  const sym = state.currencySymbol || '€';
+  const v = Math.round(parseFloat(n) || 0);
+  return (v < 0 ? '−' : '') + sym + Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+function _stPct(n) {
+  if (n === null || !isFinite(n)) return '—';
+  return (Math.abs(n) >= 10 ? n.toFixed(0) : n.toFixed(1)) + '%';
+}
+
+function _stPeriodsList() {
+  const isEl = lang === 'el';
+  const now = new Date();
+  const years = new Set([now.getFullYear()]);
+  (_salesCache || []).forEach(s => { const y = parseInt(String(s && s.date || '').slice(0, 4), 10); if (y > 2000) years.add(y); });
+  const out = [...years].sort((a, b) => b - a).map(y => ({
+    // The store's operating window, the same one the Clients season chips use.
+    key: 'season' + y, from: y + '-04-01', to: y + '-11-30', label: (isEl ? 'Σεζόν ' : 'Season ') + y
+  }));
+  const m = localDateStr(now).slice(0, 7);
+  out.push({ key: 'month', from: m + '-01', to: m + '-31', label: spMonthFull(now.getMonth()) });
+  out.push({ key: 'd30', from: dateStrInDays(-29), to: todayStr(), label: isEl ? '30 ημέρες' : 'Last 30 days' });
+  out.push({ key: 'all', from: '', to: '', label: isEl ? 'Όλα' : 'All time' });
+  return out;
+}
+
+function _stSetPeriod(key) {
+  _stPeriodKey = key;
+  try { localStorage.setItem('jpro_statsPeriod', key); } catch (e) {}
+  renderStats();
+}
+
+async function openStatsPanel() {
+  if (!can('see_cost')) return;
+  const body = document.getElementById('statsBody');
+  if (!body) return;
+  const cold = !_salesCache || !_inventoryCache || !Object.keys(_inventoryCache).length;
+  if (cold) body.innerHTML = '<div class="st-note" style="text-align:center;padding:30px 0">' + (lang === 'el' ? 'Φόρτωση…' : 'Loading…') + '</div>';
+  try { await getSales(); } catch (e) {}
+  // Nothing loads the stock at boot, and every breakdown by type/supplier/weight
+  // needs it. _invEnsureForScan keeps the last good cache on a network failure.
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { await _invEnsureForScan(); } catch (e) {} }
+  renderStats();
+}
+
+// The piece behind a sale record: by exact record id first (v11.78), then the
+// by-the-gram batch, then the code. A code shared by several pieces resolves to
+// one of them, which is harmless HERE: pieces that share a descriptive code share
+// the vendor, category, karat and weight it encodes.
+function _stResolvePiece(s) {
+  const inv = _inventoryCache || {};
+  if (s.invId && inv[s.invId]) return inv[s.invId];
+  if (s.bulkInvId && inv[s.bulkInvId]) return inv[s.bulkInvId];
+  if (s.invQr) return _qrItemIndex().get(_qrKey(s.invQr)) || null;
+  return null;
+}
+
+function _stCompute(all) {
+  const vat = parseFloat(state.vat) || 0;
+  const num = v => { const n = parseFloat(v); return isFinite(n) ? n : null; };
+  const out = {
+    revAll: 0, txAll: _txCount(all), lines: [],
+    other: { coin: { rev: 0, n: 0 }, repair: { rev: 0, n: 0 }, scrap: { rev: 0, n: 0 }, card: { rev: 0, n: 0 }, gift: { n: 0, cost: 0 } },
+    profK: 0, exK: 0, costK: 0
+  };
+  all.forEach(s => {
+    const amt = num(s.amount) || 0;
+    out.revAll += amt;
+    const profit = num(s.profit), cost = num(s.cost);
+    if (profit !== null) { out.profK += profit; out.exK += _saleExVat(s, vat); out.costK += (cost || 0); }
+    if (s.scrapGain)    { out.other.scrap.rev  += amt; out.other.scrap.n++;  return; }
+    if (s.giftBreakage) { out.other.card.rev   += amt; out.other.card.n++;   return; }
+    if (s.repairIncome) { out.other.repair.rev += amt; out.other.repair.n++; return; }
+    if (s.giveaway)     { out.other.gift.n++; out.other.gift.cost += (cost || 0); return; }
+    if (!amt) return;
+    const it = _stResolvePiece(s);
+    const isCoin = it ? !!(it.isCoin || it.jewelryType === 'coin') : _sbIsCoinRec(s);
+    const line = { s, it, amt, sign: amt < 0 ? -1 : 1, isRet: !!s.isReturn || amt < 0, isCoin,
+                   exVat: _saleExVat(s, vat), cost, profit, vendor: '' };
+    if (isCoin) { out.other.coin.rev += amt; out.other.coin.n += line.sign; }
+    else if (it) {
+      line.type = it.jewelryType || 'other';
+      const v = _itemVendor(it);
+      line.vendor = (v && v.name) || it.vendorName || String(s.vendor || '').trim();
+      line.metal = it.metal;
+      line.karat = String(it.karat == null ? '' : it.karat);
+      // A cut of chain weighs what was cut, not what is left of the batch.
+      const w = it.isBulk ? num(s.bulkSoldWeight) : num(it.weight);
+      line.grams = (w && w > 0 && (it.metal === 'gold' || it.metal === 'silver')) ? w : null;
+      line.isBulk = !!it.isBulk;
+    } else {
+      line.vendor = String(s.vendor || '').trim();
+    }
+    out.lines.push(line);
+  });
+  return out;
+}
+
+// Sum lines into buckets. Profit percentages only ever use the lines whose
+// profit is KNOWN, so a sale with no recorded cost cannot drag them down.
+function _stGroup(lines, keyFn, labelFn) {
+  const m = new Map();
+  lines.forEach(l => {
+    const k = keyFn(l);
+    if (k === undefined || k === null) return;
+    let g = m.get(k);
+    if (!g) { g = { key: k, label: labelFn(l, k), units: 0, pieceUnits: 0, rev: 0, profK: 0, exK: 0, costK: 0, grams: 0, gUnits: 0 }; m.set(k, g); }
+    g.units += l.sign;
+    // A cut of chain is not a piece off the shelf, so it stays out of sell-through.
+    if (!l.isBulk) g.pieceUnits += l.sign;
+    g.rev += l.amt;
+    if (l.profit !== null) { g.profK += l.profit; g.exK += l.exVat; g.costK += (l.cost || 0); }
+    if (l.grams) { g.grams += l.sign * l.grams; g.gUnits += l.sign; }
+  });
+  return [...m.values()];
+}
+
+function _stRowHtml(label, valTxt, widthPct, sub, dim) {
+  const w = Math.max(0, Math.min(100, widthPct || 0));
+  return '<div class="st-row"' + (dim ? ' style="opacity:0.7"' : '') + '>' +
+    '<div class="st-top"><span class="st-name">' + _stEsc(label) + '</span><span class="st-val">' + valTxt + '</span></div>' +
+    '<div class="st-bar"><div style="width:' + w.toFixed(1) + '%"></div></div>' +
+    (sub ? '<div class="st-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+function _stColsHtml(values, labels, titleFn) {
+  const max = Math.max(0, ...values);
+  return '<div class="st-cols">' + values.map((v, i) => {
+    const h = max > 0 ? Math.max(2, v / max * 100) : 2;
+    return '<div class="st-col' + (v > 0 ? '' : ' st-zero') + '" title="' + _stEsc(titleFn(i, v)) + '"><div style="height:' + h.toFixed(1) + '%"></div></div>';
+  }).join('') + '</div><div class="st-col-lbls">' + labels.map(l => '<span>' + _stEsc(l) + '</span>').join('') + '</div>';
+}
+
+function _stCard(title, why, inner) {
+  return '<div class="st-card"><div class="st-h">' + title + '</div>' + (why ? '<div class="st-why">' + why + '</div>' : '') + inner + '</div>';
+}
+
+function renderStats() {
+  const isEl = lang === 'el';
+  const L = (el, en) => isEl ? el : en;
+  const periods = _stPeriodsList();
+  const p = periods.find(x => x.key === _stPeriodKey) || periods[0];
+  const pbox = document.getElementById('statsPeriods');
+  if (pbox) pbox.innerHTML = periods.map(x =>
+    '<button class="inv-fs-pill' + (x.key === p.key ? ' sel' : '') + '" onclick="_stSetPeriod(\'' + x.key + '\')">' + _stEsc(x.label) + '</button>').join('');
+  const body = document.getElementById('statsBody');
+  if (!body) return;
+
+  const all = (_salesCache || []).filter(s => s && s.date && (!p.from || s.date >= p.from) && (!p.to || s.date <= p.to));
+  if (!all.length) {
+    body.innerHTML = '<div class="st-note" style="text-align:center;padding:30px 0">' + L('Καμία πώληση σε αυτή την περίοδο.', 'No sales in this period.') + '</div>';
+    return;
+  }
+  const inv = _inventoryCache || {};
+  const invLoaded = Object.keys(inv).length > 0;
+  const d = _stCompute(all);
+  const jew = d.lines.filter(l => !l.isCoin);
+  const linked = jew.filter(l => l.it);
+  const pcsWord = n => Math.abs(n) === 1 ? L('τεμάχιο', 'piece') : L('τεμάχια', 'pieces');
+  const pcs = n => n + ' ' + (Math.abs(n) === 1 ? L('τεμ.', 'pc') : L('τεμ.', 'pcs'));
+  const pctOn = _profitBase() === 'cost' ? L('στο κόστος', 'on cost') : L('στις πωλήσεις', 'on sales');
+  const pctOf = g => _profitPct(g.profK, g.exK, g.costK);
+  let html = '';
+
+  // ── HEADLINE ──
+  const tx = new Map();
+  jew.filter(l => !l.isRet).forEach(l => {
+    const k = l.s.saleGroup ? 'g' + l.s.saleGroup : 'i' + l.s.id;
+    let t = tx.get(k);
+    if (!t) { t = { date: l.s.date, ts: l.s.ts, amt: 0, n: 0, cust: String(l.s.customer || '').trim() }; tx.set(k, t); }
+    t.amt += l.amt; t.n++;
+  });
+  const txList = [...tx.values()];
+  const posRev = txList.reduce((a, t) => a + t.amt, 0);
+  const posPcs = txList.reduce((a, t) => a + t.n, 0);
+  let listSum = 0, paidSum = 0, discN = 0;
+  jew.forEach(l => {
+    const lp = parseFloat(l.s.listPrice);
+    if (!l.isRet && lp > 0) { listSum += lp; paidSum += Math.min(l.amt, lp); discN++; }
+  });
+  const posLines = jew.filter(l => !l.isRet);
+  const linkedRev = posLines.filter(l => l.it).reduce((a, l) => a + l.amt, 0);
+  const unlinkedN = posLines.filter(l => !l.it).length;
+  const profitPct = _profitPct(d.profK, d.exK, d.costK);
+  const tile = (lbl, val, sub, color) => '<div class="sb-tile"><div class="sb-tile-lbl">' + lbl + '</div><div class="sb-tile-val"' +
+    (color ? ' style="color:' + color + '"' : '') + '>' + val + '</div>' + (sub ? '<div class="sb-tile-sub">' + sub + '</div>' : '') + '</div>';
+  html += '<div class="sb-tiles">' +
+    tile(L('Πωλήσεις', 'Sales'), _stMoney(d.revAll), d.txAll + ' ' + L('συναλλαγές', 'transactions')) +
+    tile(L('Κέρδος', 'Profit'), d.exK ? _stMoney(d.profK) : '—', profitPct === null ? '' : _stPct(profitPct) + ' ' + pctOn, d.profK < 0 ? 'var(--loss)' : 'var(--gain)') +
+    tile(L('Μέση αγορά', 'Average sale'), txList.length ? _stMoney(posRev / txList.length) : '—',
+         txList.length ? (posPcs / txList.length).toFixed(1) + ' ' + L('τεμ. ανά αγορά', 'pieces per sale') : '') +
+    tile(L('Μέση τιμή τεμαχίου', 'Average piece'), posPcs ? _stMoney(posRev / posPcs) : '—', posPcs + ' ' + pcsWord(posPcs)) +
+    tile(L('Μέση έκπτωση', 'Average discount'), listSum > 0 ? _stPct((listSum - paidSum) / listSum * 100) : '—',
+         discN ? L('σε ', 'on ') + discN + ' ' + pcsWord(discN) : L('δεν καταγράφηκε', 'not recorded')) +
+    tile(L('Με κομμάτι', 'Linked to a piece'), posRev > 0 ? _stPct(linkedRev / posRev * 100) : '—',
+         unlinkedN ? unlinkedN + ' ' + L('χωρίς κομμάτι', 'typed by hand') : L('όλες', 'all of them')) +
+    '</div>';
+  const o = d.other, parts = [];
+  if (o.coin.n)   parts.push('🪙 ' + L('Νομίσματα', 'Coins') + ' ' + _stMoney(o.coin.rev) + ' (' + o.coin.n + ')');
+  if (o.repair.n) parts.push('🔧 ' + L('Επισκευές & παραγγελίες', 'Repairs & orders') + ' ' + _stMoney(o.repair.rev));
+  if (o.scrap.n)  parts.push('♻️ ' + L('Παλαιό μέταλλο', 'Scrap metal') + ' ' + _stMoney(o.scrap.rev));
+  if (o.card.n)   parts.push('🎟️ ' + L('Ληγμένες επιταγές', 'Expired cards') + ' ' + _stMoney(o.card.rev));
+  if (o.gift.n)   parts.push('🎁 ' + o.gift.n + ' ' + L('δώρα, κόστος ', 'giveaways, cost ') + _stMoney(o.gift.cost));
+  if (parts.length) html += '<div class="st-note" style="margin:-4px 0 14px">' + L('Στις πωλήσεις περιλαμβάνονται: ', 'Sales include: ') + parts.join(' · ') + '. ' +
+    L('Τα παρακάτω αφορούν μόνο τα κοσμήματα.', 'Everything below is jewelry only.') + '</div>';
+  if (!invLoaded) html += '<div class="st-note" style="color:var(--warn);margin:-4px 0 14px">⚠️ ' +
+    L('Δεν φόρτωσε το απόθεμα — οι αναλύσεις ανά είδος, προμηθευτή και βάρος είναι ελλιπείς.', 'Stock did not load — breakdowns by type, supplier and weight are incomplete.') + '</div>';
+
+  const coverNote = (n, rev) => unlinkedN
+    ? '<div class="st-note">' + L('Βασίζεται σε ', 'Based on ') + n + ' ' + pcsWord(n) + ' (' + _stMoney(rev) + L(' από ', ' of ') + _stMoney(posRev) + '). ' +
+      L('Οι πωλήσεις που γράφτηκαν με το χέρι, χωρίς κομμάτι, δεν έχουν είδος, βάρος ή προμηθευτή.', 'Sales typed in by hand name no piece, so they have no type, weight or supplier.') + '</div>'
+    : '';
+
+  // Stock on hand right now, for sell-through.
+  const stockByType = new Map(), stockByVendor = new Map();
+  Object.values(inv).forEach(it => {
+    if (!it || it.status !== 'in_stock' || it.isMetal || it.isBulk || it.isCoin || it.jewelryType === 'coin') return;
+    const tk = it.jewelryType || 'other';
+    stockByType.set(tk, (stockByType.get(tk) || 0) + 1);
+    const v = _itemVendor(it);
+    const vk = (v && v.name) || it.vendorName || '';
+    if (vk) stockByVendor.set(vk, (stockByVendor.get(vk) || 0) + 1);
+  });
+  const sellThrough = (sold, stock) => (sold > 0 && invLoaded) ? _stPct(sold / (sold + (stock || 0)) * 100) : null;
+  const groupSub = (g, stock) => {
+    const bits = [pcs(g.units), L('μέση ', 'avg ') + _stMoney(g.units ? g.rev / g.units : 0)];
+    if (g.gUnits > 0) bits.push((g.grams / g.gUnits).toFixed(1) + ' g');
+    const pp = pctOf(g); if (pp !== null) bits.push(L('κέρδος ', 'profit ') + _stPct(pp));
+    const st = sellThrough(g.pieceUnits, stock);
+    if (st) bits.push(L('πουλήθηκε ', 'sold ') + st + ' · ' + L('απόθεμα ', 'in stock ') + (stock || 0));
+    return bits.join(' · ');
+  };
+  const unlinkedRow = rows => {
+    const u = jew.filter(l => !l.it);
+    if (!u.length) return '';
+    const rev = u.reduce((a, l) => a + l.amt, 0), n = u.reduce((a, l) => a + l.sign, 0);
+    return _stRowHtml(L('Χωρίς κομμάτι', 'Typed by hand'), _stMoney(rev), rows.max ? rev / rows.max * 100 : 0,
+      pcs(n) + ' · ' + L('άγνωστο είδος', 'type unknown'), true);
+  };
+
+  // ── BY TYPE ──
+  const byType = _stGroup(linked, l => l.type, l => invTypeLabel(l.type) || l.type).sort((a, b) => b.rev - a.rev);
+  if (byType.length) {
+    const max = Math.max(...byType.map(g => g.rev), jew.filter(l => !l.it).reduce((a, l) => a + l.amt, 0));
+    html += _stCard(L('Ανά είδος', 'By type'),
+      L('Ποια είδη φέρνουν τα χρήματα. «Πουλήθηκε» = πουλημένα ÷ (πουλημένα + απόθεμα σήμερα): χαμηλό ποσοστό σημαίνει πολύ απόθεμα για τη ζήτηση.',
+        'Which kinds of jewelry bring the money in. “Sold” = sold ÷ (sold + in stock today): a low figure means too much stock for the demand.'),
+      byType.map(g => _stRowHtml(g.label, _stMoney(g.rev), max ? g.rev / max * 100 : 0, groupSub(g, stockByType.get(g.key)))).join('') +
+      unlinkedRow({ max }) + coverNote(linked.filter(l => !l.isRet).length, linkedRev));
+  }
+
+  // ── BY SUPPLIER ──
+  const byVendor = _stGroup(jew.filter(l => l.vendor), l => l.vendor, l => l.vendor).sort((a, b) => b.rev - a.rev);
+  if (byVendor.length) {
+    const max = Math.max(...byVendor.map(g => g.rev));
+    const noVendor = jew.filter(l => !l.vendor);
+    const nvRev = noVendor.reduce((a, l) => a + l.amt, 0);
+    html += _stCard(L('Ανά προμηθευτή', 'By supplier'),
+      L('Σε ποιον να ξαναπαραγγείλετε. Υψηλό «πουλήθηκε» μαζί με καλό κέρδος σημαίνει ότι ο προμηθευτής αξίζει μεγαλύτερη παραγγελία.',
+        'Who to reorder from. A high “sold” together with a good profit means the supplier deserves a bigger order.'),
+      byVendor.map(g => _stRowHtml(g.label, _stMoney(g.rev), max ? g.rev / max * 100 : 0, groupSub(g, stockByVendor.get(g.key)))).join('') +
+      (noVendor.length ? _stRowHtml(L('Άγνωστος προμηθευτής', 'Supplier unknown'), _stMoney(nvRev), max ? nvRev / max * 100 : 0,
+        pcs(noVendor.reduce((a, l) => a + l.sign, 0)), true) : ''));
+  }
+
+  // ── BY METAL & KARAT ──
+  const metalLabel = l => {
+    if (l.metal === 'gold')   return L('Χρυσός ', 'Gold ') + l.karat + 'K';
+    if (l.metal === 'silver') return L('Ασήμι ', 'Silver ') + l.karat;
+    return L('Άλλο υλικό', 'Other material');
+  };
+  const byMetal = _stGroup(linked, l => (l.metal || 'other') + '|' + (l.metal === 'gold' || l.metal === 'silver' ? l.karat : ''), metalLabel)
+    .sort((a, b) => b.rev - a.rev);
+  if (byMetal.length) {
+    const max = Math.max(...byMetal.map(g => g.rev));
+    html += _stCard(L('Μέταλλο & καράτια', 'Metal & karat'),
+      L('Πόσα γραμμάρια φύγανε και πόσα πήρατε ανά γραμμάριο — μαζί με πέτρες και εργατικά, όχι μόνο το μέταλλο.',
+        'How many grams left the shop and what you took per gram — including stones and labour, not just the metal.'),
+      byMetal.map(g => {
+        const bits = [pcs(g.units)];
+        if (g.gUnits > 0 && g.grams > 0) {
+          bits.push(g.grams.toFixed(1) + ' g ' + L('συνολικά', 'in total'));
+          // € per gram only over the pieces whose weight is known
+          const wRev = linked.filter(l => l.grams && (l.metal || 'other') + '|' + (l.metal === 'gold' || l.metal === 'silver' ? l.karat : '') === g.key)
+                             .reduce((a, l) => a + l.amt, 0);
+          bits.push(_stMoney(wRev / g.grams) + '/g');
+        }
+        const pp = pctOf(g); if (pp !== null) bits.push(L('κέρδος ', 'profit ') + _stPct(pp));
+        return _stRowHtml(g.label, _stMoney(g.rev), max ? g.rev / max * 100 : 0, bits.join(' · '));
+      }).join(''));
+  }
+
+  // ── PRICE BANDS (each piece, including those typed by hand — the price is known) ──
+  const priceCounts = ST_PRICE_BANDS.map(() => ({ n: 0, rev: 0 }));
+  posLines.forEach(l => { const i = ST_PRICE_BANDS.findIndex(u => l.amt < u); if (i >= 0) { priceCounts[i].n++; priceCounts[i].rev += l.amt; } });
+  const sym = state.currencySymbol || '€';
+  const priceLbl = i => i === 0 ? L('κάτω από ', 'under ') + sym + ST_PRICE_BANDS[0]
+    : (ST_PRICE_BANDS[i] === Infinity ? sym + ST_PRICE_BANDS[i - 1] + '+' : sym + ST_PRICE_BANDS[i - 1] + '–' + (ST_PRICE_BANDS[i] - 1));
+  if (posLines.length) {
+    const maxN = Math.max(...priceCounts.map(c => c.n));
+    const best = priceCounts.indexOf(priceCounts.find(c => c.n === maxN));
+    html += _stCard(L('Εύρος τιμής', 'Price range'),
+      L('Σε ποιες τιμές αγοράζουν οι πελάτες σας — τιμή ανά κομμάτι. Αγοράστε περισσότερα εκεί που πουλάει.',
+        'The prices your customers actually pay, per piece. Buy more where it sells.'),
+      priceCounts.map((c, i) => c.n ? _stRowHtml(priceLbl(i), pcs(c.n), maxN ? c.n / maxN * 100 : 0,
+        _stPct(c.n / posLines.length * 100) + L(' των τεμαχίων · ', ' of pieces · ') + _stMoney(c.rev) + ' (' + _stPct(posRev ? c.rev / posRev * 100 : 0) + L(' των εσόδων)', ' of revenue)')) : '').join('') +
+      '<div class="st-note">' + L('Περισσότερα τεμάχια: ', 'Most pieces: ') + '<b>' + _stEsc(priceLbl(best)) + '</b>.</div>');
+  }
+
+  // ── WEIGHT BANDS (gold and silver separately: their € per gram are worlds apart) ──
+  const wLbl = i => i === 0 ? L('κάτω από 1 g', 'under 1 g') : (ST_WEIGHT_BANDS[i] === Infinity ? ST_WEIGHT_BANDS[i - 1] + '+ g' : ST_WEIGHT_BANDS[i - 1] + '–' + ST_WEIGHT_BANDS[i] + ' g');
+  let wHtml = '';
+  ['gold', 'silver'].forEach(metal => {
+    const ls = linked.filter(l => !l.isRet && l.metal === metal && l.grams);
+    if (!ls.length) return;
+    const c = ST_WEIGHT_BANDS.map(() => ({ n: 0, rev: 0, g: 0 }));
+    ls.forEach(l => { const i = ST_WEIGHT_BANDS.findIndex(u => l.grams < u); if (i >= 0) { c[i].n++; c[i].rev += l.amt; c[i].g += l.grams; } });
+    const maxN = Math.max(...c.map(x => x.n));
+    const avgW = ls.reduce((a, l) => a + l.grams, 0) / ls.length;
+    wHtml += '<div class="sb-sec-t" style="margin-top:' + (wHtml ? '12px' : '0') + '">' + (metal === 'gold' ? L('Χρυσός', 'Gold') : L('Ασήμι', 'Silver')) +
+      ' · ' + L('μέσο βάρος ', 'average ') + avgW.toFixed(2) + ' g</div>' +
+      c.map((x, i) => x.n ? _stRowHtml(wLbl(i), pcs(x.n), maxN ? x.n / maxN * 100 : 0,
+        L('μέση τιμή ', 'avg price ') + _stMoney(x.rev / x.n) + ' · ' + _stMoney(x.rev / x.g) + '/g') : '').join('');
+  });
+  if (wHtml) html += _stCard(L('Βάρος', 'Weight'),
+    L('Τι βάρος προτιμούν οι πελάτες — χρήσιμο στην παραγγελία, ειδικά όταν ο χρυσός είναι ακριβός.',
+      'What weight customers choose — useful when ordering, especially while gold is expensive.'),
+    wHtml + coverNote(linked.filter(l => !l.isRet && l.grams).length, linked.filter(l => !l.isRet && l.grams).reduce((a, l) => a + l.amt, 0)));
+
+  // ── WHEN ──
+  if (txList.length) {
+    const dow = Array(7).fill(0), dowN = Array(7).fill(0);
+    txList.forEach(t => { const di = (new Date(t.date + 'T12:00:00').getDay() + 6) % 7; dow[di] += t.amt; dowN[di]++; });
+    // An hour means something only when the sale was recorded on the day it happened;
+    // a sale entered later carries the time it was TYPED, not the time it was made.
+    const hours = new Map(); let hN = 0;
+    txList.forEach(t => {
+      if (!t.ts) return;
+      const dt = new Date(t.ts);
+      if (localDateStr(dt) !== t.date) return;
+      hours.set(dt.getHours(), (hours.get(dt.getHours()) || 0) + 1); hN++;
+    });
+    const dowShort = isEl ? SP_DOW_EL : SP_DOW_EN, dowFull = isEl ? ST_DOW_FULL_EL : ST_DOW_FULL_EN;
+    const bestD = dow.indexOf(Math.max(...dow));
+    let inner = '<div class="sb-sec-t">' + L('Έσοδα ανά ημέρα', 'Revenue by weekday') + '</div>' +
+      _stColsHtml(dow, dowShort, (i, v) => dowFull[i] + ': ' + _stMoney(v) + ' · ' + dowN[i]) +
+      '<div class="st-note">' + L('Καλύτερη ημέρα: ', 'Best day: ') + '<b>' + dowFull[bestD] + '</b> — ' + _stMoney(dow[bestD]) + ' (' + dowN[bestD] + ' ' +
+      L('αγορές', 'sales') + ')</div>';
+    if (hN) {
+      const hs = [...hours.keys()];
+      const h0 = Math.min(9, ...hs), h1 = Math.max(22, ...hs);
+      const vals = [], lbls = [];
+      for (let h = h0; h <= h1; h++) { vals.push(hours.get(h) || 0); lbls.push(String(h)); }
+      const bestH = h0 + vals.indexOf(Math.max(...vals));
+      inner += '<div class="sb-sec-t" style="margin-top:14px">' + L('Αγορές ανά ώρα', 'Sales by hour') + '</div>' +
+        _stColsHtml(vals, lbls, (i, v) => (h0 + i) + ':00 · ' + v) +
+        '<div class="st-note">' + L('Πιο πολλές αγορές: ', 'Busiest: ') + '<b>' + bestH + ':00–' + (bestH + 1) + ':00</b>. ' +
+        L('Η ώρα είναι η στιγμή που η πώληση γράφτηκε στην εφαρμογή. ', 'The hour is when the sale was entered in the app. ') +
+        (hN < txList.length ? L('Μετράνε μόνο οι ', 'Counts only the ') + hN + L(' από ', ' of ') + txList.length +
+          L(' αγορές που γράφτηκαν την ίδια μέρα.', ' sales entered on the day they happened.') : '') + '</div>';
+    }
+    html += _stCard(L('Πότε πουλάτε', 'When you sell'),
+      L('Για ωράριο και προσωπικό: ποιες μέρες και ώρες φέρνουν τις πωλήσεις.', 'For opening hours and staffing: which days and hours bring the sales.'), inner);
+  }
+
+  // ── TIME ON THE SHELF ──
+  const shelf = [], sameDay = { n: 0 };
+  linked.forEach(l => {
+    if (l.isRet || l.isBulk) return;
+    const added = typeof l.it.dateAdded === 'number' ? l.it.dateAdded : Date.parse(l.it.dateAdded);
+    if (!isFinite(added)) return;
+    const days = (Date.parse(l.s.date + 'T23:59:59') - added) / 864e5;
+    // A piece entered into stock the day it sold never sat on a shelf — counting it
+    // as "sold in 0 days" would make everything look like it flies out.
+    if (days < 1) { sameDay.n++; return; }
+    shelf.push(days);
+  });
+  if (shelf.length) {
+    shelf.sort((a, b) => a - b);
+    const med = shelf[Math.floor(shelf.length / 2)];
+    const sLbl = [L('έως 1 εβδομάδα', 'up to 1 week'), L('1 εβδ. – 1 μήνας', '1 week – 1 month'), L('1–3 μήνες', '1–3 months'),
+                  L('3–6 μήνες', '3–6 months'), L('πάνω από 6 μήνες', 'over 6 months')];
+    const c = ST_SHELF_BANDS.map(() => 0);
+    shelf.forEach(dd => { const i = ST_SHELF_BANDS.findIndex(u => dd <= u); if (i >= 0) c[i]++; });
+    const maxN = Math.max(...c);
+    html += _stCard(L('Χρόνος στο ράφι', 'Time on the shelf'),
+      L('Πόσο κάθεται ένα κομμάτι από την ημέρα που μπήκε στο απόθεμα μέχρι να πουληθεί.', 'How long a piece sits from the day it entered stock until it sells.'),
+      c.map((n, i) => n ? _stRowHtml(sLbl[i], pcs(n), maxN ? n / maxN * 100 : 0, _stPct(n / shelf.length * 100)) : '').join('') +
+      '<div class="st-note">' + L('Μισά κομμάτια πουλήθηκαν μέσα σε ', 'Half the pieces sold within ') + '<b>' + Math.round(med) + ' ' + L('ημέρες', 'days') + '</b>.' +
+      (sameDay.n ? ' ' + sameDay.n + ' ' + L('κομμάτια δεν μετράνε, γιατί μπήκαν στο απόθεμα την ίδια μέρα που πουλήθηκαν.',
+        'pieces are not counted: they were added to stock the day they sold.') : '') + '</div>');
+  }
+
+  // ── CUSTOMERS ──
+  if (txList.length) {
+    const named = txList.filter(t => t.cust);
+    const byName = new Map();
+    named.forEach(t => { const k = t.cust.toLowerCase(); byName.set(k, (byName.get(k) || 0) + 1); });
+    const repeat = [...byName.values()].filter(n => n > 1).length;
+    html += _stCard(L('Πελάτες', 'Customers'), '',
+      '<div class="sb-line"><span>' + L('Αγορές με όνομα πελάτη', 'Sales with a customer name') + '</span><span>' + named.length + ' / ' + txList.length +
+        ' (' + _stPct(named.length / txList.length * 100) + ')</span></div>' +
+      '<div class="sb-line"><span>' + L('Πελάτες που αγόρασαν ξανά', 'Customers who bought again') + '</span><span>' + repeat + '</span></div>' +
+      '<div class="st-note">' + L('Όσο περισσότερα ονόματα γράφετε στην πώληση, τόσο πιο χρήσιμο γίνεται αυτό — και τόσο ευκολότερα θυμάστε έναν πελάτη όταν ξαναέρθει.',
+        'The more names you record at the sale, the more useful this becomes — and the easier it is to recognise a customer who comes back.') + '</div>');
+  }
+
+  body.innerHTML = html;
 }
 
 // ─── SALES BREAKDOWN ──────────────────────────────────────────────────────────
@@ -34416,6 +34895,12 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.25', date: 'Σεπτέμβριος 2026', items: [
+        "📊 ΣΤΑΤΙΣΤΙΚΑ (☰ → Στατιστικά, ιδιοκτήτης και διευθυντής): τι πουλήθηκε ανά είδος, προμηθευτή, μέταλλο και καράτια, εύρος τιμής και βάρος — για τις παραγγελίες της επόμενης σεζόν.",
+        "📈 Μέση αγορά, τεμάχια ανά αγορά, μέση τιμή τεμαχίου, μέση έκπτωση, και «πουλήθηκε %» ανά είδος και προμηθευτή (πουλημένα έναντι αποθέματος σήμερα).",
+        "🕐 Ποιες μέρες και ώρες πουλάτε, και πόσο κάθεται ένα κομμάτι στο ράφι πριν πουληθεί.",
+        "ℹ️ Οι πωλήσεις που γράφτηκαν με το χέρι χωρίς κομμάτι μετράνε στα σύνολα και φαίνονται ως «Χωρίς κομμάτι» — κάθε ανάλυση λέει πόσα χρήματα καλύπτει."
+      ]},
       { version: 'v13.24', date: 'Σεπτέμβριος 2026', items: [
         "📜 ΚΙΝΗΣΕΙΣ στο παλαιό μέταλλο: πατήστε το 📜 πάνω δεξιά σε μια παρτίδα και δείτε τι μπήκε και τι βγήκε — πότε, πόσα γραμμάρια και από ποιόν.",
         "🔍 Καταγράφεται κάθε κίνηση: αγορά, ανταλλαγή σε πώληση, μέταλλο που κρατήσατε από κόσμημα, χειροκίνητη αφαίρεση, διόρθωση βάρους και ό,τι φεύγει σε δουλειά.",
@@ -34467,6 +34952,12 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.25', date: 'Sep 2026', items: [
+        "📊 STATS (☰ → Stats, owner and manager): what sold by type, supplier, metal and karat, price range and weight — for next season's orders.",
+        "📈 Average sale, pieces per sale, average piece price, average discount, and “sold %” per type and supplier (sold against today's stock).",
+        "🕐 Which days and hours you sell, and how long a piece sits on the shelf before it sells.",
+        "ℹ️ Sales typed in by hand with no piece still count in the totals and show as “Typed by hand” — every breakdown says how much of the money it covers."
+      ]},
       { version: 'v13.24', date: 'Sep 2026', items: [
         "📜 MOVEMENTS on your scrap metal: tap the 📜 at the top right of a lot and see what came in and what went out — when, how many grams, and who did it.",
         "🔍 Every movement is recorded from now on: a purchase, metal traded in on a sale, metal you kept off a piece, a manual removal, a weight correction, and anything used in a job.",
@@ -39874,7 +40365,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.24';
+const APP_VERSION = '13.25';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
