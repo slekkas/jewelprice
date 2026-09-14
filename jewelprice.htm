@@ -19624,12 +19624,21 @@ function renderStats() {
   jew.filter(l => !l.isRet).forEach(l => {
     const k = l.s.saleGroup ? 'g' + l.s.saleGroup : 'i' + l.s.id;
     let t = tx.get(k);
-    if (!t) { t = { date: l.s.date, ts: l.s.ts, amt: 0, n: 0, cust: String(l.s.customer || '').trim() }; tx.set(k, t); }
+    if (!t) { t = { date: l.s.date, ts: l.s.ts, amt: 0, n: 0, linked: true, cust: String(l.s.customer || '').trim() }; tx.set(k, t); }
     t.amt += l.amt; t.n++;
+    if (!l.it) t.linked = false;
   });
   const txList = [...tx.values()];
   const posRev = txList.reduce((a, t) => a + t.amt, 0);
-  const posPcs = txList.reduce((a, t) => a + t.n, 0);
+  // Pieces and customer names exist only for sales that name a piece. The ones that
+  // name none are mainly the 2026 season's first weeks, copied in from the paper book
+  // with just the amount: one paper line may have been several pieces and no name was
+  // kept. So they stay out of the per-piece and per-customer figures — never out of
+  // the money, and their dates are real, so they still count by weekday.
+  const txPiece = txList.filter(t => t.linked);
+  const piecePcs = txPiece.reduce((a, t) => a + t.n, 0);
+  const pieceRev = txPiece.reduce((a, t) => a + t.amt, 0);
+  const sellDays = new Set(all.map(s => s.date)).size;
   let listSum = 0, paidSum = 0, discN = 0;
   jew.forEach(l => {
     const lp = parseFloat(l.s.listPrice);
@@ -19645,12 +19654,12 @@ function renderStats() {
     tile(L('Πωλήσεις', 'Sales'), _stMoney(d.revAll), d.txAll + ' ' + L('συναλλαγές', 'transactions')) +
     tile(L('Κέρδος', 'Profit'), d.exK ? _stMoney(d.profK) : '—', profitPct === null ? '' : _stPct(profitPct) + ' ' + pctOn, d.profK < 0 ? 'var(--loss)' : 'var(--gain)') +
     tile(L('Μέση αγορά', 'Average sale'), txList.length ? _stMoney(posRev / txList.length) : '—',
-         txList.length ? (posPcs / txList.length).toFixed(1) + ' ' + L('τεμ. ανά αγορά', 'pieces per sale') : '') +
-    tile(L('Μέση τιμή τεμαχίου', 'Average piece'), posPcs ? _stMoney(posRev / posPcs) : '—', posPcs + ' ' + pcsWord(posPcs)) +
+         txPiece.length ? (piecePcs / txPiece.length).toFixed(1) + ' ' + L('τεμ. ανά αγορά', 'pieces per sale') : '') +
+    tile(L('Μέση τιμή τεμαχίου', 'Average piece'), piecePcs ? _stMoney(pieceRev / piecePcs) : '—', piecePcs + ' ' + pcsWord(piecePcs)) +
     tile(L('Μέση έκπτωση', 'Average discount'), listSum > 0 ? _stPct((listSum - paidSum) / listSum * 100) : '—',
          discN ? L('σε ', 'on ') + discN + ' ' + pcsWord(discN) : L('δεν καταγράφηκε', 'not recorded')) +
-    tile(L('Με κομμάτι', 'Linked to a piece'), posRev > 0 ? _stPct(linkedRev / posRev * 100) : '—',
-         unlinkedN ? unlinkedN + ' ' + L('χωρίς κομμάτι', 'typed by hand') : L('όλες', 'all of them')) +
+    tile(L('Μέση ημέρα', 'Average day'), sellDays ? _stMoney(d.revAll / sellDays) : '—',
+         sellDays + ' ' + (sellDays === 1 ? L('ημέρα με πωλήσεις', 'day with sales') : L('ημέρες με πωλήσεις', 'days with sales'))) +
     '</div>';
   const o = d.other, parts = [];
   if (o.coin.n)   parts.push('🪙 ' + L('Νομίσματα', 'Coins') + ' ' + _stMoney(o.coin.rev) + ' (' + o.coin.n + ')');
@@ -19665,7 +19674,8 @@ function renderStats() {
 
   const coverNote = (n, rev) => unlinkedN
     ? '<div class="st-note">' + L('Βασίζεται σε ', 'Based on ') + n + ' ' + pcsWord(n) + ' (' + _stMoney(rev) + L(' από ', ' of ') + _stMoney(posRev) + '). ' +
-      L('Οι πωλήσεις που γράφτηκαν με το χέρι, χωρίς κομμάτι, δεν έχουν είδος, βάρος ή προμηθευτή.', 'Sales typed in by hand name no piece, so they have no type, weight or supplier.') + '</div>'
+      L('Οι πωλήσεις χωρίς κομμάτι — όπως όσες περάσατε από το χαρτί πριν την εφαρμογή — δεν έχουν είδος, βάρος ή προμηθευτή.',
+        'Sales with no piece — like the ones copied in from paper before the app — have no type, weight or supplier.') + '</div>'
     : '';
 
   // Stock on hand right now, for sell-through.
@@ -19691,8 +19701,8 @@ function renderStats() {
     const u = jew.filter(l => !l.it);
     if (!u.length) return '';
     const rev = u.reduce((a, l) => a + l.amt, 0), n = u.reduce((a, l) => a + l.sign, 0);
-    return _stRowHtml(L('Χωρίς κομμάτι', 'Typed by hand'), _stMoney(rev), rows.max ? rev / rows.max * 100 : 0,
-      pcs(n) + ' · ' + L('άγνωστο είδος', 'type unknown'), true);
+    return _stRowHtml(L('Χωρίς κομμάτι', 'No piece'), _stMoney(rev), rows.max ? rev / rows.max * 100 : 0,
+      n + ' ' + (n === 1 ? L('πώληση', 'sale') : L('πωλήσεις', 'sales')) + ' · ' + L('π.χ. από το χαρτί, πριν την εφαρμογή', 'e.g. from paper, before the app'), true);
   };
 
   // ── BY TYPE ──
@@ -19791,7 +19801,7 @@ function renderStats() {
     // An hour means something only when the sale was recorded on the day it happened;
     // a sale entered later carries the time it was TYPED, not the time it was made.
     const hours = new Map(); let hN = 0;
-    txList.forEach(t => {
+    txPiece.forEach(t => {
       if (!t.ts) return;
       const dt = new Date(t.ts);
       if (localDateStr(dt) !== t.date) return;
@@ -19813,7 +19823,7 @@ function renderStats() {
         _stColsHtml(vals, lbls, (i, v) => (h0 + i) + ':00 · ' + v) +
         '<div class="st-note">' + L('Πιο πολλές αγορές: ', 'Busiest: ') + '<b>' + bestH + ':00–' + (bestH + 1) + ':00</b>. ' +
         L('Η ώρα είναι η στιγμή που η πώληση γράφτηκε στην εφαρμογή. ', 'The hour is when the sale was entered in the app. ') +
-        (hN < txList.length ? L('Μετράνε μόνο οι ', 'Counts only the ') + hN + L(' από ', ' of ') + txList.length +
+        (hN < txPiece.length ? L('Μετράνε μόνο οι ', 'Counts only the ') + hN + L(' από ', ' of ') + txPiece.length +
           L(' αγορές που γράφτηκαν την ίδια μέρα.', ' sales entered on the day they happened.') : '') + '</div>';
     }
     html += _stCard(L('Πότε πουλάτε', 'When you sell'),
@@ -19849,14 +19859,14 @@ function renderStats() {
   }
 
   // ── CUSTOMERS ──
-  if (txList.length) {
-    const named = txList.filter(t => t.cust);
+  if (txPiece.length) {
+    const named = txPiece.filter(t => t.cust);
     const byName = new Map();
     named.forEach(t => { const k = t.cust.toLowerCase(); byName.set(k, (byName.get(k) || 0) + 1); });
     const repeat = [...byName.values()].filter(n => n > 1).length;
     html += _stCard(L('Πελάτες', 'Customers'), '',
-      '<div class="sb-line"><span>' + L('Αγορές με όνομα πελάτη', 'Sales with a customer name') + '</span><span>' + named.length + ' / ' + txList.length +
-        ' (' + _stPct(named.length / txList.length * 100) + ')</span></div>' +
+      '<div class="sb-line"><span>' + L('Αγορές με όνομα πελάτη', 'Sales with a customer name') + '</span><span>' + named.length + ' / ' + txPiece.length +
+        ' (' + _stPct(named.length / txPiece.length * 100) + ')</span></div>' +
       '<div class="sb-line"><span>' + L('Πελάτες που αγόρασαν ξανά', 'Customers who bought again') + '</span><span>' + repeat + '</span></div>' +
       '<div class="st-note">' + L('Όσο περισσότερα ονόματα γράφετε στην πώληση, τόσο πιο χρήσιμο γίνεται αυτό — και τόσο ευκολότερα θυμάστε έναν πελάτη όταν ξαναέρθει.',
         'The more names you record at the sale, the more useful this becomes — and the easier it is to recognise a customer who comes back.') + '</div>');
@@ -34897,9 +34907,9 @@ const ABOUT = {
     changelog: [
       { version: 'v13.25', date: 'Σεπτέμβριος 2026', items: [
         "📊 ΣΤΑΤΙΣΤΙΚΑ (☰ → Στατιστικά, ιδιοκτήτης και διευθυντής): τι πουλήθηκε ανά είδος, προμηθευτή, μέταλλο και καράτια, εύρος τιμής και βάρος — για τις παραγγελίες της επόμενης σεζόν.",
-        "📈 Μέση αγορά, τεμάχια ανά αγορά, μέση τιμή τεμαχίου, μέση έκπτωση, και «πουλήθηκε %» ανά είδος και προμηθευτή (πουλημένα έναντι αποθέματος σήμερα).",
+        "📈 Μέση αγορά, μέση ημέρα, τεμάχια ανά αγορά, μέση τιμή τεμαχίου, μέση έκπτωση, και «πουλήθηκε %» ανά είδος και προμηθευτή (πουλημένα έναντι αποθέματος σήμερα).",
         "🕐 Ποιες μέρες και ώρες πουλάτε, και πόσο κάθεται ένα κομμάτι στο ράφι πριν πουληθεί.",
-        "ℹ️ Οι πωλήσεις που γράφτηκαν με το χέρι χωρίς κομμάτι μετράνε στα σύνολα και φαίνονται ως «Χωρίς κομμάτι» — κάθε ανάλυση λέει πόσα χρήματα καλύπτει."
+        "ℹ️ Οι πωλήσεις που περάσατε από το χαρτί πριν την εφαρμογή μετράνε στα σύνολα, αλλά δεν έχουν κομμάτι — γι' αυτό μένουν έξω από τις αναλύσεις ανά είδος, προμηθευτή και βάρος."
       ]},
       { version: 'v13.24', date: 'Σεπτέμβριος 2026', items: [
         "📜 ΚΙΝΗΣΕΙΣ στο παλαιό μέταλλο: πατήστε το 📜 πάνω δεξιά σε μια παρτίδα και δείτε τι μπήκε και τι βγήκε — πότε, πόσα γραμμάρια και από ποιόν.",
@@ -34954,9 +34964,9 @@ const ABOUT = {
     changelog: [
       { version: 'v13.25', date: 'Sep 2026', items: [
         "📊 STATS (☰ → Stats, owner and manager): what sold by type, supplier, metal and karat, price range and weight — for next season's orders.",
-        "📈 Average sale, pieces per sale, average piece price, average discount, and “sold %” per type and supplier (sold against today's stock).",
+        "📈 Average sale, average day, pieces per sale, average piece price, average discount, and “sold %” per type and supplier (sold against today's stock).",
         "🕐 Which days and hours you sell, and how long a piece sits on the shelf before it sells.",
-        "ℹ️ Sales typed in by hand with no piece still count in the totals and show as “Typed by hand” — every breakdown says how much of the money it covers."
+        "ℹ️ Sales copied in from paper before the app count in the totals but name no piece — so they stay out of the type, supplier and weight breakdowns."
       ]},
       { version: 'v13.24', date: 'Sep 2026', items: [
         "📜 MOVEMENTS on your scrap metal: tap the 📜 at the top right of a lot and see what came in and what went out — when, how many grams, and who did it.",
