@@ -826,6 +826,8 @@
   .st-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
   .st-name { font-family:var(--font-body); font-size:12.5px; color:var(--text); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .st-val { font-family:var(--font-mono); font-size:12.5px; color:var(--gold-light); flex-shrink:0; }
+  .st-tap { cursor:pointer; }
+  .st-rank { display:inline-block; min-width:18px; margin-right:6px; font-family:var(--font-mono); font-size:11px; color:var(--text-muted); }
   .st-bar { height:6px; background:var(--dark-3); border-radius:3px; overflow:hidden; margin:4px 0 3px; }
   .st-bar > div { height:100%; background:var(--gold); border-radius:3px; }
   .st-sub { font-family:var(--font-mono); font-size:10px; color:var(--text-muted); letter-spacing:0.02em; line-height:1.5; }
@@ -19481,6 +19483,15 @@ function _stPeriodsList() {
   return out;
 }
 
+let _stShowAllCust = false;
+function _stToggleAllCust() { _stShowAllCust = !_stShowAllCust; renderStats(); }
+// The name rides on data-name, never inside the onclick string: it is user-typed
+// and a quote or apostrophe would break the attribute.
+function _stOpenClient(el) {
+  const n = el && el.dataset ? el.dataset.name : '';
+  if (n) { try { showClientPurchases(n); } catch (e) {} }
+}
+
 function _stSetPeriod(key) {
   _stPeriodKey = key;
   try { localStorage.setItem('jpro_statsPeriod', key); } catch (e) {}
@@ -19494,6 +19505,8 @@ async function openStatsPanel() {
   const cold = !_salesCache || !_inventoryCache || !Object.keys(_inventoryCache).length;
   if (cold) body.innerHTML = '<div class="st-note" style="text-align:center;padding:30px 0">' + (lang === 'el' ? 'Φόρτωση…' : 'Loading…') + '</div>';
   try { await getSales(); } catch (e) {}
+  // Repair/order income names its customer only through the ticket.
+  try { await _saleEnsureTickets(); } catch (e) {}
   // Nothing loads the stock at boot, and every breakdown by type/supplier/weight
   // needs it. _invEnsureForScan keeps the last good cache on a network failure.
   if (!_inventoryCache || !Object.keys(_inventoryCache).length) { try { await _invEnsureForScan(); } catch (e) {} }
@@ -19859,17 +19872,75 @@ function renderStats() {
   }
 
   // ── CUSTOMERS ──
-  if (txPiece.length) {
-    const named = txPiece.filter(t => t.cust);
-    const byName = new Map();
-    named.forEach(t => { const k = t.cust.toLowerCase(); byName.set(k, (byName.get(k) || 0) + 1); });
-    const repeat = [...byName.values()].filter(n => n > 1).length;
-    html += _stCard(L('Πελάτες', 'Customers'), '',
-      '<div class="sb-line"><span>' + L('Αγορές με όνομα πελάτη', 'Sales with a customer name') + '</span><span>' + named.length + ' / ' + txPiece.length +
-        ' (' + _stPct(named.length / txPiece.length * 100) + ')</span></div>' +
-      '<div class="sb-line"><span>' + L('Πελάτες που αγόρασαν ξανά', 'Customers who bought again') + '</span><span>' + repeat + '</span></div>' +
-      '<div class="st-note">' + L('Όσο περισσότερα ονόματα γράφετε στην πώληση, τόσο πιο χρήσιμο γίνεται αυτό — και τόσο ευκολότερα θυμάστε έναν πελάτη όταν ξαναέρθει.',
-        'The more names you record at the sale, the more useful this becomes — and the easier it is to recognise a customer who comes back.') + '</div>');
+  // Best customers: who spent the most in the period. Names are grouped exactly the
+  // way the client history sheet matches them (trimmed, case-insensitive), so a row
+  // agrees with what that sheet shows when it is tapped. Repair and order income is
+  // stored with no customer on the sale record, so its name comes from the ticket it
+  // belongs to. Metal bought FROM a customer, giveaways and expired cards are not
+  // spending and are left out; a return nets against the sale it reverses.
+  // "Purchases" counts VISITS: a cart of three pieces is one purchase, not three.
+  const cust = new Map();
+  all.forEach(s => {
+    if (s.scrapGain || s.giftBreakage || s.giveaway) return;
+    let name = String(s.customer || '').trim();
+    let viaTicket = false;
+    if (!name && s.repairIncome) {
+      const tk = _saleTicket(s);
+      name = String((tk && tk.clientName) || '').trim();
+      viaTicket = !!name;
+    }
+    if (!name) return;
+    const amt = parseFloat(s.amount) || 0;
+    const k = name.toLowerCase();
+    let c = cust.get(k);
+    if (!c) { c = { name, total: 0, profit: 0, hasProfit: false, tx: new Set(), last: '', lastTs: 0, jobs: 0 }; cust.set(k, c); }
+    c.total += amt;
+    const pr = parseFloat(s.profit);
+    if (isFinite(pr)) { c.profit += pr; c.hasProfit = true; }
+    if (amt > 0) c.tx.add(s.saleGroup ? 'g' + s.saleGroup : 'i' + s.id);
+    if (viaTicket) c.jobs += amt;
+    // Show the spelling from the most recent visit.
+    const dt = s.date || '';
+    if (dt > c.last || (dt === c.last && (s.ts || 0) >= c.lastTs)) { c.last = dt; c.lastTs = s.ts || 0; c.name = name; }
+  });
+  const best = [...cust.values()].filter(c => c.total > 0).sort((a, b) => b.total - a.total);
+  if (txPiece.length || best.length) {
+    let inner = '';
+    if (txPiece.length) {
+      const named = txPiece.filter(t => t.cust);
+      const byName = new Map();
+      named.forEach(t => { const k = t.cust.toLowerCase(); byName.set(k, (byName.get(k) || 0) + 1); });
+      const repeat = [...byName.values()].filter(n => n > 1).length;
+      inner += '<div class="sb-line"><span>' + L('Αγορές με όνομα πελάτη', 'Sales with a customer name') + '</span><span>' + named.length + ' / ' + txPiece.length +
+          ' (' + _stPct(named.length / txPiece.length * 100) + ')</span></div>' +
+        '<div class="sb-line"><span>' + L('Πελάτες που αγόρασαν ξανά', 'Customers who bought again') + '</span><span>' + repeat + '</span></div>';
+    }
+    if (best.length) {
+      const shown = _stShowAllCust ? best : best.slice(0, 10);
+      const max = best[0].total;
+      const topN = Math.min(10, best.length);
+      const topRev = best.slice(0, topN).reduce((a, c) => a + c.total, 0);
+      inner += '<div class="sb-sec-t" style="margin-top:' + (inner ? '14px' : '0') + '">🏆 ' + L('Καλύτεροι πελάτες', 'Best customers') + '</div>';
+      inner += shown.map((c, i) => {
+        const n = c.tx.size;
+        const bits = [n + ' ' + (n === 1 ? L('αγορά', 'purchase') : L('αγορές', 'purchases')),
+                      L('τελευταία ', 'last ') + (c.last ? fmtDate(c.last) : '—')];
+        if (c.hasProfit) bits.push(L('κέρδος ', 'profit ') + _stMoney(c.profit));
+        if (c.jobs > 0) bits.push(L('μαζί ', 'incl. ') + _stMoney(c.jobs) + L(' επισκευές/παραγγελίες', ' repairs/orders'));
+        return '<div class="st-row st-tap" data-name="' + _stEsc(c.name) + '" onclick="_stOpenClient(this)">' +
+          '<div class="st-top"><span class="st-name"><span class="st-rank">' + (i + 1) + '</span>' + _stEsc(c.name) + '</span>' +
+          '<span class="st-val">' + _stMoney(c.total) + ' ›</span></div>' +
+          '<div class="st-bar"><div style="width:' + (max ? c.total / max * 100 : 0).toFixed(1) + '%"></div></div>' +
+          '<div class="st-sub">' + bits.join(' · ') + '</div></div>';
+      }).join('');
+      if (best.length > 10) inner += '<button class="inv-fs-pill" style="margin-top:8px" onclick="_stToggleAllCust()">' +
+        (_stShowAllCust ? L('Λιγότεροι', 'Show fewer') : L('Όλοι οι πελάτες (', 'All customers (') + best.length + ')') + '</button>';
+      inner += '<div class="st-note">' + L('Οι ' + topN + ' πρώτοι έφεραν ', 'The top ' + topN + ' brought in ') + '<b>' + _stPct(d.revAll ? topRev / d.revAll * 100 : 0) + '</b>' +
+        L(' όλων των πωλήσεων. Πατήστε ένα όνομα για όλο το ιστορικό του πελάτη.', ' of all sales. Tap a name to see everything that customer bought.') + '</div>';
+    }
+    inner += '<div class="st-note">' + L('Όσο περισσότερα ονόματα γράφετε στην πώληση, τόσο πιο χρήσιμο γίνεται αυτό — και τόσο ευκολότερα θυμάστε έναν πελάτη όταν ξαναέρθει.',
+      'The more names you record at the sale, the more useful this becomes — and the easier it is to recognise a customer who comes back.') + '</div>';
+    html += _stCard(L('Πελάτες', 'Customers'), '', inner);
   }
 
   body.innerHTML = html;
@@ -34905,6 +34976,11 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.26', date: 'Σεπτέμβριος 2026', items: [
+        "🏆 ΚΑΛΥΤΕΡΟΙ ΠΕΛΑΤΕΣ στα Στατιστικά: ποιοι ξόδεψαν τα περισσότερα στην περίοδο, πόσες αγορές έκαναν, πότε ήρθαν τελευταία και πόσο κέρδος άφησαν.",
+        "👆 Πατήστε ένα όνομα για όλο το ιστορικό του πελάτη. Μετράνε και οι επισκευές και οι παραγγελίες, και αφαιρούνται οι επιστροφές.",
+        "📊 Γράφει επίσης τι ποσοστό των πωλήσεων έφεραν οι 10 πρώτοι πελάτες."
+      ]},
       { version: 'v13.25', date: 'Σεπτέμβριος 2026', items: [
         "📊 ΣΤΑΤΙΣΤΙΚΑ (☰ → Στατιστικά, ιδιοκτήτης και διευθυντής): τι πουλήθηκε ανά είδος, προμηθευτή, μέταλλο και καράτια, εύρος τιμής και βάρος — για τις παραγγελίες της επόμενης σεζόν.",
         "📈 Μέση αγορά, μέση ημέρα, τεμάχια ανά αγορά, μέση τιμή τεμαχίου, μέση έκπτωση, και «πουλήθηκε %» ανά είδος και προμηθευτή (πουλημένα έναντι αποθέματος σήμερα).",
@@ -34962,6 +35038,11 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.26', date: 'Sep 2026', items: [
+        "🏆 BEST CUSTOMERS in Stats: who spent the most in the period, how many purchases they made, when they last came in, and how much profit they brought.",
+        "👆 Tap a name for that customer's full history. Repairs and orders count too, and returns are taken off.",
+        "📊 It also shows what share of all sales your top 10 customers brought in."
+      ]},
       { version: 'v13.25', date: 'Sep 2026', items: [
         "📊 STATS (☰ → Stats, owner and manager): what sold by type, supplier, metal and karat, price range and weight — for next season's orders.",
         "📈 Average sale, average day, pieces per sale, average piece price, average discount, and “sold %” per type and supplier (sold against today's stock).",
@@ -40375,7 +40456,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.25';
+const APP_VERSION = '13.26';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
