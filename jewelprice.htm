@@ -4072,6 +4072,7 @@ const T = {
     owedRow:'Οφειλή',
     owedDueOn:'έως',
     owedPaidOf:'πληρώθηκαν από',
+    owedStmtBtn:'Κατάσταση',
     deskRepairsSoon:'Επισκευές & παραγγελίες — έρχονται σύντομα',
     repNewTicket:'Νέο δελτίο',
     repSearchPh:'Αναζήτηση — πελάτης, δελτίο…',
@@ -4705,6 +4706,7 @@ const T = {
     owedRow:'Owed',
     owedDueOn:'by',
     owedPaidOf:'paid of',
+    owedStmtBtn:'Statement',
     deskRepairsSoon:'Repairs & custom orders — coming soon',
     repNewTicket:'New ticket',
     repSearchPh:'Search — customer, ticket…',
@@ -13796,7 +13798,226 @@ function _owedMethodLabel(m) {
   const isEl = lang === 'el';
   if (m === 'card') return isEl ? '💳 Κάρτα' : '💳 Card';
   if (m === 'bank') return isEl ? '🏦 Τραπεζική' : '🏦 Bank';
+  if (m === 'return') return isEl ? '↩️ Επιστροφή' : '↩️ Return';
   return isEl ? '💵 Μετρητά' : '💵 Cash';
+}
+
+// ── PRINTABLE PAYMENT STATEMENT ──────────────────────────────────────────────
+// The customer pays in instalments; this is the paper handed over every time
+// they come back with another one, so they can see what has been paid and what
+// is left — and, once the balance reaches zero, a final "paid in full" receipt.
+//
+// One line per PAYMENT EVENT, not per record. A single payment is spread across
+// a transaction's records by _owedApplyPayment, with every share carrying the
+// SAME timestamp — grouping by `at` puts it back together as the one moment it
+// actually was. A write-off is skipped (it is a forgiven debt, not something
+// the customer paid); a 'return' entry is kept, because the balance genuinely
+// dropped for a real reason and the statement should say so.
+function _owedPaymentEvents(g) {
+  const byAt = {};
+  (g.records || []).forEach(r => (r.owedLog || []).forEach(l => {
+    if (!l || l.method === 'writeoff') return;
+    const k = String(l.at || (l.date + '|' + l.method));
+    if (!byAt[k]) byAt[k] = { date: l.date || '', method: l.method || 'cash', amt: 0, at: l.at || 0 };
+    byAt[k].amt = parseFloat((byAt[k].amt + (parseFloat(l.amt) || 0)).toFixed(2));
+  }));
+  return Object.values(byAt).filter(e => e.amt > 0)
+    .sort((a, b) => (a.at || 0) - (b.at || 0) || (a.date || '').localeCompare(b.date || ''));
+}
+
+// The group behind a printable statement. Unlike _owedGroups (which exists to
+// drive "what is still outstanding right now" and so only ever lists a debt
+// with a balance above zero), this works for a debt already settled in full —
+// the customer who just made the last payment still wants a paper that says so.
+function _owedStatementGroup(sales, saleId) {
+  const rec = (sales || []).find(s => s.id === saleId);
+  if (!rec) return null;
+  const gid = rec.saleGroup || '';
+  const records = (gid ? sales.filter(s => s.saleGroup === gid) : [rec]).filter(s => !s.isReturn);
+  if (!records.length || !records.some(saleWasOwed)) return null;
+  return {
+    records,
+    owed: parseFloat(records.reduce((a, s) => a + saleOwed(s), 0).toFixed(2)),
+    orig: parseFloat(records.reduce((a, s) => a + saleOwedOrig(s), 0).toFixed(2)),
+    due: (records.find(s => s.owedDue) || {}).owedDue || '',
+    amount: parseFloat(records.reduce((a, s) => a + (parseFloat(s.amount) || 0), 0).toFixed(2)),
+    customer: rec.customer || '', email: rec.email || '', date: rec.date || '',
+    saleId: rec.id, groupId: gid
+  };
+}
+
+// A4 portrait, own copy of the branded style buildReservationHTML/buildRepairPDF
+// already carry — items purchased, then the running ledger of what came in
+// against them and what is left. Async: each item is resolved through
+// _saleDocResult, the same piece-resolution logic every other sale document uses.
+async function buildOwedStatementHTML(g) {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const esc = _gcEsc;
+  const address = isEl ? 'Αποδήμων Καρπαθίων<br>Πηγάδια, Κάρπαθος 857 00' : 'Apodimon Karpathion<br>Pigadia, Karpathos 857 00';
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=' + encodeURIComponent('https://maps.app.goo.gl/aqePd3XmXfnpG5h87?g_st=ac');
+  const parts = [];
+  for (const rec of g.records) parts.push(await _saleDocResult(rec));
+  const itemsHtml = parts.map((p, i) => `<div class="item-block">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="flex:1">
+        <div class="item-name">${i + 1}. ${esc(p.name)}</div>
+        ${p.result.seqRef ? `<div style="font-family:'DM Mono',monospace;font-size:8pt;color:#C9A84C;letter-spacing:0.08em;margin-top:3px">Ref. <strong>${esc(p.result.seqRef)}</strong></div>` : ''}
+        ${p.photo ? `<img src="${p.photo}" style="max-width:82px;max-height:82px;width:auto;height:auto;border-radius:4px;border:1px solid #ddd;margin-top:5px;display:block">` : ''}
+      </div>
+      <div class="item-price-line" style="border:none;padding:0;margin:0"><span class="val">${cur}${parseFloat(p.result.finalPrice).toFixed(2)}</span></div>
+    </div>
+  </div>`).join('');
+
+  // What was already collected before any tracked instalment — either handed
+  // over on the day of the sale itself, or folded in later by correcting the
+  // debt without going through "Record a Payment". Neither shows up in
+  // owedLog, so it is derived: the sale's total less the highest the debt was
+  // ever tracked at is money that has to have arrived some other way.
+  const initialPaid = Math.max(0, parseFloat((g.amount - g.orig).toFixed(2)));
+  const initialHtml = initialPaid > 0.004
+    ? `<div class="total-row"><span class="plabel">${isEl ? 'Κατά την πώληση' : 'At time of sale'} · ${fmtDate(g.date)}</span><span class="pvalue" style="color:#2e8b57">-${cur}${initialPaid.toFixed(2)}</span></div>`
+    : '';
+  const events = _owedPaymentEvents(g);
+  const eventsSum = parseFloat(events.reduce((a, e) => a + e.amt, 0).toFixed(2));
+  const paymentsHtml = initialHtml + events.map(e => `<div class="total-row"><span class="plabel">${_owedMethodLabel(e.method)} · ${e.date ? fmtDate(e.date) : '—'}</span><span class="pvalue" style="color:#2e8b57">-${cur}${e.amt.toFixed(2)}</span></div>`).join('');
+  // Everything genuinely PAID — the initial amount plus every logged instalment.
+  // Never orig-minus-owed alone: that can't tell a real payment apart from a
+  // written-off debt, and calling a forgiven debt "paid" would be a real lie on
+  // a document the customer keeps.
+  const paidSoFar = parseFloat((initialPaid + eventsSum).toFixed(2));
+  const overdue = _owedIsOverdue(g.due);
+  const fullyPaid = g.owed <= 0;
+  // The residual: what neither shows up as a payment nor is still owed was
+  // written off. Only meaningful when a write-off actually happened.
+  const writtenOff = g.records.some(r => r.owedWrittenOff);
+  const writtenOffAmt = writtenOff ? Math.max(0, parseFloat((g.orig - eventsSum - g.owed).toFixed(2))) : 0;
+  const writeOffHtml = writtenOffAmt > 0.004
+    ? `<div class="total-row"><span class="plabel">🚫 ${isEl ? 'Διαγραφή οφειλής' : 'Written off'}</span><span class="pvalue" style="color:#c0392b">-${cur}${writtenOffAmt.toFixed(2)}</span></div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="${isEl ? 'el' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<title>${isEl ? 'Κατάσταση Πληρωμών' : 'Statement of Payments'} — ${esc(g.customer || '')}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Mono:wght@300;400&display=swap');
+  @page { size: A4 portrait; margin: 10mm 18mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'DM Mono',monospace; background:#fff; color:#1a1a1a; padding:10mm 18mm; max-width:210mm; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; padding-bottom:8px; border-bottom:2px solid #C9A84C; }
+  .store-name { font-family:'Cormorant Garamond',serif; font-size:24pt; color:#0E0C08; letter-spacing:3px; }
+  .store-name span { color:#C9A84C; }
+  .store-sub { font-size:7pt; letter-spacing:5px; color:#999; text-transform:uppercase; margin-top:2px; }
+  .store-contact { font-size:7.5pt; color:#666; line-height:1.8; margin-top:6px; }
+  .header-right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .doc-meta { text-align:right; font-size:8pt; color:#888; line-height:1.7; }
+  .maps-wrap { display:flex; align-items:center; gap:6px; }
+  .maps-label { font-size:7pt; color:#aaa; text-align:right; line-height:1.4; }
+  .doc-title { font-family:'Cormorant Garamond',serif; font-size:11pt; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:#C9A84C; text-align:center; margin:12px 0 4px; }
+  .cust-line { font-family:'Cormorant Garamond',serif; font-size:13pt; color:#555; margin:8px 0 2px; }
+  .cust-sub { font-size:8.5pt; color:#888; margin-bottom:6px; }
+  .section-title { font-family:'Cormorant Garamond',serif; font-size:14pt; color:#0E0C08; margin:12px 0 8px; border-bottom:1px solid #e8e8e8; padding-bottom:4px; }
+  .item-block { margin-bottom:10px; padding:10px 12px; background:#fafafa; border:1px solid #eee; border-radius:4px; }
+  .item-name { font-family:'Cormorant Garamond',serif; font-size:13pt; color:#0E0C08; }
+  .item-price-line .val { font-family:'Cormorant Garamond',serif; font-size:14pt; color:#C9A84C; white-space:nowrap }
+  .totals-section { margin-top:10px; border:1px solid #eee; border-radius:4px; padding:10px 12px; background:#fafafa; }
+  .total-row { display:flex; justify-content:space-between; padding:5px 0; font-size:9.5pt; border-bottom:1px solid #f0f0f0; gap:10px; }
+  .total-row:last-child { border-bottom:none; }
+  .total-row .plabel { color:#666; }
+  .total-row .pvalue { color:#1a1a1a; text-align:right; white-space:nowrap; }
+  .total-row.grand { border-top:2px solid #C9A84C; border-bottom:none; margin-top:8px; padding-top:10px; }
+  .total-row.grand .plabel { font-size:12pt; color:#0E0C08; font-weight:500; }
+  .total-row.grand .pvalue { font-family:'Cormorant Garamond',serif; font-size:22pt; color:${fullyPaid ? '#2e8b57' : '#C9A84C'}; }
+  .paid-line { text-align:center; font-size:9.5pt; color:#2e8b57; background:rgba(46,139,87,0.08); border:1px solid rgba(46,139,87,0.3); border-radius:4px; padding:7px 12px; margin:10px 0 4px; font-weight:600; }
+  .due-line { text-align:center; font-size:9pt; color:${overdue ? '#c0392b' : '#8a7040'}; background:${overdue ? 'rgba(192,57,43,0.08)' : 'rgba(201,168,76,0.08)'}; border:1px solid ${overdue ? 'rgba(192,57,43,0.3)' : 'rgba(201,168,76,0.25)'}; border-radius:4px; padding:7px 12px; margin:10px 0 4px; }
+  .terms { font-size:7.5pt; color:#aaa; margin-top:10px; font-style:italic; line-height:1.6; text-align:center; }
+  .sign-section { margin-top:22px; display:flex; justify-content:space-between; align-items:flex-end; page-break-inside:avoid; break-inside:avoid; }
+  .sign-line { width:60mm; flex:0 0 auto; }
+  .sign-line .ln { border-bottom:1px solid #ccc; height:34px; }
+  .sign-line .lbl { font-size:8pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; }
+  .stamp-box { width:100mm; flex:0 0 auto; }
+  .stamp-box .ln { border-bottom:1px solid #ccc; height:50mm; }
+  .stamp-box .lbl { font-size:8pt; color:#999; letter-spacing:0.1em; text-transform:uppercase; margin-top:4px; text-align:center; }
+  .footer { margin-top:14px; padding-top:8px; border-top:1px solid #eee; display:flex; justify-content:space-between; font-size:7pt; color:#bbb; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="store-name">LEKKAS <span>JEWELRY</span></div>
+    <div class="store-sub">Fine Jewelry · Karpathos</div>
+    <div class="store-contact">📍 ${address}<br>📞 +30 694 789 1151</div>
+  </div>
+  <div class="header-right">
+    <div class="doc-meta">
+      <div>${fmtDate(localDateStr(new Date()))}</div>
+      <div>#${esc(String(g.saleId))}</div>
+    </div>
+    <div class="maps-wrap">
+      <div class="maps-label">${isEl ? 'Βρείτε μας<br>στον χάρτη' : 'Find us<br>on the map'}</div>
+      <img src="${qrUrl}" width="64" height="64" style="border:3px solid #C9A84C;border-radius:4px">
+    </div>
+  </div>
+</div>
+
+<div class="doc-title">✦ ${isEl ? 'Κατάσταση Πληρωμών' : 'Statement of Payments'} ✦</div>
+<div class="cust-line">${isEl ? 'Πελάτης' : 'Customer'}: <strong>${esc(g.customer || '—')}</strong></div>
+<div class="cust-sub">${[g.email ? esc(g.email) : '', (isEl ? 'Πώληση ' : 'Sale ') + fmtDate(g.date)].filter(Boolean).join(' · ')}</div>
+
+<div class="section-title">${isEl ? 'Αγορασμένα είδη' : 'Items purchased'}</div>
+${itemsHtml}
+
+<div class="totals-section">
+  <div class="total-row"><span class="plabel">${isEl ? 'Συνολική τιμή' : 'Total price'}</span><span class="pvalue">${cur}${g.amount.toFixed(2)}</span></div>
+  ${paymentsHtml}
+  ${writeOffHtml}
+  <div class="total-row"><span class="plabel" style="font-weight:600">${isEl ? 'Σύνολο πληρωμών' : 'Total paid'}</span><span class="pvalue" style="color:#2e8b57;font-weight:600">-${cur}${paidSoFar.toFixed(2)}</span></div>
+  <div class="total-row grand"><span class="plabel">${isEl ? 'Υπόλοιπο' : 'Balance due'}</span><span class="pvalue">${cur}${g.owed.toFixed(2)}</span></div>
+</div>
+
+${(!fullyPaid && g.due) ? `<div class="due-line">${overdue ? (isEl ? 'ΕΚΠΡΟΘΕΣΜΗ — ' : 'OVERDUE — ') : (isEl ? 'Να πληρωθεί έως: ' : 'To be paid by: ')}<strong>${fmtDate(g.due)}</strong></div>` : ''}
+${(fullyPaid && !writtenOff) ? `<div class="paid-line">✓ ${isEl ? 'Το ποσό εξοφλήθηκε πλήρως' : 'The full amount has been paid'}</div>` : ''}
+${(fullyPaid && writtenOff) ? `<div class="due-line">🚫 ${isEl ? 'Η υπόλοιπη οφειλή διαγράφηκε' : 'The remaining debt was written off'}</div>` : ''}
+
+<div class="terms">${isEl
+    ? 'Η παρούσα κατάσταση καταγράφει τις πληρωμές που έχουν γίνει έναντι της πώλησης αυτής, μέχρι σήμερα.'
+    : 'This statement records the payments made against this sale, up to today.'}</div>
+
+<div class="sign-section">
+  <div class="sign-line"><div class="ln"></div><div class="lbl">${isEl ? 'Υπογραφή πελάτη' : 'Customer signature'}</div></div>
+  <div class="stamp-box"><div class="ln"></div><div class="lbl">${isEl ? 'Σφραγίδα' : 'Stamp'}</div></div>
+</div>
+
+<div class="footer">
+  <span>Lekkas Jewelry · JewelPrice Pro</span>
+  <span>${fmtDate(localDateStr(new Date()))}</span>
+</div>
+</body>
+</html>`;
+}
+
+async function _owedStatementBuild(saleId) {
+  const sales = await getSales();
+  const g = _owedStatementGroup(sales, saleId);
+  if (!g) return null;
+  const html = await buildOwedStatementHTML(g);
+  return {
+    html,
+    title: (lang === 'el' ? 'Κατάσταση Πληρωμών' : 'Statement of Payments') + (g.customer ? ' — ' + g.customer : ''),
+    fileName: 'lekkas-statement-' + g.saleId + '.pdf'
+  };
+}
+async function printOwedStatement(saleId) {
+  const d = await _owedStatementBuild(saleId);
+  if (!d) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν υπάρχει οφειλή να τυπωθεί' : 'Nothing owed to print')); return; }
+  openQuoteWindow(d.html, false, null);
+}
+async function shareOwedStatement(saleId) {
+  const d = await _owedStatementBuild(saleId);
+  if (!d) { showToast('⚠️ ' + (lang === 'el' ? 'Δεν υπάρχει οφειλή να τυπωθεί' : 'Nothing owed to print')); return; }
+  await shareQuoteAsPDF(d.html, d.title, false, d.fileName);
 }
 
 // Sale ids are Date.now(), which collides when several records are written in
@@ -16133,6 +16354,34 @@ async function _owedPayConfirm(saleId) {
     ? `Καταγράφηκε ${cur}${paid.toFixed(2)}` + (left > 0 ? ` — υπόλοιπο ${cur}${left.toFixed(2)}` : ' — εξοφλήθηκε')
     : `${cur}${paid.toFixed(2)} recorded` + (left > 0 ? ` — ${cur}${left.toFixed(2)} left` : ' — settled in full')));
   await _owedRefreshSurfaces();
+  // Offer the paper right here — this is the moment it's actually wanted, not
+  // after navigating back to the sale to find a button.
+  _owedOfferStatement(saleId, paid, left);
+}
+
+// Right after a payment lands: offer to print/share the statement showing what
+// has been paid so far and what is left — the paper the customer takes away
+// each time they bring another instalment.
+function _owedOfferStatement(saleId, paid, left) {
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  document.getElementById('owedStmtOfferOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'owedStmtOfferOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:20px;width:100%;max-width:360px">
+      <div style="font-family:var(--font-heading);font-size:16px;color:var(--gold-light);margin-bottom:6px">🧾 ${isEl ? 'Απόδειξη για τον πελάτη;' : 'Receipt for the customer?'}</div>
+      <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px;line-height:1.5">${isEl
+        ? `Καταγράφηκε ${cur}${paid.toFixed(2)}.` + (left > 0 ? ` Υπόλοιπο ${cur}${left.toFixed(2)}.` : ' Εξοφλήθηκε πλήρως.')
+        : `${cur}${paid.toFixed(2)} recorded.` + (left > 0 ? ` ${cur}${left.toFixed(2)} left.` : ' Paid in full.')}</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button onclick="document.getElementById('owedStmtOfferOverlay').remove();printOwedStatement(${saleId})" style="flex:1;padding:11px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer">🖨️ ${isEl ? 'Εκτύπωση' : 'Print'}</button>
+        <button onclick="document.getElementById('owedStmtOfferOverlay').remove();shareOwedStatement(${saleId})" style="flex:1;padding:11px;background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.45);color:var(--gold-light);border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer">📤 PDF</button>
+      </div>
+      <button onclick="document.getElementById('owedStmtOfferOverlay').remove()" style="width:100%;padding:9px;background:transparent;border:1px solid var(--wa10);color:var(--text-muted);border-radius:10px;font-size:12px;cursor:pointer">${isEl ? 'Όχι, ευχαριστώ' : 'No thanks'}</button>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 // ── WRITING OFF A DEBT ───────────────────────────────────────────────────────
@@ -16345,6 +16594,7 @@ async function openOwedList() {
         </div>
         <div style="display:flex;gap:6px">
           <button onclick="_owedOpenSale(${g.records[0].id})" style="flex:1;padding:9px;background:transparent;border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:12px;cursor:pointer">📋 ${isEl ? 'Η πώληση' : 'The sale'}</button>
+          <button onclick="printOwedStatement(${g.records[0].id})" title="${isEl ? 'Κατάσταση πληρωμών' : 'Payment statement'}" style="flex:0 0 auto;padding:9px 11px;background:transparent;border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:8px;font-size:14px;cursor:pointer">🧾</button>
           <button onclick="openOwedPayment(${g.records[0].id})" style="flex:1;padding:9px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💰 ${isEl ? 'Πληρωμή' : 'Payment'}</button>
         </div>
       </div>`;
@@ -17207,6 +17457,16 @@ async function _showSaleGroupDetail(s, members, cur, vat, isOwnerMgr) {
     acts.appendChild(payBtn);
   }
 
+  // 🧾 Printable statement — what's been paid so far, what's left. Available
+  // whether the debt is still open or already settled (the final receipt).
+  if (members.some(saleWasOwed)) {
+    const stBtn = document.createElement('button');
+    stBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    stBtn.textContent = '🧾 ' + t('owedStmtBtn');
+    stBtn.onclick = () => printOwedStatement(members[0].id);
+    acts.appendChild(stBtn);
+  }
+
   // 📦 The job behind the whole transaction (an order collected as a sale of its
   // arrived pieces). Every line carries the same link, so any of them opens it.
   _saleTicketBtn(s, acts, false);
@@ -17545,6 +17805,16 @@ async function showSaleDetail(id, forceSingle) {
     payBtn.textContent = '💰 ' + t('owedPayBtn');
     payBtn.onclick = () => openOwedPayment(s.id);
     acts.appendChild(payBtn);
+  }
+
+  // 🧾 Printable statement — what's been paid so far, what's left. Available
+  // whether the debt is still open or already settled (the final receipt).
+  if (saleWasOwed(s)) {
+    const stBtn = document.createElement('button');
+    stBtn.style.cssText = 'flex:1;padding:11px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.35);color:var(--gold-light);border-radius:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase';
+    stBtn.textContent = '🧾 ' + t('owedStmtBtn');
+    stBtn.onclick = () => printOwedStatement(s.id);
+    acts.appendChild(stBtn);
   }
 
   // View linked inventory item (if the sale names a piece at all)
@@ -35027,6 +35297,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.28', date: 'Σεπτέμβριος 2026', items: [
+        "🧾 ΚΑΤΑΣΤΑΣΗ ΠΛΗΡΩΜΩΝ: κάθε φορά που ο πελάτης φέρνει άλλη δόση, καταγράψτε την πληρωμή και θα σας ρωτήσει αμέσως αν θέλετε να τυπώσετε ή να στείλετε μια απόδειξη — τι έχει πληρώσει μέχρι στιγμής και τι υπόλοιπο μένει.",
+        "🖨️ Το κουμπί «🧾 Κατάσταση» υπάρχει και μέσα στην πώληση, ώστε να ξανατυπώσετε ανά πάσα στιγμή — ακόμα και αφού εξοφληθεί, ως τελική απόδειξη."
+      ]},
       { version: 'v13.27', date: 'Σεπτέμβριος 2026', items: [
         "🕐 ΟΦΕΙΛΗ ΣΕ ΠΩΛΗΣΗ ΠΟΛΛΩΝ ΕΙΔΩΝ: στο «✏️ Πληρωμή» μιας πώλησης με πολλά είδη μπορείτε τώρα να σημειώσετε ότι δεν έχει πληρωθεί ακόμα — και αφού την έχετε ήδη καταχωρίσει.",
         "💶 Το ποσό μοιράζεται αναλογικά στα είδη, όπως κατά την πώληση, και εμφανίζεται στις οφειλές μέχρι να πληρωθεί. Το κέρδος δεν αλλάζει."
@@ -35093,6 +35367,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.28', date: 'Sep 2026', items: [
+        "🧾 PAYMENT STATEMENT: every time the customer brings another instalment, record the payment and you're offered a print/share of a statement showing what they've paid so far and what's still owed.",
+        "🖨️ The “🧾 Statement” button also lives on the sale itself, so you can reprint any time — even after it's fully paid, as a final receipt."
+      ]},
       { version: 'v13.27', date: 'Sep 2026', items: [
         "🕐 OWED ON A MULTI-ITEM SALE: the “✏️ Payment” button of a sale with several items can now mark it as not paid yet — even after it was recorded.",
         "💶 The amount is spread across the items in proportion, exactly as when the sale is recorded, and shows in what is owed until it is paid. Profit is unchanged."
@@ -40515,7 +40793,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.27';
+const APP_VERSION = '13.28';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
