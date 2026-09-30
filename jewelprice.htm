@@ -3170,6 +3170,9 @@
          in-stock goods, so with the Sold filter on they read "—" exactly when the numbers
          matter most. Owner/manager only (it is cost data). -->
     <div id="invConsignBar" style="display:none;background:rgba(111,201,168,0.07);border:1px solid rgba(111,201,168,0.32);border-radius:12px;padding:11px 13px;margin-bottom:12px"></div>
+    <!-- Sales / cost / profit of the SOLD pieces in the current view (v13.29). Shown
+         automatically whenever sold pieces are on screen; owner/manager only. -->
+    <div id="invSoldBar" style="display:none;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.32);border-radius:12px;padding:11px 13px;margin-bottom:12px"></div>
     <div id="invList"></div>
   </div>
 </div>
@@ -27924,6 +27927,73 @@ function renderConsignBar(rows) {
   bar.style.display = _consignBarVisible() ? '' : 'none';
 }
 
+// ── Totals for the SOLD pieces on screen (v13.29) ────────────────────────────
+// The header cards value stock on the shelf, so with the Sold filter on they read "—"
+// exactly when the question is "what did these bring in?". This bar answers it for
+// whatever sold pieces the filters show (a vendor, a type, a date range...): what they
+// sold for, what they cost you, and the profit. Every figure is READ BACK from the sale
+// record (amount / cost / profit already know the VAT, cash, certificate and split
+// rules — one source for money), matched to the piece exactly as the consignment bar
+// does it (record id first, then code, each record consumed once).
+function soldViewTotals(rows) {
+  const pool = _consignSalePool();
+  const vat = parseFloat(state.vat) || 0;
+  const T = { n: 0, sales: 0, cost: 0, profit: 0, exVat: 0, knownCost: 0, unknown: 0, unmatched: 0, owed: 0, owedN: 0 };
+  for (const [id, item] of rows) {
+    if (!item || item.status !== 'sold' || item.isBulk) continue;
+    T.n++;
+    if (consignOwed(item)) { T.owed += _invSaleCost(item) || 0; T.owedN++; }
+    const rec = _consignMatchSale(id, item, pool);
+    if (!rec) { T.unmatched++; continue; }
+    T.sales += parseFloat(rec.amount) || 0;
+    const p = parseFloat(rec.profit);
+    let c = parseFloat(rec.cost);
+    if (!isFinite(c)) c = _invSaleCost(item);
+    if (isFinite(p) && isFinite(c)) {
+      T.profit += p; T.cost += c; T.knownCost += c; T.exVat += _saleExVat(rec, vat);
+    } else T.unknown++;
+  }
+  return T;
+}
+let _soldSalesTried = false;
+function renderSoldBar(rows) {
+  const bar = document.getElementById('invSoldBar'); if (!bar) return;
+  if (!can('see_cost')) { bar.style.display = 'none'; return; }
+  const T = soldViewTotals(rows);
+  if (!T.n) { bar.style.display = 'none'; return; }
+  if (!_salesCache && !_soldSalesTried) {
+    _soldSalesTried = true;
+    getSales().then(() => { if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList(); }).catch(() => {});
+  }
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const money = v => (v < 0 ? '−' : '') + cur + Math.abs(v).toFixed(2);
+  const cell = (lbl, val, colour, sub) => `<div style="flex:1 1 0;min-width:0;text-align:center">
+      <div style="font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lbl}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${colour}">${val}</div>
+      ${sub ? `<div style="font-size:10px;font-family:'DM Mono',monospace;color:${colour};margin-top:1px">${sub}</div>` : ''}
+    </div>`;
+  const pct = _profitPct(T.profit, T.exVat, T.knownCost);
+  const cells = [
+    cell(isEl ? 'Πωλήσεις' : 'Sales', money(T.sales), 'var(--gold-light)'),
+    cell(isEl ? 'Κόστος' : 'Cost', money(T.cost), 'var(--text)'),
+    cell(isEl ? 'Κέρδος' : 'Profit', money(T.profit), T.profit >= 0 ? 'var(--gain)' : 'var(--loss)',
+      pct === null ? '' : pct.toFixed(1) + '%')
+  ];
+  const notes = [];
+  if (T.owedN) notes.push('🤝 ' + (isEl ? 'οφείλετε ακόμα στον προμηθευτή' : 'still owed to the vendor') + ' ' + money(T.owed));
+  // A short total must say it is short.
+  if (T.unmatched) notes.push('⚠️ ' + T.unmatched + ' ' + (isEl ? 'χωρίς εγγραφή πώλησης' : 'with no sale record'));
+  if (T.unknown) notes.push('⚠️ ' + T.unknown + ' ' + (isEl ? 'χωρίς κόστος — εκτός κέρδους' : 'with no cost — not in the profit'));
+  if (pct !== null) notes.push(_profitPctLabel() + ' ' + _profitPctSub());
+  bar.innerHTML = `<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+      <span style="font-size:13px">💰</span>
+      <span style="flex:1;min-width:0;font-family:var(--font-body);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isEl ? 'Πουλημένα' : 'Sold'} · ${T.n} ${_piecesWord(T.n)}</span>
+    </div>
+    <div style="display:flex;gap:8px">${cells.join('')}</div>
+    ${notes.length ? `<div style="font-size:10px;color:var(--text-muted);margin-top:7px;text-align:center">${notes.join(' · ')}</div>` : ''}`;
+  bar.style.display = '';
+}
+
 // The per-card line: what this one piece means for the vendor.
 function _consignCardLine(id, item) {
   if (!isConsignment(item) || !can('see_cost')) return '';
@@ -29196,6 +29266,7 @@ function renderInvList() {
   // Consignment totals for exactly what is on screen. Placed here, on the same rows the
   // summary uses, so the two can never describe different sets of pieces.
   renderConsignBar(filtered);
+  renderSoldBar(filtered);
 
   // Coins and raw-metal lots are hidden from the Stock list by default — they only appear
   // when their type ("Coin" / "Metal") filter is chosen (or during a search). Their value
@@ -35297,6 +35368,10 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.29', date: 'Σεπτέμβριος 2026', items: [
+        "💰 ΣΥΝΟΛΑ ΠΟΥΛΗΜΕΝΩΝ: όταν φιλτράρετε το Απόθεμα σε «Πουλημένα» (π.χ. ενός προμηθευτή), εμφανίζεται πάνω από τη λίστα τι έφεραν σε πωλήσεις, τι σας κόστισαν και πόσο κέρδος αφήσαν.",
+        "🤝 Αν κάποια είναι παρακαταθήκη, γράφει και πόσα οφείλετε ακόμα στον προμηθευτή."
+      ]},
       { version: 'v13.28', date: 'Σεπτέμβριος 2026', items: [
         "🧾 ΚΑΤΑΣΤΑΣΗ ΠΛΗΡΩΜΩΝ: κάθε φορά που ο πελάτης φέρνει άλλη δόση, καταγράψτε την πληρωμή και θα σας ρωτήσει αμέσως αν θέλετε να τυπώσετε ή να στείλετε μια απόδειξη — τι έχει πληρώσει μέχρι στιγμής και τι υπόλοιπο μένει.",
         "🖨️ Το κουμπί «🧾 Κατάσταση» υπάρχει και μέσα στην πώληση, ώστε να ξανατυπώσετε ανά πάσα στιγμή — ακόμα και αφού εξοφληθεί, ως τελική απόδειξη."
@@ -35367,6 +35442,10 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.29', date: 'Sep 2026', items: [
+        "💰 SOLD TOTALS: filter Stock to “Sold” (e.g. one vendor) and a bar above the list shows what those pieces brought in, what they cost you and the profit.",
+        "🤝 If any are on consignment, it also shows how much you still owe the vendor."
+      ]},
       { version: 'v13.28', date: 'Sep 2026', items: [
         "🧾 PAYMENT STATEMENT: every time the customer brings another instalment, record the payment and you're offered a print/share of a statement showing what they've paid so far and what's still owed.",
         "🖨️ The “🧾 Statement” button also lives on the sale itself, so you can reprint any time — even after it's fully paid, as a final receipt."
@@ -40793,7 +40872,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.28';
+const APP_VERSION = '13.29';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
