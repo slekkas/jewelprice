@@ -27939,11 +27939,26 @@ function soldViewTotals(rows) {
   const pool = _consignSalePool();
   const vat = parseFloat(state.vat) || 0;
   const T = { n: 0, sales: 0, cost: 0, profit: 0, exVat: 0, knownCost: 0, unknown: 0, unmatched: 0, owed: 0, owedN: 0 };
-  for (const [id, item] of rows) {
-    if (!item || item.status !== 'sold' || item.isBulk) continue;
+  const sold = rows.filter(([, item]) => item && item.status === 'sold' && !item.isBulk);
+  // Two passes: every piece claims its OWN record (by id) first, and only then do the rest
+  // fall back to the code. In one pass a twin matched by code could take the record that
+  // names another twin by id, leaving that one reported as "no sale record" (v13.30).
+  const recOf = new Map();
+  for (const [id] of sold) {
+    const i = pool.findIndex(s => s.invId === id);
+    if (i >= 0) recOf.set(id, pool.splice(i, 1)[0]);
+  }
+  for (const [id, item] of sold) {
+    if (recOf.has(id)) continue;
+    const k = _qrKey(item.qrCode || item.code || '');
+    const i = k ? pool.findIndex(s => s.invQr && _qrKey(s.invQr) === k) : -1;
+    if (i >= 0) recOf.set(id, pool.splice(i, 1)[0]);
+  }
+  T.used = new Set([...recOf.values()]);
+  for (const [id, item] of sold) {
     T.n++;
     if (consignOwed(item)) { T.owed += _invSaleCost(item) || 0; T.owedN++; }
-    const rec = _consignMatchSale(id, item, pool);
+    const rec = recOf.get(id);
     if (!rec) { T.unmatched++; continue; }
     T.sales += parseFloat(rec.amount) || 0;
     const p = parseFloat(rec.profit);
@@ -27955,6 +27970,34 @@ function soldViewTotals(rows) {
   }
   return T;
 }
+
+// Why the Sales tab shows more than the sold pieces (v13.30). Only meaningful when EVERY
+// sold piece is on screen — then the difference against all sales is exactly the sales
+// that have no sold piece behind them, and we can say what they are. Each record not
+// claimed by a piece lands in exactly one bucket, so the lines always add up to the gap.
+function soldGapBreakdown(T) {
+  const all = _salesCache || [];
+  const B = { total: 0, gap: 0, lines: {} };
+  const add = (k, a) => { const L = B.lines[k] || (B.lines[k] = { n: 0, amt: 0 }); L.n++; L.amt += a; };
+  for (const s of all) {
+    if (!s) continue;
+    const a = parseFloat(s.amount) || 0;
+    B.total += a;
+    if (T.used.has(s)) continue;
+    if (!a) continue;                       // €0 records (giveaways) change nothing
+    if (s.returnOfSaleId || a < 0) add('ret', a);
+    else if (s.scrapGain) add('scrap', a);
+    else if (s.repairIncome) add('repair', a);
+    else if (s.giftBreakage) add('gift', a);
+    else if (s.bulkInvId) add('bulk', a);
+    else if (s.invId || s.invQr) add('gone', a);
+    else add('nopiece', a);
+  }
+  B.gap = B.total - T.sales;
+  return B;
+}
+let _soldGapOpen = false;
+function _toggleSoldGap() { _soldGapOpen = !_soldGapOpen; renderInvList(); }
 let _soldSalesTried = false;
 function renderSoldBar(rows) {
   const bar = document.getElementById('invSoldBar'); if (!bar) return;
@@ -27985,12 +28028,45 @@ function renderSoldBar(rows) {
   if (T.unmatched) notes.push('⚠️ ' + T.unmatched + ' ' + (isEl ? 'χωρίς εγγραφή πώλησης' : 'with no sale record'));
   if (T.unknown) notes.push('⚠️ ' + T.unknown + ' ' + (isEl ? 'χωρίς κόστος — εκτός κέρδους' : 'with no cost — not in the profit'));
   if (pct !== null) notes.push(_profitPctLabel() + ' ' + _profitPctSub());
+  // Reconcile with the Sales tab — only when every sold piece is on screen (no narrowing
+  // filter or search), since only then is "all sales minus these" a meaningful gap.
+  let gapHtml = '';
+  const _allSold = Object.values(_inventoryCache || {}).filter(it => it && it.status === 'sold' && !it.isBulk).length;
+  if (_salesCache && _allSold === T.n) {
+    const B = soldGapBreakdown(T);
+    if (Math.abs(B.gap) >= 0.005) {
+      const LBL = {
+        bulk:    isEl ? '⛓️ Αλυσίδες με το γραμμάριο' : '⛓️ Chains sold by the gram',
+        nopiece: isEl ? '📒 Πωλήσεις χωρίς κομμάτι (π.χ. από το τετράδιο)' : '📒 Sales with no piece (e.g. from the paper book)',
+        scrap:   isEl ? '♻️ Κέρδος από παλαιό μέταλλο' : '♻️ Scrap metal gains',
+        repair:  isEl ? '🔧 Επισκευές & παραγγελίες' : '🔧 Repairs & orders',
+        gift:    isEl ? '🎁 Ληγμένες δωροεπιταγές' : '🎁 Expired gift certificates',
+        gone:    isEl ? '❓ Κομμάτι που δεν είναι πια «πουλημένο»' : '❓ Piece no longer marked sold',
+        ret:     isEl ? '↩️ Επιστροφές' : '↩️ Returns'
+      };
+      const order = ['bulk', 'nopiece', 'scrap', 'repair', 'gift', 'gone', 'ret'];
+      const rowsHtml = order.filter(k => B.lines[k]).map(k => {
+        const L = B.lines[k];
+        return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0">
+            <span style="min-width:0">${LBL[k]} <span style="color:var(--text-muted)">(${L.n})</span></span>
+            <span style="font-family:'DM Mono',monospace;white-space:nowrap">${money(L.amt)}</span></div>`;
+      }).join('');
+      gapHtml = `<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text-dim)">
+          <div onclick="_toggleSoldGap()" style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center">
+            <span style="min-width:0">${isEl ? 'Καρτέλα Πωλήσεις (όλες)' : 'Sales tab (all)'} <span style="font-family:'DM Mono',monospace;color:var(--text)">${money(B.total)}</span> · ${isEl ? 'χωρίς πουλημένο κομμάτι' : 'with no sold piece'} <span style="font-family:'DM Mono',monospace;color:var(--text)">${money(B.gap)}</span></span>
+            <span style="color:var(--gold-light);white-space:nowrap">${_soldGapOpen ? '▴' : '▾'}</span>
+          </div>
+          ${_soldGapOpen ? `<div style="margin-top:6px">${rowsHtml}</div>` : ''}
+        </div>`;
+    }
+  }
   bar.innerHTML = `<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
       <span style="font-size:13px">💰</span>
       <span style="flex:1;min-width:0;font-family:var(--font-body);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isEl ? 'Πουλημένα' : 'Sold'} · ${T.n} ${_piecesWord(T.n)}</span>
     </div>
     <div style="display:flex;gap:8px">${cells.join('')}</div>
-    ${notes.length ? `<div style="font-size:10px;color:var(--text-muted);margin-top:7px;text-align:center">${notes.join(' · ')}</div>` : ''}`;
+    ${notes.length ? `<div style="font-size:10px;color:var(--text-muted);margin-top:7px;text-align:center">${notes.join(' · ')}</div>` : ''}
+    ${gapHtml}`;
   bar.style.display = '';
 }
 
@@ -35368,9 +35444,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.29', date: 'Σεπτέμβριος 2026', items: [
-        "💰 ΣΥΝΟΛΑ ΠΟΥΛΗΜΕΝΩΝ: όταν φιλτράρετε το Απόθεμα σε «Πουλημένα» (π.χ. ενός προμηθευτή), εμφανίζεται πάνω από τη λίστα τι έφεραν σε πωλήσεις, τι σας κόστισαν και πόσο κέρδος αφήσαν.",
-        "🤝 Αν κάποια είναι παρακαταθήκη, γράφει και πόσα οφείλετε ακόμα στον προμηθευτή."
+      { version: 'v13.30', date: 'Οκτώβριος 2026', items: [
+        "💰 ΓΙΑΤΙ ΔΙΑΦΕΡΟΥΝ ΤΑ ΣΥΝΟΛΑ: όταν βλέπετε όλα τα πουλημένα στο Απόθεμα, κάτω από τα σύνολα γράφει το σύνολο της καρτέλας Πωλήσεις και πόσα από αυτά δεν έχουν πουλημένο κομμάτι — πατήστε το για να δείτε τι είναι (αλυσίδες με το γραμμάριο, πωλήσεις από το τετράδιο, παλαιό μέταλλο, επισκευές…).",
+        "⚠️ Η ένδειξη «χωρίς εγγραφή πώλησης» δείχνει πλέον το σωστό κομμάτι όταν έχετε πουλήσει πολλά ίδια."
       ]},
       { version: 'v13.28', date: 'Σεπτέμβριος 2026', items: [
         "🧾 ΚΑΤΑΣΤΑΣΗ ΠΛΗΡΩΜΩΝ: κάθε φορά που ο πελάτης φέρνει άλλη δόση, καταγράψτε την πληρωμή και θα σας ρωτήσει αμέσως αν θέλετε να τυπώσετε ή να στείλετε μια απόδειξη — τι έχει πληρώσει μέχρι στιγμής και τι υπόλοιπο μένει.",
@@ -35442,9 +35518,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.29', date: 'Sep 2026', items: [
-        "💰 SOLD TOTALS: filter Stock to “Sold” (e.g. one vendor) and a bar above the list shows what those pieces brought in, what they cost you and the profit.",
-        "🤝 If any are on consignment, it also shows how much you still owe the vendor."
+      { version: 'v13.30', date: 'Oct 2026', items: [
+        "💰 WHY THE TOTALS DIFFER: when Stock shows all sold pieces, a line under the totals gives the Sales tab total and how much of it has no sold piece behind it — tap it to see what that is (chains by the gram, paper-book sales, scrap metal, repairs…).",
+        "⚠️ The “no sale record” warning now points at the right piece when you sold several identical ones."
       ]},
       { version: 'v13.28', date: 'Sep 2026', items: [
         "🧾 PAYMENT STATEMENT: every time the customer brings another instalment, record the payment and you're offered a print/share of a statement showing what they've paid so far and what's still owed.",
@@ -40872,7 +40948,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.29';
+const APP_VERSION = '13.30';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
