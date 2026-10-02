@@ -9370,6 +9370,7 @@ function openRepairDetail(id) {
     ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">${r.type === 'order' ? '📥 ' + (isEl ? 'Έφτασε' : 'Mark arrived') : '✓ ' + (isEl ? 'Έτοιμο' : 'Mark ready')}</button>` : ''}
     ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="${_ordLinkedInStock(r).length ? `_ordCompleteSale('${r.id}')` : `_repairCollectOpen('${r.id}')`}" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${_ordLinkedInStock(r).length ? (isEl ? 'Παραλαβή & πώληση' : 'Collect & sell') : (isEl ? 'Παραλαβή' : 'Collect')}</button>` : ''}
     ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
+    ${(r.status === 'cancelled' && can('desk_admin')) ? `<button onclick="_repairReactivate('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:transparent;border:1px solid var(--revive);color:var(--revive);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">↩️ ${isEl ? 'Επαναφορά δελτίου' : 'Reactivate ticket'}</button>` : ''}
     ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
   </div>`;
   document.body.appendChild(ov);
@@ -10019,6 +10020,8 @@ function _repairCancel(id) {
   if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Ακύρωση αυτού του δελτίου;' : 'Cancel this ticket?', () => {
     const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+    // Remember where it was, so a reactivation (_repairReactivate) puts it back exactly there.
+    r.statusBeforeCancel = r.status; r.dateCancelled = Date.now();
     r.status = 'cancelled'; saveRepairsLocal(list); pushRepairsToCloud(list);
     document.getElementById('repairDetailOverlay')?.remove();
     renderRepairs();
@@ -10027,6 +10030,52 @@ function _repairCancel(id) {
     if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
     showToast(lang === 'el' ? 'Ακυρώθηκε' : 'Cancelled');
   }, null, { danger: true });
+}
+// ── Reactivate a cancelled ticket (the customer came back) ─────────────────
+// Puts the ticket back in the state it was in when it was cancelled (stored as
+// statusBeforeCancel from v13.31); an older cancelled ticket goes back to a QUOTE if no
+// deposit was ever paid, else to in-progress. Nothing else changes — description,
+// price, deposit, photo, materials and the ticket number all stay. A quote then shows
+// its usual "Deposit paid → start order" button.
+//
+// The hold on its pieces is derived from the status, so it comes back by itself — but a
+// piece may have been sold or taken by another hold meanwhile. Those are NAMED, never
+// silently dropped (the same rule as reactivating a reservation, v12.91).
+// Owner/manager only: cancelling was their decision.
+function _repairReactivate(id) {
+  const isEl = lang === 'el';
+  if (!can('desk_admin')) { showToast(isEl ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
+  const r0 = getRepairs().find(x => x.id === id); if (!r0 || r0.status !== 'cancelled') return;
+  const prev = r0.statusBeforeCancel;
+  const target = (prev === 'quote' || prev === 'in_progress' || prev === 'ready') ? prev
+    : ((parseFloat(r0.deposit) || 0) > 0 || r0.type === 'repair') ? 'in_progress' : 'quote';
+  const tmp = Object.assign({}, r0, { status: target });
+  const _lbl = repStatusLabel(tmp);
+  showConfirm(
+    isEl ? `Επαναφορά του ${repNoFmt(r0)}; Θα επιστρέψει ως «${_lbl}».` : `Reactivate ${repNoFmt(r0)}? It goes back as "${_lbl}".`,
+    async () => {
+      if (target !== 'quote' && (!_inventoryCache || !Object.keys(_inventoryCache).length)) { try { await _invEnsureForScan(); } catch (e) {} }
+      // Which pieces can it still hold? Worked out BEFORE the status flips — _holdFor only
+      // looks at live tickets, so this one must not yet be one of them.
+      const gone = [];
+      if (target !== 'quote') {
+        for (const iid of _ordHeldIds(r0)) {
+          const it = (_inventoryCache || {})[iid];
+          if (!it || it.status !== 'in_stock' || _holdFor(iid)) gone.push(it && it.seqId ? itemRefCode(it) : ((it && it.qrCode) || iid));
+        }
+      }
+      const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
+      r.status = target; delete r.statusBeforeCancel; delete r.dateCancelled;
+      saveRepairsLocal(list); pushRepairsToCloud(list);
+      openRepairDetail(id);
+      renderRepairs();
+      if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+      if (!gone.length) { showToast(isEl ? '✓ Το δελτίο ενεργοποιήθηκε ξανά' : '✓ Ticket reactivated'); return; }
+      showConfirm(
+        isEl ? `Το δελτίο ενεργοποιήθηκε, ΑΛΛΑ αυτά τα κομμάτια δεν είναι πια διαθέσιμα (πουλήθηκαν ή κρατούνται αλλού): ${gone.join(', ')}. Ελέγξτε τα στο Απόθεμα.`
+             : `The ticket is active again, BUT these pieces are no longer available (sold or held elsewhere): ${gone.join(', ')}. Check them in Stock.`,
+        () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false });
+    }, null, { okLabel: isEl ? 'Επαναφορά' : 'Reactivate', danger: false });
 }
 function _repairDelete(id) {
   if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
@@ -35444,6 +35493,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.31', date: 'Οκτώβριος 2026', items: [
+        "↩️ ΕΠΑΝΑΦΟΡΑ ΑΚΥΡΩΜΕΝΟΥ ΔΕΛΤΙΟΥ: μια ακυρωμένη παραγγελία ή επισκευή έχει πλέον κουμπί «Επαναφορά δελτίου» — επιστρέφει όπως ήταν (π.χ. ως προσφορά, για να πατήσετε «Προκαταβολή → παραγγελία»), με τον ίδιο αριθμό και όλα τα στοιχεία."
+      ]},
       { version: 'v13.30', date: 'Οκτώβριος 2026', items: [
         "💰 ΓΙΑΤΙ ΔΙΑΦΕΡΟΥΝ ΤΑ ΣΥΝΟΛΑ: όταν βλέπετε όλα τα πουλημένα στο Απόθεμα, κάτω από τα σύνολα γράφει το σύνολο της καρτέλας Πωλήσεις και πόσα από αυτά δεν έχουν πουλημένο κομμάτι — πατήστε το για να δείτε τι είναι (αλυσίδες με το γραμμάριο, πωλήσεις από το τετράδιο, παλαιό μέταλλο, επισκευές…).",
         "⚠️ Η ένδειξη «χωρίς εγγραφή πώλησης» δείχνει πλέον το σωστό κομμάτι όταν έχετε πουλήσει πολλά ίδια."
@@ -35518,6 +35570,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.31', date: 'Oct 2026', items: [
+        "↩️ REACTIVATE A CANCELLED TICKET: a cancelled order or repair now has a “Reactivate ticket” button — it comes back as it was (e.g. as a quote, ready for “Deposit paid → start order”), with the same number and all its details."
+      ]},
       { version: 'v13.30', date: 'Oct 2026', items: [
         "💰 WHY THE TOTALS DIFFER: when Stock shows all sold pieces, a line under the totals gives the Sales tab total and how much of it has no sold piece behind it — tap it to see what that is (chains by the gram, paper-book sales, scrap metal, repairs…).",
         "⚠️ The “no sale record” warning now points at the right piece when you sold several identical ones."
@@ -40948,7 +41003,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.30';
+const APP_VERSION = '13.31';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
