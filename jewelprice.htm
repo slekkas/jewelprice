@@ -3688,7 +3688,6 @@ const T = {
     gcheckTotalWord:'σύνολο',
     gcheckPaidLbl:'Πληρώνετε',
     gcheckPaidVs:'υπολογισμένο {amt}',
-    gcheckMixedHold:'Διαφορετικά καράτια δεν μπαίνουν μαζί στην πώληση. Αγοράστε τα με «Πληρωμή» παρακάτω και καταγράψτε την πώληση ως μετρητά — ίδια χρήματα, σε δύο βήματα.',
     gcheckPayAskMulti:'Πληρώνετε {amt} για: {list}; Κάθε καράτι μπαίνει στο δικό του απόθεμα μετάλλου και το κέρδος στις σημερινές πωλήσεις.',
     tiCreditLbl:'Για τον χρυσό',
     tiNeedWeight:'Συμπληρώστε καράτια & βάρος',
@@ -4299,7 +4298,6 @@ const T = {
     gcheckTotalWord:'total',
     gcheckPaidLbl:'You pay',
     gcheckPaidVs:'calculated {amt}',
-    gcheckMixedHold:'Different karats cannot go into one sale together. Buy them with Pay below and record the sale as cash — the same money, in two steps.',
     gcheckPayAskMulti:'Pay {amt} for: {list}? Each karat goes into its own metal stock and the gain into today\'s sales.',
     tiCreditLbl:'For the gold',
     tiNeedWeight:'Enter karat & weight',
@@ -9373,7 +9371,7 @@ function openRepairDetail(id) {
       ${r.deposit ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Προκαταβολή' : 'Deposit'}</span><span style="color:var(--profit)">${cur}${(parseFloat(r.deposit) || 0).toFixed(2)}</span></div>` : ''}
       ${r.datePromised ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Έτοιμο έως' : 'Ready by'}</span><span style="color:var(--text)">${fmtDate(r.datePromised)}</span></div>` : ''}
       ${r.finalPrice != null ? `<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin:5px 0"><span style="color:var(--text)">${isEl ? 'Τελική τιμή' : 'Final price'}</span><span style="color:var(--gold-light)">${cur}${(parseFloat(r.finalPrice) || 0).toFixed(2)} ${r.cashSale ? '💵' : '🧾'}</span></div>` : ''}
-      ${parseFloat(r.tradeInAmt) > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">🧱 ${t('tiRowLbl')}</span><span style="color:var(--text)">−${cur}${(parseFloat(r.tradeInAmt) || 0).toFixed(2)}${(parseFloat(r.tradeInGrams) > 0 ? ` · ${(parseFloat(r.tradeInGrams)).toFixed(2)}g ${metalStockLabel({ metal: r.tradeInMetal || 'gold', karat: r.tradeInKarat })}` : '')}</span></div>` : ''}
+      ${parseFloat(r.tradeInAmt) > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">🧱 ${t('tiRowLbl')}</span><span style="color:var(--text)">−${cur}${(parseFloat(r.tradeInAmt) || 0).toFixed(2)}${(parseFloat(r.tradeInGrams) > 0 ? ` · ${_tiMetalLabel(r)}` : '')}</span></div>` : ''}
       ${r.finalCost != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κόστος' : 'Cost'}</span><span style="color:var(--text)">${cur}${(parseFloat(r.finalCost) || 0).toFixed(2)}</span></div>` : ''}
       ${(r.finalPrice != null && can('see_cost')) ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${isEl ? 'Κέρδος' : 'Profit'}</span><span style="color:var(--profit)">${cur}${(_saleExVatRaw({ amount: parseFloat(r.finalPrice) || 0, cashSale: r.cashSale, tradeInAmt: parseFloat(r.tradeInAmt) || 0 }, parseFloat(state.vat) || 0) - (parseFloat(r.finalCost) || 0)).toFixed(2)}</span></div>` : ''}
     </div>
@@ -9890,15 +9888,12 @@ async function _repairCollectConfirm(id) {
   const _tiTotal = _tiFields
     ? Math.min(_tiFields.tradeInAmt, Math.max(0, parseFloat((price - _rgUse).toFixed(2))))
     : 0;
-  let _tiLotId = null, _tiGain = 0, _tiGainId = null, _tiStockFailed = false;
+  let _tiLotId = null, _tiGain = 0, _tiGainId = null, _tiStockFailed = false, _tiStock = null;
   if (_tiTotal > 0) {
-    const _tiRes = await _metalAddToLot({
-      metal: _tiFields.tradeInMetal, karat: _tiFields.tradeInKarat,
-      fineness: (METAL_STOCK_KARATS[_tiFields.tradeInMetal] || []).find(x => x.k === _tiFields.tradeInKarat)?.f || 0,
-      weight: _tiFields.tradeInGrams, pure: _tiFields.tradeInPure
-    }, _tiTotal, t('tiScrapNote'), { kind: 'trade' });
-    if (_tiRes.ok) { _tiLotId = _tiRes.lotId; _tiGain = _tiRes.gain; _tiGainId = _tiRes.gainRecId; }
-    else _tiStockFailed = true;
+    _tiStock = await _tiStockIn(_tiFields, _tiTotal);
+    _tiLotId = _tiStock.lotId; _tiGain = _tiStock.gain; _tiGainId = _tiStock.gainId;
+    _tiStockFailed = _tiStock.stockFailed;
+    if (_tiStock.multi) r.tradeInParts = _tiStock.parts.map(x => ({ metal: x.metal, karat: x.karat, grams: x.grams }));
     // Kept on the ticket too, so a collected job says how it was actually paid.
     r.tradeInAmt = parseFloat(_tiTotal.toFixed(2));
     r.tradeInGrams = _tiFields.tradeInGrams;
@@ -9929,6 +9924,7 @@ async function _repairCollectConfirm(id) {
         if (_tiGain > 0) _incOpts.tradeInGain = _tiGain;
         if (_tiGainId) _incOpts.tradeInGainId = _tiGainId;
         if (_tiStockFailed) _incOpts.tradeInNoStock = true;
+        if (_tiStock && _tiStock.multi) _incOpts.tradeInParts = _tiStock.parts;
       }
       const _inc = await _recordRepairIncome(price, cost, cashSale, note,
         Object.keys(_incOpts).length ? _incOpts : undefined);
@@ -9946,8 +9942,9 @@ async function _repairCollectConfirm(id) {
   if (_tiTotal > 0) {
     const _tg = (parseFloat(_tiFields.tradeInGrams) || 0).toFixed(2);
     const _tm = metalStockLabel({ metal: _tiFields.tradeInMetal, karat: _tiFields.tradeInKarat });
-    if (_tiStockFailed) {
-      showToast(t('tiAddFail').replace('{g}', _tg).replace('{m}', _tm));
+    if (_tiStock && _tiStock.failed.length) {
+      // Name exactly the karats that did not reach stock (all of them, or some).
+      showToast(t('tiAddFail').replace('{g}g {m}', _tiMetalLabel({ tradeInParts: _tiStock.failed })));
     } else {
       const _cur = state.currency || '€';
       showToast(t('tiAddedToast').replace('{g}', _tg)
@@ -10023,6 +10020,7 @@ async function _recordRepairIncome(amount, cost, cashSale, note, giftOpts) {
     if (parseFloat(_go.tradeInGain) > 0) rec.tradeInGain = parseFloat(parseFloat(_go.tradeInGain).toFixed(2));
     if (_go.tradeInGainId) rec.tradeInGainId = _go.tradeInGainId;
     if (_go.tradeInNoStock) rec.tradeInNoStock = true;
+    if (Array.isArray(_go.tradeInParts) && _go.tradeInParts.length > 1) rec.tradeInParts = _go.tradeInParts;
   }
   sales.push(rec);
   _salesCache = sales;
@@ -13701,7 +13699,7 @@ function _tradeInDesc(s, cur) {
   const isEl = lang === 'el';
   const bits = [];
   const g = parseFloat(s.tradeInGrams) || 0;
-  if (g > 0) bits.push(g.toFixed(2) + 'g ' + metalStockLabel({ metal: s.tradeInMetal || 'gold', karat: s.tradeInKarat }));
+  if (g > 0) bits.push(_tiMetalLabel(s));
   const melt = parseFloat(s.tradeInMelt) || 0;
   const pct = parseFloat(s.tradeInDeductPct);
   if (melt > 0) bits.push((isEl ? 'αξία ' : 'value ') + c + melt.toFixed(2) + (pct > 0 ? ' −' + _fmtRate(pct) + '%' : ''));
@@ -14203,6 +14201,7 @@ async function addSaleRecord(amount, note, date, vendor, bonusAmt, bonusPct, inv
     if (parseFloat(_o.tradeInGain) > 0) rec.tradeInGain = parseFloat(parseFloat(_o.tradeInGain).toFixed(2));
     if (_o.tradeInGainId) rec.tradeInGainId = _o.tradeInGainId;
     if (_o.tradeInNoStock) rec.tradeInNoStock = true;
+    if (Array.isArray(_o.tradeInParts) && _o.tradeInParts.length > 1) rec.tradeInParts = _o.tradeInParts;
   }
   sales.push(rec);
   _salesCache = sales;
@@ -14291,6 +14290,33 @@ async function deleteSaleRecord(id) {
 async function _tradeInReverseForSale(target) {
   const ti = _saleTradeIn(target);
   if (!(ti > 0)) return;
+  // Mixed gold (v13.33): every karat went into its OWN pile with its own share of
+  // the credit and its own gain record, so each is taken back out of exactly the
+  // pile it went into, at exactly the cost it went in at.
+  const _parts = _tiPartsOf(target);
+  if (_parts) {
+    if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
+      _inventoryCache = await loadInventory();
+    }
+    const done = [], failed = [];
+    for (const x of _parts) {
+      const g = parseFloat(x.grams) || 0;
+      if (x.noStock || !(g > 0)) continue;   // never reached stock: nothing to take back
+      const amt = parseFloat(x.amt) || 0;
+      const res = await _metalRemoveFromLot(x.metal || 'gold', String(x.karat || ''), g,
+        parseFloat(x.pure) || 0, x.lotId,
+        { cost: amt, melt: parseFloat(x.melt) || 0 },
+        { kind: 'undo', amt });
+      (res.ok ? done : failed).push(x);
+    }
+    if (done.length) showToast(t('tiRevDone').replace('{g}g', _tiMetalLabel({ tradeInParts: done })));
+    if (failed.length) showToast(t('tiRevFail').replace('{g}g {m}', _tiMetalLabel({ tradeInParts: failed })));
+    try { renderInvList(); } catch (e) {}
+    for (const x of _parts) {
+      if (x.gainId) { try { await deleteSaleRecord(x.gainId); } catch (e) {} }
+    }
+    return;
+  }
   const grams = parseFloat(target.tradeInGrams) || 0;
   const metal = target.tradeInMetal || 'gold';
   const karat = target.tradeInKarat || '';
@@ -14530,6 +14556,9 @@ async function processReturn(origId, opts) {
           'tradeInMelt','tradeInDeductPct','tradeInLotId','tradeInGain','tradeInGainId',
           'tradeInNoStock'].forEach(k => delete rec[k]); }
   delete rec.tradeInLotId; delete rec.tradeInGainId;
+  // The per-karat lot links belong to the purchase, never to its reversal — left
+  // on the return record, a delete of it could try to pull the gold out twice.
+  delete rec.tradeInParts;
 
   // ── Money still owed on the sale being returned ──
   // The piece comes back before it was ever paid for, so there is nothing to
@@ -14610,7 +14639,9 @@ async function processReturn(origId, opts) {
   const tradeInBack = _tiPart > 0 ? {
     amt: _tiPart,
     grams: parseFloat((( parseFloat(orig.tradeInGrams) || 0) * r).toFixed(2)),
-    metal: orig.tradeInMetal || 'gold', karat: orig.tradeInKarat || ''
+    metal: orig.tradeInMetal || 'gold', karat: orig.tradeInKarat || '',
+    // Every karat, scaled to the refund — "7.99g 22K + 3.01g 14K" for mixed gold.
+    label: (parseFloat(orig.tradeInGrams) || 0) > 0 ? _tiMetalLabel(orig, r) : ''
   } : null;
   return { rec, card, creditAmt, tradeInBack, synced: _sent,
            giftForced: (rec.refundMethod !== 'credit' && giftPart > 0) };
@@ -14660,6 +14691,7 @@ async function processReturnGroup(groupId, opts) {
             tradeInBack.grams = r.tradeInBack.grams;
             tradeInBack.metal = r.tradeInBack.metal;
             tradeInBack.karat = r.tradeInBack.karat;
+            tradeInBack.label = r.tradeInBack.label;
           }
         }
       }
@@ -15486,8 +15518,9 @@ async function _returnDlgConfirm() {
   if (res.tradeInBack) {
     const _tb = res.tradeInBack;
     await new Promise(done => showConfirm(
-      t('tiRetNote').replace('{g}', (_tb.grams || 0).toFixed(2))
-        .replace('{m}', metalStockLabel({ metal: _tb.metal, karat: _tb.karat })),
+      (_tb.label ? t('tiRetNote').replace('{g}g {m}', _tb.label)
+        : t('tiRetNote').replace('{g}', (_tb.grams || 0).toFixed(2))
+          .replace('{m}', metalStockLabel({ metal: _tb.metal, karat: _tb.karat }))),
       done, done, { okLabel: isEl ? 'Εντάξει' : 'OK', hideCancel: true }));
   }
   if (res.card) _returnCreditSheet(res.card);
@@ -15852,8 +15885,78 @@ function _tiKaratOptions(sel) {
   return grp('gold', isEl ? 'Χρυσός' : 'Gold') + grp('silver', isEl ? 'Ασήμι' : 'Silver');
 }
 
+// MIXED GOLD (v13.33). A customer often brings more than one karat at once — a
+// 22K sovereign set in a 14K ring. Each karat goes into its OWN metal pile, so the
+// control can hold a list of parts instead of the one karat + weight it is typed
+// with. Filled from the Calc gold check (which is where several pieces are
+// weighed) or from a saved record being edited; shown read-only, because the
+// parts are what went into the safe and an edit does not move metal.
+const _tiPartsMap = {};
+
+function _tiPartsPreset(pt) {
+  return (METAL_STOCK_KARATS[pt.metal] || []).find(x => x.k === String(pt.karat));
+}
+
+function _tiSetParts(p, parts) {
+  const list = (Array.isArray(parts) ? parts : []).map(pt => ({
+    metal: pt.metal || 'gold', karat: String(pt.karat || ''),
+    grams: _gRound(parseFloat(pt.grams) || 0), pure: _gRound(parseFloat(pt.pure) || 0)
+  })).filter(pt => pt.grams > 0);
+  _tiPartsMap[p] = list.length > 1 ? list : null;
+  const row = document.getElementById(p + 'TiRow');
+  const box = document.getElementById(p + 'TiParts');
+  if (!_tiPartsMap[p]) {
+    if (row) row.style.display = 'flex';
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+    // A single part is just the ordinary control.
+    if (list.length === 1) {
+      const sel = document.getElementById(p + 'TiKarat');
+      if (sel) sel.innerHTML = _tiKaratOptions(list[0].metal + ':' + list[0].karat);
+      const w = document.getElementById(p + 'TiWeight'); if (w) w.value = list[0].grams;
+    }
+    return;
+  }
+  if (row) row.style.display = 'none';
+  if (box) {
+    box.style.display = '';
+    box.innerHTML = _tiPartsMap[p].map(pt =>
+      `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(201,168,76,0.15)">
+        <span style="color:var(--text)">${metalStockLabel({ metal: pt.metal, karat: pt.karat })}</span>
+        <span style="color:var(--text);font-family:var(--font-mono)">${pt.grams.toFixed(2)}g</span>
+      </div>`).join('');
+  }
+}
+
+// The parts as they stand, each valued at today's spot. Null for one karat.
+function _tiPartsValued(p) {
+  const parts = _tiPartsMap[p];
+  if (!parts) return null;
+  return parts.map(pt => {
+    const preset = _tiPartsPreset(pt);
+    const pure = pt.pure > 0 ? pt.pure : _gRound(pt.grams * (preset ? preset.f : 0));
+    const spot = pt.metal === 'silver' ? getSilverPrice() : getGoldPrice();
+    const melt = spot ? parseFloat(((spot / TROY_OZ_TO_GRAM) * pure).toFixed(2)) : null;
+    return { metal: pt.metal, karat: pt.karat, fineness: preset ? preset.f : 0, grams: pt.grams, pure, melt };
+  });
+}
+
 // The form as a valuation, or null while it is still incomplete.
 function _tiSpec(p) {
+  const _parts = _tiPartsValued(p);
+  if (_parts) {
+    let pctM = parseFloat(document.getElementById(p + 'TiPct')?.value);
+    if (!isFinite(pctM) || pctM < 0) pctM = 0;
+    if (pctM > 100) pctM = 100;
+    const meltKnown = _parts.every(x => x.melt != null);
+    const melt = meltKnown ? parseFloat(_parts.reduce((a, x) => a + x.melt, 0).toFixed(2)) : null;
+    return {
+      metal: _parts[0].metal, karat: _parts[0].karat, fineness: _parts[0].fineness,
+      grams: _gRound(_parts.reduce((a, x) => a + x.grams, 0)),
+      pure: _gRound(_parts.reduce((a, x) => a + x.pure, 0)),
+      melt, pct: pctM, parts: _parts,
+      suggested: melt != null ? parseFloat((melt * (1 - pctM / 100)).toFixed(2)) : null
+    };
+  }
   const kv = document.getElementById(p + 'TiKarat')?.value || '';
   const ix = kv.indexOf(':');
   if (ix < 0) return null;
@@ -15891,7 +15994,8 @@ function _tiHtml(p) {
         <span style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase">🧱 <span data-i18n="tiBtn">${t('tiBtn')}</span></span>
         <button type="button" id="${p}TiX" onclick="_tiClear('${p}')" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div id="${p}TiParts" style="display:none;margin-bottom:8px"></div>
+      <div id="${p}TiRow" style="display:flex;gap:8px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           <label style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:3px" data-i18n="tiKaratLbl">${t('tiKaratLbl')}</label>
           <select id="${p}TiKarat" onchange="_tiRevalue('${p}')" style="width:100%;${fld};font-size:13px"></select>
@@ -15935,7 +16039,7 @@ function _tiHtml(p) {
 
 function _tiMount(p, wrapId) {
   const w = document.getElementById(wrapId);
-  if (w && !w.dataset.mounted) { w.innerHTML = _tiHtml(p); w.dataset.mounted = '1'; }
+  if (w && !w.dataset.mounted) { w.innerHTML = _tiHtml(p); w.dataset.mounted = '1'; _tiPartsMap[p] = null; }
 }
 
 // A new valuation supersedes a hand-typed credit: that figure was agreed for a
@@ -15966,6 +16070,8 @@ function _tiClear(p) {
     const el = document.getElementById(p + f);
     if (el) { el.value = ''; delete el.dataset.manual; }
   });
+  // A list of karats left behind would silently ride into the next sale.
+  _tiSetParts(p, null);
   // The money side has just grown by the value of the gold that was removed.
   _splitSync(p); _owedSync(p); _tiRefreshGift(p);
 }
@@ -16029,10 +16135,71 @@ function _tiRecordFields(p) {
   if (!(credit > 0)) return null;
   const spec = _tiSpec(p);
   if (!spec) return null;
-  return {
+  const f = {
     tradeInAmt: credit, tradeInGrams: spec.grams, tradeInPure: spec.pure,
     tradeInMetal: spec.metal, tradeInKarat: spec.karat,
     tradeInMelt: spec.melt != null ? spec.melt : 0, tradeInDeductPct: spec.pct
+  };
+  // Mixed gold carries each karat separately, so each can go into its own pile
+  // and come back out of it. Absent for one karat, so such a record is
+  // byte-identical to before.
+  if (spec.parts) f.tradeInParts = spec.parts.map(x => ({
+    metal: x.metal, karat: x.karat, grams: x.grams, pure: x.pure, melt: x.melt != null ? x.melt : 0
+  }));
+  return f;
+}
+
+// The parts a saved record carries, or null for a single karat.
+function _tiPartsOf(s) {
+  return (s && Array.isArray(s.tradeInParts) && s.tradeInParts.length) ? s.tradeInParts : null;
+}
+
+// "7.99g Χρυσός 22K + 3.01g Χρυσός 14K" — what came over the counter, by karat.
+// `scale` shrinks it for a partial return.
+function _tiMetalLabel(s, scale) {
+  const sc = scale == null ? 1 : scale;
+  const parts = _tiPartsOf(s);
+  const one = (g, metal, karat) => ((parseFloat(g) || 0) * sc).toFixed(2) + 'g ' + metalStockLabel({ metal: metal || 'gold', karat });
+  if (parts) return parts.map(x => one(x.grams, x.metal, x.karat)).join(' + ');
+  return one(s.tradeInGrams, s.tradeInMetal, s.tradeInKarat);
+}
+
+// Put the customer's metal into stock — one pile per karat — and book the gain
+// on each. The credit is split across the karats in proportion to their metal
+// value (the same rule as the Calc gold check), so each pile carries its true
+// cost. Returns what the record needs in order to undo it later.
+async function _tiStockIn(f, total) {
+  const multi = Array.isArray(f.tradeInParts) && f.tradeInParts.length > 1;
+  const parts = multi ? f.tradeInParts : [{
+    metal: f.tradeInMetal, karat: f.tradeInKarat, grams: f.tradeInGrams,
+    pure: f.tradeInPure, melt: f.tradeInMelt
+  }];
+  const shares = _gcheckShares(parts.map(x => ({ melt: parseFloat(x.melt) || 0 })), total);
+  const out = [];
+  for (let i = 0; i < parts.length; i++) {
+    const x = parts[i];
+    const fin = (METAL_STOCK_KARATS[x.metal] || []).find(k => k.k === String(x.karat))?.f || 0;
+    const res = await _metalAddToLot({
+      metal: x.metal, karat: String(x.karat), fineness: fin,
+      weight: parseFloat(x.grams) || 0, pure: parseFloat(x.pure) || 0
+    }, shares[i], t('tiScrapNote'), { kind: 'trade' });
+    const o = { metal: x.metal, karat: String(x.karat), grams: parseFloat(x.grams) || 0,
+                pure: parseFloat(x.pure) || 0, melt: parseFloat(x.melt) || 0, amt: shares[i] };
+    if (res.ok) {
+      if (res.lotId) o.lotId = res.lotId;
+      if (res.gainRecId) o.gainId = res.gainRecId;
+      if (res.gain > 0) o.gain = res.gain;
+    } else o.noStock = true;
+    out.push(o);
+  }
+  const gain = parseFloat(out.reduce((a, x) => a + (x.gain || 0), 0).toFixed(2));
+  return {
+    multi, parts: out, gain,
+    // Single karat: exactly the fields a record has always carried.
+    lotId: multi ? null : (out[0].lotId || null),
+    gainId: multi ? null : (out[0].gainId || null),
+    stockFailed: out.every(x => x.noStock),
+    failed: out.filter(x => x.noStock)
   };
 }
 
@@ -16045,6 +16212,8 @@ function _tiSet(p, s) {
   if (sel && s.tradeInKarat) sel.innerHTML = _tiKaratOptions((s.tradeInMetal || 'gold') + ':' + s.tradeInKarat);
   const w = document.getElementById(p + 'TiWeight');
   if (w) w.value = (parseFloat(s.tradeInGrams) || 0) ? parseFloat(s.tradeInGrams) : '';
+  // Mixed gold reopens as its list of karats (or the plain control otherwise).
+  _tiSetParts(p, _tiPartsOf(s));
   const pct = document.getElementById(p + 'TiPct');
   if (pct) pct.value = _fmtRate(parseFloat(s.tradeInDeductPct) || 0);
   const c = document.getElementById(p + 'TiCredit');
@@ -16279,11 +16448,8 @@ function _gcheckSync() {
     if (note) note.textContent = t('tiNeedWeight');
     return;
   }
-  // The sale's trade-in control carries ONE metal and karat, so an exchange can
-  // be held only when the lot is a single karat. Mixed gold is still quoted for
-  // exchange; it is settled by buying it for cash and recording the sale as paid
-  // in cash — the same money, in two steps.
-  const canHold = st.groups.length === 1;
+  // Mixed gold is held too (v13.33): the sale stores each karat separately and
+  // puts each into its own pile.
   const totalLbl = multi ? ' · ' + t('gcheckTotalWord') : '';
   const exRow = `
     <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px 13px;margin-bottom:9px">
@@ -16291,9 +16457,7 @@ function _gcheckSync() {
         <span style="font-size:12px;color:var(--text-muted)">🔄 ${t('gcheckExchange')}${totalLbl}</span>
         <span style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--gold-light)">${cur}${st.exchange.toFixed(2)}</span>
       </div>
-      ${canHold
-        ? `<button onclick="_gcheckArm()" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${t('gcheckHold')}</button>`
-        : `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5">${t('gcheckMixedHold')}</div>`}
+      <button onclick="_gcheckArm()" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${t('gcheckHold')}</button>
     </div>`;
   const canPay = can('manage_stock');
   const prevPaid = document.getElementById('gcheckPaid');
@@ -16326,12 +16490,16 @@ function _gcheckSync() {
 // customer is still choosing, and may well choose nothing.
 function _gcheckArm() {
   const st = _gcheckState();
-  if (st.incomplete > 0 || st.groups.length !== 1) return;
-  const spec = st.groups[0];
-  _goldCheckPending = { spec, credit: spec.exchange, ts: Date.now() };
+  if (st.incomplete > 0 || !st.groups.length) return;
+  // One karat holds exactly as before; mixed gold (v13.33) holds every karat, each
+  // of which goes into its own pile when the sale is recorded.
+  const spec = st.groups.length === 1 ? st.groups[0]
+    : { parts: st.groups.map(g => ({ metal: g.metal, karat: g.karat, grams: g.grams, pure: g.pure })),
+        exPct: st.groups[0].exPct, exchange: st.exchange };
+  _goldCheckPending = { spec, credit: st.exchange, ts: Date.now() };
   document.getElementById('gcheckOverlay')?.remove();
   const cur = state.currency || '€';
-  showToast('🧱 ' + cur + spec.exchange.toFixed(2) + ' — ' + t('gcheckArmed'));
+  showToast('🧱 ' + cur + st.exchange.toFixed(2) + ' — ' + t('gcheckArmed'));
 }
 
 // Picked up by the ONE funnel every sale-modal opener goes through, exactly like
@@ -16347,9 +16515,14 @@ function _consumePendingGoldCheck() {
   // has none, so it clamped to zero and the hand-off silently did nothing.
   try {
     _tiOpen('sale', true);
-    const k = document.getElementById('saleTiKarat');
-    if (k) k.innerHTML = _tiKaratOptions(spec.metal + ':' + spec.karat);
-    const w = document.getElementById('saleTiWeight'); if (w) w.value = spec.grams;
+    if (spec.parts) {
+      _tiSetParts('sale', spec.parts);
+    } else {
+      _tiSetParts('sale', null);
+      const k = document.getElementById('saleTiKarat');
+      if (k) k.innerHTML = _tiKaratOptions(spec.metal + ':' + spec.karat);
+      const w = document.getElementById('saleTiWeight'); if (w) w.value = spec.grams;
+    }
     const p = document.getElementById('saleTiPct'); if (p) p.value = _fmtRate(spec.exPct);
     const c = document.getElementById('saleTiCredit');
     // Marked as hand-typed: this figure was agreed with the customer at the
@@ -19119,6 +19292,7 @@ async function _confirmSaleInner() {
   // Filled in below, once the metal has actually reached stock, so every record
   // of the transaction can point at the lot it went into.
   let _tiLotId = null, _tiGain = 0, _tiGainId = null, _tiLotDone = false, _tiStockFailed = false;
+  let _tiStock = null;   // the full result, incl. one entry per karat for mixed gold
   const _gcOpts = v => {
     const o = _gcUsable > 0
       ? { giftAmt: _gcShare(v), giftWasCash: _gcWasCash, giftCardId: _gcCard.id, giftCardNo: _gcCard.cardNo }
@@ -19150,6 +19324,9 @@ async function _confirmSaleInner() {
         // for a lot to take grams out of — it would find the pile of that karat
         // and wrongly shrink metal this sale never put there.
         if (_tiStockFailed) o.tradeInNoStock = true;
+        // Mixed gold: each karat with the pile it went into and the gain it
+        // booked, so a delete can take every one back out of the right pile.
+        if (_tiStock && _tiStock.multi) o.tradeInParts = _tiStock.parts;
       }
     }
     return Object.keys(o).length ? o : undefined;
@@ -19175,13 +19352,9 @@ async function _confirmSaleInner() {
   // lot id and the owner is told plainly to add the metal by hand. Aborting a
   // paid-for sale because a stock write failed would be the worse mistake.
   if (_tiTotal > 0 && _tiFields) {
-    const _tiRes = await _metalAddToLot({
-      metal: _tiFields.tradeInMetal, karat: _tiFields.tradeInKarat,
-      fineness: (METAL_STOCK_KARATS[_tiFields.tradeInMetal] || []).find(x => x.k === _tiFields.tradeInKarat)?.f || 0,
-      weight: _tiFields.tradeInGrams, pure: _tiFields.tradeInPure
-    }, _tiTotal, t('tiScrapNote'), { kind: 'trade' });
-    if (_tiRes.ok) { _tiLotId = _tiRes.lotId; _tiGain = _tiRes.gain; _tiGainId = _tiRes.gainRecId; }
-    else _tiStockFailed = true;
+    _tiStock = await _tiStockIn(_tiFields, _tiTotal);
+    _tiLotId = _tiStock.lotId; _tiGain = _tiStock.gain; _tiGainId = _tiStock.gainId;
+    _tiStockFailed = _tiStock.stockFailed;
   }
   // Bulk chain: always use the sold-portion cost (never the whole-batch cost derived above)
   if (_firstBulkInfo) _saleCost = _firstBulkInfo.cost;
@@ -19428,9 +19601,9 @@ async function _confirmSaleInner() {
   // failure is how metal quietly goes missing from the safe.
   if (_tiTotal > 0 && _tiFields) {
     const _tg = (parseFloat(_tiFields.tradeInGrams) || 0).toFixed(2);
-    if (_tiStockFailed) {
-      showToast(t('tiAddFail').replace('{g}', _tg)
-        .replace('{m}', metalStockLabel({ metal: _tiFields.tradeInMetal, karat: _tiFields.tradeInKarat })));
+    if (_tiStock && _tiStock.failed.length) {
+      // Name exactly the karats that did not reach stock (all of them, or some).
+      showToast(t('tiAddFail').replace('{g}g {m}', _tiMetalLabel({ tradeInParts: _tiStock.failed })));
     } else {
       const _cur = state.currency || '€';
       showToast(t('tiAddedToast').replace('{g}', _tg)
@@ -35708,6 +35881,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.33', date: 'Οκτώβριος 2026', items: [
+        "🧱 ΑΝΤΑΛΛΑΓΗ ΜΕ ΔΙΑΦΟΡΕΤΙΚΑ ΚΑΡΑΤΙΑ: ο «Χρυσός πελάτη» με πολλά κομμάτια (π.χ. 22K νόμισμα + 14K δαχτυλίδι) μπαίνει πλέον με «Κράτησέ το για την πώληση» σε μία πώληση. Κάθε καράτι πηγαίνει στο δικό του απόθεμα μετάλλου με το δικό του κόστος και κέρδος, και αν διαγράψετε την πώληση, κάθε καράτι αφαιρείται από το σωστό απόθεμα."
+      ]},
       { version: 'v13.32', date: 'Οκτώβριος 2026', items: [
         "🧱 ΧΡΥΣΟΣ ΠΕΛΑΤΗ — ΠΟΛΛΑ ΚΟΜΜΑΤΙΑ ΜΑΖΙ: με «＋ Άλλο κομμάτι» προσθέτετε όσα καράτια φέρει ο πελάτης (π.χ. 22K νόμισμα + 14K δαχτυλίδι). Κάθε κομμάτι δείχνει τη δική του αξία, ανταλλαγή και μετρητά, και από κάτω βλέπετε το σύνολο. Στα μετρητά μπορείτε να γράψετε το ποσό που συμφωνήσατε (π.χ. €500 για όλα) — μοιράζεται αυτόματα σε κάθε καράτι και το καθένα μπαίνει στο δικό του απόθεμα μετάλλου."
       ]},
@@ -35788,6 +35964,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.33', date: 'Oct 2026', items: [
+        "🧱 EXCHANGE WITH MIXED KARATS: “Customer's gold” with several pieces (e.g. a 22K coin + a 14K ring) can now be held for the sale with “Hold it for the sale” and taken in ONE sale. Each karat goes into its own metal stock with its own cost and gain, and if you delete the sale, each karat comes back out of the right pile."
+      ]},
       { version: 'v13.32', date: 'Oct 2026', items: [
         "🧱 CUSTOMER'S GOLD — SEVERAL PIECES AT ONCE: “＋ Another piece” adds as many karats as the customer brings (e.g. a 22K coin + a 14K ring). Each piece shows its own value, exchange and cash price, with the totals below. For cash you can type the amount you agreed (e.g. €500 for the lot) — it is split across the karats automatically and each goes into its own metal stock."
       ]},
@@ -41224,7 +41403,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.32';
+const APP_VERSION = '13.33';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
