@@ -3681,6 +3681,15 @@ const T = {
     gcheckPayAsk:'Πληρώνετε {amt} για {g}g {m}; Ο χρυσός μπαίνει στο απόθεμα μετάλλου και το κέρδος στις σημερινές πωλήσεις.',
     gcheckPayOk:'Πληρωμή',
     gcheckCashNote:'Αγορά χρυσού από πελάτη',
+    gcheckAddLine:'Άλλο κομμάτι',
+    gcheckRemoveLine:'Αφαίρεση',
+    gcheckPureWord:'καθαρό',
+    gcheckTotalMelt:'Συνολική αξία μετάλλου',
+    gcheckTotalWord:'σύνολο',
+    gcheckPaidLbl:'Πληρώνετε',
+    gcheckPaidVs:'υπολογισμένο {amt}',
+    gcheckMixedHold:'Διαφορετικά καράτια δεν μπαίνουν μαζί στην πώληση. Αγοράστε τα με «Πληρωμή» παρακάτω και καταγράψτε την πώληση ως μετρητά — ίδια χρήματα, σε δύο βήματα.',
+    gcheckPayAskMulti:'Πληρώνετε {amt} για: {list}; Κάθε καράτι μπαίνει στο δικό του απόθεμα μετάλλου και το κέρδος στις σημερινές πωλήσεις.',
     tiCreditLbl:'Για τον χρυσό',
     tiNeedWeight:'Συμπληρώστε καράτια & βάρος',
     tiTooMuch:'Ο χρυσός αξίζει περισσότερο από την πώληση, οπότε η πίστωση περιορίστηκε στο ποσό της πώλησης. Σωστό, αν ο πελάτης το δέχεται — η διαφορά μένει ως κέρδος στο μέταλλο. Αν πρέπει να του δώσετε ρέστα, καταχωρίστε τον χρυσό με το «🧱 Προσθήκη μετάλλου».',
@@ -4283,6 +4292,15 @@ const T = {
     gcheckPayAsk:'Pay {amt} for {g}g {m}? The gold goes into your metal stock and the gain into today\'s sales.',
     gcheckPayOk:'Pay',
     gcheckCashNote:'Gold bought from a customer',
+    gcheckAddLine:'Another piece',
+    gcheckRemoveLine:'Remove',
+    gcheckPureWord:'pure',
+    gcheckTotalMelt:'Total metal value',
+    gcheckTotalWord:'total',
+    gcheckPaidLbl:'You pay',
+    gcheckPaidVs:'calculated {amt}',
+    gcheckMixedHold:'Different karats cannot go into one sale together. Buy them with Pay below and record the sale as cash — the same money, in two steps.',
+    gcheckPayAskMulti:'Pay {amt} for: {list}? Each karat goes into its own metal stock and the gain into today\'s sales.',
     tiCreditLbl:'For the gold',
     tiNeedWeight:'Enter karat & weight',
     tiTooMuch:'The gold is worth more than the sale, so the credit was capped at the sale amount. That is right if the customer accepts it — the difference stays as gain on the metal. If you need to give them change back, record the gold with "🧱 Add Metal" instead.',
@@ -16050,13 +16068,22 @@ function _tiSet(p, s) {
 //     path as the Add Metal button, gain and all.
 let _goldCheckPending = null;   // { spec, credit, ts } armed for the next sale
 
-function _gcheckSpec() {
-  const kv = document.getElementById('gcheckKarat')?.value || '';
-  const ix = kv.indexOf(':');
+// SEVERAL PIECES AT ONCE (v13.32). A customer rarely brings one karat: a sovereign
+// set in a 14K ring is 22K + 14K in one hand, and "5g of 14K, 5g of 18K, 5g of
+// 22K" is an ordinary walk-in. Each line is valued on its own and the sheet sums
+// them, so the customer hears one exchange figure and one cash figure for the lot.
+// Lines live in memory only — a quote must be able to end in "no thanks" with
+// nothing written anywhere.
+let _gcheckLines = [];
+let _gcheckSeq = 0;
+
+// One line as a valuation, or null while it is still incomplete.
+function _gcheckLineSpec(kv, gramsRaw) {
+  const ix = (kv || '').indexOf(':');
   if (ix < 0) return null;
   const metal = kv.slice(0, ix), karat = kv.slice(ix + 1);
   const preset = (METAL_STOCK_KARATS[metal] || []).find(x => x.k === karat);
-  const grams = parseFloat(document.getElementById('gcheckWeight')?.value);
+  const grams = parseFloat(gramsRaw);
   if (!preset || !isFinite(grams) || grams <= 0) return null;
   const pure = _gRound(grams * preset.f);
   const spot = metal === 'silver' ? getSilverPrice() : getGoldPrice();
@@ -16069,10 +16096,63 @@ function _gcheckSpec() {
            cash: parseFloat((melt * (1 - cb / 100)).toFixed(2)) };
 }
 
+// Every complete line, plus the totals. Lines of the SAME metal+karat are merged
+// into one `groups` entry: they go into the same pile, and writing that pile twice
+// in a row would only double the work and the history lines for one lump of gold.
+function _gcheckState() {
+  const specs = [];
+  for (const L of _gcheckLines) {
+    const s = _gcheckLineSpec(L.kv, L.w);
+    L.spec = s;
+    if (s) specs.push(s);
+  }
+  const sum = k => parseFloat(specs.reduce((a, s) => a + s[k], 0).toFixed(2));
+  const byKey = new Map();
+  for (const s of specs) {
+    const key = s.metal + ':' + s.karat;
+    const g = byKey.get(key);
+    if (!g) { byKey.set(key, Object.assign({}, s)); continue; }
+    g.grams = _gRound(g.grams + s.grams);
+    g.pure = _gRound(g.pure + s.pure);
+    g.melt = parseFloat((g.melt + s.melt).toFixed(2));
+    g.exchange = parseFloat((g.exchange + s.exchange).toFixed(2));
+    g.cash = parseFloat((g.cash + s.cash).toFixed(2));
+  }
+  return { specs, groups: [...byKey.values()], incomplete: _gcheckLines.length - specs.length,
+           melt: sum('melt'), exchange: sum('exchange'), cash: sum('cash'),
+           grams: _gRound(specs.reduce((a, s) => a + s.grams, 0)) };
+}
+
+// What you actually hand over. Defaults to the computed cash price, but at the
+// counter it is negotiated ("€500 for the lot"), so it can be typed. A hand-typed
+// figure is cleared when the gold itself changes — it was agreed for other gold
+// (the same rule the sale's trade-in credit follows, v12.82).
+function _gcheckPaid(st) {
+  const el = document.getElementById('gcheckPaid');
+  if (el && el.dataset.manual === '1') {
+    const v = parseFloat(el.value);
+    if (isFinite(v) && v > 0) return parseFloat(v.toFixed(2));
+  }
+  return st.cash;
+}
+
+// Splits the amount paid across the piles in proportion to their metal value,
+// the last absorbing the rounding so the shares always add back to the total.
+// Each pile then carries its own true cost and books its own true gain.
+function _gcheckShares(groups, paid) {
+  const tot = groups.reduce((a, g) => a + g.melt, 0);
+  let left = paid;
+  return groups.map((g, i) => {
+    if (i === groups.length - 1) return parseFloat(Math.max(0, left).toFixed(2));
+    const s = tot > 0 ? parseFloat((paid * g.melt / tot).toFixed(2)) : 0;
+    left -= s;
+    return s;
+  });
+}
+
 function openGoldCheck() {
   document.getElementById('gcheckOverlay')?.remove();
-  const isEl = lang === 'el';
-  const fld = 'background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:9px 11px';
+  _gcheckLines = [{ id: ++_gcheckSeq, kv: 'gold:14', w: '' }];
   const ov = document.createElement('div');
   ov.id = 'gcheckOverlay';
   // Top-anchored: it has typing in it, and a bottom sheet hides its own results
@@ -16084,64 +16164,170 @@ function openGoldCheck() {
       <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light)">🧱 ${t('gcheckTitle')}</div>
       <button onclick="document.getElementById('gcheckOverlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;line-height:1">✕</button>
     </div>
-    <div style="display:flex;gap:9px;margin-bottom:12px">
-      <div style="flex:1;min-width:0">
-        <label style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:4px">${t('tiKaratLbl')}</label>
-        <select id="gcheckKarat" onchange="_gcheckSync()" style="width:100%;${fld};font-size:13px">${_tiKaratOptions('gold:14')}</select>
-      </div>
-      <div style="flex:0 0 96px">
-        <label style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:4px">${t('tiWeightLbl')}</label>
-        <input type="number" id="gcheckWeight" step="0.01" inputmode="decimal" placeholder="0.00" oninput="_gcheckSync()" style="width:100%;${fld}">
-      </div>
-    </div>
+    <div id="gcheckLinesBox"></div>
+    <button type="button" onclick="_gcheckAddLine()" style="width:100%;margin:2px 0 10px;padding:9px;background:none;border:1px dashed rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;cursor:pointer">＋ ${t('gcheckAddLine')}</button>
     <div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--wa08)">
-      <span style="color:var(--text-muted)">${t('tiMeltLbl')}</span>
+      <span style="color:var(--text-muted)" id="gcheckMeltLbl">${t('tiMeltLbl')}</span>
       <span id="gcheckMelt" style="color:var(--text);font-family:var(--font-mono)">—</span>
     </div>
     <div id="gcheckQuotes" style="margin-top:12px"></div>
-    <div id="gcheckNote" style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.5">${t('tiNeedWeight')}</div>
+    <div id="gcheckNote" style="font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.5">${t('tiNeedWeight')}</div>
   </div>`;
   document.body.appendChild(ov);
+  _gcheckRenderLines();
+  setTimeout(() => document.querySelector('#gcheckLinesBox input')?.focus(), 60);
+}
+
+// Drawn only when a line is added or removed — typing never rebuilds the inputs,
+// or the field being typed in would lose focus on every keystroke.
+function _gcheckRenderLines() {
+  const box = document.getElementById('gcheckLinesBox');
+  if (!box) return;
+  const fld = 'background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:9px 11px';
+  const lbl = 'font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:4px';
+  const multi = _gcheckLines.length > 1;
+  box.innerHTML = _gcheckLines.map((L, i) => `
+    <div style="margin-bottom:10px;${multi ? 'padding-bottom:10px;border-bottom:1px solid var(--wa08)' : ''}">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div style="flex:1;min-width:0">
+          ${i === 0 ? `<label style="${lbl}">${t('tiKaratLbl')}</label>` : ''}
+          <select onchange="_gcheckSet(${L.id},'kv',this.value)" style="width:100%;${fld};font-size:13px">${_tiKaratOptions(L.kv)}</select>
+        </div>
+        <div style="flex:0 0 88px">
+          ${i === 0 ? `<label style="${lbl}">${t('tiWeightLbl')}</label>` : ''}
+          <input type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${L.w}" oninput="_gcheckSet(${L.id},'w',this.value)" style="width:100%;${fld}">
+        </div>
+        ${multi ? `<button type="button" onclick="_gcheckRemoveLine(${L.id})" title="${t('gcheckRemoveLine')}" style="flex:0 0 30px;height:42px;background:none;border:1px solid var(--wa12);border-radius:6px;color:var(--text-muted);font-size:15px;cursor:pointer">✕</button>` : ''}
+      </div>
+      ${multi ? `<div id="gcheckLine${L.id}" style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);margin-top:6px;line-height:1.5"></div>` : ''}
+    </div>`).join('');
   _gcheckSync();
-  setTimeout(() => document.getElementById('gcheckWeight')?.focus(), 60);
+}
+
+function _gcheckSet(id, key, val) {
+  const L = _gcheckLines.find(x => x.id === id);
+  if (!L) return;
+  L[key] = val;
+  const p = document.getElementById('gcheckPaid');
+  if (p) delete p.dataset.manual;   // the gold changed, so the agreed figure no longer applies
+  _gcheckSync();
+}
+
+function _gcheckAddLine() {
+  const last = _gcheckLines[_gcheckLines.length - 1];
+  _gcheckLines.push({ id: ++_gcheckSeq, kv: last ? last.kv : 'gold:14', w: '' });
+  const p = document.getElementById('gcheckPaid');
+  if (p) delete p.dataset.manual;
+  _gcheckRenderLines();
+  const inputs = document.querySelectorAll('#gcheckLinesBox input');
+  inputs[inputs.length - 1]?.focus();
+}
+
+function _gcheckRemoveLine(id) {
+  if (_gcheckLines.length <= 1) return;
+  _gcheckLines = _gcheckLines.filter(x => x.id !== id);
+  const p = document.getElementById('gcheckPaid');
+  if (p) delete p.dataset.manual;
+  _gcheckRenderLines();
+}
+
+function _gcheckPaidInput(el) {
+  if (el.value === '') delete el.dataset.manual; else el.dataset.manual = '1';
+  _gcheckSyncPaid();
+}
+
+// Only the parts that follow the amount paid — so typing into it never rebuilds
+// the field itself.
+function _gcheckSyncPaid() {
+  const st = _gcheckState();
+  const cur = state.currency || '€';
+  const paid = _gcheckPaid(st);
+  const sub = document.getElementById('gcheckPaidSub');
+  if (sub) {
+    const diff = parseFloat((paid - st.cash).toFixed(2));
+    sub.textContent = Math.abs(diff) < 0.005 ? ''
+      : t('gcheckPaidVs').replace('{amt}', cur + st.cash.toFixed(2));
+  }
+  const btn = document.getElementById('gcheckPayBtn');
+  if (btn) btn.textContent = t('gcheckPay') + ' · ' + cur + paid.toFixed(2);
 }
 
 function _gcheckSync() {
-  const spec = _gcheckSpec();
+  const st = _gcheckState();
   const cur = state.currency || '€';
-  const isEl = lang === 'el';
+  const multi = _gcheckLines.length > 1;
+  // Each line's own figures, so the customer can see what every piece is worth.
+  for (const L of _gcheckLines) {
+    const el = document.getElementById('gcheckLine' + L.id);
+    if (!el) continue;
+    const s = L.spec;
+    el.textContent = s
+      ? `${s.pure.toFixed(2)}g ${t('gcheckPureWord')} · ${cur}${s.melt.toFixed(2)} · 🔄 ${cur}${s.exchange.toFixed(2)} · 💵 ${cur}${s.cash.toFixed(2)}`
+      : '—';
+  }
   const meltEl = document.getElementById('gcheckMelt');
+  const meltLbl = document.getElementById('gcheckMeltLbl');
+  if (meltLbl) meltLbl.textContent = multi ? t('gcheckTotalMelt') : t('tiMeltLbl');
+  if (meltEl) meltEl.textContent = st.specs.length ? cur + st.melt.toFixed(2) : '—';
   const box = document.getElementById('gcheckQuotes');
   const note = document.getElementById('gcheckNote');
-  if (meltEl) meltEl.textContent = spec ? cur + spec.melt.toFixed(2) : '—';
   if (!box) return;
-  if (!spec) {
+  // A total over half the lines would be read as the price for all of them, so
+  // nothing is quoted until every line is complete.
+  if (!st.specs.length || st.incomplete > 0) {
     box.innerHTML = '';
-    if (note) { note.textContent = t('tiNeedWeight'); note.style.color = 'var(--text-dim)'; }
+    if (note) note.textContent = t('tiNeedWeight');
     return;
   }
-  const row = (icon, label, amt, btnLbl, onclick, accent, disabled) => `
-    <div style="background:${accent};border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px 13px;margin-bottom:9px">
+  // The sale's trade-in control carries ONE metal and karat, so an exchange can
+  // be held only when the lot is a single karat. Mixed gold is still quoted for
+  // exchange; it is settled by buying it for cash and recording the sale as paid
+  // in cash — the same money, in two steps.
+  const canHold = st.groups.length === 1;
+  const totalLbl = multi ? ' · ' + t('gcheckTotalWord') : '';
+  const exRow = `
+    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-        <span style="font-size:12px;color:var(--text-muted)">${icon} ${label}</span>
-        <span style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--gold-light)">${cur}${amt.toFixed(2)}</span>
+        <span style="font-size:12px;color:var(--text-muted)">🔄 ${t('gcheckExchange')}${totalLbl}</span>
+        <span style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--gold-light)">${cur}${st.exchange.toFixed(2)}</span>
       </div>
-      ${disabled ? '' : `<button onclick="${onclick}" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${btnLbl}</button>`}
+      ${canHold
+        ? `<button onclick="_gcheckArm()" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${t('gcheckHold')}</button>`
+        : `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5">${t('gcheckMixedHold')}</div>`}
     </div>`;
-  box.innerHTML =
-    row('🔄', t('gcheckExchange'), spec.exchange, t('gcheckHold'), '_gcheckArm()', 'rgba(201,168,76,0.08)', false)
-    + row('💵', t('gcheckCash'), spec.cash, t('gcheckPay'), '_gcheckPayCash()', 'rgba(255,255,255,0.03)', !can('manage_stock'));
-  if (note) {
-    note.textContent = can('manage_stock') ? t('gcheckHint') : t('gcheckHintEmp');
-    note.style.color = 'var(--text-dim)';
+  const canPay = can('manage_stock');
+  const prevPaid = document.getElementById('gcheckPaid');
+  const manual = prevPaid && prevPaid.dataset.manual === '1' ? prevPaid.value : null;
+  const cashRow = `
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="font-size:12px;color:var(--text-muted)">💵 ${t('gcheckCash')}${totalLbl}</span>
+        <span style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--gold-light)">${cur}${st.cash.toFixed(2)}</span>
+      </div>
+      ${canPay ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
+        <label for="gcheckPaid" style="font-size:12px;color:var(--text-muted)">${t('gcheckPaidLbl')}</label>
+        <input type="number" id="gcheckPaid" step="0.01" inputmode="decimal" placeholder="${st.cash.toFixed(2)}" oninput="_gcheckPaidInput(this)"
+          style="flex:0 0 120px;width:120px;background:var(--dark-3);border:1px solid rgba(201,168,76,0.5);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:7px 10px;text-align:right">
+      </div>
+      <div id="gcheckPaidSub" style="font-size:11px;color:var(--text-muted);text-align:right;margin-top:4px"></div>
+      <button id="gcheckPayBtn" onclick="_gcheckPayCash()" style="width:100%;margin-top:9px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);border-radius:7px;color:var(--gold-light);font-family:var(--font-body);font-size:12.5px;font-weight:600;cursor:pointer">${t('gcheckPay')}</button>` : ''}
+    </div>`;
+  box.innerHTML = exRow + cashRow;
+  if (manual != null) {
+    const p = document.getElementById('gcheckPaid');
+    if (p) { p.value = manual; p.dataset.manual = '1'; }
   }
+  _gcheckSyncPaid();
+  if (note) note.textContent = canPay ? t('gcheckHint') : t('gcheckHintEmp');
 }
 
 // EXCHANGE — hold this valuation for the next sale. Nothing is written: the
 // customer is still choosing, and may well choose nothing.
 function _gcheckArm() {
-  const spec = _gcheckSpec();
-  if (!spec) return;
+  const st = _gcheckState();
+  if (st.incomplete > 0 || st.groups.length !== 1) return;
+  const spec = st.groups[0];
   _goldCheckPending = { spec, credit: spec.exchange, ts: Date.now() };
   document.getElementById('gcheckOverlay')?.remove();
   const cur = state.currency || '€';
@@ -16174,34 +16360,63 @@ function _consumePendingGoldCheck() {
   } catch (e) {}
 }
 
-// CASH — you hand money over and keep the metal. Identical in every respect to
-// the Add Metal button (same lot merge, same buy-cheap gain into today's sales);
-// this only saves walking to the Stock tab and working the price out by hand.
+// CASH — you hand money over and keep the metal. Each karat goes into its own
+// pile through the very same path as the Add Metal button (same lot merge, same
+// buy-cheap gain into today's sales), with the amount paid split across the piles
+// in proportion to their metal value.
 async function _gcheckPayCash() {
   if (!can('manage_stock')) return;
-  const spec = _gcheckSpec();
-  if (!spec) return;
+  const st = _gcheckState();
+  if (!st.groups.length || st.incomplete > 0) return;
   const cur = state.currency || '€';
   const isEl = lang === 'el';
-  const label = metalStockLabel({ metal: spec.metal, karat: spec.karat });
-  const msg = t('gcheckPayAsk')
-    .replace('{g}', spec.grams.toFixed(2)).replace('{m}', label)
-    .replace('{amt}', cur + spec.cash.toFixed(2));
+  const paid = _gcheckPaid(st);
+  if (!(paid > 0)) return;
+  const shares = _gcheckShares(st.groups, paid);
+  const label = g => metalStockLabel({ metal: g.metal, karat: g.karat });
+  const msg = st.groups.length === 1
+    ? t('gcheckPayAsk').replace('{g}', st.groups[0].grams.toFixed(2)).replace('{m}', label(st.groups[0]))
+        .replace('{amt}', cur + paid.toFixed(2))
+    : t('gcheckPayAskMulti').replace('{amt}', cur + paid.toFixed(2))
+        .replace('{list}', st.groups.map((g, i) => `${g.grams.toFixed(2)}g ${label(g)} (${cur}${shares[i].toFixed(2)})`).join(' · '));
   const ok = await new Promise(res => showConfirm(msg, () => res(true), () => res(false),
     { okLabel: t('gcheckPayOk'), danger: false }));
   if (!ok) return;
   if (!_inventoryCache || Object.keys(_inventoryCache).length === 0) {
     try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
-  const res = await _metalAddToLot({
-    metal: spec.metal, karat: spec.karat, fineness: spec.fineness,
-    weight: spec.grams, pure: spec.pure
-  }, spec.cash, t('gcheckCashNote'), { kind: 'buy' });
-  document.getElementById('gcheckOverlay')?.remove();
-  if (!res.ok) { showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — δοκιμάστε ξανά' : '⚠️ Save failed — try again'); return; }
-  showToast(t('tiAddedToast').replace('{g}', spec.grams.toFixed(2))
-    + (res.gain > 0 ? ' · ' + t('metalGainToast').replace('{amt}', cur + res.gain.toFixed(2)) : ''));
+  let addedG = 0, gain = 0;
+  const failed = [];
+  for (let i = 0; i < st.groups.length; i++) {
+    const g = st.groups[i];
+    const res = await _metalAddToLot({
+      metal: g.metal, karat: g.karat, fineness: g.fineness, weight: g.grams, pure: g.pure
+    }, shares[i], t('gcheckCashNote'), { kind: 'buy' });
+    if (res.ok) { addedG += g.grams; gain += res.gain || 0; }
+    else failed.push({ g, share: shares[i] });
+  }
   try { renderInvList(); } catch (e) {}
+  if (!failed.length) {
+    document.getElementById('gcheckOverlay')?.remove();
+    showToast(t('tiAddedToast').replace('{g}', addedG.toFixed(2))
+      + (gain > 0 ? ' · ' + t('metalGainToast').replace('{amt}', cur + gain.toFixed(2)) : ''));
+    return;
+  }
+  // Some piles saved and some did not. The saved ones are real and stay; the sheet
+  // is left holding ONLY what failed, at the share already agreed for it, so
+  // pressing Pay again finishes the job without paying for anything twice.
+  const failedKeys = new Set(failed.map(f => f.g.metal + ':' + f.g.karat));
+  _gcheckLines = _gcheckLines.filter(L => failedKeys.has(L.kv));
+  _gcheckRenderLines();
+  const p = document.getElementById('gcheckPaid');
+  if (p) {
+    p.value = failed.reduce((a, f) => a + f.share, 0).toFixed(2);
+    p.dataset.manual = '1';
+    _gcheckSyncPaid();
+  }
+  showToast(isEl
+    ? `⚠️ Δεν αποθηκεύτηκαν: ${failed.map(f => label(f.g)).join(', ')} — πατήστε ξανά «Πληρωμή»`
+    : `⚠️ Not saved: ${failed.map(f => label(f.g)).join(', ')} — press Pay again`);
 }
 
 // ── OWED CONTROL (the goods left, the money follows) ─────────────────────────
@@ -35493,6 +35708,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.32', date: 'Οκτώβριος 2026', items: [
+        "🧱 ΧΡΥΣΟΣ ΠΕΛΑΤΗ — ΠΟΛΛΑ ΚΟΜΜΑΤΙΑ ΜΑΖΙ: με «＋ Άλλο κομμάτι» προσθέτετε όσα καράτια φέρει ο πελάτης (π.χ. 22K νόμισμα + 14K δαχτυλίδι). Κάθε κομμάτι δείχνει τη δική του αξία, ανταλλαγή και μετρητά, και από κάτω βλέπετε το σύνολο. Στα μετρητά μπορείτε να γράψετε το ποσό που συμφωνήσατε (π.χ. €500 για όλα) — μοιράζεται αυτόματα σε κάθε καράτι και το καθένα μπαίνει στο δικό του απόθεμα μετάλλου."
+      ]},
       { version: 'v13.31', date: 'Οκτώβριος 2026', items: [
         "↩️ ΕΠΑΝΑΦΟΡΑ ΑΚΥΡΩΜΕΝΟΥ ΔΕΛΤΙΟΥ: μια ακυρωμένη παραγγελία ή επισκευή έχει πλέον κουμπί «Επαναφορά δελτίου» — επιστρέφει όπως ήταν (π.χ. ως προσφορά, για να πατήσετε «Προκαταβολή → παραγγελία»), με τον ίδιο αριθμό και όλα τα στοιχεία."
       ]},
@@ -35570,6 +35788,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.32', date: 'Oct 2026', items: [
+        "🧱 CUSTOMER'S GOLD — SEVERAL PIECES AT ONCE: “＋ Another piece” adds as many karats as the customer brings (e.g. a 22K coin + a 14K ring). Each piece shows its own value, exchange and cash price, with the totals below. For cash you can type the amount you agreed (e.g. €500 for the lot) — it is split across the karats automatically and each goes into its own metal stock."
+      ]},
       { version: 'v13.31', date: 'Oct 2026', items: [
         "↩️ REACTIVATE A CANCELLED TICKET: a cancelled order or repair now has a “Reactivate ticket” button — it comes back as it was (e.g. as a quote, ready for “Deposit paid → start order”), with the same number and all its details."
       ]},
@@ -41003,7 +41224,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.31';
+const APP_VERSION = '13.32';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
