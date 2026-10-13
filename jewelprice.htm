@@ -24366,6 +24366,39 @@ function _applyScanVariantPhoto(it) {
 
 // Pin a ref-scanned piece and run the normal lookup by ITS OWN descriptive code, so the
 // price, the stones and the sale target all follow that exact record.
+// A scanned coin tag (v13.34). Coins carry no tag as loose bullion; one is printed only for
+// a coin shown on a piece, so the person at the counter can sell it by scanning. It opens
+// the coin's own sale (openSaleModalFromInventory — coin price, Cash pre-pressed, the
+// exact record marked sold), never the calculator. An employee may only sell a coin whose
+// tag was actually printed (tagRef): loose bullion stays an owner/manager matter.
+function _offerCoinSaleFromScan(pool, refNorm) {
+  const isEl = lang === 'el';
+  const inStock = pool.filter(([, it]) => it.isCoin && it.status === 'in_stock');
+  const allowed = can('manage_stock') ? inStock : inStock.filter(([, it]) => it.tagRef);
+  if (!allowed.length) {
+    if (inStock.length) {
+      const notFound = document.getElementById('codeNotFound');
+      if (notFound) notFound.classList.add('show');
+    } else {
+      showToast('🏷️ ' + refNorm + ' — ' + (isEl ? 'το νόμισμα έχει ήδη πουληθεί' : 'this coin is already sold'));
+    }
+    return;
+  }
+  const [id, item] = allowed.find(([, it]) => it.tagRef) || allowed[0];
+  const p = calcInvItemPrice(item);
+  const cur = state.currency || '€';
+  const price = p ? cur + p.retail.toFixed(2) : '—';
+  const inp = document.getElementById('codeInput');
+  if (inp) inp.value = '';
+  showConfirm(
+    `🪙 ${refNorm} · ${coinItemLabel(item)} — ${isEl ? 'τιμή νομίσματος' : 'coin price'} ${price}. ` +
+      (isEl ? 'Πώληση του νομίσματος;' : 'Sell this coin?'),
+    () => openSaleModalFromInventory(id),
+    null,
+    { okLabel: isEl ? '💰 Πώληση' : '💰 Sell' }
+  );
+}
+
 function _refResolvePiece(entry) {
   const [fbKey, item] = entry;
   const qr = item.qrCode || item.code || '';
@@ -24743,6 +24776,10 @@ function lookupCode(raw, opts) {
         if (notFound) notFound.classList.add('show');
         return;
       }
+      // A COIN's tag (e.g. a sovereign mounted on a ring) goes straight to the coin sale —
+      // the same flow as the coin card's Sell button. The calculator has no coin pricing,
+      // so a coin must never be fed through it.
+      if (pool[0][1].isCoin) { _offerCoinSaleFromScan(pool, refNorm); return; }
       // Do the in-stock pieces behind this number actually differ? Then the tag cannot say
       // which one is in hand — ask, exactly as a shared descriptive code does. Unlike that
       // case these can price DIFFERENTLY (their stones and weight live in the descriptive
@@ -30123,6 +30160,7 @@ function renderInvList() {
         ${isSold
           ? `<button class="inv-action-btn" style="flex:1;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invGoToSale('${(item.qrCode||'').replace(/'/g,"\\'")}','${id}')">${lang==='el'?'💰 Δες Πώληση':'💰 View Sale'}</button>${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
           : `<button class="inv-action-btn inv-action-sell" onclick="invMarkSold('${id}')">${t('invMarkSold')}</button>
+             <button class="inv-action-btn" style="flex:0.7;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="invPrintTagFromCard('${id}')">${t('invPrintTag')}</button>
              ${_isEmpInv ? '' : `<button class="inv-action-btn" style="flex:0.9;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:var(--gold-light)" onclick="openAddCoinModal('${item.coinKey||''}')">${lang==='el'?'🪙 Προσθήκη':'🪙 Add more'}</button>`}
              ${_isEmpInv ? '' : `<button class="inv-action-btn inv-action-del" onclick="invDelete('${id}')">${t('invDelete')}</button>`}`
         }
@@ -35212,7 +35250,7 @@ function invPrintTagFromCard(id) {
       <div style="font-family:var(--font-heading);font-size:18px;color:var(--gold-light);margin-bottom:12px">🏷️ ${lang==='el'?'Εκτύπωση Ετικέτας':'Print Tag'}</div>
       <div style="background:var(--dark-3);border-radius:8px;padding:10px 12px;margin-bottom:16px">
         <div style="font-family:var(--font-mono);font-size:15px;color:var(--gold);word-break:break-all">${item.seqId ? itemRefCode(item) : qr}</div>
-        ${item.seqId ? `<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-top:3px;word-break:break-all">${qr}</div>` : ''}
+        ${(item.seqId && qr !== itemRefCode(item)) ? `<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-top:3px;word-break:break-all">${qr}</div>` : ''}
       </div>
       <div id="invPrintTagStatus" style="font-size:11px;color:var(--text-muted);text-align:center;min-height:16px;margin-bottom:10px;font-family:var(--font-mono)"></div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -35881,6 +35919,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.34', date: 'Οκτώβριος 2026', items: [
+        "🏷️ ΕΤΙΚΕΤΑ ΣΕ ΝΟΜΙΣΜΑ: τα νομίσματα έχουν πλέον κουμπί «Ετικέτα», όπως τα κοσμήματα. Χρήσιμο για νόμισμα που εκτίθεται πάνω σε κόσμημα (π.χ. λίρα σε δαχτυλίδι): η ετικέτα έχει τον κωδικό του νομίσματος και, η σάρωσή της στον Υπολογισμό ανοίγει κατευθείαν την πώληση του νομίσματος, με τιμή νομίσματος (καθαρός χρυσός + προσαύξηση) και «Μετρητά» πατημένο — όπως το κουμπί «Πώληση» της κάρτας. Ο υπάλληλος μπορεί να πουλήσει μόνο νόμισμα που έχει τυπωμένη ετικέτα."
+      ]},
       { version: 'v13.33', date: 'Οκτώβριος 2026', items: [
         "🧱 ΑΝΤΑΛΛΑΓΗ ΜΕ ΔΙΑΦΟΡΕΤΙΚΑ ΚΑΡΑΤΙΑ: ο «Χρυσός πελάτη» με πολλά κομμάτια (π.χ. 22K νόμισμα + 14K δαχτυλίδι) μπαίνει πλέον με «Κράτησέ το για την πώληση» σε μία πώληση. Κάθε καράτι πηγαίνει στο δικό του απόθεμα μετάλλου με το δικό του κόστος και κέρδος, και αν διαγράψετε την πώληση, κάθε καράτι αφαιρείται από το σωστό απόθεμα."
       ]},
@@ -35964,6 +36005,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.34', date: 'Oct 2026', items: [
+        "🏷️ TAG FOR A COIN: coins now have a “Tag” button, like jewelry. Useful for a coin shown mounted on a piece (e.g. a sovereign on a ring): the tag carries the coin's code and, scanning it in Calc opens the coin's sale straight away, at coin price (pure gold + markup) with Cash pressed — the same as the coin card's Sell button. An employee can only sell a coin that has a printed tag."
+      ]},
       { version: 'v13.33', date: 'Oct 2026', items: [
         "🧱 EXCHANGE WITH MIXED KARATS: “Customer's gold” with several pieces (e.g. a 22K coin + a 14K ring) can now be held for the sale with “Hold it for the sale” and taken in ONE sale. Each karat goes into its own metal stock with its own cost and gain, and if you delete the sale, each karat comes back out of the right pile."
       ]},
@@ -41403,7 +41447,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.33';
+const APP_VERSION = '13.34';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
@@ -42805,6 +42849,7 @@ function openInvGroup(gid) {
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           <button class="inv-action-btn inv-action-sell" style="${_bStyleC}" onclick="closeInvGroup();invMarkSold('${id}')">💰 ${lang==='el'?'Πώληση':'Sell'}</button>
+          <button class="inv-action-btn" style="${_bStyleC};background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="closeInvGroup();invPrintTagFromCard('${id}')">🏷️ ${lang==='el'?'Ετικέτα':'Tag'}</button>
           ${isEmp ? '' : `<button class="inv-action-btn inv-action-del" style="${_bStyleC}" onclick="closeInvGroup();invDelete('${id}')">🗑</button>`}
         </div>
       </div>`;
