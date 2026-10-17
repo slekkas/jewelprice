@@ -28041,7 +28041,7 @@ function _applyPaidBasis(item, goldGram, silverGram) {
   return true;
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, priceMin: null, priceMax: null, priceBasis: 'retail', dateFrom: '', dateTo: '', dateMode: 'added' };
 // Show the "Total Cost" summary card? Off by default (keeps the comfortable 3-card layout);
 // the owner flips it on via a toggle in the Filter sheet. A view preference, not a filter,
 // so it persists across renders and is unaffected by "Clear filters".
@@ -28876,7 +28876,7 @@ let _invShowSelectedOnly = false; // select mode: narrow the list to only picked
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.rateTypes||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.rateTypes||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + ((f.priceMin!=null||f.priceMax!=null)?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -28903,6 +28903,7 @@ function updateInvFilterBadge() {
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
     if (_invFilters.seasonMin) parts.push('🕰️ ' + _invFilters.seasonMin + '+ ' + t('invSeasonWord'));
+    if (_invFilters.priceMin != null || _invFilters.priceMax != null) parts.push(_priceRangeLabel(_invFilters));
     if (_invFilters.dateFrom || _invFilters.dateTo) parts.push((_invFilters.dateFrom||'?') + ' → ' + (_invFilters.dateTo||'?'));
     summary.textContent = parts.join(' · ');
     summary.style.display = parts.length ? 'block' : 'none'; // its own row — hide when empty
@@ -29124,6 +29125,27 @@ function openInvFilterSheet() {
     [1, 2, 3, 5].map(v => `<button class="inv-fs-pill${_invFilters.seasonMin===v?' sel':''}" data-group="season" data-val="${v}">${v}+ ${t('invSeasonWord')}</button>`).join('') +
     `</div></div>`;
 
+  // Price range (v13.37) — retail for everyone; the Cost basis only for owner/manager.
+  if (!can('see_cost')) _invFilters.priceBasis = 'retail';
+  const _pb = _invFilters.priceBasis === 'cost' ? 'cost' : 'retail';
+  const _segBtn = (id, on, label, b) => `<button type="button" id="${id}" onclick="setInvPriceBasis('${b}')" style="flex:1;padding:8px;font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:none;cursor:pointer;transition:all 0.2s;${on ? 'background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08' : 'background:transparent;color:var(--text-muted)'}">${label}</button>`;
+  const _pFld = (id, val, lbl, ph) => `<div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px">${lbl}</div>
+      <input type="number" inputmode="decimal" min="0" step="1" id="${id}" value="${val != null ? val : ''}" placeholder="${ph}" autocomplete="off" oninput="_invPriceTyped()" style="width:100%;padding:8px 10px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.25);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;box-sizing:border-box;min-height:36px"></div>`;
+  const _curP = state.currency || '€';
+  const priceGroup = `<div class="inv-fs-group"><div class="inv-fs-label">${lang==='el'?'Εύρος τιμής':'Price range'}</div>` +
+    (can('see_cost') ? `<div style="display:flex;background:var(--dark-3);border:1px solid rgba(212,175,55,0.2);border-radius:8px;overflow:hidden;margin-bottom:10px">` +
+      _segBtn('invPriceBasisRetail', _pb==='retail', lang==='el'?'Λιανική':'Retail', 'retail') +
+      _segBtn('invPriceBasisCost', _pb==='cost', lang==='el'?'Χονδρική (κόστος)':'Wholesale (cost)', 'cost') + `</div>` : '') +
+    `<div class="inv-fs-pills" style="margin-bottom:10px">` +
+    INV_PRICE_PRESETS.map(([mn, mx]) => {
+      const on = _invFilters.priceMin === mn && _invFilters.priceMax === mx;
+      return `<button class="inv-fs-pill${on?' sel':''}" data-group="pricePreset" data-val="${mn==null?'':mn}-${mx==null?'':mx}">${_priceRangeText(mn, mx, _curP)}</button>`;
+    }).join('') + `</div>` +
+    `<div style="display:flex;gap:10px">` +
+      _pFld('invPriceMinInput', _invFilters.priceMin, (lang==='el'?'Από (':'From (') + _curP + ')', '0') +
+      _pFld('invPriceMaxInput', _invFilters.priceMax, (lang==='el'?'Έως (':'To (') + _curP + ')', '∞') +
+    `</div></div>`;
+
   content.innerHTML =
     pillGroup('invFilterMetal',  metals,   _invFilters.metals,  'metals',  v => v === 'gold' ? t('gold') : v === 'silver' ? t('silver') : t('invFilterOther')) +
     pillGroup('invFilterKarat',  karats,   _invFilters.karats,  'karats',  v => { if(v==='—') return lang==='el'?'Άλλο':'Other'; const n=parseInt(v); return (v.endsWith('s')||n>=800) ? v.replace('s','') : v+'K'; }) +
@@ -29174,6 +29196,7 @@ function openInvFilterSheet() {
       </div>`;
     })() +
     pillGroup('invFilterStatus', statuses, _invFilters.status,  'status',  v => _statusPillLabel(v)) +
+    priceGroup +
     goldColorGroup +
     platingGroup +
     colorGroup +
@@ -29198,6 +29221,17 @@ function openInvFilterSheet() {
       const wasActive = _invFilters.gainMin === v;
       _invFilters.gainMin = wasActive ? 0 : v;
       content.querySelectorAll('.inv-fs-pill[data-group="gain"]').forEach(p => p.classList.remove('sel'));
+      if (!wasActive) btn.classList.add('sel');
+      return;
+    }
+    if (grp === 'pricePreset') {
+      // Fills the From/To boxes; tapping the active preset clears them.
+      const [a, b] = val.split('-');
+      const wasActive = btn.classList.contains('sel');
+      const mn = document.getElementById('invPriceMinInput'), mx = document.getElementById('invPriceMaxInput');
+      if (mn) mn.value = wasActive ? '' : a;
+      if (mx) mx.value = wasActive ? '' : b;
+      content.querySelectorAll('.inv-fs-pill[data-group="pricePreset"]').forEach(p => p.classList.remove('sel'));
       if (!wasActive) btn.classList.add('sel');
       return;
     }
@@ -29354,12 +29388,15 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, priceMin: null, priceMax: null, priceBasis: 'retail', dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
   const dfDisp = document.getElementById('invDateFromDisplay'); if (dfDisp) dfDisp.firstChild.textContent = '—';
   const dtDisp = document.getElementById('invDateToDisplay'); if (dtDisp) dtDisp.firstChild.textContent = '—';
+  const pmn = document.getElementById('invPriceMinInput'); if (pmn) pmn.value = '';
+  const pmx = document.getElementById('invPriceMaxInput'); if (pmx) pmx.value = '';
+  setInvPriceBasis('retail');
   // Reset custom pickers
   ['types','vendors','stones'].forEach(grp => {
     const label = document.getElementById('invPickerLabel_' + grp);
@@ -29385,6 +29422,47 @@ function setInvDateMode(mode) {
   }
 }
 
+// -- Price range filter (v13.37) --
+// Quick ranges; null = open-ended. Bounds are inclusive.
+const INV_PRICE_PRESETS = [[null, 200], [200, 500], [500, 1000], [1000, null]];
+function _priceRangeText(mn, mx, cur) {
+  cur = cur || state.currency || '€';
+  const f = v => cur + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (mn != null && mx != null) return f(mn) + '–' + f(mx);
+  if (mn != null) return '≥ ' + f(mn);
+  if (mx != null) return '≤ ' + f(mx);
+  return '';
+}
+function _priceRangeLabel(f) {
+  const basis = f.priceBasis === 'cost' ? (lang==='el' ? ' (κόστος)' : ' (cost)') : '';
+  return '💶 ' + _priceRangeText(f.priceMin, f.priceMax) + basis;
+}
+function setInvPriceBasis(b) {
+  _invFilters.priceBasis = (b === 'cost' && can('see_cost')) ? 'cost' : 'retail';
+  [['invPriceBasisRetail','retail'],['invPriceBasisCost','cost']].forEach(([id, v]) => {
+    const el = document.getElementById(id); if (!el) return;
+    const on = _invFilters.priceBasis === v;
+    el.style.background = on ? 'linear-gradient(135deg,#C9A84C,#A8882A)' : 'transparent';
+    el.style.color = on ? '#0E0C08' : 'var(--text-muted)';
+  });
+}
+// Typing in From/To: light up the preset that matches, if any.
+function _invPriceTyped() {
+  const num = v => (v === '' || v == null) ? '' : String(parseFloat(v));
+  const a = num((document.getElementById('invPriceMinInput') || {}).value);
+  const b = num((document.getElementById('invPriceMaxInput') || {}).value);
+  document.querySelectorAll('#invFilterSheetContent .inv-fs-pill[data-group="pricePreset"]').forEach(p => {
+    const [pa, pb] = p.dataset.val.split('-');
+    p.classList.toggle('sel', !!(a || b) && num(pa) === a && num(pb) === b);
+  });
+}
+function _readPriceInput(id) {
+  const el = document.getElementById(id);
+  if (!el || el.value.trim() === '') return null;
+  const v = parseFloat(el.value);
+  return (isFinite(v) && v >= 0) ? v : null;
+}
+
 function applyInvFilters() {
   // Applying regular filters clears any notification filter
   if (_notifFilter) { _notifFilter = null; const b = document.getElementById('invNotifFilterBanner'); if (b) b.style.display = 'none'; }
@@ -29392,6 +29470,11 @@ function applyInvFilters() {
   const dtEl = document.getElementById('invDateToInput');
   if (dfEl) _invFilters.dateFrom = dfEl.value;
   if (dtEl) _invFilters.dateTo   = dtEl.value;
+  if (document.getElementById('invPriceMinInput')) {
+    let mn = _readPriceInput('invPriceMinInput'), mx = _readPriceInput('invPriceMaxInput');
+    if (mn != null && mx != null && mn > mx) { const sw = mn; mn = mx; mx = sw; }   // typed backwards
+    _invFilters.priceMin = mn; _invFilters.priceMax = mx;
+  }
   closeInvFilterSheet();
   updateInvFilterBadge();
   renderInvList();
@@ -29862,6 +29945,17 @@ function renderInvList() {
     // Time-in-stock filter — show only pieces sitting at least N seasons (stale stock).
     if (f.seasonMin > 0) {
       if (_invSeasonsInStock(id, item) < f.seasonMin) return false;
+    }
+    // Price range (v13.37): retail = today's shelf price (the card's price); cost = what the
+    // piece cost you (_invSaleCost, the single source — handles other-type cost in the QR).
+    // A piece whose price can't be worked out drops out rather than being guessed.
+    if (f.priceMin != null || f.priceMax != null) {
+      let pv;
+      if (f.priceBasis === 'cost' && can('see_cost')) pv = _invSaleCost(item);
+      else { const p = _px(item); pv = p ? p.retail : null; }
+      if (pv == null || !isFinite(pv)) return false;
+      if (f.priceMin != null && pv < f.priceMin) return false;
+      if (f.priceMax != null && pv > f.priceMax) return false;
     }
     // Default: hide sold items unless the status filter explicitly includes 'sold'
     const isSoldItem = item.status === 'sold';
@@ -36034,6 +36128,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.37', date: 'Οκτώβριος 2026', items: [
+        "💶 ΦΙΛΤΡΟ ΕΥΡΟΥΣ ΤΙΜΗΣ: στα Φίλτρα του Αποθέματος υπάρχει νέα ενότητα «Εύρος τιμής». Επιλέξτε Λιανική ή Χονδρική (κόστος), πατήστε ένα έτοιμο εύρος (≤ €200, €200–€500, €500–€1,000, ≥ €1,000) ή γράψτε δικό σας «Από / Έως». Π.χ. όλα τα κοσμήματα πάνω από €1,000 για τη θυρίδα. Η χονδρική φαίνεται μόνο στον ιδιοκτήτη/διαχειριστή."
+      ]},
       { version: 'v13.36', date: 'Οκτώβριος 2026', items: [
         "↩️ ΕΠΙΣΤΡΟΦΕΣ ΧΩΡΙΣΤΑ ΑΠΟ ΤΙΣ ΠΩΛΗΣΕΙΣ: μια μεγάλη επιστροφή με πίστωση έκανε όλο τον μήνα να φαίνεται αρνητικός (π.χ. −€2,620), ενώ δεν δόθηκαν χρήματα πίσω. Τώρα το μεγάλο ποσό και το κέρδος δείχνουν ό,τι πουλήθηκε στην περίοδο, και από κάτω, μικρά και κόκκινα, οι επιστροφές — με το πώς έγιναν (πίστωση ή επιστροφή χρημάτων) — και το καθαρό αποτέλεσμα. Το ίδιο και στην «Ανάλυση». Τα σύνολα του χρόνου δεν αλλάζουν."
       ]},
@@ -36123,6 +36220,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.37', date: 'Oct 2026', items: [
+        "💶 PRICE RANGE FILTER: the Stock Filters have a new “Price range” section. Choose Retail or Wholesale (cost), tap a ready range (≤ €200, €200–€500, €500–€1,000, ≥ €1,000) or type your own From / To. E.g. every piece over €1,000 for the safe-deposit box. Wholesale is shown to owner/manager only."
+      ]},
       { version: 'v13.36', date: 'Oct 2026', items: [
         "↩️ RETURNS SHOWN APART FROM SALES: one big store-credit return made a whole month look negative (e.g. −€2,620) although no money was paid back. The big figure and the profit now show what was sold in the period, and underneath, small and in red, the returns — saying how each was settled (store credit or money refunded) — and the net result. Same in the breakdown. Year totals are unchanged."
       ]},
@@ -41568,7 +41668,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.36';
+const APP_VERSION = '13.37';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
