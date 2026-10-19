@@ -18316,6 +18316,7 @@ async function showSaleDetail(id, forceSingle) {
   // theirs after this returns, which are the only ways in that legitimately have one.
   window._sdmReturnToGroup = null;
   window._sdmReturnToBreakdown = null;
+  window._sdmReturnToMetal = null;
   const cur = state.currency || '€';
   const vat = parseFloat(state.vat) || 0;
   const isOwnerMgr = can('see_cost');
@@ -18687,7 +18688,10 @@ function closeSaleDetailModal(navigating) {
   if (_cli && !navigating) { try { showClientPurchases(_cli); } catch (e) {} return; }
   const _brk = window._sdmReturnToBreakdown;
   window._sdmReturnToBreakdown = null;
-  if (_brk && !navigating) { try { openSalesBreakdown(); } catch (e) {} }
+  if (_brk && !navigating) { try { openSalesBreakdown(); } catch (e) {} return; }
+  const _met = window._sdmReturnToMetal;
+  window._sdmReturnToMetal = null;
+  if (_met && !navigating) { try { openMetalHistory(_met); } catch (e) {} }
 }
 
 // ─── QUOTE / CERTIFICATE FOR A SALE THAT HAS ALREADY HAPPENED ────────────────
@@ -34997,6 +35001,58 @@ function _metalDerivedMoves(id, item, sales, tickets) {
   return out;
 }
 
+// Follow a movement that brought metal IN back to where it came from, so the sheet
+// can name the customer and open the sale (v13.40). The movement points at its gain
+// record (logged `r`, derived `sale`); that record is the whole story only for a
+// cash purchase. For a trade-in the gain is a side record and the real transaction
+// is the SALE that took the gold as payment (it carries `tradeInGainId`, or the
+// gain id inside `tradeInParts` for mixed karats); for kept metal it is the sale
+// the piece was made for (`scrapForSaleId`). A repair/order income record stores no
+// customer, so the name comes from its ticket. Returns null when nothing is found.
+function _metalMoveSource(m, sales) {
+  if (!m || m.d === 'out') return null;
+  const ref = m.sale != null ? m.sale : m.r;
+  if (ref == null || ref === '') return null;
+  const R = String(ref);
+  const list = sales || [];
+  const gain = list.find(s => s && String(s.id) === R);
+  const isGain = (s) => s && (String(s.tradeInGainId) === R ||
+    (Array.isArray(s.tradeInParts) && s.tradeInParts.some(p => p && String(p.gainId) === R)));
+  let target = null, kind = null;
+  if (gain && gain.scrapForSaleId != null) {
+    target = list.find(s => s && String(s.id) === String(gain.scrapForSaleId)) || null;
+    kind = 'kept';
+  }
+  if (!target) {
+    const t = list.find(isGain);
+    if (t) { target = t; kind = 'trade'; }
+  }
+  if (!target && gain) { target = gain; kind = gain.scrapKept ? 'kept' : 'buy'; }
+  if (!target) return null;
+  let who = String(target.customer || '').trim(), ticketNo = '';
+  try {
+    const tk = _saleTicket(target);
+    if (tk) { if (!who) who = String(tk.clientName || '').trim(); ticketNo = repNoFmt(tk); }
+  } catch (e) {}
+  return { saleId: target.id, kind, who, ticketNo };
+}
+
+// Open the sale a movement came from, and bring the movements sheet back on ✕.
+// The id arrives as a string (it travels through an onclick attribute) while
+// showSaleDetail matches with ===, and sale ids are numbers — so the real id is
+// looked up first. Passing the string straight through opened nothing (the tap on a
+// reconstructed row was silently dead from v13.24 until v13.40).
+async function _metalOpenSale(saleId, lotId) {
+  let id = saleId;
+  try {
+    const hit = (await getSales()).find(s => s && String(s.id) === String(saleId));
+    if (hit) id = hit.id;
+  } catch (e) {}
+  closeMetalHistory();
+  await showSaleDetail(id);
+  window._sdmReturnToMetal = lotId;
+}
+
 function _metalMoveWhen(m) {
   if (!(m.t > 0)) return '—';
   const d = new Date(m.t);
@@ -35039,14 +35095,16 @@ async function openMetalHistory(id) {
   const rows = moves.length ? moves.map(m => {
     const isIn = m.d !== 'out';
     const col = isIn ? 'var(--gain)' : 'var(--loss)';
-    const bits = [_metalMoveLabel(m.k)];
-    if (m.n) bits.push(m.n);
+    // A movement that brought metal in is followed back to its sale, so a trade-in
+    // reads as one (a derived entry only knows it as "bought") and names the customer.
+    const src = (m.k === 'buy' || m.k === 'trade' || m.k === 'kept') ? _metalMoveSource(m, sales) : null;
+    const bits = [_metalMoveLabel(src && src.kind === 'trade' ? 'trade' : m.k)];
+    if (src && src.ticketNo) bits.push(src.ticketNo);
+    else if (m.n) bits.push(m.n);
     if (parseFloat(m.a) > 0) bits.push(cur + parseFloat(m.a).toFixed(2));
     const foot = [_metalMoveWhen(m), m.u].filter(Boolean).join(' · ');
-    // Only a movement that points at something openable is tappable — a logged
-    // purchase is written before its sale record exists, so it carries no link.
     const tap = (m.k === 'job' && m.r) ? `closeMetalHistory();openRepairDetail('${m.r}')`
-              : (m.sale ? `closeMetalHistory();showSaleDetail('${m.sale}')` : '');
+              : (src ? `_metalOpenSale('${src.saleId}','${id}')` : '');
     return `
       <div ${tap ? `onclick="${tap}" ` : ''}style="display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid var(--wa08)${tap ? ';cursor:pointer' : ''}">
         <div style="flex:0 0 24px;text-align:center;font-size:15px;color:${col};line-height:1.3">${isIn ? '↓' : '↑'}</div>
@@ -35056,6 +35114,7 @@ async function openMetalHistory(id) {
             ${m.p > 0 ? `<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${m.p.toFixed(2)}g ${el ? 'καθαρό' : 'pure'}</span>` : ''}
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${_resEsc(bits.join(' · '))}</div>
+          ${src && src.who ? `<div style="font-size:12px;color:var(--text);margin-top:1px">👤 ${_resEsc(src.who)}</div>` : ''}
           <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${_resEsc(foot)}</div>
         </div>
         ${tap ? `<div style="flex:0 0 auto;color:var(--text-dim);font-size:14px;line-height:1.3">›</div>` : ''}
@@ -36681,8 +36740,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.39', date: 'Οκτώβριος 2026', items: [
-        "⚗️ ΚΑΘΑΡΙΣΜΟΣ ΣΕ ΚΑΘΑΡΟ: στις κάρτες του παλιού μετάλλου (π.χ. 14K, 18K) νέο κουμπί «Καθαρισμός σε καθαρό». Διαλέγετε ποια αποθέματα στείλατε στο διυλιστήριο και πόσα γραμμάρια, γράφετε πόσα γραμμάρια καθαρού πήρατε πίσω (και προαιρετικά την αμοιβή) — η εφαρμογή βρίσκει την απώλεια σε % και σε €, αφαιρεί τα γραμμάρια από το παλιό μέταλλο και τα βάζει στο καθαρό 24K (ή 999 ασήμι). Το καθαρό κρατά το κόστος του παλιού μετάλλου, ώστε η απώλεια να φαίνεται τίμια. Δεν γράφεται τίποτα στις Πωλήσεις· η κίνηση φαίνεται στο 📜 Κινήσεις."
+      { version: 'v13.40', date: 'Οκτώβριος 2026', items: [
+        "📜 ΑΠΟ ΤΙΣ ΚΙΝΗΣΕΙΣ ΣΤΗΝ ΠΩΛΗΣΗ: στο 📜 Κινήσεις του παλιού μετάλλου, κάθε μέταλλο που μπήκε από πελάτη γράφει πλέον το όνομά του (και το δελτίο, π.χ. O-0005) και με ένα πάτημα ανοίγει την πώληση από την οποία ήρθε. Μια ανταλλαγή εμφανίζεται ως «Ανταλλαγή σε πώληση» και όχι ως απλή αγορά. Το ✕ σας γυρίζει πίσω στις Κινήσεις."
       ]},
       { version: 'v13.38', date: 'Οκτώβριος 2026', items: [
         "🧩 ΤΟ ΠΑΛΑΙΟ ΜΕΤΑΛΛΟ ΦΕΥΓΕΙ ΜΕ ΤΟ «ΕΤΟΙΜΟ»: τα υλικά μιας δουλειάς (παλαιό μέταλλο, αλυσίδα, κομμάτι) αφαιρούνται από το απόθεμα όταν η δουλειά γίνει «Έτοιμο», όχι στην παραλαβή — αφού το κόσμημα φτιάχτηκε, το μέταλλο δεν επιστρέφει. Το κόστος τους «παγώνει» εκείνη τη μέρα. Για δουλειές που είναι ήδη έτοιμες υπάρχει κουμπί «Αφαίρεση από το απόθεμα τώρα». 🏷️ ΔΕΝ ΠΑΡΑΛΗΦΘΗΚΕ → ΣΤΟ ΑΠΟΘΕΜΑ: σε έτοιμη παραγγελία, αν ο πελάτης δεν έρθει ποτέ, η προκαταβολή κρατιέται και μπαίνει στα έσοδα και το κόσμημα μπαίνει στο απόθεμα με κόστος όσο σας κόστισε η δουλειά — ανοίγει ο Υπολογισμός για να το ζυγίσετε και να τυπώσετε ετικέτα."
@@ -36779,8 +36838,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.39', date: 'Oct 2026', items: [
-        "⚗️ REFINE TO PURE: scrap metal cards (e.g. 14K, 18K) get a “Refine to pure” button. Pick which piles you sent to the refiner and how many grams, enter the pure grams you got back (and the fee, if any) — the app works out the loss in % and €, takes the grams out of the scrap and puts them into pure 24K (or 999 silver). The pure metal keeps the scrap’s cost, so the loss shows honestly. Nothing is written to Sales; the move appears in 📜 Movements."
+      { version: 'v13.40', date: 'Oct 2026', items: [
+        "📜 FROM MOVEMENTS TO THE SALE: in a scrap pile's 📜 Movements, metal that came from a customer now shows their name (and the ticket, e.g. O-0005), and one tap opens the sale it came with. A trade-in reads as “Traded in on a sale” instead of a plain purchase. ✕ brings you back to the Movements."
       ]},
       { version: 'v13.38', date: 'Oct 2026', items: [
         "🧩 SCRAP LEAVES STOCK AT “READY”: a job's materials (scrap metal, chain, a piece) now leave stock when the job is marked Ready, not at collection — once the piece is made the metal does not come back. Their cost is frozen on that day. Jobs already marked ready get a “Take out of stock now” button. 🏷️ NOT COLLECTED → TO STOCK: on a ready order, if the customer never comes, the deposit is kept and booked as income and the piece goes into stock at what the job cost you — Calc opens so you can weigh it and print its tag."
@@ -42233,7 +42292,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.39';
+const APP_VERSION = '13.40';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
