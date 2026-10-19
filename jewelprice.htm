@@ -3750,6 +3750,30 @@ const T = {
     metalNewTotal:'Νέο σύνολο',
     metalAddMore:'＋ Προσθήκη',
     metalTakeBtn:'− Αφαίρεση',
+    refineBtn:'⚗️ Καθαρισμός σε καθαρό',
+    refineTitle:'⚗️ Καθαρισμός σε καθαρό',
+    refineSubtitle:'Το παλιό μέταλλο έγινε καθαρό στο διυλιστήριο. Διαλέξτε τι στείλατε, γράψτε τι πήρατε πίσω — η εφαρμογή βρίσκει την απώλεια.',
+    refineFromLbl:'Τι στείλατε',
+    refineSendLbl:'Γραμμάρια που στάλθηκαν',
+    refinePromised:'{g}g δεσμευμένα σε δουλειά',
+    refineRecvLbl:'Πήρατε πίσω ({k}, γρ.)',
+    refineFeeLbl:'Αμοιβή διυλιστηρίου ({c})',
+    refineFeeHint:'Η αμοιβή προστίθεται στο κόστος του καθαρού μετάλλου. Δεν γράφεται τίποτα στις Πωλήσεις.',
+    refineNoSrc:'Δεν υπάρχει παλιό μέταλλο αυτού του τύπου στο απόθεμα.',
+    refinePickSrc:'Διαλέξτε ένα ή περισσότερα αποθέματα.',
+    refineSending:'Στέλνετε',
+    refineExpected:'Καθαρό που περιέχει',
+    refineReceivedPure:'Καθαρό που πήρατε',
+    refineLossLbl:'Απώλεια',
+    refineGainLbl:'Περισσότερο από το αναμενόμενο',
+    refineVsSetting:'Η ρύθμιση «Απώλεια καθαρισμού» υπολογίζει {p}% όταν αγοράζετε παλιό μέταλλο.',
+    refineEnterRecv:'Γράψτε πόσα γραμμάρια καθαρού πήρατε.',
+    refineTooMuch:'Το {lot} έχει μόνο {g}g διαθέσιμα.',
+    refineConfirm:'Καταχώριση',
+    refineAsk:'Στάλθηκαν {src} · Επιστράφηκαν {recv} · {loss}. Τα γραμμάρια φεύγουν από το παλιό μέταλλο και μπαίνουν στο καθαρό.',
+    refineDone:'⚗️ +{g}g {k} στο απόθεμα · {loss}',
+    refineGainShort:'Κέρδος',
+    refinePartial:'Το καθαρό μέταλλο καταχωρήθηκε, αλλά δεν αφαιρέθηκαν: {list}. Αφαιρέστε τα με «− Αφαίρεση» στην κάρτα τους.',
     metalModalTakeTitle:'− Αφαίρεση μετάλλου',
     metalTakeSubtitle:'Μέταλλο που φεύγει από το απόθεμα — π.χ. για να φτιάξετε ένα κόσμημα',
     metalTakeFrom:'Από',
@@ -4337,6 +4361,30 @@ const T = {
     metalNewTotal:'New total',
     metalAddMore:'＋ Add',
     metalTakeBtn:'− Remove',
+    refineBtn:'⚗️ Refine to pure',
+    refineTitle:'⚗️ Refine to pure',
+    refineSubtitle:'Your scrap was turned into pure metal at the refiner. Pick what you sent, enter what came back — the app works out the loss.',
+    refineFromLbl:'What you sent',
+    refineSendLbl:'Grams sent',
+    refinePromised:'{g}g promised to a job',
+    refineRecvLbl:'Received ({k}, g)',
+    refineFeeLbl:'Refiner fee ({c})',
+    refineFeeHint:'The fee is added to the pure metal cost. Nothing is written to Sales.',
+    refineNoSrc:'No scrap of this metal in stock.',
+    refinePickSrc:'Pick one or more piles.',
+    refineSending:'Sending',
+    refineExpected:'Pure metal it contains',
+    refineReceivedPure:'Pure metal received',
+    refineLossLbl:'Loss',
+    refineGainLbl:'More than expected',
+    refineVsSetting:'Your Refining loss setting assumes {p}% when you buy scrap.',
+    refineEnterRecv:'Enter how many grams of pure metal came back.',
+    refineTooMuch:'{lot} only has {g}g available.',
+    refineConfirm:'Record',
+    refineAsk:'Sent {src} · Received {recv} · {loss}. The grams leave the scrap and go into the pure metal.',
+    refineDone:'⚗️ +{g}g {k} in stock · {loss}',
+    refineGainShort:'Gain',
+    refinePartial:'The pure metal was recorded, but these were not taken out: {list}. Remove them with − Remove on their card.',
     metalModalTakeTitle:'− Remove metal',
     metalTakeSubtitle:'Metal leaving the pile — e.g. to make a piece',
     metalTakeFrom:'From',
@@ -30395,6 +30443,7 @@ function renderInvList() {
           <button class="inv-action-btn" style="${_mAct}background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light)" onclick="openMetalModal('take',{editId:'${id}'})">${t('metalTakeBtn')}</button>
           <button class="inv-action-btn" style="${_mAct}background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);color:var(--gold-light)" onclick="openMetalModal('edit',{editId:'${id}'})">${t('invEdit')}</button>
           <button class="inv-action-btn inv-action-del" style="${_mAct}" onclick="invDelete('${id}')">${t('invDelete')}</button>
+          ${_refinePureKarat(item.metal) !== String(item.karat) ? `<button class="inv-action-btn" style="flex:1 1 100%;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light)" onclick="openRefineModal('${id}')">${t('refineBtn')}</button>` : ''}
         </div>`;
       return `
         <div class="inv-card" data-inv-id="${id}">
@@ -34618,6 +34667,13 @@ async function _metalAddToLot(spec, paid, noteLbl, opts) {
   const kept = !!(opts && opts.kept);
   const spot = spec.metal === 'silver' ? getSilverPrice() : getGoldPrice();
   const meltNow = spot ? (spot / TROY_OZ_TO_GRAM) * spec.pure : 0;
+  // `opts.carry` = { melt, cost }: metal that is not BOUGHT but converted from other
+  // stock you already hold (refining scrap into pure, v13.39). It brings its own
+  // value-when-added and its own cost with it, so the new pile's gain % shows the
+  // refining loss honestly, and no buy-cheap gain is booked — nothing was bought.
+  const carry = opts && opts.carry;
+  const meltIn = carry ? (parseFloat(carry.melt) || 0) : meltNow;
+  const costIn = carry ? (parseFloat(carry.cost) || 0) : paid;
   // Work from what the CLOUD says the pile holds, not this device's cache — a pile
   // is an accumulating total and a stale copy silently loses the other phone's grams.
   let ex = _findMetalLot(spec.metal, spec.karat);
@@ -34644,9 +34700,9 @@ async function _metalAddToLot(spec, paid, noteLbl, opts) {
     item.weight = item.metalGross;
     item.metalPure = _gRound((parseFloat(item.metalPure) || 0) + spec.pure);
     item.metalFineness = item.metalGross > 0 ? item.metalPure / item.metalGross : spec.fineness;
-    item.initialMelt = parseFloat(((parseFloat(item.initialMelt) || 0) + meltNow).toFixed(2));
+    item.initialMelt = parseFloat(((parseFloat(item.initialMelt) || 0) + meltIn).toFixed(2));
     item.initialRetail = item.initialMelt;
-    if (paid > 0) item.purchaseCost = parseFloat(((parseFloat(item.purchaseCost) || 0) + paid).toFixed(2));
+    if (costIn > 0) item.purchaseCost = parseFloat(((parseFloat(item.purchaseCost) || 0) + costIn).toFixed(2));
     item.dateAddedLast = Date.now();
   } else {
     created = true;
@@ -34654,10 +34710,10 @@ async function _metalAddToLot(spec, paid, noteLbl, opts) {
     item = {
       jewelryType: 'metal', isMetal: true, metal: spec.metal, karat: spec.karat,
       metalFineness: spec.fineness, metalGross: spec.weight, weight: spec.weight, metalPure: spec.pure,
-      initialMelt: parseFloat(meltNow.toFixed(2)), initialRetail: parseFloat(meltNow.toFixed(2)),
+      initialMelt: parseFloat(meltIn.toFixed(2)), initialRetail: parseFloat(meltIn.toFixed(2)),
       status: 'in_stock', dateAdded: Date.now(), addedBy: creds.displayName || creds.userName || ''
     };
-    if (paid > 0) item.purchaseCost = paid;
+    if (costIn > 0) item.purchaseCost = parseFloat(costIn.toFixed(2));
   }
   _inventoryCache[lotId] = item;
   const okSave = await saveInventoryItem(lotId, item);
@@ -34671,7 +34727,7 @@ async function _metalAddToLot(spec, paid, noteLbl, opts) {
   // The record's id comes back with the result so a trade-in that is later
   // undone can unbook it: if the purchase never happened, neither did the gain.
   let gain = 0, gainRecId = null;
-  if ((paid > 0 || kept) && meltNow > 0) {
+  if (!carry && (paid > 0 || kept) && meltNow > 0) {
     const loss = _refiningLossPct();
     // Each figure is rounded to the cent BEFORE the subtraction, so the rows the
     // sale detail draws (value − refining loss − paid = gain) always add up
@@ -34896,6 +34952,7 @@ function _metalMoveLabel(k) {
     case 'job':   return el ? 'Σε δουλειά'            : 'Used in a job';
     case 'undo':  return el ? 'Επιστροφή στον πελάτη' : 'Returned to customer';
     case 'edit':  return el ? 'Διόρθωση βάρους'       : 'Weight corrected';
+    case 'refine': return el ? 'Καθαρισμός σε καθαρό' : 'Refined to pure';
     default:      return el ? 'Προσθήκη'              : 'Added';
   }
 }
@@ -35047,6 +35104,261 @@ async function openMetalHistory(id) {
       ${notes.map(n => `<div style="font-size:10.5px;color:var(--text-muted);line-height:1.5;margin-top:10px">${n}</div>`).join('')}
     </div>`;
   document.body.appendChild(ov);
+}
+
+// ── REFINE SCRAP INTO PURE METAL (v13.39) ─────────────────────────────────────
+// The owner takes his 14K/18K scrap to a refiner in Athens and gets fine gold back.
+// That is not a sale and not a purchase — it is stock turning into other stock — so
+// it moves grams between piles and writes NOTHING to Sales:
+//
+//  * The chosen grams leave each source pile at that pile's OWN average fineness
+//    (the v11.72 rule), carrying out their share of what the pile cost and of its
+//    value-when-added.
+//  * The pure grams received go into the 24K (or 999 silver) pile, bringing that
+//    cost and that value-when-added with them (+ any refiner's fee as cost). So the
+//    pure pile's gain % starts out honestly NEGATIVE by exactly the refining loss.
+//  * The loss itself is measured on PURE content: what the scrap should have held
+//    (grams × fineness) against what came back (grams × the pure pile's fineness).
+//    It is the number that says how good the scrap really was — old jewellery often
+//    sits under its stamp (solder, repairs).
+//
+// The pure metal goes in FIRST and the scrap comes out after: if the add fails,
+// nothing has moved; if a removal fails afterwards, that pile still lists grams that
+// are gone and the owner is told which, so it can be fixed by hand ("− Remove").
+function _refinePureKarat(metal) { return metal === 'silver' ? '999' : '24'; }
+function _refinePureFine(metal) {
+  const k = _refinePureKarat(metal);
+  return ((METAL_STOCK_KARATS[metal] || []).find(x => x.k === k) || {}).f || 0.999;
+}
+function _refineSources(metal) {
+  const pk = _refinePureKarat(metal);
+  return Object.entries(_inventoryCache || {})
+    .filter(([, it]) => it && it.isMetal && it.status !== 'sold' && it.metal === metal && String(it.karat) !== pk)
+    .sort((a, b) => (parseFloat(b[1].metalFineness) || 0) - (parseFloat(a[1].metalFineness) || 0));
+}
+// What a pile can give up: what is in it, less what live jobs have promised (v13.23).
+function _refineFree(id, it) {
+  const have = _gRound(parseFloat(it.metalGross) || parseFloat(it.weight) || 0);
+  let prom = 0; try { prom = _ordBulkPromised(id) || 0; } catch (e) {}
+  return { have, prom, free: _gRound(Math.max(0, have - prom)) };
+}
+
+function closeRefineModal() { document.getElementById('refineOverlay')?.remove(); }
+
+function openRefineModal(preId) {
+  if (!can('manage_stock')) return;
+  const pre = preId ? (_inventoryCache || {})[preId] : null;
+  window._refMetal = (pre && pre.metal) || 'gold';
+  window._refOn = new Set(preId ? [preId] : []);
+  closeRefineModal();
+  const isEl = lang === 'el';
+  const cur = state.currency || '€';
+  const _inS = 'width:100%;box-sizing:border-box;padding:11px 12px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:15px';
+  const ov = document.createElement('div');
+  ov.id = 'refineOverlay';
+  // Has typing, so it is anchored to the TOP (v11.53) and scrolls.
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:flex-start;justify-content:center;padding:env(safe-area-inset-top) 12px 12px';
+  ov.innerHTML = `
+    <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.4);border-top:none;border-radius:0 0 16px 16px;padding:20px;width:100%;max-width:440px;max-height:92vh;max-height:92dvh;overflow-y:auto;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="flex:1;font-family:var(--font-heading);font-size:18px;color:var(--gold-light)">${t('refineTitle')}</div>
+        <button onclick="closeRefineModal()" class="modal-x">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${t('refineSubtitle')}</div>
+      <div id="refineMetalRow" style="display:flex;gap:8px;margin-bottom:12px"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('refineFromLbl')}</div>
+      <div id="refineSrcList" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:4px">
+        <div style="flex:1;min-width:0">
+          <div id="refineRecvLbl" style="font-size:11px;color:var(--text-muted);margin-bottom:6px"></div>
+          <input id="refineRecv" type="number" step="0.01" min="0" inputmode="decimal" oninput="_refineSync()" style="${_inS}">
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${t('refineFeeLbl').replace('{c}', cur)}</div>
+          <input id="refineFee" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${isEl ? 'προαιρετικό' : 'optional'}" oninput="_refineSync()" style="${_inS}">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin:0 0 12px;line-height:1.45">${t('refineFeeHint')}</div>
+      <div id="refinePreview" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:10px;padding:12px 14px;margin-bottom:10px"></div>
+      <button id="refineOkBtn" onclick="_refineConfirm()" style="width:100%;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;margin-bottom:8px">${t('refineConfirm')}</button>
+      <button onclick="closeRefineModal()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--wa15);color:var(--text-muted);border-radius:8px;font-family:var(--font-body);font-size:12px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+    </div>`;
+  document.body.appendChild(ov);
+  _refineRender();
+}
+
+function _refineSetMetal(m) {
+  if (window._refMetal === m) return;
+  window._refMetal = m; window._refOn = new Set();
+  _refineRender();
+}
+function _refineToggle(id) {
+  const on = window._refOn || (window._refOn = new Set());
+  if (on.has(id)) on.delete(id); else on.add(id);
+  _refineRender();
+}
+
+// Rebuilt only on metal change / tick — never while typing, so focus is kept.
+function _refineRender() {
+  const isEl = lang === 'el';
+  const metal = window._refMetal || 'gold';
+  const mr = document.getElementById('refineMetalRow');
+  if (mr) mr.innerHTML = ['gold', 'silver'].map(m => {
+    const on = m === metal, acc = m === 'silver' ? '176,184,200' : '201,168,76';
+    const lbl = m === 'silver' ? (isEl ? '🥈 Ασήμι' : '🥈 Silver') : (isEl ? '🥇 Χρυσός' : '🥇 Gold');
+    return `<button onclick="_refineSetMetal('${m}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid ${on ? 'rgba(' + acc + ',0.7)' : 'var(--wa15)'};background:${on ? 'rgba(' + acc + ',0.22)' : 'transparent'};color:${on ? 'var(--text)' : 'var(--text-muted)'};font-family:var(--font-body);font-size:13px;font-weight:${on ? 700 : 500};cursor:pointer">${lbl}</button>`;
+  }).join('');
+  const rl = document.getElementById('refineRecvLbl');
+  if (rl) rl.textContent = t('refineRecvLbl').replace('{k}', metalStockLabel({ metal, karat: _refinePureKarat(metal) }));
+  const list = document.getElementById('refineSrcList');
+  if (!list) return;
+  const keep = {};
+  list.querySelectorAll('input[data-ref-id]').forEach(i => { keep[i.dataset.refId] = i.value; });
+  const src = _refineSources(metal);
+  if (!src.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:10px 2px">${t('refineNoSrc')}</div>`;
+  } else {
+    list.innerHTML = src.map(([id, it]) => {
+      const on = window._refOn.has(id);
+      const f = _refineFree(id, it);
+      const val = (keep[id] != null && keep[id] !== '') ? keep[id] : (f.free ? f.free : '');
+      const fine = Math.round(((parseFloat(it.metalPure) || 0) / (f.have || 1)) * 1000);
+      const promTxt = f.prom > 0 ? ' · ' + t('refinePromised').replace('{g}', f.prom.toFixed(2)) : '';
+      return `
+      <div style="border:1px solid ${on ? 'rgba(201,168,76,0.6)' : 'var(--wa12)'};background:${on ? 'rgba(201,168,76,0.08)' : 'transparent'};border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div onclick="_refineToggle('${id}')" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <div style="flex:0 0 22px;height:22px;border-radius:6px;border:1px solid ${on ? 'var(--gold)' : 'var(--wa20)'};background:${on ? 'var(--gold)' : 'transparent'};color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">${on ? '✓' : ''}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;color:var(--text);font-weight:600">${metalStockLabel(it)}</div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${f.have.toFixed(2)}g · ${fine}‰${promTxt}</div>
+          </div>
+        </div>
+        ${on ? `<div style="display:flex;align-items:center;gap:8px;margin-top:9px">
+          <div style="flex:1;min-width:0;font-size:11px;color:var(--text-muted)">${t('refineSendLbl')}</div>
+          <input data-ref-id="${id}" type="number" step="0.01" min="0" inputmode="decimal" value="${val}" oninput="_refineSync()" style="flex:0 0 110px;width:110px;box-sizing:border-box;padding:8px 10px;background:var(--dark-3);border:1px solid rgba(212,175,55,0.3);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;text-align:right">
+          <div style="font-size:12px;color:var(--text-muted)">g</div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  _refineSync();
+}
+
+// Everything the preview and the confirm need, from ONE function, so the two can
+// never disagree.
+function _refineState() {
+  const metal = window._refMetal || 'gold';
+  const rows = []; let err = '';
+  for (const id of (window._refOn || [])) {
+    const it = (_inventoryCache || {})[id];
+    if (!it || !it.isMetal || it.metal !== metal) continue;
+    const inp = document.querySelector('#refineSrcList input[data-ref-id="' + id + '"]');
+    const g = _gRound(inp ? inp.value : 0);
+    const f = _refineFree(id, it);
+    if (!(g > 0)) { err = err || 'grams'; continue; }
+    if (g > f.free + 0.0005) err = err || ('toomuch:' + id);
+    const havePure = _gRound(parseFloat(it.metalPure) || 0);
+    const fine = f.have > 0 ? havePure / f.have : (parseFloat(it.metalFineness) || 0);
+    // The whole pile sent: use its exact pure total, so no rounding crumb is left behind.
+    const pure = Math.abs(g - f.have) < 0.0005 ? havePure : _gRound(g * fine);
+    const r = havePure > 0 ? Math.min(1, pure / havePure) : 0;
+    rows.push({ id, item: it, g, pure,
+      cost: Math.round((parseFloat(it.purchaseCost) || 0) * r * 100) / 100,
+      melt: Math.round((parseFloat(it.initialMelt) || 0) * r * 100) / 100 });
+  }
+  const expPure = _gRound(rows.reduce((a, x) => a + x.pure, 0));
+  const sendG = _gRound(rows.reduce((a, x) => a + x.g, 0));
+  const recvG = _gRound(document.getElementById('refineRecv')?.value);
+  const recvPure = _gRound(recvG * _refinePureFine(metal));
+  const fee = Math.max(0, Math.round((parseFloat(document.getElementById('refineFee')?.value) || 0) * 100) / 100);
+  const lossPure = _gRound(expPure - recvPure);
+  const lossPct = expPure > 0 ? lossPure / expPure * 100 : 0;
+  const spot = metal === 'silver' ? getSilverPrice() : getGoldPrice();
+  const perG = spot ? spot / TROY_OZ_TO_GRAM : 0;
+  return { metal, rows, err, expPure, sendG, recvG, recvPure, fee, lossPure, lossPct,
+    lossEur: perG ? lossPure * perG : null,
+    cost: Math.round(rows.reduce((a, x) => a + x.cost, 0) * 100) / 100,
+    melt: Math.round(rows.reduce((a, x) => a + x.melt, 0) * 100) / 100 };
+}
+
+function _refineSync() {
+  const box = document.getElementById('refinePreview'); if (!box) return;
+  const cur = state.currency || '€';
+  const S = _refineState();
+  const btn = document.getElementById('refineOkBtn');
+  const row = (l, v, c) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;margin:3px 0"><span style="color:var(--text-muted)">${l}</span><span style="font-family:var(--font-mono);color:${c || 'var(--text)'};text-align:right">${v}</span></div>`;
+  let html = '';
+  if (!S.rows.length) html = `<div style="font-size:12px;color:var(--text-muted)">${t('refinePickSrc')}</div>`;
+  else {
+    html += row(t('refineSending'), S.sendG.toFixed(2) + 'g');
+    html += row(t('refineExpected'), S.expPure.toFixed(2) + 'g');
+    if (S.err.startsWith('toomuch')) {
+      const bid = S.err.split(':')[1], bit = _inventoryCache[bid];
+      html += `<div style="font-size:12px;color:var(--loss);margin-top:6px;font-weight:700">${t('refineTooMuch').replace('{lot}', bit ? metalStockLabel(bit) : '').replace('{g}', bit ? _refineFree(bid, bit).free.toFixed(2) : '')}</div>`;
+    } else if (S.recvG > 0) {
+      html += row(t('refineReceivedPure'), S.recvPure.toFixed(2) + 'g');
+      html += `<div style="height:1px;background:var(--wa12);margin:7px 0"></div>`;
+      const neg = S.lossPure < 0;
+      const c = neg ? 'var(--gain)' : 'var(--loss)';
+      const sign = neg ? '+' : '−';
+      html += `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:4px 0">
+        <span style="font-size:13px;color:var(--text);font-weight:600">${neg ? t('refineGainLbl') : t('refineLossLbl')}</span>
+        <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:${c}">${Math.abs(S.lossPct).toFixed(2)}%</span></div>`;
+      html += row('', sign + Math.abs(S.lossPure).toFixed(2) + 'g' + (S.lossEur != null ? ' · ' + sign + cur + Math.abs(S.lossEur).toFixed(2) : ''), c);
+      html += `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.45">${t('refineVsSetting').replace('{p}', _refiningLossPct())}</div>`;
+    } else {
+      html += `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">${t('refineEnterRecv')}</div>`;
+    }
+  }
+  box.innerHTML = html;
+  if (btn) {
+    const ok = S.rows.length && !S.err && S.recvG > 0;
+    btn.disabled = !ok; btn.style.opacity = ok ? '1' : '0.45';
+  }
+}
+
+async function _refineConfirm() {
+  if (!can('manage_stock')) return;
+  const isEl = lang === 'el';
+  // Fresh figures before anything is decided — a pile is an accumulating total
+  // and another phone may have moved it since this dialog opened (v13.24).
+  for (const id of Array.from(window._refOn || [])) { try { await _metalFreshLot(id); } catch (e) {} }
+  const S = _refineState();
+  if (!S.rows.length || S.err || !(S.recvG > 0)) { _refineSync(); showToast(isEl ? '⚠️ Ελέγξτε τα στοιχεία' : '⚠️ Check the details'); return; }
+  const pk = _refinePureKarat(S.metal);
+  const pureLbl = metalStockLabel({ metal: S.metal, karat: pk });
+  const lossTxt = (S.lossPure < 0 ? t('refineGainShort') + ' +' : t('refineLossLbl') + ' −') + Math.abs(S.lossPct).toFixed(2) + '%';
+  const srcTxt = S.rows.map(x => x.g.toFixed(2) + 'g ' + metalStockLabel(x.item)).join(' + ');
+  const ok = await new Promise(res => showConfirm(
+    t('refineAsk').replace('{src}', srcTxt).replace('{recv}', S.recvG.toFixed(2) + 'g ' + pureLbl).replace('{loss}', lossTxt),
+    () => res(true), () => res(false), { okLabel: t('refineConfirm'), danger: false }));
+  if (!ok) return;
+  const btn = document.getElementById('refineOkBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const karats = Array.from(new Set(S.rows.map(x => S.metal === 'silver' ? String(x.item.karat) : x.item.karat + 'K'))).join('+');
+  // 1) Pure metal IN, carrying the scrap's cost and value-when-added (+ the fee).
+  const add = await _metalAddToLot(
+    { metal: S.metal, karat: pk, fineness: _refinePureFine(S.metal), weight: S.recvG, pure: S.recvPure },
+    0, '', { carry: { melt: S.melt, cost: S.cost + S.fee }, kind: 'refine', amt: S.fee, note: karats + ' · ' + (S.lossPure < 0 ? '+' : '−') + Math.abs(S.lossPct).toFixed(2) + '%' });
+  if (!add.ok) {
+    showToast(isEl ? '⚠️ Η αποθήκευση απέτυχε — τίποτα δεν άλλαξε' : '⚠️ Save failed — nothing was changed');
+    if (btn) { btn.disabled = false; btn.textContent = t('refineConfirm'); }
+    return;
+  }
+  // 2) Scrap OUT, each pile at its own fineness, with the exact cost/value it carried.
+  const failed = [];
+  for (const x of S.rows) {
+    const r = await _metalRemoveFromLot(S.metal, x.item.karat, x.g, x.pure, x.id,
+      { cost: x.cost, melt: x.melt }, { kind: 'refine', note: '→ ' + pureLbl });
+    if (!r.ok) failed.push(metalStockLabel(x.item) + ' ' + x.g.toFixed(2) + 'g');
+  }
+  closeRefineModal();
+  renderInvList();
+  if (failed.length) {
+    showConfirm(t('refinePartial').replace('{list}', failed.join(', ')), () => {}, null, { hideCancel: true, okLabel: 'OK', danger: false });
+  } else {
+    showToast(t('refineDone').replace('{g}', S.recvG.toFixed(2)).replace('{k}', pureLbl).replace('{loss}', lossTxt));
+  }
 }
 
 async function _metalConfirm() {
@@ -36369,6 +36681,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.39', date: 'Οκτώβριος 2026', items: [
+        "⚗️ ΚΑΘΑΡΙΣΜΟΣ ΣΕ ΚΑΘΑΡΟ: στις κάρτες του παλιού μετάλλου (π.χ. 14K, 18K) νέο κουμπί «Καθαρισμός σε καθαρό». Διαλέγετε ποια αποθέματα στείλατε στο διυλιστήριο και πόσα γραμμάρια, γράφετε πόσα γραμμάρια καθαρού πήρατε πίσω (και προαιρετικά την αμοιβή) — η εφαρμογή βρίσκει την απώλεια σε % και σε €, αφαιρεί τα γραμμάρια από το παλιό μέταλλο και τα βάζει στο καθαρό 24K (ή 999 ασήμι). Το καθαρό κρατά το κόστος του παλιού μετάλλου, ώστε η απώλεια να φαίνεται τίμια. Δεν γράφεται τίποτα στις Πωλήσεις· η κίνηση φαίνεται στο 📜 Κινήσεις."
+      ]},
       { version: 'v13.38', date: 'Οκτώβριος 2026', items: [
         "🧩 ΤΟ ΠΑΛΑΙΟ ΜΕΤΑΛΛΟ ΦΕΥΓΕΙ ΜΕ ΤΟ «ΕΤΟΙΜΟ»: τα υλικά μιας δουλειάς (παλαιό μέταλλο, αλυσίδα, κομμάτι) αφαιρούνται από το απόθεμα όταν η δουλειά γίνει «Έτοιμο», όχι στην παραλαβή — αφού το κόσμημα φτιάχτηκε, το μέταλλο δεν επιστρέφει. Το κόστος τους «παγώνει» εκείνη τη μέρα. Για δουλειές που είναι ήδη έτοιμες υπάρχει κουμπί «Αφαίρεση από το απόθεμα τώρα». 🏷️ ΔΕΝ ΠΑΡΑΛΗΦΘΗΚΕ → ΣΤΟ ΑΠΟΘΕΜΑ: σε έτοιμη παραγγελία, αν ο πελάτης δεν έρθει ποτέ, η προκαταβολή κρατιέται και μπαίνει στα έσοδα και το κόσμημα μπαίνει στο απόθεμα με κόστος όσο σας κόστισε η δουλειά — ανοίγει ο Υπολογισμός για να το ζυγίσετε και να τυπώσετε ετικέτα."
       ]},
@@ -36464,6 +36779,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.39', date: 'Oct 2026', items: [
+        "⚗️ REFINE TO PURE: scrap metal cards (e.g. 14K, 18K) get a “Refine to pure” button. Pick which piles you sent to the refiner and how many grams, enter the pure grams you got back (and the fee, if any) — the app works out the loss in % and €, takes the grams out of the scrap and puts them into pure 24K (or 999 silver). The pure metal keeps the scrap’s cost, so the loss shows honestly. Nothing is written to Sales; the move appears in 📜 Movements."
+      ]},
       { version: 'v13.38', date: 'Oct 2026', items: [
         "🧩 SCRAP LEAVES STOCK AT “READY”: a job's materials (scrap metal, chain, a piece) now leave stock when the job is marked Ready, not at collection — once the piece is made the metal does not come back. Their cost is frozen on that day. Jobs already marked ready get a “Take out of stock now” button. 🏷️ NOT COLLECTED → TO STOCK: on a ready order, if the customer never comes, the deposit is kept and booked as income and the piece goes into stock at what the job cost you — Calc opens so you can weigh it and print its tag."
       ]},
@@ -41915,7 +42233,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.38';
+const APP_VERSION = '13.39';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
