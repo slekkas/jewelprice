@@ -2534,6 +2534,8 @@
   <div style="background:var(--dark-2);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:24px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold-light);margin-bottom:4px" data-i18n="labelModalTitle">🏷️ Κωδικοί Ετικέτας</div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px" data-i18n="labelModalHint">Αντιγράψτε και επικολλήστε στο BarTender.</div>
+    <!-- Filled when this tag is for a job the customer never collected (v13.38). -->
+    <div id="labelJobNote" style="display:none;margin-bottom:14px;padding:10px 12px;background:rgba(224,168,90,0.1);border:1px solid var(--warn);border-radius:8px;font-size:12px;color:var(--text);line-height:1.5"></div>
     <div style="margin-bottom:16px">
       <label style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:6px">🇬🇷 Περιγραφή (Ελληνικά)</label>
       <input type="text" id="labelDescElInput" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -6349,7 +6351,9 @@ function deskShow(which) {
 // Display filter only: nothing is archived, moved or rewritten on the server.
 function _deskIsFinished(kind, r) {
   if (!r) return false;
-  if (kind === 'repairs' || kind === 'orders') return r.status === 'collected' || r.status === 'cancelled';
+  // A job left uncollected is finished once its piece is actually in stock — until then
+  // there is still a step to do, so it stays in view.
+  if (kind === 'repairs' || kind === 'orders') return r.status === 'collected' || r.status === 'cancelled' || (r.status === 'stocked' && !_repNeedsStocking(r));
   if (kind === 'reservations') return r.status === 'completed' || r.status === 'cancelled' || r.status === 'expired';
   if (kind === 'gift') {
     if (r.status === 'redeemed' || r.status === 'cancelled') return true;
@@ -9109,11 +9113,13 @@ function repStatusLabel(r) {
     : r.status === 'in_progress' ? (isOrd ? (isEl ? 'Παραγγέλθηκε' : 'Ordered') : (isEl ? 'Σε εξέλιξη' : 'In progress'))
     : r.status === 'ready' ? (isOrd ? (isEl ? 'Έφτασε' : 'Arrived') : (isEl ? 'Έτοιμο' : 'Ready'))
     : r.status === 'collected' ? (isEl ? 'Παραλήφθηκε' : 'Collected')
+    : r.status === 'stocked' ? (isEl ? 'Δεν παραλήφθηκε' : 'Not collected')
     : (isEl ? 'Ακυρώθηκε' : 'Cancelled');
 }
 function repStatusColor(r) {
   return r.status === 'quote' ? '#c9a0e0' : r.status === 'in_progress' ? 'var(--warn)'
-    : r.status === 'ready' ? 'var(--profit)' : 'var(--text-dim)';
+    : r.status === 'ready' ? 'var(--profit)'
+    : _repNeedsStocking(r) ? 'var(--warn)' : 'var(--text-dim)';
 }
 // Contact for notifying: the ticket's own phone/email, else the matching client's
 // (by name) — so a number added later in the Clients tab enables WhatsApp/SMS here.
@@ -9136,7 +9142,7 @@ function _renderTicketList(kind) {
   const isEl = lang === 'el';
   const q = (document.getElementById(isOrders ? 'ordSearchInput' : 'repSearchInput')?.value || '').toLowerCase().trim();
   let list = getRepairs().filter(r => repKind(r) === kind);
-  const rank = s => s === 'quote' ? 0 : (s === 'in_progress' ? 1 : (s === 'ready' ? 2 : (s === 'collected' ? 3 : 4)));
+  const rank = s => s === 'quote' ? 0 : (s === 'in_progress' ? 1 : (s === 'ready' ? 2 : ((s === 'collected' || s === 'stocked') ? 3 : 4)));
   const _rpMode = _deskSortValue(kind);
   list.sort((a, b) => rank(a.status) - rank(b.status) ||
     _deskCmp(_rpMode, a, b, r => r.datePromised, r => r.clientName));
@@ -9390,9 +9396,11 @@ function openRepairDetail(id) {
     ${_isQ ? `<button onclick="_repairDepositOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💶 ${isEl ? 'Προκαταβολή → παραγγελία' : 'Deposit paid → start order'}</button>` : ''}
     ${r.status === 'in_progress' ? `<button onclick="_repairSetStatus('${r.id}','ready')" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#4caf84,#2e8b62);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">${r.type === 'order' ? '📥 ' + (isEl ? 'Έφτασε' : 'Mark arrived') : '✓ ' + (isEl ? 'Έτοιμο' : 'Mark ready')}</button>` : ''}
     ${(r.status === 'in_progress' || r.status === 'ready') ? `<button onclick="${_ordLinkedInStock(r).length ? `_ordCompleteSale('${r.id}')` : `_repairCollectOpen('${r.id}')`}" style="width:100%;margin-bottom:8px;padding:13px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:#0E0C08;border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer">💰 ${_ordLinkedInStock(r).length ? (isEl ? 'Παραλαβή & πώληση' : 'Collect & sell') : (isEl ? 'Παραλαβή' : 'Collect')}</button>` : ''}
-    ${(r.status !== 'collected' && r.status !== 'cancelled' && owner) ? `<button onclick="_repairCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
+    ${_repUnclaimedBlock(r)}
+    ${(r.status === 'ready' && repIsOrder(r) && can('manage_stock')) ? `<button onclick="_repairUnclaimedOpen('${r.id}')" style="width:100%;margin-bottom:8px;padding:12px;background:transparent;border:1px solid var(--warn);color:var(--warn);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">🏷️ ${isEl ? 'Δεν παραλήφθηκε → στο απόθεμα' : 'Not collected → to stock'}</button>` : ''}
+    ${(r.status !== 'collected' && r.status !== 'cancelled' && r.status !== 'stocked' && owner) ? `<button onclick="_repairCancel('${r.id}')" class="modal-danger">✕ ${isEl ? 'Ακύρωση δελτίου' : 'Cancel ticket'}</button>` : ''}
     ${(r.status === 'cancelled' && can('desk_admin')) ? `<button onclick="_repairReactivate('${r.id}')" style="width:100%;margin-bottom:8px;padding:13px;background:transparent;border:1px solid var(--revive);color:var(--revive);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">↩️ ${isEl ? 'Επαναφορά δελτίου' : 'Reactivate ticket'}</button>` : ''}
-    ${((r.status === 'collected' || r.status === 'cancelled') && owner) ? `<button onclick="_repairDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
+    ${((r.status === 'collected' || r.status === 'cancelled' || r.status === 'stocked') && owner) ? `<button onclick="_repairDelete('${r.id}')" class="modal-danger">🗑 ${isEl ? 'Οριστική διαγραφή' : 'Delete permanently'}</button>` : ''}
   </div>`;
   document.body.appendChild(ov);
 }
@@ -9569,12 +9577,30 @@ async function _repairEditSave(id) {
   renderRepairs();
 }
 
-function _repairSetStatus(id, status) {
+async function _repairSetStatus(id, status) {
   const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
   r.status = status;
   if (status === 'ready' && !r.dateReady) r.dateReady = Date.now();
   saveRepairsLocal(list); pushRepairsToCloud(list);
   openRepairDetail(id); renderRepairs();
+  // READY means the piece is made: the scrap melted into it, the chain cut, the pendant
+  // turned into a ring. None of that comes back as stock, whether or not the customer
+  // ever collects — so it leaves stock now, not at collection (v13.38).
+  if (status === 'ready') await _ordConsumeOnReady(id);
+}
+// Take a ready job's outstanding materials out of stock, and say what happened.
+// Also reached from the "Take out of stock now" button, for a job that was marked
+// ready before this rule existed.
+async function _ordConsumeOnReady(id) {
+  const isEl = lang === 'el';
+  const r = getRepairs().find(x => x.id === id); if (!r) return;
+  if (!(r.materials || []).some(m => m && m.invId && !m.done)) return;
+  await _ordEnsureStock(r);
+  const c = await _ordConsumeMaterials(r);
+  if (c.failed) showToast('⚠️ ' + (isEl ? `${c.failed} υλικά δεν ενημερώθηκαν — δείτε το απόθεμα` : `${c.failed} material(s) not updated — check Stock`));
+  else if (c.ok) showToast('🧩 ' + (isEl ? `${c.ok} υλικά αφαιρέθηκαν από το απόθεμα` : `${c.ok} material(s) taken out of stock`));
+  if (document.getElementById('repairDetailOverlay')?.dataset.rid === id) openRepairDetail(id);
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
 }
 
 // Pre-filled message via WhatsApp / SMS / Email — the quote while the ticket is a
@@ -9781,7 +9807,7 @@ async function _repairCollectOpen(id) {
         <span style="color:var(--text-dim)">${isEl ? 'Θα πουλιόνταν προς' : 'Would have sold for'}</span>
         <span style="color:var(--text-dim);font-family:var(--font-mono)">${state.currency || '€'}${_mcost.retail.toFixed(2)}</span>
       </div>` : ''}
-      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${isEl ? 'Φεύγουν από το απόθεμα με την παραλαβή. Το κόστος είναι αυτό που σας κόστισαν — το κέρδος σας από αυτά μένει στα βιβλία.' : 'They leave stock when you collect. The cost is what they cost YOU, so the margin you had on them stays in your books.'}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${isEl ? 'Φεύγουν από το απόθεμα όταν η δουλειά γίνει «Έτοιμο» (ή τώρα, αν δεν έχουν φύγει). Το κόστος είναι αυτό που σας κόστισαν — το κέρδος σας από αυτά μένει στα βιβλία.' : 'They leave stock when the job is marked Ready (or now, if they have not yet). The cost is what they cost YOU, so the margin you had on them stays in your books.'}</div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;padding-top:8px;border-top:1px solid var(--card-border)">
         <span style="color:var(--text-muted)">${isEl ? 'Συνολικό κόστος' : 'Total cost'}</span>
         <span id="repCostTotal" style="color:var(--gold-light);font-family:var(--font-mono);font-weight:700"></span>
@@ -10004,6 +10030,9 @@ async function _recordRepairIncome(amount, cost, cashSale, note, giftOpts) {
   // this record says WHAT was earned; this says which job earned it, so the sale
   // detail can open the ticket — and from there the pieces that went into it.
   if (_go.ticketId) rec.repairTicketId = _go.ticketId;
+  // A deposit the customer forfeited by never collecting (v13.38) — income like any
+  // other, flagged so the sale detail can say what it was.
+  if (_go.depositKept) rec.depositKept = true;
   if (_giftPart > 0) {
     rec.giftCardId = _go.giftCardId || null;
     rec.giftCardNo = _go.giftCardNo || null;
@@ -10039,7 +10068,15 @@ async function _recordRepairIncome(amount, cost, cashSale, note, giftOpts) {
 
 function _repairCancel(id) {
   if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
-  showConfirm(lang === 'el' ? 'Ακύρωση αυτού του δελτίου;' : 'Cancel this ticket?', () => {
+  // Materials already used stay out of stock — cancelling cannot un-melt the metal. If
+  // the piece was made and simply never collected, the right button is "Not collected".
+  const _r0 = getRepairs().find(x => x.id === id);
+  const _used = !!(_r0 && (_r0.materials || []).some(m => m && m.done));
+  const _msg = (lang === 'el' ? 'Ακύρωση αυτού του δελτίου;' : 'Cancel this ticket?') + (_used
+    ? (lang === 'el' ? ' Τα υλικά που χρησιμοποιήθηκαν ΔΕΝ επιστρέφουν στο απόθεμα. Αν το κόσμημα φτιάχτηκε και δεν παραλήφθηκε, πατήστε «Δεν παραλήφθηκε → στο απόθεμα».'
+                     : ' Materials already used do NOT go back to stock. If the piece was made and not collected, use "Not collected → to stock" instead.')
+    : '');
+  showConfirm(_msg, () => {
     const list = getRepairs(); const r = list.find(x => x.id === id); if (!r) return;
     // Remember where it was, so a reactivation (_repairReactivate) puts it back exactly there.
     r.statusBeforeCancel = r.status; r.dateCancelled = Date.now();
@@ -10098,6 +10135,133 @@ function _repairReactivate(id) {
         () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false });
     }, null, { okLabel: isEl ? 'Επαναφορά' : 'Reactivate', danger: false });
 }
+// ── Not collected: keep the deposit, the piece goes into stock (v13.38) ────
+// A made-to-order piece whose customer never comes back is no longer the customer's: the
+// deposit is kept, and the piece becomes ordinary stock to sell.
+//
+// The money model, so nothing is counted twice:
+//  • the KEPT DEPOSIT is income on the day it is kept (a repair-income record flagged
+//    depositKept), with no cost of its own — the job's cost does not vanish, it moves
+//    into the piece;
+//  • the PIECE enters stock with a purchase cost of what the job cost you (materials
+//    already taken out at "Ready" + your own cost). When it sells, its profit is the
+//    sale less that cost — the deposit is not part of it.
+// For an ORDER whose ordered pieces arrived and are linked, those pieces are already in
+// stock with their own cost; the hold on them simply ends (it is derived from the
+// status), and anything else the job used is booked as the deposit's cost instead.
+function _repNeedsStocking(r) { return !!r && r.status === 'stocked' && !!r.stockViaCalc && !r.stockedInvId; }
+
+function _repairUnclaimedOpen(id) {
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const r = getRepairs().find(x => x.id === id);
+  if (!r || r.status !== 'ready' || !repIsOrder(r) || !can('manage_stock')) return;
+  const mc = _ordMaterialsCost(r);
+  const extra = parseFloat(r.extraCost) > 0 ? parseFloat(r.extraCost) : 0;
+  const jobCost = parseFloat((mc.total + extra).toFixed(2));
+  const dep = parseFloat(r.deposit) || 0;
+  const linked = _ordLinkedInStock(r).length;
+  const depLine = dep > 0
+    ? (isEl ? `Η προκαταβολή ${cur}${dep.toFixed(2)} κρατιέται και μπαίνει στα σημερινά έσοδα.` : `The deposit of ${cur}${dep.toFixed(2)} is kept and booked as today's income.`)
+    : (isEl ? 'Δεν υπάρχει προκαταβολή.' : 'There is no deposit.');
+  const msg = (isEl ? `Ο πελάτης δεν παρέλαβε το ${repNoFmt(r)}. ` : `${repNoFmt(r)} was not collected. `) + depLine + ' ' + (linked
+    ? (isEl ? `Τα κομμάτια (${linked}) είναι ήδη στο απόθεμα και ελευθερώνονται για πώληση.` : `Its ${linked} piece(s) are already in stock and are freed for sale.`)
+    : (isEl ? `Το κόσμημα μπαίνει στο απόθεμα με κόστος ${cur}${jobCost.toFixed(2)}${mc.unknown ? ' (+ υλικά με άγνωστο κόστος)' : ''}. Μετά ανοίγει ο Υπολογισμός: ζυγίστε το, διαλέξτε προμηθευτή και κατηγορία και πατήστε Ετικέτα.`
+            : `The piece goes into stock at a cost of ${cur}${jobCost.toFixed(2)}${mc.unknown ? ' (+ materials of unknown cost)' : ''}. Then Calc opens: weigh it, pick the vendor and category, and press Tag.`));
+  showConfirm(msg, () => _repairUnclaimedConfirm(id), null,
+    { okLabel: isEl ? 'Στο απόθεμα' : 'To stock', danger: false });
+}
+
+async function _repairUnclaimedConfirm(id) {
+  const isEl = lang === 'el';
+  let r = getRepairs().find(x => x.id === id);
+  if (!r || r.status !== 'ready') return;
+  // Anything still outstanding leaves stock first — the job's cost is only known once
+  // every material has been priced and frozen. A failure stops here with nothing booked.
+  await _ordEnsureStock(r);
+  const c = await _ordConsumeMaterials(r);
+  if (c.failed) {
+    showToast('⚠️ ' + (isEl ? 'Δεν ενημερώθηκε το απόθεμα — τίποτα δεν άλλαξε, δοκιμάστε ξανά' : 'Stock was not updated — nothing changed, try again'));
+    return;
+  }
+  const mc = _ordMaterialsCost(r);
+  const extra = parseFloat(r.extraCost) > 0 ? parseFloat(r.extraCost) : 0;
+  const jobCost = parseFloat((mc.total + extra).toFixed(2));
+  const viaCalc = !_ordLinkedInStock(r).length;
+  const dep = parseFloat(r.deposit) || 0;
+  let rec = null;
+  if (dep > 0) {
+    const note = (isEl ? 'Προκαταβολή που κρατήθηκε — ' : 'Deposit kept — ') + repTypeLabel(r) + ' ' + repNoFmt(r) + (r.description ? ' — ' + r.description : '');
+    try {
+      rec = await _recordRepairIncome(dep, viaCalc ? 0 : jobCost, r.depositMethod === 'cash', note, { ticketId: r.id, depositKept: true });
+    } catch (e) { rec = null; }
+  }
+  // Re-found after the awaits: a background pull may have replaced the list meanwhile.
+  const list = getRepairs(); const r2 = list.find(x => x.id === id) || r;
+  if (r2 !== r) r2.materials = r.materials;
+  r2.status = 'stocked'; r2.dateStocked = Date.now();
+  r2.stockViaCalc = viaCalc;
+  r2.stockCost = viaCalc ? jobCost : null;
+  r2.materialsCost = mc.total > 0 ? mc.total : null;
+  if (rec) r2.depositKeptSaleId = rec.id;
+  saveRepairsLocal(list); pushRepairsToCloud(list);
+  renderRepairs();
+  if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+  if (viaCalc) { _repairToStockArm(id); return; }
+  openRepairDetail(id);
+  showToast(isEl ? '✓ Τα κομμάτια είναι διαθέσιμα για πώληση' : '✓ The pieces are free to sell');
+}
+
+// Hand the job to Calc: the next tag made there carries the job's cost and is linked
+// back to the ticket. Single-use, and ignored after a few hours, so it can never quietly
+// attach a job's cost to an unrelated piece later.
+function _repairToStockArm(id) {
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const r = getRepairs().find(x => x.id === id); if (!r || !_repNeedsStocking(r)) return;
+  window._jobToStock = { tid: id, cost: parseFloat(r.stockCost) || 0, at: Date.now() };
+  document.getElementById('repairDetailOverlay')?.remove();
+  showPanel('calc');
+  showConfirm(isEl
+    ? `${repNoFmt(r)} — ζυγίστε το κόσμημα, διαλέξτε προμηθευτή και κατηγορία και πατήστε 🏷️ Ετικέτα. Το κόστος ${cur}${(parseFloat(r.stockCost) || 0).toFixed(2)} συμπληρώνεται μόνο του.`
+    : `${repNoFmt(r)} — weigh the piece, pick the vendor and category, and press 🏷️ Tag. The cost of ${cur}${(parseFloat(r.stockCost) || 0).toFixed(2)} is filled in for you.`,
+    () => {}, null, { okLabel: 'OK', hideCancel: true, danger: false });
+}
+const JOB_TO_STOCK_MAX_MS = 3 * 60 * 60 * 1000;
+function _jobToStockActive() {
+  const j = window._jobToStock; if (!j) return null;
+  if (Date.now() - j.at > JOB_TO_STOCK_MAX_MS) { window._jobToStock = null; return null; }
+  const r = getRepairs().find(x => x.id === j.tid);
+  if (!r || !_repNeedsStocking(r)) { window._jobToStock = null; return null; }
+  return { tid: j.tid, cost: j.cost, r: r };
+}
+function _jobToStockClear() {
+  window._jobToStock = null;
+  const n = document.getElementById('labelJobNote'); if (n) { n.style.display = 'none'; n.innerHTML = ''; }
+  const pc = document.getElementById('labelPurchaseCostInput'); if (pc) pc.value = '';
+  showToast(lang === 'el' ? 'Η ετικέτα δεν συνδέεται με τη δουλειά' : 'This tag is not linked to the job');
+}
+
+// What the detail sheet shows once a job was left uncollected.
+function _repUnclaimedBlock(r) {
+  if (!r || r.status !== 'stocked') return '';
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin:5px 0"><span style="color:var(--text-muted)">${l}</span><span style="color:var(--text);font-family:var(--font-mono)">${v}</span></div>`;
+  const dep = parseFloat(r.deposit) || 0;
+  const inv = r.stockedInvId ? (_inventoryCache || {})[r.stockedInvId] : null;
+  let piece = '';
+  if (r.stockedInvId) {
+    piece = `<button onclick="_ordOpenPiece('${r.stockedInvId}')" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid var(--card-border);color:var(--gold-light);border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">🏷️ ${inv ? _ordEsc(_ordPieceLine(inv)) : (isEl ? 'Στο απόθεμα' : 'In stock')} →</button>`;
+  } else if (_repNeedsStocking(r) && can('manage_stock')) {
+    piece = `<div style="font-size:11px;color:var(--warn);margin-top:8px">⚠️ ${isEl ? 'Το κόσμημα δεν έχει μπει ακόμα στο απόθεμα.' : 'The piece is not in stock yet.'}</div>
+      <button onclick="_repairToStockArm('${r.id}')" style="width:100%;margin-top:6px;padding:11px;background:linear-gradient(135deg,#C9A84C,#A8882A);color:var(--ink);border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer">🏷️ ${isEl ? 'Βάλτε το στο απόθεμα (Υπολογισμός)' : 'Put it in stock (Calc)'}</button>`;
+  }
+  return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+    <div style="${_resLbl};margin-top:0">🏷️ ${isEl ? 'Δεν παραλήφθηκε' : 'Not collected'}${r.dateStocked ? ' · ' + fmtDate(new Date(r.dateStocked)) : ''}</div>
+    ${dep > 0 ? row(isEl ? 'Προκαταβολή που κρατήθηκε' : 'Deposit kept', cur + dep.toFixed(2)) : ''}
+    ${(r.stockCost != null && can('see_cost')) ? row(isEl ? 'Κόστος στο απόθεμα' : 'Cost into stock', cur + (parseFloat(r.stockCost) || 0).toFixed(2)) : ''}
+    ${piece}
+  </div>`;
+}
+
 function _repairDelete(id) {
   if (!can('desk_admin')) { showToast(lang === 'el' ? 'Μόνο ο ιδιοκτήτης/διαχειριστής' : 'Owner/manager only'); return; }
   showConfirm(lang === 'el' ? 'Οριστική διαγραφή αυτού του δελτίου;' : 'Permanently delete this ticket?', () => {
@@ -10372,7 +10536,11 @@ function _ordPiecesBlock(r) {
 function _ordMaterialEntries(r) {
   const out = [];
   for (const mt of ((r && r.materials) || [])) {
-    const it = (mt && mt.invId) ? (_inventoryCache || {})[mt.invId] : null;
+    let it = (mt && mt.invId) ? (_inventoryCache || {})[mt.invId] : null;
+    // A material already USED may have no record left — a scrap lot that emptied is
+    // deleted. Its line, cost and name were frozen on the entry when it left stock
+    // (v13.38), so it is still listed from those rather than silently vanishing.
+    if (!it && mt && mt.done && mt.label) it = { _stub: true, _label: mt.label, isMetal: !!mt.metal };
     if (it) out.push([mt.invId, it, mt]);
   }
   return out;
@@ -10423,6 +10591,18 @@ function _ordMaterialsCost(r) {
   const lines = [];
   for (const [id, it, mt] of _ordMaterialEntries(r)) {
     let c = null, rt = null;
+    // Once a material has left stock its cost is FROZEN on the entry (v13.38): the grams
+    // left on the day the piece was made, at that day's price, and the lot may since
+    // have moved or been deleted. Recomputing it later would drift with the metal price.
+    if (mt.done && mt.cost != null && isFinite(parseFloat(mt.cost))) {
+      c = parseFloat(mt.cost);
+      rt = (mt.retail != null && isFinite(parseFloat(mt.retail))) ? parseFloat(mt.retail) : null;
+      total += c;
+      if (rt != null && rt > 0) retail += rt; else rt = null;
+      lines.push({ id: id, item: it, mat: mt, cost: parseFloat(c.toFixed(2)), retail: rt });
+      continue;
+    }
+    if (it._stub) { unknown++; lines.push({ id: id, item: it, mat: mt, cost: null, retail: null }); continue; }
     try {
       c = mt.metal ? _ordMetalCost(it, parseFloat(mt.grams) || 0, mt.pure)
         : mt.bulk ? _bulkSoldCost(it, parseFloat(mt.grams) || 0)
@@ -10470,7 +10650,10 @@ function _ordFreeGrams(id, it) {
   return parseFloat(Math.max(0, have - _ordBulkPromised(id)).toFixed(2));
 }
 
-// Take the materials out of stock. Called once, at collection, from BOTH collect paths.
+// Take the materials out of stock. Called when the job is marked READY (v13.38 — the
+// piece is made, so the scrap, chain or pendant in it is gone whether or not the
+// customer ever comes), and again at collection from BOTH collect paths for anything
+// still outstanding (an older ticket, or a write that failed).
 // Each write is checked and rolled back on failure (v11.62) — an unchecked failure here
 // does not look like an error, it looks like success. `done` makes it idempotent, which
 // matters most for a bulk deduction: subtracting the same grams twice is unrecoverable.
@@ -10480,6 +10663,19 @@ async function _ordConsumeMaterials(r) {
   if (!_inventoryCache || !Object.keys(_inventoryCache).length) {
     try { _inventoryCache = await loadInventory(); } catch (e) {}
   }
+  // Price every line NOW, while the stock it comes from is still there. When a line
+  // leaves, its cost, what it would have sold for and its name are FROZEN on the entry:
+  // a scrap lot that empties is deleted, and the metal price moves on — the job's cost
+  // must still read exactly what it was on the day the piece was made.
+  const _pre = _ordMaterialsCost(r);
+  const _freeze = (mt) => {
+    const l = _pre.lines.find(x => x.mat === mt);
+    if (!l) return;
+    if (l.cost != null) mt.cost = l.cost;
+    if (l.retail != null) mt.retail = l.retail; else delete mt.retail;
+    try { mt.label = _ordPieceLine(l.item); } catch (e) {}
+    mt.usedAt = Date.now();
+  };
   for (const mt of (r.materials || [])) {
     if (!mt || !mt.invId || mt.done) continue;
     const it = (_inventoryCache || {})[mt.invId]; if (!it) continue;
@@ -10498,7 +10694,7 @@ async function _ordConsumeMaterials(r) {
       try { res = await _metalRemoveFromLot(it.metal, it.karat, g, _ordMetalPure(it, g, mt.pure), mt.invId,
               null, { kind: 'job', ref: r.id + '#' + _mi, note: repNoFmt(r) }); }
       catch (e) { res = null; }
-      if (res && res.ok) { mt.done = true; out.ok++; } else out.failed++;
+      if (res && res.ok) { _freeze(mt); mt.done = true; out.ok++; } else out.failed++;
       continue;
     }
     const snap = JSON.parse(JSON.stringify(it));
@@ -10515,7 +10711,7 @@ async function _ordConsumeMaterials(r) {
     _inventoryCache[mt.invId] = it;
     let ok = false;
     try { ok = await saveInventoryItem(mt.invId, it); } catch (e) { ok = false; }
-    if (ok) { mt.done = true; out.ok++; }
+    if (ok) { _freeze(mt); mt.done = true; out.ok++; }
     else { _inventoryCache[mt.invId] = snap; out.failed++; }
   }
   if (out.ok) { const list = getRepairs(); saveRepairsLocal(list); pushRepairsToCloud(list); }
@@ -10565,8 +10761,10 @@ function _ordMaterialsBlock(r) {
   return `<div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
     <div style="${_resLbl};margin-top:0">🧩 ${rows.length ? (isEl ? `Υλικά από το απόθεμα (${rows.length})` : `Materials from stock (${rows.length})`) : (isEl ? 'Υλικά από το απόθεμα' : 'Materials from stock')}</div>
     ${_ordStockColdNote(r)}
-    ${list || (_ordStockCold(r) ? '' : `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια, αλυσίδα ή παλαιό μέταλλο που μπαίνουν σε αυτή τη δουλειά. Το κόστος τους μπαίνει στην παραλαβή, οπότε και φεύγουν από το απόθεμα.' : 'Your own pieces, chain or scrap metal that go into this job. Their cost is added at collection, which is when they leave stock.'}</div>`)}
+    ${list || (_ordStockCold(r) ? '' : `<div style="font-size:12px;color:var(--text-muted);line-height:1.5">${isEl ? 'Δικά σας κομμάτια, αλυσίδα ή παλαιό μέταλλο που μπαίνουν σε αυτή τη δουλειά. Φεύγουν από το απόθεμα όταν η δουλειά γίνει «Έτοιμο».' : 'Your own pieces, chain or scrap metal that go into this job. They leave stock when the job is marked Ready.'}</div>`)}
     ${totalRow}
+    ${(r.status === 'ready' && rows.some(([, , mt]) => !mt.done) && can('manage_stock')) ? `<div style="font-size:11px;color:var(--warn);margin-top:8px;line-height:1.5">⚠️ ${isEl ? 'Η δουλειά είναι έτοιμη αλλά αυτά είναι ακόμα στο απόθεμα.' : 'The job is ready but these are still in stock.'}</div>
+    <button onclick="_ordConsumeOnReady('${r.id}')" style="width:100%;margin-top:6px;padding:10px;background:rgba(224,168,90,0.12);border:1px solid var(--warn);color:var(--warn);border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">🧱 ${isEl ? 'Αφαίρεση από το απόθεμα τώρα' : 'Take out of stock now'}</button>` : ''}
     ${live ? `<button onclick="openOrderAddPieces('${r.id}','material')" style="width:100%;margin-top:8px;padding:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.45);color:var(--gold-light);border-radius:9px;font-size:12px;font-weight:600;cursor:pointer">🧩 ${rows.length ? (isEl ? 'Προσθήκη κι άλλων' : 'Add more') : (isEl ? 'Προσθήκη από το απόθεμα' : 'Add from stock')}</button>` : ''}
   </div>`;
 }
@@ -11021,6 +11219,16 @@ function _ordMaterialAdd(invId, grams, pure, opts) {
   if (opts && opts.waste > 0) { entry.net = parseFloat(parseFloat(opts.net).toFixed(2)); entry.waste = opts.waste; }
   r.materials = (r.materials || []).concat([entry]);
   saveRepairsLocal(list); pushRepairsToCloud(list);
+  // A job already marked READY has used its materials (v13.38) — something added to it
+  // now is used too, so it leaves stock at once rather than waiting for a collection
+  // that may never come.
+  if (r.status === 'ready') {
+    _ordConsumeMaterials(r).then(c => {
+      if (c.failed) showToast('⚠️ ' + (lang === 'el' ? `${c.failed} υλικά δεν ενημερώθηκαν — δείτε το απόθεμα` : `${c.failed} material(s) not updated — check Stock`));
+      _ordAddRenderList();
+      if (document.getElementById('panel-inventory')?.classList.contains('active')) renderInvList();
+    });
+  }
   _ordAddSay('✅ ' + _ordEsc(_ordPieceLine(it)) + (grams != null ? ` · ${parseFloat(grams).toFixed(it.isMetal ? 2 : 1)}g` : '')
     + (entry.waste > 0 ? ` (${entry.net.toFixed(2)}g + ${entry.waste}% ${lang === 'el' ? 'φύρα' : 'wastage'})` : ''), 'var(--profit)');
   try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
@@ -11143,6 +11351,7 @@ function _ordUnlinkMaterial(ticketId, invId) {
 }
 
 function _ordPieceLine(it) {
+  if (it && it._stub) return it._label || '—';   // a used material whose record is gone
   // A scrap lot has no ref code and no description — "Metal" alone would not say which
   // pile it came out of, so it is named the way its own card names it.
   if (it.isMetal) return '🧱 ' + metalStockLabel(it);
@@ -12781,6 +12990,23 @@ function _openLabelModalInner(data, modal, content) {
   if (_lblTrWrap) _lblTrWrap.style.display = _lblIsPerItem ? 'block' : 'none';
   const _lblPcInput = document.getElementById('labelPurchaseCostInput');
   if (_lblPcInput) _lblPcInput.value = '';
+  // A job the customer never collected (v13.38): the piece goes into stock at what the
+  // job cost you. Filled into the purchase cost (so a per-item target retail prices off
+  // it) and named at the top, with a way out if this tag is for a different piece.
+  const _lblJob = _jobToStockActive();
+  const _lblJobNote = document.getElementById('labelJobNote');
+  if (_lblJobNote) {
+    if (_lblJob) {
+      const _jIsEl = lang === 'el', _jCur = state.currency || '€';
+      _lblJobNote.innerHTML = `🧩 <b>${repNoFmt(_lblJob.r)}</b> · ${_repEsc(_lblJob.r.clientName || '')}<br>`
+        + (_jIsEl ? `Μπαίνει στο απόθεμα με κόστος <b>${_jCur}${_lblJob.cost.toFixed(2)}</b> (όσο σας κόστισε η δουλειά).`
+                  : `Goes into stock at a cost of <b>${_jCur}${_lblJob.cost.toFixed(2)}</b> (what the job cost you).`)
+        + ` <button onclick="_jobToStockClear()" style="background:none;border:none;color:var(--warn);text-decoration:underline;font-size:12px;cursor:pointer;padding:0">${_jIsEl ? 'Όχι, άλλο κομμάτι' : 'No, a different piece'}</button>`;
+      _lblJobNote.style.display = 'block';
+      if (_lblPcInput && _lblJob.cost > 0) _lblPcInput.value = _lblJob.cost.toFixed(2);
+      if (descInput && !descInput.value && _lblJob.r.description) descInput.value = _lblJob.r.description;
+    } else { _lblJobNote.style.display = 'none'; _lblJobNote.innerHTML = ''; }
+  }
   if (_lblTrInput) {
     _lblTrInput.value = '';
     _lblTrInput.oninput = function() {
@@ -27398,11 +27624,26 @@ async function _saveToInventoryFromLabel(labelData) {
   // one. Set only on a real print: Copy / Save-QR-image save the piece without a tag.
   if (labelData._printedRef) item.tagRef = true;
 
+  // A job the customer never collected (v13.38): the piece's cost is what the job cost
+  // you (materials + your own cost), and it remembers which job it came from.
+  const _job = _jobToStockActive();
+  if (_job) {
+    // A per-item category already took it from the (prefilled) purchase-cost box, where
+    // the owner may have corrected it — that typed figure wins.
+    if (_job.cost > 0 && cat?.rateType !== 'peritem') item.purchaseCost = _job.cost;
+    item.fromOrder = _job.tid;
+  }
+
   const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
   const ok = await saveInventoryItem(id, item);
   // Only cache on success — a failed save must not leave a phantom item behind that the
   // duplicate-QR guard would then trip over when the owner presses Print again to retry.
   if (ok && _inventoryCache) _inventoryCache[id] = item;
+  if (ok && _job) {
+    const _jl = getRepairs(); const _jr = _jl.find(x => x.id === _job.tid);
+    if (_jr) { _jr.stockedInvId = id; saveRepairsLocal(_jl); pushRepairsToCloud(_jl); renderRepairs(); }
+    window._jobToStock = null;
+  }
   return ok;
 }
 
@@ -36128,6 +36369,9 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
+      { version: 'v13.38', date: 'Οκτώβριος 2026', items: [
+        "🧩 ΤΟ ΠΑΛΑΙΟ ΜΕΤΑΛΛΟ ΦΕΥΓΕΙ ΜΕ ΤΟ «ΕΤΟΙΜΟ»: τα υλικά μιας δουλειάς (παλαιό μέταλλο, αλυσίδα, κομμάτι) αφαιρούνται από το απόθεμα όταν η δουλειά γίνει «Έτοιμο», όχι στην παραλαβή — αφού το κόσμημα φτιάχτηκε, το μέταλλο δεν επιστρέφει. Το κόστος τους «παγώνει» εκείνη τη μέρα. Για δουλειές που είναι ήδη έτοιμες υπάρχει κουμπί «Αφαίρεση από το απόθεμα τώρα». 🏷️ ΔΕΝ ΠΑΡΑΛΗΦΘΗΚΕ → ΣΤΟ ΑΠΟΘΕΜΑ: σε έτοιμη παραγγελία, αν ο πελάτης δεν έρθει ποτέ, η προκαταβολή κρατιέται και μπαίνει στα έσοδα και το κόσμημα μπαίνει στο απόθεμα με κόστος όσο σας κόστισε η δουλειά — ανοίγει ο Υπολογισμός για να το ζυγίσετε και να τυπώσετε ετικέτα."
+      ]},
       { version: 'v13.37', date: 'Οκτώβριος 2026', items: [
         "💶 ΦΙΛΤΡΟ ΕΥΡΟΥΣ ΤΙΜΗΣ: στα Φίλτρα του Αποθέματος υπάρχει νέα ενότητα «Εύρος τιμής». Επιλέξτε Λιανική ή Χονδρική (κόστος), πατήστε ένα έτοιμο εύρος (≤ €200, €200–€500, €500–€1,000, ≥ €1,000) ή γράψτε δικό σας «Από / Έως». Π.χ. όλα τα κοσμήματα πάνω από €1,000 για τη θυρίδα. Η χονδρική φαίνεται μόνο στον ιδιοκτήτη/διαχειριστή."
       ]},
@@ -36220,6 +36464,9 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
+      { version: 'v13.38', date: 'Oct 2026', items: [
+        "🧩 SCRAP LEAVES STOCK AT “READY”: a job's materials (scrap metal, chain, a piece) now leave stock when the job is marked Ready, not at collection — once the piece is made the metal does not come back. Their cost is frozen on that day. Jobs already marked ready get a “Take out of stock now” button. 🏷️ NOT COLLECTED → TO STOCK: on a ready order, if the customer never comes, the deposit is kept and booked as income and the piece goes into stock at what the job cost you — Calc opens so you can weigh it and print its tag."
+      ]},
       { version: 'v13.37', date: 'Oct 2026', items: [
         "💶 PRICE RANGE FILTER: the Stock Filters have a new “Price range” section. Choose Retail or Wholesale (cost), tap a ready range (≤ €200, €200–€500, €500–€1,000, ≥ €1,000) or type your own From / To. E.g. every piece over €1,000 for the safe-deposit box. Wholesale is shown to owner/manager only."
       ]},
@@ -41668,7 +41915,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.37';
+const APP_VERSION = '13.38';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
