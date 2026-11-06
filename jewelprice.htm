@@ -1102,6 +1102,7 @@
   /* Add-coin / add-metal / bulk-chains sit in their own full-width row that shrinks to
      fit longer (Greek) labels — each button flexes equally and its text wraps. */
   .inv-actions { display:flex; gap:6px; flex:1 1 100%; }
+  .delivery-banner { align-items:center; gap:10px; margin:0 0 12px; padding:10px 12px; background:var(--dark-2); border:1px solid var(--gold); border-radius:12px; font-size:13px; }
   .inv-scan-btn {
     flex:1; min-width:0;
     padding:8px 6px; background:linear-gradient(135deg,rgba(212,175,55,0.18),rgba(212,175,55,0.06));
@@ -1399,6 +1400,7 @@
 
   <!-- CALCULATOR -->
   <div id="panel-calc" class="panel active">
+    <div id="deliveryBannerCalc" class="delivery-banner" style="display:none"></div>
 
     <!-- LIVE MARKET CARD -->
     <div class="live-market-card">
@@ -3000,8 +3002,10 @@
         <button class="inv-scan-btn" id="invAddCoinBtn" onclick="openAddCoinModal()" data-i18n="invAddCoinBtn">🪙 Προσθήκη νομίσματος</button>
         <button class="inv-scan-btn" id="invAddMetalBtn" onclick="openMetalModal('add')" data-i18n="invAddMetalBtn">🧱 Προσθήκη μετάλλου</button>
         <button class="inv-scan-btn" id="invAddBulkBtn" onclick="openAddBulkSheet()" data-i18n="invAddBulk">⛓️ Χύδην Αλυσίδες</button>
+        <button class="inv-scan-btn" id="invDeliveryBtn" onclick="openDeliveryStart()" data-i18n="invDeliveryBtn">📦 Νέα παραλαβή</button>
       </div>
     </div>
+    <div id="deliveryBannerInv" class="delivery-banner" style="display:none"></div>
 
     <!-- Summary cards -->
     <div class="inv-summary">
@@ -3718,6 +3722,7 @@ const T = {
     profitPctSale:'Στην πώληση — 100 → 200 = 50%',
     profitPctHint:'Και οι δύο τρόποι είναι σωστοί, απλώς απαντούν σε διαφορετική ερώτηση. «Στο κόστος» είναι ο τρόπος του μαγαζιού (πόσο βγάλατε πάνω σε αυτά που δώσατε) και τον δείχνει ήδη η ανάλυση τιμής στον Υπολογισμό. «Στην πώληση» είναι ο τρόπος του λογιστή. Αλλάζει μόνο το ποσοστό που εμφανίζεται — τα ευρώ του κέρδους μένουν ακριβώς τα ίδια. Στο CSV βγαίνουν και τα δύο.',
     invAddMetalBtn:'🧱 Προσθήκη μετάλλου',
+    invDeliveryBtn:'📦 Νέα παραλαβή', invFilterDelivery:'Παραλαβή',
     metalAddedValueLbl:'Αξία κατά την προσθήκη',
     metalModalAddTitle:'🧱 Προσθήκη μετάλλου',
     metalModalEditTitle:'✏️ Επεξεργασία μετάλλου',
@@ -4342,6 +4347,7 @@ const T = {
     tiNoRemove:'The gold cannot be removed from a recorded sale — the metal is in your stock. Correct the amount, or delete the sale if it never happened.',
     tiRetNote:'🧱 Give the customer their gold back: {g}g {m}. That part is not refunded as money or credit — they take their metal. It is still in your stock: remove it in Stock → Metal → "− Remove".',
     invAddMetalBtn:'🧱 Add Metal',
+    invDeliveryBtn:'📦 New delivery', invFilterDelivery:'Delivery',
     metalAddedValueLbl:'Value when added',
     metalModalAddTitle:'🧱 Add metal',
     metalModalEditTitle:'✏️ Edit metal',
@@ -4626,6 +4632,7 @@ const T = {
     profitPctSale:'On sale — 100 → 200 = 50%',
     profitPctHint:'Both are correct; they answer different questions. "On cost" is the way the shop has always said it (what you made on what you laid out), and it is what the Calc price breakdown already shows. "On sale" is the accountant\'s convention. Only the percentage shown changes — the profit in euros stays exactly the same. The CSV carries both.',
     invAddMetalBtn:'🧱 Add Metal',
+    invDeliveryBtn:'📦 New delivery', invFilterDelivery:'Delivery',
     metalAddedValueLbl:'Value when added',
     metalModalAddTitle:'🧱 Add metal',
     metalModalEditTitle:'✏️ Edit metal',
@@ -6145,6 +6152,8 @@ function applyRoleUI() {
   show('invSetBtn',      can('manage_stock'), 'flex');
   show('invAddCoinBtn',  can('manage_stock'));
   show('invAddMetalBtn', can('manage_stock'));
+  show('invDeliveryBtn', can('see_cost'));
+  _deliveryRenderBanner();
 
   const vendorPanel = document.getElementById('panel-vendors');
   if (vendorPanel.classList.contains('active')) renderVendors();
@@ -6265,6 +6274,7 @@ function showPanel(name) {
   // on a screen it may not have.
   if (!canOpenPanel(name)) name = 'calc';
   _jpTrackPanel(name);
+  if (name === 'calc' || name === 'inventory') _deliveryRenderBanner();
   closeMoreMenu(); // close the ☰ More dropdown on any navigation
   // Close the full-screen customer price view on any tab change — never let it
   // bleed/creep behind another tab's content.
@@ -27685,6 +27695,7 @@ async function _saveToInventoryFromLabel(labelData) {
     if (_job.cost > 0 && cat?.rateType !== 'peritem') item.purchaseCost = _job.cost;
     item.fromOrder = _job.tid;
   }
+  _deliveryStamp(item);   // delivery mode (v13.41): price paid + delivery tag
 
   const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
   const ok = await saveInventoryItem(id, item);
@@ -28334,7 +28345,7 @@ function _applyPaidBasis(item, goldGram, silverGram) {
   return true;
 }
 
-let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, priceMin: null, priceMax: null, priceBasis: 'retail', dateFrom: '', dateTo: '', dateMode: 'added' };
+let _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], deliveries: [], mixedMetal: false, gainMin: 0, seasonMin: 0, priceMin: null, priceMax: null, priceBasis: 'retail', dateFrom: '', dateTo: '', dateMode: 'added' };
 // Show the "Total Cost" summary card? Off by default (keeps the comfortable 3-card layout);
 // the owner flips it on via a toggle in the Filter sheet. A view preference, not a filter,
 // so it persists across renders and is unaffected by "Clear filters".
@@ -28573,6 +28584,7 @@ function openInvMoreActions() {
   const nLive = items.filter(i => i.status === 'in_stock').length;
   const nRet = items.filter(isReturnedToVendor).length;
   const nPaid = can('see_cost') ? items.filter(i => !_paidBasisSkip(i)).length : 0;
+  const _dlvSel = can('see_cost') ? (items.find(i => i.deliveryId) || {}).deliveryId : null;
   document.getElementById('invMoreOverlay')?.remove();
   const ov = document.createElement('div');
   ov.id = 'invMoreOverlay';
@@ -28591,6 +28603,7 @@ function openInvMoreActions() {
     ${nCons ? row('✋', t('consignUnmark'), isEl ? `${nCons} ${_piecesWord(nCons)}` : `${nCons} ${_piecesWord(nCons)}`, `_invMoreDo('unmark')`) : ''}
     ${nLive ? row('↩️', t('consignReturn'), isEl ? `${nLive} ${_piecesWord(nLive)} — φεύγουν από το απόθεμα, η καρτέλα μένει` : `${nLive} ${_piecesWord(nLive)} — they leave stock, the record stays`, `_invMoreDo('return')`) : ''}
     ${nRet ? row('📥', t('consignBringBack'), isEl ? `${nRet} ${_piecesWord(nRet)} — γύρισαν από τον προμηθευτή` : `${nRet} ${_piecesWord(nRet)} — back from the vendor`, `_invMoreDo('back')`, '#6fc9a8') : ''}
+    ${_dlvSel ? row('📦', isEl ? 'Έλεγχος παραλαβής' : 'Delivery check', _ordEsc(_deliveryLabel(_dlvSel)), `document.getElementById('invMoreOverlay').remove();openDeliveryFinish('${_dlvSel}')`, 'var(--gold-light)') : ''}
     ${nPaid ? row('💰', t('paidBasis'), isEl ? `${nPaid} ${_piecesWord(nPaid)} — αν το μέταλλο είχε άλλη τιμή όταν τα παραγγείλατε` : `${nPaid} ${_piecesWord(nPaid)} — if metal cost a different price when you ordered them`, `_invMoreDo('paid')`, 'var(--gold-light)') : ''}
   </div>`;
   document.body.appendChild(ov);
@@ -28680,6 +28693,205 @@ async function _paidBasisApply() {
   const res = await _consignApply(ids, it => _applyPaidBasis(it, g, sv));
   _consignToast(res, t('paidBasisDone'));
   renderInvList();
+}
+
+// ── DELIVERY MODE (v13.41) ───────────────────────────────────────────────────
+// A delivery is bought at one metal price and arrives days later, when gold has moved.
+// The tool above corrects that AFTER the fact; delivery mode states it BEFORE: while it
+// is on, every piece added from that supplier gets the price you paid as its initial
+// cost (selling price still follows today's spot), and is tagged with the delivery so
+// the batch can be found and checked against what the goods cost you.
+//
+// Per DEVICE (localStorage) — it describes what this person is entering right now.
+// Closes itself at the end of the day: a mode left on would silently cost next week's
+// stock at July's price, which is exactly the mistake this exists to prevent.
+// Only pieces of the delivery's SUPPLIER are stamped, so a piece from anyone else added
+// in between keeps the live price.
+function _deliveryGet() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem('jpro_delivery') || 'null'); } catch (e) { d = null; }
+  if (!d || !d.id) return null;
+  if (d.day !== todayStr()) {          // a new day — the delivery is over
+    try { localStorage.removeItem('jpro_delivery'); } catch (e) {}
+    showToast(lang === 'el' ? '📦 Η χθεσινή παραλαβή έκλεισε αυτόματα' : '📦 Yesterday’s delivery was closed automatically');
+    return null;
+  }
+  return d;
+}
+function _deliveryPieces(id) {
+  return Object.entries(_inventoryCache || {}).filter(([, it]) => it && it.deliveryId === id);
+}
+function _deliveryLabel(id) {
+  const it = Object.values(_inventoryCache || {}).find(x => x && x.deliveryId === id);
+  if (!it) return id;
+  return fmtDate(new Date(parseFloat(it.deliveryAt) || Date.now())) + (it.deliveryVendor ? ' · ' + it.deliveryVendor : '');
+}
+// The four ways a piece enters stock (Tag, scan-to-stock, Add similar, Restock) call this
+// right before saving. A cloned piece must not keep the source's delivery tag, so it is
+// dropped first and only re-applied when the delivery is genuinely on.
+function _deliveryStamp(item) {
+  if (!item) return;
+  delete item.deliveryId; delete item.deliveryAt; delete item.deliveryVendor;
+  const d = _deliveryGet();
+  if (!d || item.isCoin || item.isMetal) return;
+  if (String(item.vendorIdx) !== String(d.vendorIdx)) return;
+  item.deliveryId = d.id;
+  item.deliveryAt = d.startedAt;
+  item.deliveryVendor = d.vendorName || '';
+  // Same calculation as "Metal price I paid" — pieces whose cost is already an invoice
+  // figure (per item / typed purchase cost / other-type) are tagged but not repriced.
+  if (!_paidBasisSkip(item) && ((d.goldGram > 0) || (d.silverGram > 0))) _applyPaidBasis(item, d.goldGram || 0, d.silverGram || 0);
+  setTimeout(_deliveryRenderBanner, 50);
+}
+
+function _deliveryRenderBanner() {
+  const d = (function(){ try { return JSON.parse(localStorage.getItem('jpro_delivery') || 'null'); } catch (e) { return null; } })();
+  const live = d && d.day === todayStr() && can('see_cost');
+  const isEl = lang === 'el', cur = state.currency || '€';
+  ['deliveryBannerCalc', 'deliveryBannerInv'].forEach(bid => {
+    const el = document.getElementById(bid); if (!el) return;
+    if (!live) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const n = _deliveryPieces(d.id).length;
+    const prices = [d.goldGram > 0 ? (isEl ? 'χρυσός ' : 'gold ') + cur + d.goldGram.toFixed(2) + '/g' : '',
+                    d.silverGram > 0 ? (isEl ? 'ασήμι ' : 'silver ') + cur + d.silverGram.toFixed(3) + '/g' : ''].filter(Boolean).join(' · ');
+    el.style.display = 'flex';
+    el.innerHTML = `<div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:var(--gold-light)">📦 ${isEl ? 'Παραλαβή' : 'Delivery'} · ${_ordEsc(d.vendorName || '')}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${prices || (isEl ? 'χωρίς τιμή μετάλλου' : 'no metal price')} · ${n} ${_piecesWord(n)}</div>
+      </div>
+      <button onclick="openDeliveryFinish('${d.id}')" style="flex:0 0 auto;padding:8px 12px;background:var(--gold);color:var(--ink);border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">${isEl ? 'Τέλος' : 'Finish'}</button>`;
+  });
+}
+
+function openDeliveryStart() {
+  if (!can('see_cost')) return;
+  const cur0 = _deliveryGet();
+  if (cur0) { openDeliveryFinish(cur0.id); return; }
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const opts = state.vendors.map((v, i) => v && !v.deleted ? `<option value="${i}">${_ordEsc(v.name)}</option>` : '').join('');
+  const today = (oz, dp) => oz > 0 ? `${isEl ? 'σήμερα' : 'today'} ${cur}${_gramFromOz(oz).toFixed(dp)}/g` : '';
+  document.getElementById('deliveryOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'deliveryOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px;margin:auto">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:4px">📦 ${isEl ? 'Νέα παραλαβή' : 'New delivery'}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.45">${isEl
+      ? 'Όσο είναι ανοιχτή, κάθε κομμάτι αυτού του προμηθευτή που προσθέτετε παίρνει ως αρχικό κόστος την τιμή που πληρώσατε. Η τιμή πώλησης ακολουθεί κανονικά τη σημερινή τιμή. Κλείνει μόνη της στο τέλος της ημέρας.'
+      : 'While it is open, every piece from this supplier that you add gets the price you paid as its initial cost. The selling price still follows today’s price. It closes itself at the end of the day.'}</div>
+    <div style="${_resLbl}">${isEl ? 'Προμηθευτής' : 'Supplier'}</div>
+    <select id="dlvVendor" style="${_resInp}">${opts}</select>
+    <div style="${_resLbl}">${isEl ? 'Χρυσός — € ανά γραμμάριο καθαρού' : 'Gold — € per gram of pure'}</div>
+    <input id="dlvGold" type="number" step="0.01" inputmode="decimal" placeholder="${isEl ? 'π.χ.' : 'e.g.'} 128.40" style="${_resInp};margin-bottom:4px">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${today(getGoldPrice(), 2)}</div>
+    <div style="${_resLbl}">${isEl ? 'Ασήμι — € ανά γραμμάριο καθαρού (αν χρειάζεται)' : 'Silver — € per gram of pure (if needed)'}</div>
+    <input id="dlvSilver" type="number" step="0.001" inputmode="decimal" style="${_resInp};margin-bottom:4px">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">${today(getSilverPrice(), 3)}</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('deliveryOverlay').remove()" style="flex:0 0 auto;padding:12px 16px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Άκυρο' : 'Cancel'}</button>
+      <button onclick="_deliveryStartConfirm()" style="flex:1;padding:12px;background:var(--gold);color:var(--ink);border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">▶ ${isEl ? 'Έναρξη' : 'Start'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const vs = document.getElementById('vendorSelect');
+  if (vs && vs.value !== '' && state.vendors[vs.value] && !state.vendors[vs.value].deleted) document.getElementById('dlvVendor').value = vs.value;
+  document.getElementById('dlvGold')?.focus();
+}
+
+function _deliveryStartConfirm() {
+  const isEl = lang === 'el';
+  const vi = parseInt(document.getElementById('dlvVendor')?.value);
+  const v = state.vendors[vi];
+  if (!v) { showToast(isEl ? '⚠️ Επιλέξτε προμηθευτή' : '⚠️ Choose a supplier'); return; }
+  const g = parseFloat(document.getElementById('dlvGold')?.value);
+  const s = parseFloat(document.getElementById('dlvSilver')?.value);
+  const d = { id: 'dlv_' + _stampId(), vendorIdx: vi, vendorName: v.name, goldGram: g > 0 ? g : 0, silverGram: s > 0 ? s : 0,
+              startedAt: Date.now(), day: todayStr(), by: creds.displayName || creds.userName || '' };
+  try { localStorage.setItem('jpro_delivery', JSON.stringify(d)); } catch (e) { showToast(isEl ? '⚠️ Δεν αποθηκεύτηκε' : '⚠️ Could not save'); return; }
+  document.getElementById('deliveryOverlay')?.remove();
+  // Point the Calc at that supplier, the way the pieces will be entered.
+  const vs = document.getElementById('vendorSelect');
+  if (vs && [...vs.options].some(o => o.value === String(vi))) { vs.value = String(vi); vs.dispatchEvent(new Event('change')); }
+  _deliveryRenderBanner();
+  showToast(isEl ? '📦 Η παραλαβή ξεκίνησε' : '📦 Delivery started');
+}
+
+// The check: what the app says the batch cost, against what it cost you. Reports the
+// difference, never forces it to match — a gap that isn't the gold price means a rate
+// or a weight is wrong, which is worth knowing rather than hiding.
+async function openDeliveryFinish(id) {
+  if (!can('see_cost')) return;
+  if (!_inventoryCache || !Object.keys(_inventoryCache).length) await _invEnsureForScan();
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const d = (function(){ try { return JSON.parse(localStorage.getItem('jpro_delivery') || 'null'); } catch (e) { return null; } })();
+  const isActive = !!(d && d.id === id);
+  const rows = _deliveryPieces(id);
+  let paid = 0, now = 0, retail = 0, est = false, miss = 0;
+  rows.forEach(([, it]) => {
+    const p = calcInvItemPrice(it);
+    const ic = _itemInitialCost(it, p);
+    if (ic) { paid += ic.cost; if (!ic.exact) est = true; } else miss++;
+    const lc = _invSaleCost(it); if (lc > 0) now += lc;
+    if (p && p.retail > 0) retail += p.retail;
+  });
+  const money = v => cur + Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const sample = rows.length ? rows[0][1] : null;
+  const pg = sample ? parseFloat(sample.paidMetalGram) : 0;
+  const row = (l, v, strong) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:${strong ? 13 : 12}px;margin-top:7px"><span style="color:var(--text-muted)">${l}</span><span style="font-family:var(--font-mono);${strong ? 'font-weight:700;color:var(--gold-light)' : 'color:var(--text)'}">${v}</span></div>`;
+  document.getElementById('deliveryOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'deliveryOverlay';
+  ov.dataset.paid = paid.toFixed(2);
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.85);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--dark-2);border:1px solid var(--card-border);border-radius:16px;padding:18px;width:100%;max-width:380px;margin:auto">
+    <div style="font-family:var(--font-heading);font-size:17px;color:var(--gold-light);margin-bottom:2px">📦 ${isEl ? 'Παραλαβή' : 'Delivery'}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${_ordEsc(isActive ? (fmtDate(new Date(d.startedAt)) + ' · ' + (d.vendorName || '')) : _deliveryLabel(id))}</div>
+    <div style="background:var(--dark-3);border:1px solid var(--card-border);border-radius:10px;padding:4px 12px 10px;margin-bottom:14px">
+      ${row(isEl ? 'Κομμάτια' : 'Pieces', rows.length)}
+      ${pg > 0 ? row(isEl ? 'Χρυσός που πληρώσατε' : 'Gold you paid', cur + pg.toFixed(2) + '/g') : ''}
+      ${row(isEl ? 'Κόστος με σημερινή τιμή' : 'Cost at today’s price', money(now))}
+      ${row((isEl ? 'Κόστος με την τιμή που πληρώσατε' : 'Cost at the price you paid') + (miss ? ` (${rows.length - miss}/${rows.length})` : ''), (est ? '≈ ' : '') + money(paid), true)}
+      ${row(isEl ? 'Λιανική σήμερα' : 'Retail today', money(retail))}
+    </div>
+    ${rows.length ? `<div style="${_resLbl}">${isEl ? 'Τι σας κόστισε το εμπόρευμα (χωρίς ΦΠΑ) — προαιρετικό' : 'What the goods cost you (before VAT) — optional'}</div>
+    <input id="dlvCheck" type="number" step="0.01" inputmode="decimal" oninput="_deliveryCheckSync()" placeholder="${isEl ? 'π.χ.' : 'e.g.'} 2600" style="${_resInp};margin-bottom:6px">
+    <div id="dlvCheckOut" style="font-size:12px;min-height:16px;margin-bottom:14px;line-height:1.45"></div>`
+    : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${isEl ? 'Δεν έχει προστεθεί κανένα κομμάτι ακόμα.' : 'No pieces added yet.'}</div>`}
+    <div style="display:flex;gap:8px">
+      ${isActive
+        ? `<button onclick="document.getElementById('deliveryOverlay').remove()" style="flex:0 0 auto;padding:12px 14px;background:transparent;border:1px solid var(--card-border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer">${isEl ? 'Συνέχεια' : 'Keep going'}</button>
+           <button onclick="_deliveryEnd()" style="flex:1;padding:12px;background:var(--gold);color:var(--ink);border:none;border-radius:10px;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer">✓ ${isEl ? 'Κλείσιμο παραλαβής' : 'Close delivery'}</button>`
+        : `<button onclick="document.getElementById('deliveryOverlay').remove()" style="flex:1;padding:12px;background:var(--gold);color:var(--ink);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">${isEl ? 'Κλείσιμο' : 'Close'}</button>`}
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _deliveryCheckSync() {
+  const ov = document.getElementById('deliveryOverlay'); const out = document.getElementById('dlvCheckOut');
+  if (!ov || !out) return;
+  const isEl = lang === 'el', cur = state.currency || '€';
+  const typed = parseFloat(document.getElementById('dlvCheck')?.value);
+  const app = parseFloat(ov.dataset.paid) || 0;
+  if (!(typed > 0)) { out.innerHTML = ''; return; }
+  const diff = app - typed;
+  const money = v => cur + Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  // Within 0.3% (or €3) is rounding — weights to two decimals, a few cents per piece.
+  // Anything bigger is a real gap worth looking at, so it is not called a match.
+  if (Math.abs(diff) <= Math.max(3, typed * 0.003)) {
+    out.innerHTML = `<span style="color:var(--gain);font-weight:600">✓ ${isEl ? 'Ταιριάζει' : 'Matches'}</span> <span style="color:var(--text-muted)">(${diff >= 0 ? '+' : '−'}${money(diff)})</span>`;
+  } else {
+    out.innerHTML = `<span style="color:var(--loss);font-weight:600">${isEl ? (diff > 0 ? 'Η εφαρμογή λέει ' + money(diff) + ' περισσότερα' : 'Η εφαρμογή λέει ' + money(diff) + ' λιγότερα') : (diff > 0 ? 'The app says ' + money(diff) + ' more' : 'The app says ' + money(diff) + ' less')}</span><br><span style="color:var(--text-muted)">${isEl
+      ? 'Ελέγξτε τις χρεώσεις του προμηθευτή στην εφαρμογή, τα βάρη, ή αν λείπει κάποιο κομμάτι.'
+      : 'Check the supplier’s rates in the app, the weights, or whether a piece is missing.'}</span>`;
+  }
+}
+function _deliveryEnd() {
+  try { localStorage.removeItem('jpro_delivery'); } catch (e) {}
+  document.getElementById('deliveryOverlay')?.remove();
+  _deliveryRenderBanner();
+  showToast(lang === 'el' ? '✓ Η παραλαβή έκλεισε' : '✓ Delivery closed');
 }
 
 function _invMoreDo(what) {
@@ -29169,7 +29381,7 @@ let _invShowSelectedOnly = false; // select mode: narrow the list to only picked
 
 function invFiltersActive() {
   const f = _invFilters;
-  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.rateTypes||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + ((f.priceMin!=null||f.priceMax!=null)?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
+  return f.metals.length + f.karats.length + f.types.length + f.vendors.length + f.stones.length + f.status.length + f.gender.length + (f.goldColors||[]).length + (f.platings||[]).length + (f.colors||[]).length + (f.rateTypes||[]).length + (f.deliveries||[]).length + (f.mixedMetal?1:0) + (f.gainMin?1:0) + (f.seasonMin?1:0) + ((f.priceMin!=null||f.priceMax!=null)?1:0) + (f.dateFrom?1:0) + (f.dateTo?1:0);
 }
 
 function updateInvFilterBadge() {
@@ -29193,6 +29405,7 @@ function updateInvFilterBadge() {
       v === PLATING_PLAIN ? (lang==='el'?'Απλό ασήμι':'Plain silver') : silverPlatingLabel(v)).join(', '));
     if ((_invFilters.colors||[]).length) parts.push((_invFilters.colors||[]).map(v => itemColorLabel(v)).join(', '));
     if ((_invFilters.rateTypes||[]).length) parts.push((_invFilters.rateTypes||[]).map(v => rateTypeLabel(v)).join(', '));
+    if ((_invFilters.deliveries||[]).length) parts.push('📦 ' + (_invFilters.deliveries||[]).map(v => _deliveryLabel(v)).join(', '));
     if (_invFilters.mixedMetal) parts.push(t('invFilterMixed'));
     if (_invFilters.gainMin) parts.push('📈 > +' + _invFilters.gainMin + '%');
     if (_invFilters.seasonMin) parts.push('🕰️ ' + _invFilters.seasonMin + '+ ' + t('invSeasonWord'));
@@ -29412,6 +29625,10 @@ function openInvFilterSheet() {
   const _rtPresent = RATE_TYPES.filter(rt => items.some(i => itemRateType(i) === rt));
   const rateTypeGroup = (!can('see_cost') || _rtPresent.length < 2) ? '' :
     pillGroup('invFilterRateType', _rtPresent, _invFilters.rateTypes || [], 'rateTypes', v => rateTypeLabel(v));
+  // Deliveries entered in delivery mode (v13.41), newest first — find a batch again.
+  if (!_invFilters.deliveries) _invFilters.deliveries = [];
+  const _dlvIds = can('see_cost') ? [...new Set(items.filter(i => i.deliveryId).sort((a, b) => (b.deliveryAt||0) - (a.deliveryAt||0)).map(i => i.deliveryId))] : [];
+  const deliveryGroup = _dlvIds.length ? pillGroup('invFilterDelivery', _dlvIds, _invFilters.deliveries, 'deliveries', v => _deliveryLabel(v) + ' (' + items.filter(i => i.deliveryId === v).length + ')') : '';
 
   const seasonGroup = (!can('see_cost')) ? '' :
     `<div class="inv-fs-group"><div class="inv-fs-label">${t('invFilterAge')}</div><div class="inv-fs-pills">` +
@@ -29495,6 +29712,7 @@ function openInvFilterSheet() {
     colorGroup +
     genderGroup +
     rateTypeGroup +
+    deliveryGroup +
     mixedMetalGroup +
     gainGroup +
     seasonGroup +
@@ -29681,7 +29899,7 @@ function closeInvFilterSheet() {
 }
 
 function clearInvFilters() {
-  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], mixedMetal: false, gainMin: 0, seasonMin: 0, priceMin: null, priceMax: null, priceBasis: 'retail', dateFrom: '', dateTo: '', dateMode: 'added' };
+  _invFilters = { metals: [], karats: [], types: [], vendors: [], stones: [], status: [], gender: [], goldColors: [], platings: [], colors: [], rateTypes: [], deliveries: [], mixedMetal: false, gainMin: 0, seasonMin: 0, priceMin: null, priceMax: null, priceBasis: 'retail', dateFrom: '', dateTo: '', dateMode: 'added' };
   document.querySelectorAll('#invFilterSheetContent .inv-fs-pill').forEach(p => p.classList.remove('sel'));
   const dfEl = document.getElementById('invDateFromInput'); if (dfEl) dfEl.value = '';
   const dtEl = document.getElementById('invDateToInput'); if (dtEl) dtEl.value = '';
@@ -30228,6 +30446,9 @@ function renderInvList() {
     // category — coins, raw metal, other-type — has no answer and drops out.
     if (f.rateTypes && f.rateTypes.length) {
       if (!f.rateTypes.includes(itemRateType(item))) return false;
+    }
+    if (f.deliveries && f.deliveries.length) {
+      if (!item.deliveryId || !f.deliveries.includes(item.deliveryId)) return false;
     }
     // Gain % filter — show only items whose price rose at least this much vs their
     // recorded initial price (a quick way to spot unrealistic jumps).
@@ -31491,6 +31712,7 @@ RETAIL: €[integer]`;
         if (Number.isFinite(_scanPrice.baseCost)) item.initialBaseCost = parseFloat(_scanPrice.baseCost.toFixed(2));
       }
     }
+    _deliveryStamp(item);   // delivery mode (v13.41): price paid + delivery tag
     const ok = await saveInventoryItem(id, item);
     if (ok) {
       if (!_inventoryCache) _inventoryCache = {};
@@ -33854,6 +34076,9 @@ function invRestock(id) {
       // stale frozen prefix copied from the source item.
       delete newItem.refType;
     }
+    // A restock is new stock: it never belongs to the source's delivery, but does belong
+    // to one that is open now (same supplier).
+    _deliveryStamp(newItem);
     _inventoryCache[newId] = newItem;
     await saveInventoryItem(newId, newItem);
     if (afterSave) await afterSave(newItem, newId);
@@ -35901,6 +36126,10 @@ function invAddSimilar(sourceId) {
           if (Number.isFinite(_p.baseCost)) newItem.initialBaseCost = parseFloat(_p.baseCost.toFixed(2));
         }
       }
+      // The baselines above are today's, so a paid price copied from the source would be
+      // a lie on this piece. Delivery mode re-applies the real one when it is on.
+      delete newItem.paidMetalGram; delete newItem.paidMetalAt;
+      _deliveryStamp(newItem);
       _inventoryCache[newId] = newItem;
       await saveInventoryItem(newId, newItem);
       _added++;
@@ -36740,8 +36969,8 @@ const ABOUT = {
       '🔁 Cloud ταυτότητα — αλλαγή τηλεφώνου, άνοιγμα link, πλήρης αποκατάσταση αυτόματα'
     ],
     changelog: [
-      { version: 'v13.40', date: 'Οκτώβριος 2026', items: [
-        "📜 ΑΠΟ ΤΙΣ ΚΙΝΗΣΕΙΣ ΣΤΗΝ ΠΩΛΗΣΗ: στο 📜 Κινήσεις του παλιού μετάλλου, κάθε μέταλλο που μπήκε από πελάτη γράφει πλέον το όνομά του (και το δελτίο, π.χ. O-0005) και με ένα πάτημα ανοίγει την πώληση από την οποία ήρθε. Μια ανταλλαγή εμφανίζεται ως «Ανταλλαγή σε πώληση» και όχι ως απλή αγορά. Το ✕ σας γυρίζει πίσω στις Κινήσεις."
+      { version: 'v13.41', date: 'Νοέμβριος 2026', items: [
+        "📦 ΝΕΑ ΠΑΡΑΛΑΒΗ: στο Απόθεμα νέο κουμπί «📦 Νέα παραλαβή». Πριν περάσετε μια παραγγελία, διαλέγετε τον προμηθευτή και γράφετε την τιμή καθαρού χρυσού (ή ασημιού) που πληρώσατε. Όσο είναι ανοιχτή, κάθε κομμάτι αυτού του προμηθευτή που προσθέτετε παίρνει ως αρχικό κόστος την τιμή που πληρώσατε — η τιμή πώλησης ακολουθεί κανονικά τη σημερινή. Με «Τέλος» βλέπετε πόσα κομμάτια μπήκαν και τι κόστισαν, και μπορείτε να γράψετε τι σας κόστισε το εμπόρευμα (χωρίς ΦΠΑ) για να δείτε αν ταιριάζει. Κλείνει μόνη της στο τέλος της ημέρας. Κάθε παραλαβή βρίσκεται ξανά από το Φίλτρο → «Παραλαβή»."
       ]},
       { version: 'v13.38', date: 'Οκτώβριος 2026', items: [
         "🧩 ΤΟ ΠΑΛΑΙΟ ΜΕΤΑΛΛΟ ΦΕΥΓΕΙ ΜΕ ΤΟ «ΕΤΟΙΜΟ»: τα υλικά μιας δουλειάς (παλαιό μέταλλο, αλυσίδα, κομμάτι) αφαιρούνται από το απόθεμα όταν η δουλειά γίνει «Έτοιμο», όχι στην παραλαβή — αφού το κόσμημα φτιάχτηκε, το μέταλλο δεν επιστρέφει. Το κόστος τους «παγώνει» εκείνη τη μέρα. Για δουλειές που είναι ήδη έτοιμες υπάρχει κουμπί «Αφαίρεση από το απόθεμα τώρα». 🏷️ ΔΕΝ ΠΑΡΑΛΗΦΘΗΚΕ → ΣΤΟ ΑΠΟΘΕΜΑ: σε έτοιμη παραγγελία, αν ο πελάτης δεν έρθει ποτέ, η προκαταβολή κρατιέται και μπαίνει στα έσοδα και το κόσμημα μπαίνει στο απόθεμα με κόστος όσο σας κόστισε η δουλειά — ανοίγει ο Υπολογισμός για να το ζυγίσετε και να τυπώσετε ετικέτα."
@@ -36838,8 +37067,8 @@ const ABOUT = {
       '🔁 Cloud identity — change phone, open link, everything restored automatically'
     ],
     changelog: [
-      { version: 'v13.40', date: 'Oct 2026', items: [
-        "📜 FROM MOVEMENTS TO THE SALE: in a scrap pile's 📜 Movements, metal that came from a customer now shows their name (and the ticket, e.g. O-0005), and one tap opens the sale it came with. A trade-in reads as “Traded in on a sale” instead of a plain purchase. ✕ brings you back to the Movements."
+      { version: 'v13.41', date: 'Nov 2026', items: [
+        "📦 NEW DELIVERY: Stock has a new “📦 New delivery” button. Before entering an order, pick the supplier and type the pure gold (or silver) price you paid. While it is open, every piece from that supplier you add gets the price you paid as its initial cost — the selling price still follows today’s price. “Finish” shows how many pieces went in and what they cost, and you can type what the goods cost you (before VAT) to see if it matches. It closes itself at the end of the day. Every delivery can be found again from Filter → “Delivery”."
       ]},
       { version: 'v13.38', date: 'Oct 2026', items: [
         "🧩 SCRAP LEAVES STOCK AT “READY”: a job's materials (scrap metal, chain, a piece) now leave stock when the job is marked Ready, not at collection — once the piece is made the metal does not come back. Their cost is frozen on that day. Jobs already marked ready get a “Take out of stock now” button. 🏷️ NOT COLLECTED → TO STOCK: on a ready order, if the customer never comes, the deposit is kept and booked as income and the piece goes into stock at what the job cost you — Calc opens so you can weigh it and print its tag."
@@ -42292,7 +42521,7 @@ function _findOpenStock() {
   showPanel('inventory');
 }
 
-const APP_VERSION = '13.40';
+const APP_VERSION = '13.41';
 
 // ─── GOLD COLOR OPTIONS ───────────────────────────────────────────────────────
 const GOLD_COLORS = [
